@@ -18,6 +18,13 @@ services:
     build: ./backend
     command: ["alembic", "upgrade", "head"]
     environment: &backend-env
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-openrouter}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-openai/text-embedding-3-small}
+      EMBEDDING_DIMENSIONS: ${EMBEDDING_DIMENSIONS:-1536}
+      EMBEDDING_BASE_URL: ${EMBEDDING_BASE_URL:-https://openrouter.ai/api/v1}
+      EMBEDDING_REQUESTS_PER_MINUTE: ${EMBEDDING_REQUESTS_PER_MINUTE:-60}
+      EMBEDDING_REVISION: ${EMBEDDING_REVISION:-1}
       STORAGE_PATH: /data/documents
       MAX_UPLOAD_BYTES: ${MAX_UPLOAD_BYTES:-20971520}
       REDIS_URL: redis://redis:6379/0

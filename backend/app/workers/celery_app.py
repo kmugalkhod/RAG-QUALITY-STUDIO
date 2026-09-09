@@ -4,7 +4,9 @@ from app.core.config import settings
 from app.db.session import engine
 
 celery = Celery(
-    "rag_studio", broker=settings.redis_url, include=["app.workers.processing"]
+    "rag_studio",
+    broker=settings.redis_url,
+    include=["app.workers.processing", "app.workers.indexing"],
 )
 celery.conf.update(
     task_serializer="json",

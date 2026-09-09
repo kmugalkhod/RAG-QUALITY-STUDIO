@@ -12,8 +12,8 @@ export function App() {
     <aside className="sidebar">
       <a className="brand" href="/" aria-label="RAG Quality Studio home"><Layers3 size={27} /><span>RAG Quality<span className="brand-secondary">Studio</span></span></a>
       <nav aria-label="Main navigation"><a className="nav-active" href="/" aria-current="page"><Folder size={18} />Projects</a></nav>
-      <div className="sidebar-note"><span className="local-dot"/> Local workspace<p>Project management is available. Upload documents and inspect their processed text. Embeddings and evaluation are not yet available.</p></div>
+      <div className="sidebar-note"><span className="local-dot"/> Local workspace<p>Upload and process documents, build versioned indexes and inspect retrieved evidence. Answer generation and evaluation are not yet available.</p></div>
     </aside>
-    <div className="workspace"><header className="topbar"><span>Workspace / <strong>{projectId ? 'Knowledge Base' : 'Projects'}</strong></span><a href="http://localhost:8000/docs" target="_blank" rel="noreferrer">API reference <ArrowUpRight size={14}/></a></header><main id="main"><>{projectId ? <KnowledgeBase key={projectId} projectId={projectId}/> : <ProjectsPage />}</></main><footer>RAG Quality Studio <span>Document processing · Milestone 2A</span></footer></div>
+    <div className="workspace"><header className="topbar"><span>Workspace / <strong>{projectId ? 'Knowledge Base' : 'Projects'}</strong></span><a href="http://localhost:8000/docs" target="_blank" rel="noreferrer">API reference <ArrowUpRight size={14}/></a></header><main id="main"><>{projectId ? <KnowledgeBase key={projectId} projectId={projectId}/> : <ProjectsPage />}</></main><footer>RAG Quality Studio <span>Indexing & retrieval · Milestone 2B</span></footer></div>
   </div>;
 }

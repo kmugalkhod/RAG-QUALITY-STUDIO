@@ -136,3 +136,61 @@ def test_milestone_one_upgrade_preserves_project(database):
         connection.execute(
             text("DELETE FROM projects WHERE id=:id"), {"id": project_id}
         )
+
+
+def test_milestone_two_a_upgrade_preserves_chunks(database):
+    from uuid import uuid4
+    from sqlalchemy.orm import Session
+    from app.models.project import Project
+    from app.models.document import Document, ProcessingRun, Chunk
+
+    engine, env = database
+    subprocess.run(
+        [sys.executable, "-m", "alembic", "downgrade", "0002"], env=env, check=True
+    )
+    p, d, r = uuid4(), uuid4(), uuid4()
+    with Session(engine) as session:
+        session.add(Project(id=p, name="Before 2B", description="Upgrade fixture"))
+        session.flush()
+        session.add(
+            Document(
+                id=d,
+                project_id=p,
+                filename="source.txt",
+                storage_name=uuid4().hex,
+                media_type="text/plain",
+                content_hash="a" * 64,
+                size_bytes=4,
+            )
+        )
+        session.flush()
+        session.add(
+            ProcessingRun(
+                id=r,
+                document_id=d,
+                version=1,
+                chunk_size=4,
+                overlap=0,
+                parser_version="test",
+                status="succeeded",
+                chunk_count=1,
+            )
+        )
+        session.flush()
+        session.add(Chunk(run_id=r, ordinal=0, start_char=0, end_char=4, text="kept"))
+        session.commit()
+    subprocess.run(
+        [sys.executable, "-m", "alembic", "upgrade", "head"], env=env, check=True
+    )
+    with Session(engine) as session:
+        chunk = session.get(Chunk, (r, 0))
+        assert chunk.text == "kept"
+        assert session.get(ProcessingRun, r).status == "succeeded"
+        session.delete(chunk)
+        session.flush()
+        session.delete(session.get(ProcessingRun, r))
+        session.flush()
+        session.delete(session.get(Document, d))
+        session.flush()
+        session.delete(session.get(Project, p))
+        session.commit()

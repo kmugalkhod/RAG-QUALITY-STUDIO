@@ -1,3 +1,9 @@
+import * as indexApi from './indexApi';
+vi.mock('./indexApi');
+beforeEach(() => {
+  vi.mocked(indexApi.listIndexes).mockResolvedValue({ items: [], total: 0, limit: 20, offset: 0 });
+  vi.mocked(indexApi.embeddingSettings).mockResolvedValue({ configured: false, config: null, error: 'Configure server-side embeddings.' });
+});
 import { render, screen, waitFor, within, cleanup } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';

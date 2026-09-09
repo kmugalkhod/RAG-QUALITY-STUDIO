@@ -54,3 +54,9 @@ input[type=file]::file-selector-button { border: 0; padding: 7px 12px; margin-ri
 .chunk-provenance { color: #465646; font-size: 12px; }
 .chunk-list pre { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; font-size: 14px; line-height: 1.7; margin: 12px 0; padding: 18px; background: #f1f3ed; }
 @media (max-width: 700px) { .upload-form, .document-list > li, .run-list > li { align-items: stretch; flex-direction: column; } .upload-form { gap: 12px; } .chunk-settings { align-items: stretch; flex-direction: column; } .chunk-settings > div { min-width: 0; } }
+
+.index-config { font-size: 13px; overflow-wrap: anywhere; }
+.retrieval-actions { margin-top: 16px; }
+.retrieval-actions > div { flex: 0 1 180px; }
+progress { width: min(100%, 300px); accent-color: #285d48; }
+@media (max-width: 700px) { .retrieval-actions > div { flex: initial; } }

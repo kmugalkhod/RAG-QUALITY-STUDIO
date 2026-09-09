@@ -1,3 +1,5 @@
+from app.api.indexes import router as index_router
+from app.providers.embeddings import EmbeddingError
 from app.api.documents import router as document_router
 from app.core.upload_limit import UploadLimitMiddleware
 from fastapi import FastAPI, Request
@@ -17,6 +19,7 @@ app.add_middleware(
 )
 app.include_router(router)
 app.include_router(document_router)
+app.include_router(index_router)
 app.add_middleware(UploadLimitMiddleware)
 
 
@@ -35,3 +38,8 @@ async def validation_error(request: Request, exc: RequestValidationError):
         {"loc": e["loc"], "msg": e["msg"], "type": e["type"]} for e in exc.errors()
     ]
     return JSONResponse(status_code=422, content={"detail": errors})
+
+
+@app.exception_handler(EmbeddingError)
+async def embedding_error(request: Request, exc: EmbeddingError):
+    return JSONResponse(status_code=503, content={"detail": str(exc)})

@@ -1,4 +1,5 @@
 from alembic import context
+from app.models.index import IndexVersion, IndexChunk  # noqa: F401
 from app.db.session import Base, engine
 from app.models.document import Document, ProcessingRun, Chunk  # noqa: F401
 from app.models.project import Project  # noqa: F401

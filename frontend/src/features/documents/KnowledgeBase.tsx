@@ -1,3 +1,4 @@
+import { IndexPanel } from "./IndexPanel";
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { ArrowLeft, FileText, Upload } from 'lucide-react';
 import { Button } from '../../components/ui/button';
@@ -69,7 +70,7 @@ export function KnowledgeBase({ projectId }: { projectId: string }) {
   return <>
     <a className="back-link" href="#"><ArrowLeft size={16}/>All projects</a>
     <div className="page-heading"><div><h1>Knowledge Base</h1><p>{projectName || 'Loading project…'}</p></div></div>
-    <p className="page-intro">Upload source documents, process their text and inspect each chunk. Processed documents are not yet indexed or searchable.</p>
+    <p className="page-intro">Upload source documents, process their text and inspect each chunk. Index processed documents to search their source chunks.</p>
     <section className="create-panel" aria-labelledby="upload-title"><h2 id="upload-title">Add a document</h2>
       <form className="upload-form" onSubmit={upload} aria-busy={uploading}>
         <div><label htmlFor="document-file">PDF or UTF-8 TXT</label><input ref={fileInput} id="document-file" type="file" accept=".pdf,.txt" disabled={uploading || !limit} aria-describedby="upload-hint"/><p className="field-hint" id="upload-hint">One file per upload. {limit ? `Maximum ${bytes(limit)}.` : 'Loading upload limit…'} Scanned PDFs require OCR and are unsupported.</p></div>
@@ -89,6 +90,7 @@ export function KnowledgeBase({ projectId }: { projectId: string }) {
       {page && <Pagination offset={offset} total={page.total} onChange={value => { focusPage.current = true; setOffset(value); }} busy={loading} label="Document pages"/>}
     </section>
     {selected && <DocumentInspector key={selected.id} projectId={projectId} document={selected} onChange={() => setRevision(n => n + 1)}/>}
+    <IndexPanel key={projectId} projectId={projectId}/>
   </>;
 }
 
