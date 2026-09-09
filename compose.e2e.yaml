@@ -1,0 +1,35 @@
+# Dedicated browser/restart verification stack. No development volumes or credentials.
+services:
+  db:
+    extends: { file: compose.yaml, service: db }
+    environment:
+      POSTGRES_USER: rag_e2e
+      POSTGRES_PASSWORD: isolated-e2e-only
+      POSTGRES_DB: rag_e2e_test
+    ports: !override []
+  migrate:
+    extends: { file: compose.yaml, service: migrate }
+    environment: &test-env
+      DATABASE_URL: postgresql+psycopg://rag_e2e:isolated-e2e-only@db:5432/rag_e2e_test
+      REDIS_URL: redis://redis:6379/0
+      STORAGE_PATH: /data/documents
+      MAX_UPLOAD_BYTES: 20971520
+  backend:
+    extends: { file: compose.yaml, service: backend }
+    environment: *test-env
+    ports: !override ["127.0.0.1:8001:8000"]
+  redis:
+    extends: { file: compose.yaml, service: redis }
+  worker:
+    extends: { file: compose.yaml, service: worker }
+    environment: *test-env
+  dispatcher:
+    extends: { file: compose.yaml, service: dispatcher }
+    environment: *test-env
+  frontend:
+    extends: { file: compose.yaml, service: frontend }
+    ports: !override ["127.0.0.1:5174:80"]
+volumes:
+  postgres_data:
+  document_data:
+  redis_data:
