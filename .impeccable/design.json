@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-09-10T03:00:50.269685+00:00",
+  "generatedAt": "2026-09-10T03:31:49.589856+00:00",
   "title": "Design System: RAG Quality Studio",
   "extensions": {
     "colorMeta": {
@@ -183,6 +183,10 @@
       {
         "name": "compact-workspace",
         "value": "900px"
+      },
+      {
+        "name": "pipeline-settings-stack",
+        "value": "1150px"
       }
     ]
   },
@@ -231,16 +235,31 @@
       "description": "Bordered neutral form surface.",
       "html": "<section class=\"ds-panel\"><h2>Ask your documents</h2></section>",
       "css": ".ds-panel{font-family:\"Avenir Next\",Avenir,\"Segoe UI\",sans-serif;padding:24px;border:1px solid #c8d1c1;background:var(--color-background,#fcfcf9);border-radius:12px;color:#273c32}.ds-panel h2{font-size:16px;font-weight:600;margin:0}@media(max-width:640px){.ds-panel{padding:18px}}"
+    },
+    {
+      "name": "Workflow node",
+      "kind": "custom",
+      "description": "Operation header, current configuration and divided footer; selected outline matches the settings selection.",
+      "html": "<div class=\"ds-workflow-node ds-workflow-selected\" tabindex=\"0\" role=\"group\" aria-label=\"Retriever node\"><header><strong>Retriever</strong><span>Dense vector retrieval</span></header><div class=\"ds-workflow-content\">Top k 5 \u00b7 Choose an index</div><footer>Select to configure</footer></div>",
+      "css": ".ds-workflow-node{font-family:\"Avenir Next\",Avenir,\"Segoe UI\",sans-serif;width:220px;border:1px solid #bfc8b9;border-radius:8px;background:var(--color-background,#fcfcf9);color:#273c32}.ds-workflow-selected{border-color:var(--color-primary,#285d48);outline:2px solid var(--color-primary,#285d48);outline-offset:3px}.ds-workflow-node header{padding:16px}.ds-workflow-node header strong{display:block;font-size:16px;font-weight:700}.ds-workflow-node header span{display:block;margin-top:5px;font-size:12px;color:#657065}.ds-workflow-content{padding:0 16px 16px;font-size:13px;overflow-wrap:anywhere}.ds-workflow-node footer{display:flex;justify-content:space-between;gap:16px;padding:10px 16px;font-size:11px;color:#657065;border-top:1px solid #dce0d6}.ds-workflow-node:focus-visible{outline:2px solid var(--color-primary,#285d48);outline-offset:4px}"
     }
   ],
   "narrative": {
     "overview": "The incumbent interface uses green actions, warm neutral surfaces, serif page headings and sans-serif controls. It supports document and query work through readable forms, saved-run lists and evidence inspection. This records observed code rather than establishing a new visual identity.",
     "keyCharacteristics": [],
-    "rules": [],
+    "rules": [
+      {
+        "name": "The Visible Selection Rule",
+        "body": "The canvas outline and the labeled selected-node field identify the same node. Editing takes place in visible settings fields; palette buttons provide a click alternative to dragging. Keep selected state distinct from keyboard focus.",
+        "section": "components"
+      }
+    ],
     "dos": [
       "Do preserve visible keyboard focus, labeled fields and announced loading/error states.",
       "Do keep answer and evidence readable when columns stack.",
-      "Do show text labels alongside status colors."
+      "Do show text labels alongside status colors.",
+      "Do preserve readable node content and synchronize canvas selection with labeled settings.",
+      "Do distinguish draft changes, saved execution versions and returned results."
     ],
     "donts": [
       "Don't present retrieval distance as confidence or unavailable cost as zero."

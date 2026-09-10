@@ -51,16 +51,24 @@ def get_run(session, project_id, run_id):
     return run
 
 
-def execute(session, project_id, request):
+def execute(
+    session,
+    project_id,
+    request,
+    *,
+    version=None,
+    config=None,
+    template=None,
+    defer=False,
+):
     index = indexes.get_index(session, project_id, request.index_id)
     if index.status != "succeeded":
         raise HTTPException(
             409, "Select a ready index. Partial indexes cannot be queried."
         )
-    started = monotonic()
     snapshot = dict(
         top_k=request.top_k,
-        prompt_version=PROMPT_VERSION,
+        prompt_version="grounded-pipeline-template-v1" if template else PROMPT_VERSION,
         evidence=[],
         messages=[],
         retrieval_ms=None,
@@ -70,9 +78,14 @@ def execute(session, project_id, request):
         cost_usd=None,
         cost_basis=None,
         embedding_config=index.embedding_config,
+        generation_config=config,
+        prompt_template=template,
+        pipeline_version=version.version if version else None,
+        pipeline_execution=version.execution if version else None,
     )
     run = QueryRun(
         project_id=project_id,
+        pipeline_version_id=version.id if version else None,
         index_id=index.id,
         index_version=index.version,
         question=request.question,
@@ -80,10 +93,24 @@ def execute(session, project_id, request):
     )
     session.add(run)
     session.commit()
+    if defer:
+        return run
+    return finish(session, run)
+
+
+def finish(session, run):
+    from app.schemas.query import QueryRequest
+
+    started = monotonic()
+    project_id = run.project_id
+    request = QueryRequest(
+        index_id=run.index_id, question=run.question, top_k=run.snapshot["top_k"]
+    )
+    snapshot = dict(run.snapshot)
     stage = None
     stage_start = started
     try:
-        config = generation.configured()
+        config = snapshot.get("generation_config") or generation.configured()
         snapshot["generation_config"] = config
         stage = "retrieval_ms"
         stage_start = monotonic()
@@ -91,13 +118,16 @@ def execute(session, project_id, request):
             session,
             project_id,
             RetrievalRequest(
-                index_id=index.id, query=request.question, top_k=request.top_k
+                index_id=run.index_id, query=request.question, top_k=request.top_k
             ),
         )
         snapshot[stage] = round((monotonic() - stage_start) * 1000, 3)
         stage = None
         sources, messages = build_context(
-            request.question, jsonable_encoder(result["items"]), config
+            request.question,
+            jsonable_encoder(result["items"]),
+            config,
+            snapshot.get("prompt_template"),
         )
         snapshot.update(
             evidence=sources,

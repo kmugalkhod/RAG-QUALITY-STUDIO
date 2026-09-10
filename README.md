@@ -1,6 +1,6 @@
 # RAG Quality Studio
 
-Milestone 3 adds persisted single-turn answers and a RAG playground to the versioned Knowledge Base. Upload/process/index PDF or UTF-8 TXT documents, ask questions using OpenRouter, then inspect answers, citation references and the exact evidence sent. React/TypeScript, FastAPI, PostgreSQL/pgvector, Celery and Redis retain persistent state. Canvas pipelines and evaluation remain unimplemented.
+Milestone 4 adds a working React Flow pipeline editor with immutable saved versions to the Knowledge Base and RAG playground. Upload/process/index PDF or UTF-8 TXT documents, ask questions using OpenRouter, then inspect answers, citation references and the exact evidence sent. React/TypeScript, FastAPI, PostgreSQL/pgvector, Celery and Redis retain persistent state. Configure retrieval, prompts and server-approved chat models, execute saved pipelines and inspect persisted results. Evaluation remains unimplemented.
 
 ## Start with Docker Compose
 
@@ -237,3 +237,23 @@ E2E_BASE_URL=http://127.0.0.1:5175 E2E_EMBEDDING_FIXTURE=1 npm run test:e2e
 ```
 
 This fixture module lives only in `backend/tests`; it does not activate fake behavior in production. See `docs/implementation-plan.md` for actual verification results and `docs/architecture.md` for persistence, budget and failure semantics.
+
+### Visual pipelines (Milestone 4)
+
+Open a project's **Open pipeline editor**, then **New pipeline**. Select Retriever to choose a ready index and top k; select Prompt to edit answer instructions; select LLM for the server-configured model, output limit and temperature. Save a version, enter a question and **Run pipeline**. Click source references to inspect evidence; expand the effective prompt to inspect actual messages/settings. **Refresh runs** reopens persisted pipeline runs. The existing Playground remains available.
+
+The supported graph is exactly Question → Retriever → Prompt → LLM → Answer. Nodes can be dragged, selected, deleted and re-added from the palette; drag handles to connect them. Use the labeled Selected node form without dragging. Delete selected edges with Delete/Backspace. Invalid graphs show errors and cannot be saved or run. Save/discard edits before switching versions, duplicating or executing. Versions preserve configuration and layout; duplicates get a new pipeline identity. Invalid unsaved drafts are not persisted.
+
+Prompt example:
+
+```text
+Answer concisely using the retrieved evidence.
+Question: {question}
+Retrieved context: {context}
+```
+
+Only these two literal variables are supported, and both are required. No code or expressions are evaluated. Source labels, grounding rules and citation formatting remain application-controlled. Keep `CHAT_MODEL` as the default; optionally set `CHAT_MODELS='["provider/another-chat-model"]'` on the server. Operators must authorize model availability and keep `CHAT_CONTEXT_TOKENS` within all allowed models' limits. Credentials never enter the browser.
+
+Pipeline API (under `/api/projects/{project_id}/pipelines`): `GET /options`, paginated `GET /`, `POST /` (create/duplicate), `GET /{id}/versions`, `POST /{id}/versions`, `GET /{id}/versions/{version_id}`, and `POST /{id}/versions/{version_id}/runs` with `{"question":"..."}`. Runs return 202 and can be read through the existing project query-run endpoints. Apply Alembic migration `0005` before starting the updated API (`docker compose up --build -d` runs the migration service).
+
+Runs are non-streaming background API tasks, with persisted status polled by the editor. Interrupted tasks become failed on a history/detail read after five minutes; there is no automatic paid retry, cancellation or durable generation queue. Refresh history before retrying an ambiguous response. Shared access, evaluation, branching, reranking and hybrid retrieval remain outside this milestone.

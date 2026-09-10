@@ -17,6 +17,11 @@ class QueryRun(Base):
     __tablename__ = "query_runs"
     __table_args__ = (
         ForeignKeyConstraint(
+            ["pipeline_version_id", "project_id"],
+            ["pipeline_versions.id", "pipeline_versions.project_id"],
+            name="fk_query_pipeline_version",
+        ),
+        ForeignKeyConstraint(
             ["index_id", "project_id"],
             ["index_versions.id", "index_versions.project_id"],
         ),
@@ -28,6 +33,7 @@ class QueryRun(Base):
     )
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     project_id: Mapped[uuid.UUID]
+    pipeline_version_id: Mapped[uuid.UUID | None]
     index_id: Mapped[uuid.UUID]
     index_version: Mapped[int]
     question: Mapped[str] = mapped_column(Text)

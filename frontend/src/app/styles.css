@@ -73,3 +73,33 @@ progress { width: min(100%, 300px); accent-color: #285d48; }
 .rag-metrics { display: grid; grid-template-columns: auto 1fr; gap: 8px 16px; margin-top: 24px; font-size: 13px; }
 .rag-metrics dd { margin: 0; overflow-wrap: anywhere; }
 @media (max-width: 850px) { .rag-result { grid-template-columns: 1fr; } }
+
+.pipeline-toolbar { display: flex; flex-wrap: wrap; align-items: end; gap: 16px; margin: 24px 0; }
+.pipeline-toolbar label { flex-direction: column; margin: 0; max-width: 100%; }
+.pipeline-fields { border: 0; padding: 0; min-width: 0; }
+.pipeline-editor { display: grid; grid-template-columns: 140px minmax(0, 1fr) 240px; border: 1px solid #c8cdc5; background: #fcfcf9; }
+.pipeline-palette, .pipeline-config { padding: 16px; min-width: 0; }
+.pipeline-palette { border-right: 1px solid #dce0d6; display: flex; flex-direction: column; gap: 12px; }
+.pipeline-config { border-left: 1px solid #dce0d6; }
+.pipeline-config label { display: flex; flex-direction: column; margin-top: 20px; }
+.pipeline-config p, .pipeline-validation { font-size: 13px; line-height: 1.6; }
+.pipeline-canvas { height: 460px; min-width: 0; }
+.pipeline-editor .react-flow { --xy-node-color: #273c32; --xy-node-border: 1px solid #285d48; --xy-node-background-color: #fcfcf9; --xy-node-boxshadow-selected: 0 0 0 2px #285d48; --xy-edge-stroke: #657065; --xy-handle-background-color: #285d48; }
+.pipeline-toolbar select, .pipeline-config select { padding: 10px; border: 1px solid #c8cdc5; border-radius: 5px; background: white; max-width: 100%; width: 100%; color: #273c32; }
+.pipeline-validation { margin-top: 20px; }
+@media (max-width: 1150px) { .pipeline-editor { grid-template-columns: 140px minmax(0, 1fr); } .pipeline-config { grid-column: 1 / -1; border-left: 0; border-top: 1px solid #dce0d6; } }
+@media (max-width: 640px) { .pipeline-editor { grid-template-columns: minmax(0, 1fr); } .pipeline-palette { flex-direction: row; flex-wrap: wrap; border-right: 0; border-bottom: 1px solid #dce0d6; } .pipeline-palette h2, .pipeline-palette p { width: 100%; margin: 0; } .pipeline-canvas { height: 350px; } .pipeline-toolbar > label { width: 100%; } }
+.pipeline-editor { grid-template-columns: minmax(0, 1fr) 240px; }
+.pipeline-palette { grid-column: 1 / -1; flex-direction: row; flex-wrap: wrap; align-items: center; border-right: 0; border-bottom: 1px solid #dce0d6; }
+.pipeline-palette h2 { margin-right: 8px; }
+.pipeline-palette .field-hint { margin: 0; flex-basis: 100%; }
+.workflow-node { width: 220px; border: 1px solid #bfc8b9; border-radius: 8px; background: #fcfcf9; color: #273c32; }
+.workflow-selected { border-color: #285d48; outline: 2px solid #285d48; outline-offset: 3px; }
+.workflow-node header { padding: 16px; }
+.workflow-node header strong { display: block; font-size: 16px; }
+.workflow-node header span { display: block; margin-top: 5px; font-size: 12px; color: #657065; }
+.workflow-node-content { padding: 0 16px 16px; font-size: 13px; overflow-wrap: anywhere; }
+.workflow-node footer { padding: 10px 16px; font-size: 11px; border-top: 1px solid #dce0d6; }
+@media (max-width: 1150px) { .pipeline-editor { grid-template-columns: minmax(0, 1fr); } .pipeline-config { grid-column: auto; } }
+
+.pipeline-fields > .pipeline-validation { margin: 0 0 24px; }

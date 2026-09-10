@@ -75,6 +75,8 @@ export function RunResult({ run }: { run: api.QueryRun }) {
   return <section className="project-section" aria-label="Query result">
     <h2>{run.status === 'insufficient_evidence' ? 'Insufficient evidence' : run.status === 'failed' ? 'Answer failed' : run.status === 'running' ? 'Run in progress' : 'Answer'}</h2>
     <p className="field-hint">Saved index {run.index_version} · Top k {s.top_k} · {s.actual_model || s.generation_config?.model || 'Model unavailable'}</p>
+    {run.pipeline_version_id && <p className="field-hint">Pipeline version {s.pipeline_version} · {run.pipeline_version_id}</p>}
+    {s.messages && <details className="source-metadata"><summary>Effective prompt and generation settings</summary><pre className="rag-source-text">{JSON.stringify({ messages: s.messages, generation: s.generation_config }, null, 2)}</pre></details>}
     <p><strong>{run.question}</strong></p>
     {run.error && <p role="alert" className="error-message">{run.error}</p>}
     {run.status === 'running' && <p role="status">Refresh history to check this run. Interrupted runs are marked failed after five minutes.</p>}

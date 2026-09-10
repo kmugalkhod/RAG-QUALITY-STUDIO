@@ -60,7 +60,7 @@ components:
 
 The incumbent interface uses green actions, warm neutral surfaces, serif page headings and sans-serif controls. It supports document and query work through readable forms, saved-run lists and evidence inspection. This records observed code rather than establishing a new visual identity.
 
-Source: `frontend/src/app/styles.css`, `frontend/src/components/ui/button.tsx`, and `frontend/src/features/playground/Playground.tsx`. Product context comes from `AGENTS.md`.
+Source: `frontend/src/app/styles.css`, `frontend/src/components/ui/button.tsx`, `frontend/src/features/playground/Playground.tsx`, and `frontend/src/features/pipelines/PipelineEditor.tsx`. Product context comes from `AGENTS.md`.
 
 ## Colors
 
@@ -75,6 +75,8 @@ Serif display type distinguishes page titles and empty-state headings. Sans-seri
 The desktop shell has a sidebar (242px), a flexible workspace and centered content capped at (1240px). Main horizontal padding is (48px), reducing to (28px) at (900px) and (20px) at (640px). The mobile shell moves navigation above content.
 
 Query results place answer and evidence in equal columns with the columns spacing token; they stack at (850px). Document lists and upload forms stack at (700px). Preserve readable wrapping for long document names, questions, evidence and metadata.
+
+The pipeline editor keeps its wrapping node palette above the canvas and settings beside it. Settings move below the canvas at (1150px). The canvas supports panning and explicit fit-view controls; selecting a node from the settings field brings it into view at a readable working scale. Graph overview and node editing are distinct viewing tasks, not a reason to reduce the interface type scale.
 
 ## Elevation & Depth
 
@@ -94,9 +96,19 @@ Active navigation has a soft green fill and a modest radius. Form panels use the
 
 Citation controls are underlined green references that move focus to the matching evidence article. Evidence shows provenance and retrieved text; metrics remain labeled, and unavailable values are explicitly represented.
 
+### Workflow nodes
+
+Nodes share a restrained bordered surface with three parts: a header naming the operation and its role, content summarizing current configuration, and a divided footer for configuration guidance or generation limits. Type is sans-serif throughout, using a strong title, readable configuration text and quieter metadata. Connections use muted strokes and green handles to show the executable graph.
+
+**The Visible Selection Rule.** The canvas outline and the labeled selected-node field identify the same node. Editing takes place in visible settings fields; palette buttons provide a click alternative to dragging. Keep selected state distinct from keyboard focus.
+
+Saved-version status and unsaved changes appear beside save controls. Graph validation precedes the saved-version run form, and results reuse the answer and evidence inspector. Node summaries describe configuration, not execution success or invented quality scores.
+
 ## Do's and Don'ts
 
 - Do preserve visible keyboard focus, labeled fields and announced loading/error states.
 - Do keep answer and evidence readable when columns stack.
 - Do show text labels alongside status colors.
+- Do preserve readable node content and synchronize canvas selection with labeled settings.
+- Do distinguish draft changes, saved execution versions and returned results.
 - Don't present retrieval distance as confidence or unavailable cost as zero.

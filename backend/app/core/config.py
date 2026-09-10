@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     )
     openrouter_api_key: SecretStr = SecretStr("")
     chat_model: str = ""
+    chat_models: list[str] = []
     chat_context_tokens: int = Field(default=8192, ge=2048, le=2000000)
     chat_max_tokens: int = Field(default=1024, ge=128, le=8192)
     embedding_provider: str = "openrouter"

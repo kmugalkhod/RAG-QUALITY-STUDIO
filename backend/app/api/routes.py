@@ -27,6 +27,11 @@ def ready(session: Database) -> dict[str, str]:
         text("SELECT embedding_config, embedded_count FROM index_versions LIMIT 0")
     )
     session.execute(text("SELECT vector_dims(embedding) FROM index_chunks LIMIT 0"))
+    session.execute(
+        text("SELECT pipeline_version_id, snapshot FROM query_runs LIMIT 0")
+    )
+    session.execute(text("SELECT project_id, name FROM pipelines LIMIT 0"))
+    session.execute(text("SELECT execution, layout FROM pipeline_versions LIMIT 0"))
     return {"status": "ready"}
 
 

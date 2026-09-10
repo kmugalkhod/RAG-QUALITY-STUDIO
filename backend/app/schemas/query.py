@@ -16,6 +16,7 @@ class QueryRead(BaseModel):
     id: UUID
     project_id: UUID
     index_id: UUID
+    pipeline_version_id: UUID | None
     index_version: int
     question: str
     answer: str | None
