@@ -24,6 +24,7 @@ afterEach(() => { cleanup(); vi.resetAllMocks(); });
 test('shows loading, empty state and missing-file validation', async () => {
   render(<KnowledgeBase projectId="p1"/>);
   expect(screen.getByText('Loading documents…')).toBeVisible();
+  await userEvent.click(screen.getByRole('button', { name: 'Add document' }));
   expect(await screen.findByText('No documents yet')).toBeVisible();
   await userEvent.click(screen.getByRole('button', { name: 'Upload document' }));
   expect(screen.getByRole('alert')).toHaveTextContent('Choose a PDF');
@@ -33,6 +34,7 @@ test('shows loading, empty state and missing-file validation', async () => {
 test('uploads and validates chunk settings', async () => {
   vi.mocked(api.uploadDocument).mockResolvedValue(doc);
   render(<KnowledgeBase projectId="p1"/>);
+  await userEvent.click(screen.getByRole('button', { name: 'Add document' }));
   const input = screen.getByLabelText('PDF or UTF-8 TXT');
   await waitFor(() => expect(input).toBeEnabled());
   await userEvent.upload(input, new File(['abcdefghij'], 'source.txt', { type: 'text/plain' }));
@@ -49,6 +51,7 @@ test('shows upload progress and storage failure', async () => {
   let reject!: (reason: Error) => void;
   vi.mocked(api.uploadDocument).mockReturnValue(new Promise((_, fail) => { reject = fail; }));
   render(<KnowledgeBase projectId="p1"/>);
+  await userEvent.click(screen.getByRole('button', { name: 'Add document' }));
   const input = screen.getByLabelText('PDF or UTF-8 TXT');
   await waitFor(() => expect(input).toBeEnabled());
   await userEvent.upload(input, new File(['test'], 'source.txt', { type: 'text/plain' }));
@@ -64,6 +67,7 @@ test('loads saved chunks and retries a failed request', async () => {
   vi.mocked(api.listRuns).mockResolvedValue(page([run]));
   vi.mocked(api.listChunks).mockRejectedValueOnce(new Error('Connection interrupted.')).mockResolvedValue(page([{ ordinal: 0, page_number: 2, start_char: 0, end_char: 4, text: 'abcd' }]));
   render(<KnowledgeBase projectId="p1"/>);
+  await userEvent.click(screen.getByRole('button', { name: 'Add document' }));
   await userEvent.click(await screen.findByRole('button', { name: 'Manage source.txt' }));
   await userEvent.click(await screen.findByRole('button', { name: 'Inspect 3 chunks' }));
   expect(await screen.findByRole('alert')).toHaveTextContent('Connection interrupted');
@@ -80,6 +84,7 @@ test('shows processing progress and cancels a queued run', async () => {
   vi.mocked(api.listRuns).mockResolvedValue(page([queued]));
   vi.mocked(api.cancelRun).mockResolvedValue({ ...queued, status: 'cancelled' });
   render(<KnowledgeBase projectId="p1"/>);
+  await userEvent.click(screen.getByRole('button', { name: 'Add document' }));
   await userEvent.click(await screen.findByRole('button', { name: 'Manage source.txt' }));
   expect(await screen.findByText(/Waiting for a worker/)).toBeVisible();
   expect(screen.getByRole('button', { name: 'Start processing' })).toBeDisabled();
@@ -91,6 +96,7 @@ test('shows processing progress and cancels a queued run', async () => {
 test('retains upload settings errors when the document list succeeds and offers retry', async () => {
   vi.mocked(api.getSettings).mockRejectedValueOnce(new Error('Settings unavailable.')).mockResolvedValue({ max_upload_bytes: 1024 });
   render(<KnowledgeBase projectId="p1"/>);
+  await userEvent.click(screen.getByRole('button', { name: 'Add document' }));
   expect(await screen.findByRole('alert')).toHaveTextContent('Settings unavailable');
   expect(screen.getByRole('button', { name: 'Upload document' })).toBeDisabled();
   await userEvent.click(screen.getByRole('button', { name: 'Retry upload settings' }));

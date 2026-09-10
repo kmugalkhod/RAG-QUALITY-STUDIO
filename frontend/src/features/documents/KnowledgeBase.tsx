@@ -1,8 +1,9 @@
 import { IndexPanel } from "./IndexPanel";
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { ArrowLeft, FileText, Upload } from 'lucide-react';
+import { FileText, Upload, Plus, X, PanelRight, Files, Database, RotateCw } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 import * as api from './api';
+import { allPages } from '../pipelines/api';
 
 const message = (error: unknown) => error instanceof Error ? error.message : 'Request failed. Please try again.';
 const active = (run: api.Run | null) => run?.status === 'queued' || run?.status === 'running';
@@ -13,8 +14,21 @@ function Pagination({ offset, total, onChange, label, busy = false }: { offset: 
   return total > 20 || offset > 0 ? <nav className="pagination" aria-label={label}><Button variant="outline" disabled={busy || !offset} onClick={() => onChange(Math.max(0, offset - 20))}>Previous</Button><span>Page {offset / 20 + 1}</span><Button variant="outline" disabled={busy || offset + 20 >= total} onClick={() => onChange(offset + 20)}>Next</Button></nav> : null;
 }
 
-export function KnowledgeBase({ projectId }: { projectId: string }) {
-  const [projectName, setProjectName] = useState('');
+export function KnowledgeBase({ projectId, documentId = '' }: { projectId: string; documentId?: string }) {
+  const [tab, setTabState] = useState<'documents' | 'indexes'>(() => new URLSearchParams(window.location.hash.split('?')[1]).get('view') === 'indexes' ? 'indexes' : 'documents');
+  function setTab(value: 'documents' | 'indexes') {
+    setTabState(value);
+    const [path, search] = window.location.hash.split('?');
+    const query = new URLSearchParams(search);
+    if (value === 'indexes') query.set('view', value); else query.delete('view');
+    window.location.hash = `${path || `/projects/${projectId}/knowledge-base`}${query.size ? `?${query}` : ''}`;
+  }
+  useEffect(() => {
+    const update = () => setTabState(new URLSearchParams(window.location.hash.split('?')[1]).get('view') === 'indexes' ? 'indexes' : 'documents');
+    window.addEventListener('hashchange', update);
+    return () => window.removeEventListener('hashchange', update);
+  }, []);
+  const [showUpload, setShowUpload] = useState(false);
   const [limit, setLimit] = useState<number>();
   const [page, setPage] = useState<api.Page<api.Document>>();
   const [offset, setOffset] = useState(0);
@@ -29,10 +43,23 @@ export function KnowledgeBase({ projectId }: { projectId: string }) {
   const [notice, setNotice] = useState('');
   const [selected, setSelected] = useState<api.Document>();
   const fileInput = useRef<HTMLInputElement>(null);
+  useEffect(() => { if (showUpload) fileInput.current?.focus(); }, [showUpload]);
+  function selectDocument(document?: api.Document) {
+    setSelected(document);
+    window.location.hash = `/projects/${projectId}/knowledge-base${document ? `?document=${document.id}` : ''}`;
+  }
   useEffect(() => {
     let disposed = false;
-    void Promise.all([api.getProject(projectId), api.getSettings(projectId)]).then(([project, settings]) => {
-      if (!disposed) { setProjectName(project.name); setLimit(settings.max_upload_bytes); setSettingsError(''); }
+    if (!documentId) { setSelected(undefined); return; }
+    void allPages(o => api.listDocuments(projectId, o)).then(documents => {
+      if (!disposed) { const found = documents.find(d => d.id === documentId); setSelected(found); if (!found) setError('This document is unavailable in this project.'); }
+    }).catch(e => { if (!disposed) setError(message(e)); });
+    return () => { disposed = true; };
+  }, [projectId, documentId]);
+  useEffect(() => {
+    let disposed = false;
+    void Promise.all([api.getProject(projectId), api.getSettings(projectId)]).then(([, settings]) => {
+      if (!disposed) { setLimit(settings.max_upload_bytes); setSettingsError(''); }
     }).catch(err => { if (!disposed) setSettingsError(message(err)); });
     return () => { disposed = true; };
   }, [projectId, revision]);
@@ -63,15 +90,14 @@ export function KnowledgeBase({ projectId }: { projectId: string }) {
       const result = await api.uploadDocument(projectId, file);
       setNotice(`“${result.filename}” uploaded. Select chunk settings and start processing.`);
       if (fileInput.current) fileInput.current.value = '';
-      setSelected(result); setOffset(0); setRevision(n => n + 1);
+      setShowUpload(false); selectDocument(result); setOffset(0); setRevision(n => n + 1);
     } catch (err) { setUploadError(`${message(err)} Refresh the list before retrying an interrupted upload; repeated uploads create separate documents.`); }
     finally { setUploading(false); }
   }
-  return <>
-    <a className="back-link" href="#"><ArrowLeft size={16}/>All projects</a>
-    <div className="page-heading"><div><h1>Knowledge Base</h1><a className="back-link" href={`#/projects/${projectId}/playground`}>Open RAG playground</a><a className="back-link" href={`#/projects/${projectId}/pipelines`}>Open pipeline editor</a><p>{projectName || 'Loading project…'}</p></div></div>
-    <p className="page-intro">Upload source documents, process their text and inspect each chunk. Index processed documents to search their source chunks.</p>
-    <section className="create-panel" aria-labelledby="upload-title"><h2 id="upload-title">Add a document</h2>
+  return <div className="knowledge-page">
+    <div className="knowledge-heading"><div><h1>Knowledge Base</h1><p>Source documents and searchable indexes.</p></div><Button variant={selected || showUpload ? 'outline' : 'default'} onClick={() => { setTab('documents'); setShowUpload(v => !v); }} aria-expanded={showUpload} aria-controls="upload-panel"><Plus size={15}/>Add document</Button></div>
+    <nav className="knowledge-tabs" aria-label="Knowledge Base views"><button aria-current={tab === 'documents' ? 'page' : undefined} onClick={() => setTab('documents')}><Files size={15}/>Documents {page && <span>{page.total}</span>}</button><button aria-current={tab === 'indexes' ? 'page' : undefined} onClick={() => setTab('indexes')}><Database size={15}/>Indexes</button></nav>
+    {showUpload && <section id="upload-panel" className="create-panel upload-panel" aria-labelledby="upload-title"><h2 id="upload-title">Add a document</h2>
       <form className="upload-form" onSubmit={upload} aria-busy={uploading}>
         <div><label htmlFor="document-file">PDF or UTF-8 TXT</label><input ref={fileInput} id="document-file" type="file" accept=".pdf,.txt" disabled={uploading || !limit} aria-describedby="upload-hint"/><p className="field-hint" id="upload-hint">One file per upload. {limit ? `Maximum ${bytes(limit)}.` : 'Loading upload limit…'} Scanned PDFs require OCR and are unsupported.</p></div>
         <Button disabled={uploading || !limit} type="submit"><Upload size={16}/>{uploading ? 'Uploading…' : 'Upload document'}</Button>
@@ -79,19 +105,26 @@ export function KnowledgeBase({ projectId }: { projectId: string }) {
       {settingsError && <div><p role="alert" className="error-message">{settingsError}</p><Button variant="outline" onClick={() => setRevision(n => n + 1)}>Retry upload settings</Button></div>}
       {uploadError && <p role="alert" className="error-message">{uploadError}</p>}
       <p role="status" className="success-message">{notice}</p>
-    </section>
-    <section className="project-section" aria-labelledby="documents-title"><div className="section-heading"><h2 ref={listTitle} tabIndex={-1} id="documents-title">Documents {page && <span className="count">{page.total}</span>}</h2><Button variant="outline" onClick={() => setRevision(n => n + 1)}>Refresh</Button></div>
+    </section>}
+    {!showUpload && settingsError && <p role="alert" className="error-message">{settingsError}</p>}
+    <div className={`knowledge-split ${selected && tab === 'documents' ? 'has-inspector' : ''}`}><div className="knowledge-body">
+    {tab === 'documents' && <section className="project-section" aria-labelledby="documents-title"><div className="section-heading"><h2 ref={listTitle} tabIndex={-1} id="documents-title">All documents</h2><Button variant="outline" onClick={() => setRevision(n => n + 1)}><RotateCw size={13}/>Refresh</Button></div>
       {error && <p role="alert" className="error-message">{error}</p>}
       {loading && page && <p role="status">Loading documents…</p>}
-      {!page && !error ? <p role="status" className="loading-state">Loading documents…</p> : page?.items.length === 0 ? <div className="empty-state"><FileText size={32}/><h3>No documents yet</h3><p>Upload a source file to begin inspecting its text.</p></div> : <ul className="document-list">{page?.items.map(doc => <li key={doc.id} className={selected?.id === doc.id ? 'document-selected' : ''}>
-        <div className="document-summary"><h3><button className="document-name" onClick={() => setSelected(doc)}>{doc.filename}</button></h3><p>{bytes(doc.size_bytes)} · Uploaded {date(doc.created_at)}</p><span className={`run-status status-${doc.latest_run?.status || 'uploaded'}`}>{doc.latest_run ? doc.latest_run.status === 'succeeded' ? 'Processed' : doc.latest_run.status : 'Uploaded'}</span>{active(doc.latest_run) && <span> · {doc.latest_run?.progress}% · attempt {doc.latest_run?.attempts}/3</span>}{doc.latest_run?.error && <p className="error-message">{doc.latest_run.error}</p>}</div>
-        <Button variant="outline" onClick={() => setSelected(doc)} aria-label={`Manage ${doc.filename}`}>{selected?.id === doc.id ? 'Selected' : 'Process / inspect'}</Button>
-      </li>)}</ul>}
+      {!page && !error ? <p role="status" className="loading-state">Loading documents…</p> : page?.items.length === 0 ? <div className="empty-state"><FileText size={32}/><h3>No documents yet</h3><p>Upload a source file to begin inspecting its text.</p></div> : <div className="source-table-wrap"><table className="source-table"><thead><tr><th scope="col">Name</th><th scope="col">Status</th><th scope="col">Size</th><th scope="col">Added</th><th scope="col"><span className="sr-only">Details</span></th></tr></thead><tbody>{page?.items.map(doc => <tr key={doc.id} className={selected?.id === doc.id ? 'document-selected' : ''}>
+        <td><div className="source-name"><FileText size={16}/><button className="document-name" onClick={() => selectDocument(doc)}>{doc.filename}</button></div>{doc.latest_run?.error && <p className="error-message">{doc.latest_run.error}</p>}</td>
+        <td><span className={`run-status status-${doc.latest_run?.status || 'uploaded'}`}>{doc.latest_run ? doc.latest_run.status === 'succeeded' ? 'Processed' : active(doc.latest_run) ? 'Processing' : doc.latest_run.status : 'Uploaded'}</span>{active(doc.latest_run) && <small> {doc.latest_run?.progress}%</small>}</td>
+        <td>{doc.size_bytes < 1024 ? `${doc.size_bytes} B` : `${(doc.size_bytes / 1024).toFixed(1)} KB`}</td><td><time dateTime={doc.created_at}>{new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(new Date(doc.created_at))}</time></td>
+        <td><button className="icon-button" onClick={() => selectDocument(doc)} aria-label={`Manage ${doc.filename}`}><PanelRight size={15}/></button></td>
+      </tr>)}</tbody></table><p className="table-note">Processed documents are ready to index. Only ready indexes can answer questions.</p></div>}
       {page && <Pagination offset={offset} total={page.total} onChange={value => { focusPage.current = true; setOffset(value); }} busy={loading} label="Document pages"/>}
-    </section>
-    {selected && <DocumentInspector key={selected.id} projectId={projectId} document={selected} onChange={() => setRevision(n => n + 1)}/>}
-    <IndexPanel key={projectId} projectId={projectId}/>
-  </>;
+    </section>}
+    {tab === 'indexes' && <IndexPanel key={projectId} projectId={projectId}/>}
+    </div>
+    {selected && tab === 'documents' && <aside className="document-detail" aria-label="Document details"><div className="detail-toolbar"><span><FileText size={15}/>Document details</span><button className="icon-button" onClick={() => selectDocument()} aria-label="Close document details"><X size={17}/></button></div><DocumentInspector key={selected.id} projectId={projectId} document={selected} onChange={() => setRevision(n => n + 1)}/></aside>}
+    </div>
+  </div>;
+
 }
 
 function DocumentInspector({ projectId, document, onChange }: { projectId: string; document: api.Document; onChange: () => void }) {
@@ -148,7 +181,7 @@ function DocumentInspector({ projectId, document, onChange }: { projectId: strin
   return <section className="inspector" aria-labelledby="inspector-title">
     <h2 ref={title} tabIndex={-1} id="inspector-title">Process: {document.filename}</h2>
     <details className="source-metadata"><summary>Source metadata</summary><p>Document ID: {document.id}</p><p>SHA-256: {document.content_hash}</p></details>
-    <form onSubmit={start} noValidate><div className="chunk-settings"><div><label htmlFor="chunk-size">Chunk size (characters)</label><input id="chunk-size" type="number" min="1" max="100000" value={size} onChange={e => setSize(e.target.value)} disabled={busy}/></div><div><label htmlFor="chunk-overlap">Overlap (characters)</label><input id="chunk-overlap" type="number" min="0" value={overlap} onChange={e => setOverlap(e.target.value)} disabled={busy}/></div><Button disabled={busy || activeRun || !runs} type="submit">{busy ? 'Saving…' : 'Start processing'}</Button></div>
+    <form onSubmit={start} noValidate><details className="source-metadata"><summary>Advanced processing options</summary><div className="chunk-settings"><div><label htmlFor="chunk-size">Chunk size (characters)</label><input id="chunk-size" type="number" min="1" max="100000" value={size} onChange={e => setSize(e.target.value)} disabled={busy}/></div><div><label htmlFor="chunk-overlap">Overlap (characters)</label><input id="chunk-overlap" type="number" min="0" value={overlap} onChange={e => setOverlap(e.target.value)} disabled={busy}/></div></div></details><Button disabled={busy || activeRun || !runs} type="submit">{busy ? 'Saving…' : 'Start processing'}</Button>
       <p className="field-hint">Each start saves a new version. Fixed character windows preserve whitespace and never cross PDF pages. A failed or cancelled run can be retried by starting a new version.</p>
     </form>
     {loadError && <p role="alert" className="error-message">{loadError}</p>}
@@ -179,7 +212,7 @@ function ChunkInspector({ projectId, documentId, run }: { projectId: string; doc
   }, [projectId, documentId, run.id, offset, revision]);
   return <section className="chunk-inspector" aria-labelledby="chunks-title"><h3 id="chunks-title" tabIndex={-1} ref={title}>Chunks · Version {run.version}</h3><p>{run.chunk_size} characters · {run.overlap} overlap · {run.chunk_count} chunks</p>
     {loading && page && <p role="status">Loading chunks…</p>}
-    {error ? <div><p role="alert" className="error-message">{error}</p><Button variant="outline" onClick={() => setRevision(n => n + 1)}>Retry loading chunks</Button></div> : !page ? <p role="status">Loading chunks…</p> : <ol className="chunk-list" start={offset + 1}>{page.items.map(chunk => <li key={chunk.ordinal}><p className="chunk-provenance">Chunk {chunk.ordinal + 1} · {chunk.page_number ? `PDF page ${chunk.page_number}` : 'TXT source'} · characters {chunk.start_char}–{chunk.end_char} (end exclusive)</p><pre>{chunk.text}</pre></li>)}</ol>}
+    {error ? <div><p role="alert" className="error-message">{error}</p><Button variant="outline" onClick={() => setRevision(n => n + 1)}>Retry loading chunks</Button></div> : !page ? <p role="status">Loading chunks…</p> : <ol className="chunk-list document-chunks" tabIndex={0} aria-label="Document chunks" start={offset + 1}>{page.items.map(chunk => <li key={chunk.ordinal}><p className="chunk-provenance">Chunk {chunk.ordinal + 1} · {chunk.page_number ? `PDF page ${chunk.page_number}` : 'TXT source'} · characters {chunk.start_char}–{chunk.end_char} (end exclusive)</p><pre>{chunk.text}</pre></li>)}</ol>}
     {page && <Pagination offset={offset} total={page.total} onChange={value => { focusPage.current = true; setOffset(value); }} busy={loading} label="Chunk pages"/>}
   </section>;
 }

@@ -112,3 +112,17 @@ Saved-version status and unsaved changes appear beside save controls. Graph vali
 - Do preserve readable node content and synchronize canvas selection with labeled settings.
 - Do distinguish draft changes, saved execution versions and returned results.
 - Don't present retrieval distance as confidence or unavailable cost as zero.
+
+## Linear-inspired Knowledge Base pilot — supersedes this page's incumbent styling
+
+User direction on 2026-09-10: “use the liner type of design.” The earlier green/serif direction was rejected. The first-screen pilot is now extended through `.linear-workspace` across every route.
+
+Reference: Linear's [2024 interface redesign](https://linear.app/now/how-we-redesigned-the-linear-ui) and [2026 refresh](https://linear.app/now/behind-the-latest-design-refresh). Apply the hierarchy and compact navigation rather than copying Linear branding or implying its features exist here.
+
+The pilot uses white content, #f7f7f8 navigation, #27272b text, muted gray metadata, a #5e61c7 action/focus accent, self-hosted Inter typography (Linear’s documented UI face), page titles (22px) and compact rows (54px). Status green is reserved for processed/succeeded work. A 216px sidebar and 48px location bar form the outer frame. Documents and Indexes have separate views; an adjacent 350px document inspector keeps processing, provenance and chunks close to the selected source. The inspector becomes the main content view on mobile and closes back to the table. Upload opens from Add document. No invented content is used to fill empty space.
+
+Implementation source: `frontend/src/app/linear-workspace.css`, the shared shell class in `App.tsx`, and `features/documents/KnowledgeBase.tsx`.
+
+## Full workspace extension
+
+Overview uses real source/pipeline rows and a small project-properties column. Settings uses read-only grouped definition lists. Playground gives the question, answer and evidence separate areas, with history collapsed. Projects and pipelines share compact list treatment. The editor takes all remaining viewport height instead of a fixed 470px box; its palette floats on the left and its 300px inspector can close. Mobile keeps a pannable canvas above editable node forms. Reference: [Dify Workflow Studio](https://dify.ai/workflows). Desktop/mobile captures are in `.lavish/linear-workspace/`.

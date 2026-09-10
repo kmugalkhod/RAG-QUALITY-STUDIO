@@ -5,13 +5,15 @@ test('single-turn answers, evidence, insufficient evidence and persisted history
   test.setTimeout(90000);
   const project = await (await request.post('/api/projects', { data: { name: `Playground ${Date.now()}` } })).json() as { id: string };
   await page.goto(`/#/projects/${project.id}`);
+  await page.getByRole('button', { name: 'Add document', exact: true }).click();
   await page.getByLabel('PDF or UTF-8 TXT').setInputFiles({ name: 'orchard.txt', mimeType: 'text/plain', buffer: Buffer.from('The orchard grows apples. The harvest begins in September.') });
   await page.getByRole('button', { name: 'Upload document', exact: true }).click();
   await page.getByRole('button', { name: 'Start processing', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Inspect 1 chunks' })).toBeVisible({ timeout: 30000 });
+  await page.getByRole('button', { name: 'Indexes', exact: true }).click();
   await page.getByRole('button', { name: 'Index documents' }).click();
   await expect(page.getByRole('button', { name: 'Use index 1' })).toBeVisible({ timeout: 30000 });
-  await page.getByRole('link', { name: 'Open RAG playground' }).click();
+  await page.getByRole('link', { name: 'Playground', exact: true }).click();
   await page.getByLabel('Ready index').selectOption({ label: 'Index 1 · 1 chunks' });
   await page.getByLabel('Question', { exact: true }).fill('What does the orchard grow?');
   await page.getByLabel('Top k', { exact: true }).fill('3');
@@ -30,6 +32,7 @@ test('single-turn answers, evidence, insufficient evidence and persisted history
   await page.getByRole('button', { name: 'Ask question', exact: true }).click();
   await expect(result.getByRole('heading', { name: 'Insufficient evidence', exact: true })).toBeVisible();
   await page.reload();
+  await page.getByText('Previous runs', { exact: true }).click();
   await page.getByRole('button', { name: 'What does the orchard grow?', exact: true }).click();
   await expect(result.getByText('The orchard grows apples.', { exact: true })).toBeVisible();
   await expect(result.getByText(/Saved index 1 · Top k 3/)).toBeVisible();

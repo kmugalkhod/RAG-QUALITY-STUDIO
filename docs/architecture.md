@@ -106,3 +106,37 @@ This increment has no durable generation queue, streaming, cancellation or autom
 References: [React Flow TypeScript](https://reactflow.dev/learn/advanced-use/typescript), [state helpers](https://reactflow.dev/api-reference/hooks/use-nodes-state), and the user-provided [AI Elements workflow example](https://elements.ai-sdk.dev/examples/workflow), used as a reference for structured node headers/content/footers and connection handles. Conditional paths and decorative execution animations from that example are outside this release.
 
 Visual defaults use a readable 90% canvas zoom with panning; explicit Fit View provides an overview. The node-settings selector and canvas selection share state, including on create/reopen/add. Unsaved-state comparisons canonicalize JSON object keys because PostgreSQL JSONB does not preserve insertion order. Template runs identify prompt protocol `grounded-pipeline-template-v1`; historical snapshots retain their original prompt identifiers.
+
+## Project workspace frontend (2026-09-10)
+
+The frontend retains the existing React/Vite stack, API adapters, Button component and green theme. The layout reference is [shadcn/ui's sidebar blocks](https://ui.shadcn.com/blocks?category=sidebar), adapted to this product rather than importing a dashboard or its sample metrics. No routing dependency or backend change is required.
+
+`app/App.tsx` owns the persistent sidebar, project switcher, current-project header, mobile navigation and page boundary. `app/navigation.ts` parses hash routes and checks unsaved pipeline changes before updating the rendered route. Hash routes work with the existing nginx configuration and direct refresh. A dirty editor also installs a native unload warning. Rejected history navigation restores the editor URL without unmounting its draft; native browser history may retain a duplicate entry at that restored location.
+
+| URL after `#` | Responsibility |
+| --- | --- |
+| `/` | Project creation and paginated listing |
+| `/projects/:projectId/overview` | Actual source/index/pipeline counts and a contextual next action |
+| `/projects/:projectId/knowledge-base` | Upload, processing jobs, indexing and retrieval diagnostics |
+| `/projects/:projectId/knowledge-base?document=:documentId` | Open a document's processing history, provenance and bounded chunk inspector |
+| `/projects/:projectId/pipelines` | Saved pipeline list and create/open actions |
+| `/projects/:projectId/pipelines/new` | Five-node template editor |
+| `/projects/:projectId/pipelines/:pipelineId` | Reopen a saved pipeline, select immutable versions, edit/save/duplicate |
+| `/projects/:projectId/playground?pipeline=:pipelineId&version=:versionId` | Execute a specific saved version, inspect answers and evidence |
+| `/projects/:projectId/settings` | Read-only project identity, upload support and configured embedding/answer availability |
+
+The legacy `/projects/:projectId` hash opens Knowledge Base. New project-list links open Overview. Experiments is absent because evaluation has not been implemented; evaluation work remains paused.
+
+Project content is keyed by project/page/editor identity. The shell only renders project content when its fetched project ID matches the route. Feature requests ignore late responses after unmount. Project switches discard previous documents, indexes, selections, answers and errors immediately; neither data nor evidence is reused across project boundaries. Document detail lookup walks the project's paginated document API because no individual-document endpoint exists. This is a deliberate compatibility trade-off, with extra read requests for large projects.
+
+The editor owns graph configuration only: palette, canvas, selected-node forms, validation, canonical dirty state and save/duplicate/version controls. Test pipeline is enabled only for an unchanged saved version and navigates to Playground with its immutable IDs. Playground is the sole answer runner and reuses `RunResult`; direct index queries remain available for compatibility. Pipeline selection is validated through project-scoped version requests. The exact Playground link is remembered in per-project session storage (IDs only) for sidebar return navigation. Answers and history remain server-persisted; unsaved drafts are memory-only.
+
+Previous runs, timings/token/cost metadata, processing options and retrieval diagnostics use native expandable details. A scrollable, keyboard-focusable chunk list prevents large documents from consuming the whole workspace. Mobile navigation is an inline collapsible region with an expanded state and Escape/focus support; it is not a modal drawer. Canvas settings stack below the graph on small screens. Settings presents available configuration without credentials or unsupported edit controls; configured availability does not prove provider connectivity.
+
+Verification uses the existing isolated PostgreSQL/pgvector/Celery stack and deterministic provider fixtures. Frontend tests cover parsing and rejected dirty navigation; Chromium journeys cover project switching, direct links, refresh/history, mobile navigation and the source → process → index → saved pipeline → answer/evidence workflow. Provider calls in these browser tests are test doubles, not live paid model checks.
+
+### Linear workspace design
+
+The user rejected the first workspace visual treatment and selected Linear as the reference. `linear-workspace.css` applies to the shared application shell and is imported after the base styles. The Knowledge Base pilot has now been extended to every route. Documents use a semantic table; selecting a row opens an adjacent inspector, which replaces the table on mobile. Add document discloses and focuses the existing upload form. Documents/Indexes view selection is stored in the hash query (`view=indexes`) and responds to refresh/history. Feature APIs and job behavior are unchanged.
+
+The pipeline editor is a viewport-height flex workspace below the project header, with a compact version/action toolbar, bounded validation area, flexible React Flow canvas and independently scrolling 300px settings panel. The palette overlays the canvas; closing settings returns its width to the graph. Mobile stacks settings below a 55dvh canvas and allows page scrolling. React Flow fits the graph on initial load; users can zoom, pan, fit, or center a node through the labeled selection field. Save is primary for a draft; Test is primary for an unchanged saved version. This follows Linear’s compact chrome and Dify’s canvas-first workflow structure without adding either product’s unsupported capabilities.

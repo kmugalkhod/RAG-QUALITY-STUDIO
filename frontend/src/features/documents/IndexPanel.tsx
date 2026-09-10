@@ -88,7 +88,7 @@ export function IndexPanel({ projectId }: { projectId: string }) {
       <details className="source-metadata"><summary>Index identity and configuration</summary><p>{index.id}</p><p>Created {new Date(index.created_at).toLocaleString()}</p><p>Provider: {index.embedding_config.provider} · Revision: {index.embedding_config.revision}</p></details>
     </div>{active(index) ? <Button variant="outline" disabled={busy} onClick={() => void cancel(index)}>Cancel index {index.version}</Button> : index.status === 'succeeded' && <Button variant="outline" disabled={searching} onClick={() => { setSelected(index); setResult(undefined); setSearchError(''); }}>Use index {index.version}</Button>}</li>)}</ul>
     {page && (page.total > 20 || offset > 0) && <nav className="pagination" aria-label="Index pages"><Button variant="outline" disabled={!offset} onClick={() => { focusPage.current = true; setOffset(n => Math.max(0, n - 20)); }}>Previous indexes</Button><span>Page {offset / 20 + 1}</span><Button variant="outline" disabled={offset + 20 >= page.total} onClick={() => { focusPage.current = true; setOffset(n => n + 20); }}>Next indexes</Button></nav>}
-    <div className="chunk-inspector"><h3>Test retrieval</h3>
+    <details className="chunk-inspector" open={!!selected}><summary>Test retrieval</summary>
       <p>{selected ? `Selected: index version ${selected.version} · ${selected.id}` : 'Choose “Use index” on a ready version above.'}</p>
       <form onSubmit={search} noValidate aria-busy={searching}>
         <label htmlFor="retrieval-query">Search query</label><textarea id="retrieval-query" rows={3} maxLength={8000} value={query} onChange={e => { setQuery(e.target.value); setResult(undefined); }} disabled={searching}/>
@@ -100,6 +100,6 @@ export function IndexPanel({ projectId }: { projectId: string }) {
         {result.items.length === 0 && <p>No matching chunks in this index.</p>}
         <ol className="chunk-list">{result.items.map(item => <li key={`${item.run_id}-${item.ordinal}`}><h3>{item.rank}. {item.filename}</h3><p className="chunk-provenance">Cosine distance {item.cosine_distance.toFixed(4)} · Processing version {item.processing_version} · Chunk {item.ordinal + 1} · {item.page_number ? `PDF page ${item.page_number} · ` : ''}Characters {item.start_char}–{item.end_char}</p><pre>{item.text}</pre><details className="source-metadata"><summary>Source identity</summary><p>Document: {item.document_id}</p><p>Processing run: {item.run_id}</p><p>SHA-256: {item.content_hash}</p></details></li>)}</ol>
       </section>}
-    </div>
+    </details>
   </section>;
 }

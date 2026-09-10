@@ -7,11 +7,14 @@ test('uploads, processes, inspects and revisits a versioned document', async ({ 
   await page.getByLabel('Project name').fill(name);
   await page.getByRole('button', { name: 'Create project', exact: true }).click();
   await page.getByRole('link', { name, exact: true }).click();
+  await page.getByRole('link', { name: 'Knowledge Base', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Knowledge Base' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'No documents yet' })).toBeVisible();
+  await page.getByRole('button', { name: 'Add document', exact: true }).click();
   await page.getByLabel('PDF or UTF-8 TXT').setInputFiles({ name: 'knowledge.txt', mimeType: 'text/plain', buffer: Buffer.from('A source document with evidence. '.repeat(50)) });
   await page.getByRole('button', { name: 'Upload document', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Process: knowledge.txt' })).toBeVisible();
+  await page.getByText('Advanced processing options', { exact: true }).click();
   await page.getByLabel('Chunk size (characters)').fill('40');
   await page.getByLabel('Overlap (characters)').fill('40');
   await page.getByRole('button', { name: 'Start processing', exact: true }).click();
@@ -40,6 +43,7 @@ test('uploads, processes, inspects and revisits a versioned document', async ({ 
 test('shows parsing failure and allows a new processing version', async ({ page, request }) => {
   const project = await (await request.post('/api/projects', { data: { name: `Failure verification ${Date.now()}` } })).json() as { id: string };
   await page.goto(`/#/projects/${project.id}`);
+  await page.getByRole('button', { name: 'Add document', exact: true }).click();
   await page.getByLabel('PDF or UTF-8 TXT').setInputFiles({ name: 'broken.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.7\ninvalid PDF') });
   await page.getByRole('button', { name: 'Upload document', exact: true }).click();
   await page.getByRole('button', { name: 'Start processing', exact: true }).click();
@@ -51,6 +55,7 @@ test('shows parsing failure and allows a new processing version', async ({ page,
 test('processes a text PDF and displays its page provenance', async ({ page, request }) => {
   const project = await (await request.post('/api/projects', { data: { name: `PDF verification ${Date.now()}` } })).json() as { id: string };
   await page.goto(`/#/projects/${project.id}`);
+  await page.getByRole('button', { name: 'Add document', exact: true }).click();
   await page.getByLabel('PDF or UTF-8 TXT').setInputFiles('e2e/fixtures/text.pdf');
   await page.getByRole('button', { name: 'Upload document', exact: true }).click();
   await page.getByRole('button', { name: 'Start processing', exact: true }).click();
