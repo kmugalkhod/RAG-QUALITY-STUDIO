@@ -1,6 +1,6 @@
 # RAG Quality Studio
 
-Milestone 2B adds versioned vector indexes and project-scoped retrieval to the Knowledge Base. Upload and process PDF/UTF-8 TXT documents, embed their saved chunks through OpenRouter, then test cosine retrieval and inspect ranked source evidence. React/TypeScript, FastAPI, PostgreSQL/pgvector, Celery and Redis retain persistent state. Answer generation, canvas pipelines and evaluation remain unimplemented.
+Milestone 3 adds persisted single-turn answers and a RAG playground to the versioned Knowledge Base. Upload/process/index PDF or UTF-8 TXT documents, ask questions using OpenRouter, then inspect answers, citation references and the exact evidence sent. React/TypeScript, FastAPI, PostgreSQL/pgvector, Celery and Redis retain persistent state. Canvas pipelines and evaluation remain unimplemented.
 
 ## Start with Docker Compose
 
@@ -217,3 +217,23 @@ docker compose exec -e RUN_LIVE_EMBEDDINGS=1 backend python -m pytest tests/test
 ```
 
 This requires locally configured OpenRouter credentials/credits and Redis; it is disabled by default. A complete live acceptance check additionally indexes a small real document and retrieves its evidence through the UI. Automated fixture success does not verify provider credentials, billing, model availability or semantic retrieval quality.
+
+### RAG playground (Milestone 3)
+
+Set `CHAT_MODEL` in the server `.env` to an OpenRouter chat model ID. This workspace uses `openai/gpt-5.6-luna`, as selected by the user. Keep `CHAT_CONTEXT_TOKENS=8192` and `CHAT_MAX_TOKENS=1024` initially; the context setting must not exceed your selected model's documented limit. `OPENROUTER_API_KEY` is reused; embedding settings remain separate. Rebuild with `docker compose up --build -d` to apply settings and migration `0004`.
+
+Open a project, upload/process/index documents, then choose **Open RAG playground**. Select a ready index, enter a question and top k (1–50), and choose **Ask question**. Each request is independent, with no conversation history. Click valid source labels to inspect the exact evidence sent. Invalid/missing references are flagged; membership validation does not verify claim support. Insufficient evidence is explicit, and prompts do not guarantee grounding or prevent prompt injection.
+
+History survives reloads. Failed accepted runs remain visible; refresh history before retrying an interrupted response. Runs still marked running after five minutes become interrupted failures when history/detail is read. Generation has bounded network timeouts and no automatic retry. Costs are unavailable unless returned by OpenRouter and exclude retrieval embedding charges. Shared access/authentication, streaming, cancellation, canvas, hybrid retrieval, reranking and evaluation remain outside this increment.
+
+API: `POST /api/projects/{id}/query-runs` with `{ "index_id": "UUID", "question": "...", "top_k": 5 }`; list with `GET` and `limit`/`offset`, or fetch `/{run_id}`. A 201 response contains the saved run, including execution failures in `status`/`error`. Validation and missing/unready index errors use HTTP 422/404/409.
+
+Milestone 3 deterministic browser verification uses the separate stack (alternate ports avoid existing test services):
+
+```sh
+E2E_API_PORT=8002 E2E_UI_PORT=5175 docker compose -p rag-m3-e2e -f compose.e2e.yaml -f compose.index-e2e.yaml up --build -d
+cd frontend
+E2E_BASE_URL=http://127.0.0.1:5175 E2E_EMBEDDING_FIXTURE=1 npm run test:e2e
+```
+
+This fixture module lives only in `backend/tests`; it does not activate fake behavior in production. See `docs/implementation-plan.md` for actual verification results and `docs/architecture.md` for persistence, budget and failure semantics.

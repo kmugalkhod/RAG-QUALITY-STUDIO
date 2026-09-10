@@ -1,3 +1,4 @@
+from app.models.query import QueryRun  # noqa: F401
 from alembic import context
 from app.models.index import IndexVersion, IndexChunk  # noqa: F401
 from app.db.session import Base, engine

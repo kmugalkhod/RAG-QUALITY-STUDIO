@@ -8,6 +8,9 @@ class Settings(BaseSettings):
         "postgresql+psycopg://rag:change-me-local-only@localhost:5432/rag_studio"
     )
     openrouter_api_key: SecretStr = SecretStr("")
+    chat_model: str = ""
+    chat_context_tokens: int = Field(default=8192, ge=2048, le=2000000)
+    chat_max_tokens: int = Field(default=1024, ge=128, le=8192)
     embedding_provider: str = "openrouter"
     embedding_model: str = "openai/text-embedding-3-small"
     embedding_dimensions: int = Field(default=1536, ge=1, le=16000)

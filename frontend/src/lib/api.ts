@@ -1,9 +1,9 @@
 export interface Project { id: string; name: string; description: string; created_at: string }
 export interface ProjectPage { items: Project[]; total: number; limit: number; offset: number }
 
-export async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+export async function request<T>(path: string, options: RequestInit = {}, timeoutMs = 12000): Promise<T> {
   const controller = new AbortController();
-  const timeout = window.setTimeout(() => controller.abort(), 12000);
+  const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
   let response: Response;
   try {
     response = await fetch(`/api${path}`, { ...options, signal: controller.signal });
@@ -11,7 +11,7 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
     throw new Error('Could not reach the server. Check your connection and try again.');
   } finally { window.clearTimeout(timeout); }
   if (!response.ok) {
-    if (path.includes('/documents') || path.includes('/runs')) {
+    if (path.includes('/documents') || path.includes('/runs') || path.includes('/query-runs') || path.includes('/indexes') || path.includes('/retrieval')) {
       const error = await response.json().catch(() => ({})) as { detail?: unknown };
       throw new Error(typeof error.detail === 'string' ? error.detail : 'Check the file and chunk settings, then try again.');
     }

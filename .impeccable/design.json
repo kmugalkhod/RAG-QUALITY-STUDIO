@@ -1,0 +1,249 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-10T03:00:50.269685+00:00",
+  "title": "Design System: RAG Quality Studio",
+  "extensions": {
+    "colorMeta": {
+      "primary": {
+        "role": "primary",
+        "displayName": "Primary",
+        "tonalRamp": [
+          "oklch(15.00% 0.06712 164.98)",
+          "oklch(26.43% 0.06712 164.98)",
+          "oklch(37.86% 0.06712 164.98)",
+          "oklch(49.29% 0.06712 164.98)",
+          "oklch(60.71% 0.06712 164.98)",
+          "oklch(72.14% 0.06712 164.98)",
+          "oklch(83.57% 0.06712 164.98)",
+          "oklch(95.00% 0.06712 164.98)"
+        ]
+      },
+      "primary-foreground": {
+        "role": "primary",
+        "displayName": "Primary Foreground",
+        "tonalRamp": [
+          "oklch(15.00% 0.00000 89.88)",
+          "oklch(26.43% 0.00000 89.88)",
+          "oklch(37.86% 0.00000 89.88)",
+          "oklch(49.29% 0.00000 89.88)",
+          "oklch(60.71% 0.00000 89.88)",
+          "oklch(72.14% 0.00000 89.88)",
+          "oklch(83.57% 0.00000 89.88)",
+          "oklch(95.00% 0.00000 89.88)"
+        ]
+      },
+      "background": {
+        "role": "neutral",
+        "displayName": "Background",
+        "tonalRamp": [
+          "oklch(15.00% 0.00395 106.47)",
+          "oklch(26.43% 0.00395 106.47)",
+          "oklch(37.86% 0.00395 106.47)",
+          "oklch(49.29% 0.00395 106.47)",
+          "oklch(60.71% 0.00395 106.47)",
+          "oklch(72.14% 0.00395 106.47)",
+          "oklch(83.57% 0.00395 106.47)",
+          "oklch(95.00% 0.00395 106.47)"
+        ]
+      },
+      "canvas": {
+        "role": "neutral",
+        "displayName": "Canvas",
+        "tonalRamp": [
+          "oklch(15.00% 0.00668 115.70)",
+          "oklch(26.43% 0.00668 115.70)",
+          "oklch(37.86% 0.00668 115.70)",
+          "oklch(49.29% 0.00668 115.70)",
+          "oklch(60.71% 0.00668 115.70)",
+          "oklch(72.14% 0.00668 115.70)",
+          "oklch(83.57% 0.00668 115.70)",
+          "oklch(95.00% 0.00668 115.70)"
+        ]
+      },
+      "sidebar": {
+        "role": "neutral",
+        "displayName": "Sidebar",
+        "tonalRamp": [
+          "oklch(15.00% 0.01080 118.03)",
+          "oklch(26.43% 0.01080 118.03)",
+          "oklch(37.86% 0.01080 118.03)",
+          "oklch(49.29% 0.01080 118.03)",
+          "oklch(60.71% 0.01080 118.03)",
+          "oklch(72.14% 0.01080 118.03)",
+          "oklch(83.57% 0.01080 118.03)",
+          "oklch(95.00% 0.01080 118.03)"
+        ]
+      },
+      "muted": {
+        "role": "neutral",
+        "displayName": "Muted",
+        "tonalRamp": [
+          "oklch(15.00% 0.00803 114.22)",
+          "oklch(26.43% 0.00803 114.22)",
+          "oklch(37.86% 0.00803 114.22)",
+          "oklch(49.29% 0.00803 114.22)",
+          "oklch(60.71% 0.00803 114.22)",
+          "oklch(72.14% 0.00803 114.22)",
+          "oklch(83.57% 0.00803 114.22)",
+          "oklch(95.00% 0.00803 114.22)"
+        ]
+      },
+      "text": {
+        "role": "neutral",
+        "displayName": "Text",
+        "tonalRamp": [
+          "oklch(15.00% 0.03212 163.47)",
+          "oklch(26.43% 0.03212 163.47)",
+          "oklch(37.86% 0.03212 163.47)",
+          "oklch(49.29% 0.03212 163.47)",
+          "oklch(60.71% 0.03212 163.47)",
+          "oklch(72.14% 0.03212 163.47)",
+          "oklch(83.57% 0.03212 163.47)",
+          "oklch(95.00% 0.03212 163.47)"
+        ]
+      },
+      "secondary-text": {
+        "role": "neutral",
+        "displayName": "Secondary Text",
+        "tonalRamp": [
+          "oklch(15.00% 0.02152 145.26)",
+          "oklch(26.43% 0.02152 145.26)",
+          "oklch(37.86% 0.02152 145.26)",
+          "oklch(49.29% 0.02152 145.26)",
+          "oklch(60.71% 0.02152 145.26)",
+          "oklch(72.14% 0.02152 145.26)",
+          "oklch(83.57% 0.02152 145.26)",
+          "oklch(95.00% 0.02152 145.26)"
+        ]
+      },
+      "input": {
+        "role": "neutral",
+        "displayName": "Input",
+        "tonalRamp": [
+          "oklch(15.00% 0.01222 133.39)",
+          "oklch(26.43% 0.01222 133.39)",
+          "oklch(37.86% 0.01222 133.39)",
+          "oklch(49.29% 0.01222 133.39)",
+          "oklch(60.71% 0.01222 133.39)",
+          "oklch(72.14% 0.01222 133.39)",
+          "oklch(83.57% 0.01222 133.39)",
+          "oklch(95.00% 0.01222 133.39)"
+        ]
+      },
+      "divider": {
+        "role": "neutral",
+        "displayName": "Divider",
+        "tonalRamp": [
+          "oklch(15.00% 0.01410 124.57)",
+          "oklch(26.43% 0.01410 124.57)",
+          "oklch(37.86% 0.01410 124.57)",
+          "oklch(49.29% 0.01410 124.57)",
+          "oklch(60.71% 0.01410 124.57)",
+          "oklch(72.14% 0.01410 124.57)",
+          "oklch(83.57% 0.01410 124.57)",
+          "oklch(95.00% 0.01410 124.57)"
+        ]
+      },
+      "error": {
+        "role": "neutral",
+        "displayName": "Error",
+        "tonalRamp": [
+          "oklch(15.00% 0.12701 28.78)",
+          "oklch(26.43% 0.12701 28.78)",
+          "oklch(37.86% 0.12701 28.78)",
+          "oklch(49.29% 0.12701 28.78)",
+          "oklch(60.71% 0.12701 28.78)",
+          "oklch(72.14% 0.12701 28.78)",
+          "oklch(83.57% 0.12701 28.78)",
+          "oklch(95.00% 0.12701 28.78)"
+        ]
+      }
+    },
+    "shadows": [],
+    "motion": [
+      {
+        "name": "button-color",
+        "value": "150ms",
+        "purpose": "Tailwind default color transitions; disabled for reduced motion."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "mobile-shell",
+        "value": "640px"
+      },
+      {
+        "name": "document-stack",
+        "value": "700px"
+      },
+      {
+        "name": "evidence-stack",
+        "value": "850px"
+      },
+      {
+        "name": "compact-workspace",
+        "value": "900px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Existing shared Button variant.",
+      "html": "<button class=\"ds-button-primary\">Ask question</button>",
+      "css": ".ds-button-primary{font-family:\"Avenir Next\",Avenir,\"Segoe UI\",sans-serif;display:inline-flex;align-items:center;justify-content:center;gap:8px;white-space:nowrap;border-radius:6px;font-size:14px;font-weight:500;line-height:20px;height:40px;padding:8px 16px;cursor:pointer;transition:color 150ms,background-color 150ms,border-color 150ms;border:0;background:var(--color-primary,#285d48);color:var(--color-primary-foreground,#fff);}.ds-button-primary:hover{background:color-mix(in oklab,var(--color-primary,#285d48) 90%,transparent)}.ds-button-primary:focus-visible{outline:2px solid var(--color-primary,#285d48);outline-offset:4px}.ds-button-primary:disabled{pointer-events:none;opacity:.5}@media(prefers-reduced-motion:reduce){.ds-button-primary{transition:none}}"
+    },
+    {
+      "name": "Outline Button",
+      "kind": "button",
+      "refersTo": "button-outline",
+      "description": "Existing shared Button variant.",
+      "html": "<button class=\"ds-button-outline\">Ask question</button>",
+      "css": ".ds-button-outline{font-family:\"Avenir Next\",Avenir,\"Segoe UI\",sans-serif;display:inline-flex;align-items:center;justify-content:center;gap:8px;white-space:nowrap;border-radius:6px;font-size:14px;font-weight:500;line-height:20px;height:40px;padding:8px 16px;cursor:pointer;transition:color 150ms,background-color 150ms,border-color 150ms;border:1px solid var(--color-input,#c8cdc5);background:var(--color-background,#fcfcf9);color:#273c32;}.ds-button-outline:hover{background:var(--color-muted,#eeefe9)}.ds-button-outline:focus-visible{outline:2px solid var(--color-primary,#285d48);outline-offset:4px}.ds-button-outline:disabled{pointer-events:none;opacity:.5}@media(prefers-reduced-motion:reduce){.ds-button-outline{transition:none}}"
+    },
+    {
+      "name": "Question field",
+      "kind": "input",
+      "description": "Labeled textarea.",
+      "html": "<label class=\"ds-label\" for=\"ds-question\">Question</label><textarea id=\"ds-question\" class=\"ds-field\" rows=\"3\"></textarea>",
+      "css": ".ds-label{font-family:\"Avenir Next\",Avenir,\"Segoe UI\",sans-serif;display:block;font-size:13px;font-weight:600;margin-bottom:8px;color:#273c32}.ds-field{font-family:\"Avenir Next\",Avenir,\"Segoe UI\",sans-serif;width:100%;border:1px solid #bfc8b9;padding:10px 12px;background:#fff;border-radius:5px;color:#273c32;font-size:14px;resize:vertical}.ds-field:focus-visible{outline:2px solid var(--color-primary,#285d48);outline-offset:4px}"
+    },
+    {
+      "name": "Active navigation",
+      "kind": "nav",
+      "description": "Current section treatment.",
+      "html": "<a class=\"ds-nav\" href=\"#\" aria-current=\"page\">Projects</a>",
+      "css": ".ds-nav{font-family:\"Avenir Next\",Avenir,\"Segoe UI\",sans-serif;display:flex;align-items:center;gap:12px;padding:12px;background:#e0e7db;border-radius:6px;font-size:14px;font-weight:600;color:#273c32;text-decoration:none}.ds-nav:focus-visible{outline:2px solid var(--color-primary,#285d48);outline-offset:4px}"
+    },
+    {
+      "name": "Run status",
+      "kind": "chip",
+      "description": "Text and color communicate status.",
+      "html": "<span class=\"ds-status\">Succeeded</span>",
+      "css": ".ds-status{font-family:\"Avenir Next\",Avenir,\"Segoe UI\",sans-serif;display:inline-block;font-size:12px;font-weight:600;text-transform:capitalize;color:#245239;background:#dfeddf;padding:4px 8px;border-radius:4px}"
+    },
+    {
+      "name": "Form panel",
+      "kind": "card",
+      "refersTo": "panel",
+      "description": "Bordered neutral form surface.",
+      "html": "<section class=\"ds-panel\"><h2>Ask your documents</h2></section>",
+      "css": ".ds-panel{font-family:\"Avenir Next\",Avenir,\"Segoe UI\",sans-serif;padding:24px;border:1px solid #c8d1c1;background:var(--color-background,#fcfcf9);border-radius:12px;color:#273c32}.ds-panel h2{font-size:16px;font-weight:600;margin:0}@media(max-width:640px){.ds-panel{padding:18px}}"
+    }
+  ],
+  "narrative": {
+    "overview": "The incumbent interface uses green actions, warm neutral surfaces, serif page headings and sans-serif controls. It supports document and query work through readable forms, saved-run lists and evidence inspection. This records observed code rather than establishing a new visual identity.",
+    "keyCharacteristics": [],
+    "rules": [],
+    "dos": [
+      "Do preserve visible keyboard focus, labeled fields and announced loading/error states.",
+      "Do keep answer and evidence readable when columns stack.",
+      "Do show text labels alongside status colors."
+    ],
+    "donts": [
+      "Don't present retrieval distance as confidence or unavailable cost as zero."
+    ]
+  }
+}

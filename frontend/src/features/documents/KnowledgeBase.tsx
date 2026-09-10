@@ -69,7 +69,7 @@ export function KnowledgeBase({ projectId }: { projectId: string }) {
   }
   return <>
     <a className="back-link" href="#"><ArrowLeft size={16}/>All projects</a>
-    <div className="page-heading"><div><h1>Knowledge Base</h1><p>{projectName || 'Loading project…'}</p></div></div>
+    <div className="page-heading"><div><h1>Knowledge Base</h1><a className="back-link" href={`#/projects/${projectId}/playground`}>Open RAG playground</a><p>{projectName || 'Loading project…'}</p></div></div>
     <p className="page-intro">Upload source documents, process their text and inspect each chunk. Index processed documents to search their source chunks.</p>
     <section className="create-panel" aria-labelledby="upload-title"><h2 id="upload-title">Add a document</h2>
       <form className="upload-form" onSubmit={upload} aria-busy={uploading}>

@@ -1,3 +1,4 @@
+from app.api.queries import router as query_router
 from app.api.indexes import router as index_router
 from app.providers.embeddings import EmbeddingError
 from app.api.documents import router as document_router
@@ -20,6 +21,7 @@ app.add_middleware(
 app.include_router(router)
 app.include_router(document_router)
 app.include_router(index_router)
+app.include_router(query_router)
 app.add_middleware(UploadLimitMiddleware)
 
 

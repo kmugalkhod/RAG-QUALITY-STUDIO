@@ -4,7 +4,7 @@ import json
 import sys
 import httpx
 from app.providers.openrouter import OpenRouterEmbeddings
-from app.providers import embeddings
+from app.providers import embeddings, generation
 from app.main import app  # noqa: F401
 
 
@@ -32,3 +32,30 @@ if __name__ == "__main__" and sys.argv[-1] == "worker":
     from app.workers.celery_app import celery
 
     celery.worker_main(["worker", "--loglevel=warning", "--concurrency=2"])
+
+
+def chat_respond(request):
+    body = json.loads(request.content)
+    question = json.loads(body["messages"][-1]["content"])["question"]
+    answer = (
+        "INSUFFICIENT_EVIDENCE: The sources do not give a launch code."
+        if "launch code" in question.lower()
+        else "The orchard grows apples. [S1]"
+    )
+    return httpx.Response(
+        200,
+        json={
+            "model": body["model"],
+            "choices": [{"finish_reason": "stop", "message": {"content": answer}}],
+            "usage": {
+                "prompt_tokens": 120,
+                "completion_tokens": 12,
+                "total_tokens": 132,
+            },
+        },
+    )
+
+
+generation.provider_for = lambda: generation.OpenRouterChat(
+    httpx.MockTransport(chat_respond)
+)

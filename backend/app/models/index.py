@@ -25,6 +25,7 @@ from app.db.session import Base
 class IndexVersion(Base):
     __tablename__ = "index_versions"
     __table_args__ = (
+        UniqueConstraint("id", "project_id", name="uq_index_project"),
         UniqueConstraint("project_id", "version", name="uq_index_version"),
         UniqueConstraint("id", "dimensions", name="uq_index_dimensions"),
         CheckConstraint("dimensions BETWEEN 1 AND 16000", name="ck_index_dimensions"),
