@@ -17,6 +17,10 @@ test('pipeline create configure save reopen run evidence and immutable versions'
   await page.getByRole('link', { name: 'Pipelines', exact: true }).click();
   await page.getByRole('link', { name: 'New pipeline', exact: true }).click();
   await page.getByLabel('Pipeline name', { exact: true }).fill('Orchard answers');
+  const questionBox = (await page.locator('.react-flow__node[data-id="question"]').boundingBox())!;
+  const retrieverBox = (await page.locator('.react-flow__node[data-id="retriever"]').boundingBox())!;
+  expect(retrieverBox.y).toBeGreaterThan(questionBox.y);
+  expect(Math.abs(retrieverBox.x - questionBox.x)).toBeLessThan(2);
   const retriever = page.locator('.react-flow__node[data-id="retriever"]');
   const box = (await retriever.boundingBox())!;
   await page.mouse.move(box.x + 15, box.y + 15);
@@ -31,6 +35,10 @@ test('pipeline create configure save reopen run evidence and immutable versions'
   await expect(page.getByText('Saved version 1', { exact: true })).toBeVisible();
   await page.reload();
   await expect(page.getByLabel('Pipeline name', { exact: true })).toHaveValue('Orchard answers');
+  await expect(page.getByText('Saved version 1', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Arrange vertically', exact: true }).click();
+  await expect(page.getByText('Unsaved changes', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Discard changes', exact: true }).click();
   await expect(page.getByText('Saved version 1', { exact: true })).toBeVisible();
   await page.getByLabel('Selected node').selectOption('prompt');
   await expect(page.getByLabel('Answer instructions')).toHaveValue('Answer concisely. Question: {question} Context: {context}');

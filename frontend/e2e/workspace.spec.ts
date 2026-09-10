@@ -42,4 +42,9 @@ test('project navigation, isolated state, direct links, history and mobile menu'
   await expect(page.getByRole('button', { name: 'Open navigation' })).toBeVisible();
   await page.screenshot({ path: 'test-results/settings-mobile.png', fullPage: true });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+  await page.getByRole('button', { name: 'Open navigation' }).click();
+  await page.getByRole('link', { name: 'Knowledge Base', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Knowledge Base', exact: true })).toBeVisible();
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
 });

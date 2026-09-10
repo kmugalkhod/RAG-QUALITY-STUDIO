@@ -29,7 +29,8 @@ export function App() {
     if (projectId) void getProject(projectId).then(p => { if (!disposed) setProject(p); }).catch(e => { if (!disposed) setError((e as Error).message); });
     return () => { disposed = true; };
   }, [projectId, revision, page]);
-  useEffect(() => { setMobile(false); document.title = `${title}${current ? ` · ${current.name}` : ''} · RAG Quality Studio`; document.getElementById('main')?.focus(); }, [projectId, page, detail, title, current]);
+  useEffect(() => { setMobile(false); document.title = `${title}${current ? ` · ${current.name}` : ''} · RAG Quality Studio`; document.getElementById('main')?.focus({ preventScroll: true }); }, [projectId, page, detail, title, current]);
+  useEffect(() => { window.scrollTo(0, 0); }, [projectId, page, detail]);
   const base = `#/projects/${projectId}`;
   return <div className="app-shell linear-workspace">
     <a className="skip-link" href="#main" onClick={e => { e.preventDefault(); document.getElementById('main')?.focus(); }}>Skip to content</a>
