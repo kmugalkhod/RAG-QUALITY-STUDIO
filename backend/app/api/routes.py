@@ -32,6 +32,9 @@ def ready(session: Database) -> dict[str, str]:
     )
     session.execute(text("SELECT project_id, name FROM pipelines LIMIT 0"))
     session.execute(text("SELECT execution, layout FROM pipeline_versions LIMIT 0"))
+    session.execute(text("SELECT rows FROM dataset_versions LIMIT 0"))
+    session.execute(text("SELECT snapshot, progress FROM experiments LIMIT 0"))
+    session.execute(text("SELECT metrics, query_run_id FROM experiment_items LIMIT 0"))
     return {"status": "ready"}
 
 

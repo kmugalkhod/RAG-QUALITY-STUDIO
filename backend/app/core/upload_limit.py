@@ -12,7 +12,12 @@ class UploadLimitMiddleware:
     async def __call__(self, scope, receive, send):
         if scope["type"] != "http" or scope["method"] != "POST":
             return await self.app(scope, receive, send)
-        limit = settings.max_upload_bytes + 65536  # bounded multipart overhead
+        file_limit = (
+            settings.dataset_max_bytes
+            if "/datasets" in scope.get("path", "")
+            else settings.max_upload_bytes
+        )
+        limit = file_limit + 65536  # bounded multipart overhead
         headers = dict(scope["headers"])
         try:
             declared = int(headers.get(b"content-length", b"0"))

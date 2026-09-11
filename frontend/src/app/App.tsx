@@ -1,5 +1,6 @@
+import { ExperimentsPage } from '../features/experiments/ExperimentsPage';
 import { useEffect, useState } from 'react';
-import { Layers3, Folder, BookOpen, Workflow, MessageSquare, Settings, LayoutDashboard, Menu, X } from 'lucide-react';
+import { FlaskConical, Layers3, Folder, BookOpen, Workflow, MessageSquare, Settings, LayoutDashboard, Menu, X } from 'lucide-react';
 import { PipelineEditor } from '../features/pipelines/PipelineEditor';
 import { PipelinesPage } from '../features/pipelines/PipelinesPage';
 import { Playground } from '../features/playground/Playground';
@@ -11,7 +12,7 @@ import { getProject } from '../features/documents/api';
 import { allPages } from '../features/pipelines/api';
 import { useRoute } from './navigation';
 
-const pages = [['overview', 'Overview', LayoutDashboard], ['knowledge-base', 'Knowledge Base', BookOpen], ['pipelines', 'Pipelines', Workflow], ['playground', 'Playground', MessageSquare], ['settings', 'Settings', Settings]] as const;
+const pages = [['overview', 'Overview', LayoutDashboard], ['knowledge-base', 'Knowledge Base', BookOpen], ['pipelines', 'Pipelines', Workflow], ['playground', 'Playground', MessageSquare], ['experiments', 'Experiments', FlaskConical], ['settings', 'Settings', Settings]] as const;
 export function App() {
   const route = useRoute();
   const { projectId, page, detail } = route;
@@ -45,7 +46,7 @@ export function App() {
       </div>
     </aside>
     <div className="workspace"><header className="topbar"><span>{projectId ? current?.name || 'Loading project…' : 'Workspace'} <span aria-hidden="true">/</span> <strong>{title}{page === 'pipelines' && detail ? ' / Editor' : ''}</strong></span></header><main id="main" tabIndex={-1} className={page === 'knowledge-base' ? 'knowledge-main' : page === 'pipelines' && detail ? 'editor-main' : ''}>
-      {projectId && !current ? error ? <div role="alert"><h1>Project unavailable</h1><p>{error}</p><button onClick={() => setRevision(v => v + 1)}>Retry</button></div> : <p role="status">Loading project…</p> : <div key={`${projectId}/${page}/${detail || ''}`} className={`page-content ${page}-page`}>{page === 'projects' ? <ProjectsPage/> : page === 'overview' ? <ProjectSummary projectId={projectId!}/> : page === 'settings' ? <ProjectSummary projectId={projectId!} configuration/> : page === 'knowledge-base' ? <KnowledgeBase projectId={projectId!} documentId={route.query.get('document') || ''}/> : page === 'pipelines' ? detail ? <PipelineEditor projectId={projectId!} pipelineId={detail}/> : <PipelinesPage projectId={projectId!}/> : page === 'playground' ? <Playground projectId={projectId!} pipelineId={route.query.get('pipeline') || ''} versionId={route.query.get('version') || ''}/> : <><h1>Page not found</h1><a href="#/">Return to projects</a></>}</div>}
+      {projectId && !current ? error ? <div role="alert"><h1>Project unavailable</h1><p>{error}</p><button onClick={() => setRevision(v => v + 1)}>Retry</button></div> : <p role="status">Loading project…</p> : <div key={`${projectId}/${page}/${detail || ''}`} className={`page-content ${page}-page`}>{page === 'projects' ? <ProjectsPage/> : page === 'overview' ? <ProjectSummary projectId={projectId!}/> : page === 'experiments' ? <ExperimentsPage projectId={projectId!} experimentId={detail}/> : page === 'settings' ? <ProjectSummary projectId={projectId!} configuration/> : page === 'knowledge-base' ? <KnowledgeBase projectId={projectId!} documentId={route.query.get('document') || ''}/> : page === 'pipelines' ? detail ? <PipelineEditor projectId={projectId!} pipelineId={detail}/> : <PipelinesPage projectId={projectId!}/> : page === 'playground' ? <Playground projectId={projectId!} pipelineId={route.query.get('pipeline') || ''} versionId={route.query.get('version') || ''}/> : <><h1>Page not found</h1><a href="#/">Return to projects</a></>}</div>}
     </main></div>
   </div>;
 }

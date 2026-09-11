@@ -2,6 +2,7 @@ import uuid
 from datetime import datetime
 from sqlalchemy import (
     DateTime,
+    UniqueConstraint,
     ForeignKeyConstraint,
     Index,
     CheckConstraint,
@@ -16,6 +17,7 @@ from app.db.session import Base
 class QueryRun(Base):
     __tablename__ = "query_runs"
     __table_args__ = (
+        UniqueConstraint("id", "project_id", name="uq_query_project"),
         ForeignKeyConstraint(
             ["pipeline_version_id", "project_id"],
             ["pipeline_versions.id", "pipeline_versions.project_id"],

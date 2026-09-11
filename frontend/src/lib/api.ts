@@ -11,9 +11,9 @@ export async function request<T>(path: string, options: RequestInit = {}, timeou
     throw new Error('Could not reach the server. Check your connection and try again.');
   } finally { window.clearTimeout(timeout); }
   if (!response.ok) {
-    if (path.includes('/documents') || path.includes('/runs') || path.includes('/query-runs') || path.includes('/indexes') || path.includes('/retrieval')) {
+    if (path.includes('/experiments') || path.includes('/datasets') || path.includes('/pipelines') || path.includes('/documents') || path.includes('/runs') || path.includes('/query-runs') || path.includes('/indexes') || path.includes('/retrieval')) {
       const error = await response.json().catch(() => ({})) as { detail?: unknown };
-      throw new Error(typeof error.detail === 'string' ? error.detail : 'Check the file and chunk settings, then try again.');
+      throw new Error(typeof error.detail === 'string' ? error.detail : 'Check the submitted fields and settings, then try again.');
     }
     if (response.status === 422) throw new Error('Check the project name (1–120 characters) and description (up to 2,000 characters).');
     throw new Error(response.status === 503 ? 'The database is temporarily unavailable. Please try again.' : 'The request failed. Please try again.');

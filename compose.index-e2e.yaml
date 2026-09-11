@@ -3,6 +3,7 @@ services:
   backend:
     command: ["uvicorn", "tests.e2e_provider:app", "--host", "0.0.0.0", "--port", "8000"]
     environment:
+      EVALUATOR_MODEL: test/judge
       CHAT_MODEL: test/chat
       OPENROUTER_API_KEY: test-fixture-not-a-real-key
       EMBEDDING_PROVIDER: openrouter
@@ -13,6 +14,7 @@ services:
   worker:
     command: ["python", "-m", "tests.e2e_provider", "worker"]
     environment:
+      EVALUATOR_MODEL: test/judge
       CHAT_MODEL: test/chat
       OPENROUTER_API_KEY: test-fixture-not-a-real-key
       EMBEDDING_PROVIDER: openrouter

@@ -1,5 +1,6 @@
 """TEST STACK ONLY: deterministic HTTP transport. Never imported by app code."""
 
+from app.evaluation import evaluator
 import json
 import sys
 import httpx
@@ -28,11 +29,6 @@ def test_provider(config):
 
 embeddings.provider_for = test_provider
 
-if __name__ == "__main__" and sys.argv[-1] == "worker":
-    from app.workers.celery_app import celery
-
-    celery.worker_main(["worker", "--loglevel=warning", "--concurrency=2"])
-
 
 def chat_respond(request):
     body = json.loads(request.content)
@@ -59,3 +55,27 @@ def chat_respond(request):
 generation.provider_for = lambda: generation.OpenRouterChat(
     httpx.MockTransport(chat_respond)
 )
+
+
+class FixtureJudge:
+    def score(self, metric, row, output, guard=None):
+        if guard:
+            guard()
+        blocked = evaluator.precondition(metric, row, output)
+        if blocked:
+            return blocked
+        return {
+            "status": "succeeded",
+            "value": 0.8,
+            "reason": "Deterministic browser fixture",
+            "evaluation_cost_usd": None,
+            "calls": [],
+        }
+
+
+evaluator.provider_for = lambda config: FixtureJudge()
+
+if __name__ == "__main__" and sys.argv[-1] == "worker":
+    from app.workers.celery_app import celery
+
+    celery.worker_main(["worker", "--loglevel=warning", "--concurrency=2"])

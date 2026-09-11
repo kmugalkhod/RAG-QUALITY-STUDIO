@@ -60,6 +60,7 @@ def execute(
     config=None,
     template=None,
     defer=False,
+    on_created=None,
 ):
     index = indexes.get_index(session, project_id, request.index_id)
     if index.status != "succeeded":
@@ -92,13 +93,16 @@ def execute(
         snapshot=snapshot,
     )
     session.add(run)
+    session.flush()
+    if on_created:
+        on_created(run)
     session.commit()
     if defer:
         return run
     return finish(session, run)
 
 
-def finish(session, run):
+def finish(session, run, *, before_provider=None):
     from app.schemas.query import QueryRequest
 
     started = monotonic()
@@ -114,6 +118,8 @@ def finish(session, run):
         snapshot["generation_config"] = config
         stage = "retrieval_ms"
         stage_start = monotonic()
+        if before_provider:
+            before_provider()
         result = indexes.retrieve(
             session,
             project_id,
@@ -144,6 +150,8 @@ def finish(session, run):
         else:
             stage = "generation_ms"
             stage_start = monotonic()
+            if before_provider:
+                before_provider()
             completion = generation.provider_for().generate(messages, config)
             snapshot[stage] = round((monotonic() - stage_start) * 1000, 3)
             stage = None

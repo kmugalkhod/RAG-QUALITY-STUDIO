@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 
 export function parseRoute(hash: string) {
   const [path, query = ''] = hash.replace(/^#/, '').split('?');
-  const match = /^\/projects\/([a-f0-9-]{36})(?:\/(overview|knowledge-base|pipelines|playground|settings))?(?:\/([a-zA-Z0-9-]+))?$/.exec(path);
+  const match = /^\/projects\/([a-f0-9-]{36})(?:\/(overview|knowledge-base|pipelines|playground|experiments|settings))?(?:\/([a-zA-Z0-9-]+))?$/.exec(path);
   return { projectId: match?.[1], page: match ? match[2] || 'knowledge-base' : path && path !== '/' ? 'not-found' : 'projects', detail: match?.[3], query: new URLSearchParams(query) };
 }
 let blocker: { href: string; allow: () => boolean } | undefined;

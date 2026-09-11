@@ -6,7 +6,11 @@ from app.db.session import engine
 celery = Celery(
     "rag_studio",
     broker=settings.redis_url,
-    include=["app.workers.processing", "app.workers.indexing"],
+    include=[
+        "app.workers.processing",
+        "app.workers.indexing",
+        "app.workers.experiments",
+    ],
 )
 celery.conf.update(
     task_serializer="json",
@@ -19,7 +23,7 @@ celery.conf.update(
     broker_connection_timeout=3,
     task_publish_retry=False,
     broker_transport_options={
-        "visibility_timeout": 180,
+        "visibility_timeout": 420,
         "socket_timeout": 3,
         "socket_connect_timeout": 3,
     },

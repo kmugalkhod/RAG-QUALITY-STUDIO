@@ -8,6 +8,12 @@ class Settings(BaseSettings):
         "postgresql+psycopg://rag:change-me-local-only@localhost:5432/rag_studio"
     )
     openrouter_api_key: SecretStr = SecretStr("")
+    evaluator_model: str = ""
+    evaluator_max_tokens: int = Field(default=4096, ge=512, le=8192)
+    dataset_max_rows: int = Field(default=200, ge=1, le=1000)
+    dataset_max_bytes: int = Field(
+        default=2 * 1024 * 1024, ge=1024, le=10 * 1024 * 1024
+    )
     chat_model: str = ""
     chat_models: list[str] = []
     chat_context_tokens: int = Field(default=8192, ge=2048, le=2000000)

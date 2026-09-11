@@ -115,6 +115,9 @@ def main():
         try:
             dispatch_once()
             dispatch_indexes_once()
+            from app.workers.experiments import dispatch_experiments_once
+
+            dispatch_experiments_once()
         except Exception:
             logging.warning("Queue dispatch unavailable; retrying in five seconds.")
         time.sleep(5)

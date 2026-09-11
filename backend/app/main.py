@@ -1,3 +1,4 @@
+from app.api.experiments import router as experiment_router
 from app.api.pipelines import router as pipeline_router
 from app.api.queries import router as query_router
 from app.api.indexes import router as index_router
@@ -20,6 +21,7 @@ app.add_middleware(
     allow_headers=["Content-Type"],
 )
 app.include_router(router)
+app.include_router(experiment_router)
 app.include_router(document_router)
 app.include_router(index_router)
 app.include_router(query_router)

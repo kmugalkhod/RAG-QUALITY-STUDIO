@@ -3,10 +3,19 @@ name = "rag-quality-studio-api"
 version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = [
-  "pgvector==0.4.1", "httpx==0.28.1",
-  "celery[redis]==5.6.3", "pypdf==6.18.0", "python-multipart==0.0.22",
-  "fastapi==0.116.1", "uvicorn==0.35.0", "sqlalchemy==2.0.43",
-  "psycopg[binary]==3.2.9", "alembic==1.16.5", "pydantic-settings==2.10.1",
+  "pgvector==0.4.1",
+  "httpx==0.28.1",
+  "celery[redis]==5.6.3",
+  "pypdf==6.18.0",
+  "python-multipart==0.0.22",
+  "fastapi==0.116.1",
+  "uvicorn==0.35.0",
+  "sqlalchemy==2.0.43",
+  "psycopg[binary]==3.2.9",
+  "alembic==1.16.5",
+  "pydantic-settings==2.10.1",
+  "ragas==0.4.3",
+  "langchain-community==0.4.1",
 ]
 [dependency-groups]
 dev = ["pytest==8.4.1", "httpx==0.28.1", "ruff==0.12.11"]

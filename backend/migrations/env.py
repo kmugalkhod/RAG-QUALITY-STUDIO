@@ -1,3 +1,4 @@
+from app.models.experiment import Dataset, DatasetVersion, Experiment, ExperimentItem  # noqa: F401
 from app.models.pipeline import Pipeline, PipelineVersion  # noqa: F401
 from app.models.query import QueryRun  # noqa: F401
 from alembic import context
