@@ -1,3 +1,5 @@
+import { AnswerText } from '../../components/AnswerText';
+import { readDraft, saveDraft, emptyDraft } from './draft';
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '../../components/ui/button';
 import { allPages, list, versions, type Version } from '../pipelines/api';
@@ -24,17 +26,28 @@ export function ExperimentsPage({ projectId, experimentId }: { projectId: string
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [revision, setRevision] = useState(0);
-  const [dataset, setDataset] = useState('');
-  const [a, setA] = useState('');
-  const [b, setB] = useState('');
-  const [selected, setSelected] = useState<api.Metric[]>(metrics);
-  const [name, setName] = useState('');
+  const [initial] = useState(() => readDraft(projectId));
+  const [storageError, setStorageError] = useState('');
+  const [dataset, setDataset] = useState(initial.dataset);
+  const [a, setA] = useState(initial.a);
+  const [b, setB] = useState(initial.b);
+  const [selected, setSelected] = useState<api.Metric[]>(initial.metrics);
+  const [name, setName] = useState(initial.name);
   const [file, setFile] = useState<File>();
   const [datasetName, setDatasetName] = useState('');
   const [datasetIdentity, setDatasetIdentity] = useState('');
   const [preview, setPreview] = useState<api.Preview>();
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
+  useEffect(() => {
+    if (experimentId) return;
+    setStorageError(saveDraft(projectId, { name, dataset, a, b, metrics: selected }) ? '' : 'Draft cannot be stored in this browser. Keep this page open to retain your selections.');
+  }, [projectId, experimentId, name, dataset, a, b, selected]);
+  function resetDraft() {
+    const draft = emptyDraft();
+    setName(draft.name); setDataset(draft.dataset); setA(draft.a); setB(draft.b); setSelected(draft.metrics);
+    setMessage('Experiment draft reset. Saved datasets and runs are unchanged.');
+  }
   const alive = useRef(true);
   const previewRequest = useRef(0);
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
@@ -42,7 +55,10 @@ export function ExperimentsPage({ projectId, experimentId }: { projectId: string
     let disposed = false;
     setLoading(true); setError('');
     void Promise.all([allPages(o => api.datasets(projectId, o)), allPages(o => api.history(projectId, o)), api.options(projectId), allPages(o => list(projectId, o)).then(ps => Promise.all(ps.map(p => allPages(o => versions(projectId, p.id, o))))).then(vs => vs.flat())]).then(([ds, hs, opts, vs]) => {
-      if (!disposed) { setDatasets(ds); setHistory(hs); setOptions(opts); setPipelines(vs); }
+      if (!disposed) { setDatasets(ds); setHistory(hs); setOptions(opts); setPipelines(vs);
+        setDataset(id => ds.some(d => d.id === id) ? id : '');
+        setA(id => vs.some(v => v.id === id) ? id : '');
+        setB(id => vs.some(v => v.id === id) ? id : ''); }
     }).catch(e => { if (!disposed) setError((e as Error).message); }).finally(() => { if (!disposed) setLoading(false); });
     return () => { disposed = true; };
   }, [projectId, revision]);
@@ -61,7 +77,7 @@ export function ExperimentsPage({ projectId, experimentId }: { projectId: string
         <Button variant="outline" disabled={!file || busy} onClick={() => void action(async () => { const seq = ++previewRequest.current; const result = await api.preview(projectId, file!); if (alive.current && seq === previewRequest.current) setPreview(result); })}>Preview CSV</Button>
         {preview && <><h3>Preview · {preview.rows.length} questions</h3>{preview.errors.length > 0 && <ul role="alert">{preview.errors.map((e,i) => <li key={i}>Row {e.row}: {e.message}</li>)}</ul>}<Questions rows={preview.rows}/><Button disabled={busy || preview.errors.length > 0 || !datasetName.trim()} onClick={() => void action(async () => { const result = await api.importDataset(projectId, file!, datasetName, preview.content_hash, datasetIdentity); if (alive.current) { setDataset(result.id); setPreview(undefined); setMessage(`Imported ${result.name} version ${result.version}.`); setRevision(v => v + 1); } })}>Import reviewed dataset</Button></>}
       </details>
-      <section className="experiment-section"><h2>Run an experiment</h2>{options?.error && <p role="alert">{options.error}</p>}{!pipelines.length && <p>Save a pipeline in <a href={`#/projects/${projectId}/pipelines`}>Pipelines</a> before running an experiment.</p>}
+      <section className="experiment-section"><div className="experiment-heading"><h2>Run an experiment</h2><Button variant="outline" disabled={busy} onClick={resetDraft}>Reset draft</Button></div><p className="draft-notice" role="status">{storageError || 'Draft saved in this browser tab. You can visit other pages or refresh and return to these selections.'}</p>{options?.error && <p role="alert">{options.error}</p>}{!pipelines.length && <p>Save a pipeline in <a href={`#/projects/${projectId}/pipelines`}>Pipelines</a> before running an experiment.</p>}
         <form onSubmit={e => { e.preventDefault(); void action(async () => { const run = await api.start(projectId, name, dataset, [a, b].filter(Boolean), selected); if (alive.current) window.location.hash = `/projects/${projectId}/experiments/${run.id}`; }); }}>
           <div className="experiment-fields"><label>Experiment name<input required maxLength={120} value={name} onChange={e => setName(e.target.value)}/></label><label>Dataset version<select required value={dataset} onChange={e => setDataset(e.target.value)}><option value="">Select reviewed questions</option>{datasets.map(d => <option key={d.id} value={d.id}>{d.name} · v{d.version} · {d.rows.length} questions</option>)}</select></label></div>
           {dataset && <details><summary>Inspect dataset questions</summary><Questions rows={datasets.find(d => d.id === dataset)?.rows || []}/></details>}
@@ -71,7 +87,7 @@ export function ExperimentsPage({ projectId, experimentId }: { projectId: string
           <Button disabled={busy || !!options?.error || !dataset || !a || !selected.length || !name.trim()}>{busy ? 'Submitting…' : 'Run experiment'}</Button>
         </form>
       </section>
-      <section className="experiment-section"><h2>Experiment history</h2>{!history.length ? <p>No experiments yet. Import a dataset and select saved pipeline versions to begin.</p> : <div className="experiment-table"><table><thead><tr><th>Name</th><th>Dataset</th><th>Status</th><th>Completed questions × candidates</th></tr></thead><tbody>{history.map(h => <tr key={h.id}><td><a href={`#/projects/${projectId}/experiments/${h.id}`}>{h.name}</a><small>{new Date(h.created_at).toLocaleString()}</small></td><td>{h.snapshot.dataset.name} · v{h.snapshot.dataset.version}</td><td>{h.status}</td><td>{h.progress} / {h.total}</td></tr>)}</tbody></table></div>}</section>
+      <section className="experiment-section"><h2>Experiment history</h2>{!history.length ? <p>No experiments yet. Import a dataset and select saved pipeline versions to begin.</p> : <div className="experiment-table" tabIndex={0} aria-label="Experiment history"><table><thead><tr><th>Name</th><th>Dataset</th><th>Status</th><th>Completed questions × candidates</th></tr></thead><tbody>{history.map(h => <tr key={h.id}><td><a href={`#/projects/${projectId}/experiments/${h.id}`}>{h.name}</a><small>{new Date(h.created_at).toLocaleString()}</small></td><td>{h.snapshot.dataset.name} · v{h.snapshot.dataset.version}</td><td>{h.status}</td><td>{h.progress} / {h.total}</td></tr>)}</tbody></table></div>}</section>
     </>}
   </section>;
 }
@@ -95,17 +111,17 @@ function Comparison({ projectId, experimentId }: { projectId: string; experiment
     <p>Dataset: {run.snapshot.dataset.name} · v{run.snapshot.dataset.version}. Evaluator: {run.snapshot.evaluator.model} · RAGAS {run.snapshot.evaluator.ragas_version}. LLM-based scores are estimates requiring human review.</p>
     <div className="candidate-columns">{run.snapshot.candidates.map((v,i) => <section key={v.id}><h2>Candidate {i ? 'B' : 'A'}</h2><Configuration version={v}/></section>)}</div>
     {run.snapshot.candidates.length === 2 && run.snapshot.candidates[0].index_id !== run.snapshot.candidates[1].index_id && <p className="index-difference">Different index/source versions: these candidates do not use the same indexed source snapshot. Inspect evidence before attributing differences to pipeline settings.</p>}
-    <section className="experiment-section"><h2>Candidate summaries</h2><p>Means include successful scores only; counts below expose excluded and pending items. Faithfulness measures support in supplied context, not overall accuracy.</p><div className="experiment-table" tabIndex={0} aria-label="Candidate summaries"><table><thead><tr><th>Measurement</th>{run.summary.candidates.map(s => <th key={s.candidate}>Candidate {s.candidate ? 'B' : 'A'}</th>)}</tr></thead><tbody>
+    <section className="experiment-section"><h2>Candidate summaries</h2><p className="table-scroll-hint">Scroll tables horizontally to compare all columns. Keyboard: focus a table, then use the arrow keys.</p><p>Means include successful scores only; counts below expose excluded and pending items. Faithfulness measures support in supplied context, not overall accuracy.</p><div className="experiment-table" tabIndex={0} aria-label="Candidate summaries"><table><thead><tr><th>Measurement</th>{run.summary.candidates.map(s => <th key={s.candidate}>Candidate {s.candidate ? 'B' : 'A'}</th>)}</tr></thead><tbody>
       {selected.map(m => <tr key={m}><th>{api.metricLabel[m]}</th>{run.summary.candidates.map(s => { const v = s.metrics[m]; return <td key={s.candidate}><strong>{number(v.mean)}</strong> · n={v.scored}/{s.total}<small>{v.failed} failed · {v.skipped} skipped · {v.unavailable} unavailable ({v.missing_reference} missing reference) · {v.pending} pending</small></td>; })}</tr>)}
       <tr><th>Query latency</th>{run.summary.candidates.map(s => <td key={s.candidate}>{number(s.query_latency_ms.mean)} ms · n={s.query_latency_ms.count}</td>)}</tr>
       <tr><th>Query tokens</th>{run.summary.candidates.map(s => <td key={s.candidate}>{number(s.query_tokens.known_sum,0)}<small>Known for {s.query_tokens.known_count}/{s.query_tokens.total} queries</small></td>)}</tr>
       <tr><th>Generation cost (excludes embeddings)</th>{run.summary.candidates.map(s => <td key={s.candidate}>{money(s.generation_cost_usd.known_sum)}<small>Known for {s.generation_cost_usd.known_count}/{s.total} queries</small></td>)}</tr>
-      <tr><th>Evaluation cost</th>{run.summary.candidates.map(s => <td key={s.candidate}>{money(s.evaluation_cost_usd.known_sum)}<small>Known for {s.evaluation_cost_usd.known_count}/{s.evaluation_cost_usd.total} metric results. Relevancy embedding charges unavailable.</small></td>)}</tr>
+      <tr><th>Evaluation cost</th>{run.summary.candidates.map(s => <td key={s.candidate}>{money(s.evaluation_cost_usd.known_sum)}<small>Known for {s.evaluation_cost_usd.known_count}/{s.evaluation_cost_usd.total} metric results.{selected.includes('response_relevancy') && ' Relevancy embedding charges unavailable.'}</small></td>)}</tr>
       <tr><th>Generation failures / skipped items</th>{run.summary.candidates.map(s => <td key={s.candidate}>{s.generation_failures} / {s.skipped}</td>)}</tr>
     </tbody></table></div></section>
-    {run.snapshot.candidates.length === 2 && <section className="experiment-section"><h2>Paired comparison</h2><p>Only questions successfully scored for both candidates contribute to each difference. No combined winner score.</p><div className="experiment-table"><table><thead><tr><th>Metric</th><th>Shared sample</th><th>A mean</th><th>B mean</th><th>B − A</th></tr></thead><tbody>{selected.map(m => { const p = run.summary.paired[m]!; return <tr key={m}><th>{api.metricLabel[m]}</th><td>{p.count}</td><td>{number(p.a_mean)}</td><td>{number(p.b_mean)}</td><td>{p.b_minus_a != null && p.b_minus_a !== 0 && Math.abs(p.b_minus_a) < 0.001 ? p.b_minus_a.toExponential(2) : number(p.b_minus_a)}</td></tr>; })}</tbody></table></div></section>}
+    {run.snapshot.candidates.length === 2 && <section className="experiment-section"><h2>Paired comparison</h2><p>Only questions successfully scored for both candidates contribute to each difference. No combined winner score.</p><div className="experiment-table" tabIndex={0} aria-label="Paired comparison"><table><thead><tr><th>Metric</th><th>Shared sample</th><th>A mean</th><th>B mean</th><th>B − A</th></tr></thead><tbody>{selected.map(m => { const p = run.summary.paired[m]!; return <tr key={m}><th>{api.metricLabel[m]}</th><td>{p.count}</td><td>{number(p.a_mean)}</td><td>{number(p.b_mean)}</td><td>{p.b_minus_a != null && p.b_minus_a !== 0 && Math.abs(p.b_minus_a) < 0.001 ? p.b_minus_a.toExponential(2) : number(p.b_minus_a)}</td></tr>; })}</tbody></table></div></section>}
     <section className="experiment-section"><h2>Per-question comparison</h2><div className="experiment-table" tabIndex={0} aria-label="Per-question comparison"><table><thead><tr><th>Question</th>{run.snapshot.candidates.map((c,i) => <th key={c.id}>Candidate {i ? 'B' : 'A'}</th>)}</tr></thead><tbody>{run.snapshot.dataset.rows.map((row,i) => <tr key={i}><th><button className="question-link" onClick={() => setQuestion(i)}>{row.question}</button></th>{run.snapshot.candidates.map((c,ci) => { const item = run.items.find(x => x.ordinal === i && x.candidate === ci)!; return <td key={c.id}>{item.output.status === 'insufficient_evidence' ? 'Insufficient evidence' : readable(item.status)}<small>{selected.map(m => `${api.metricLabel[m]}: ${item.metrics[m]?.status === 'succeeded' ? number(item.metrics[m]?.value) : readable(item.metrics[m]?.reason || item.metrics[m]?.status || 'pending')}`).join(' · ')}</small><small>{number(item.output.snapshot?.total_ms)} ms · {number(item.output.snapshot?.usage?.total_tokens,0)} tokens · generation {money(item.output.snapshot?.cost_usd)}</small></td>; })}</tr>)}</tbody></table></div></section>
-    {question !== undefined && <section id="experiment-evidence" tabIndex={-1} className="experiment-section evidence-comparison" aria-label="Question evidence"><div className="experiment-heading"><h2>{run.snapshot.dataset.rows[question].question}</h2><Button variant="outline" onClick={() => setQuestion(undefined)}>Close evidence</Button></div><p>Reference: {run.snapshot.dataset.rows[question].reference_answer || 'Unavailable'}</p><div className="candidate-columns">{run.snapshot.candidates.map((candidate,ci) => { const item = run.items.find(i => i.ordinal === question && i.candidate === ci)!; return <article key={candidate.id}><h3>Candidate {ci ? 'B' : 'A'}</h3><p className="answer-text">{item.output.answer || item.error || 'No answer available.'}</p><p>Query run: {item.query_run_id || 'Not started'}</p>{item.output.snapshot?.evidence?.map(e => <details key={e.label} open><summary>{e.label} · {e.filename} · rank {e.rank}</summary><p className="answer-text">{e.text}</p><small>Source {e.document_id} · page {e.page_number ?? 'n/a'}</small></details>)}{selected.map(m => <details key={m}><summary>{api.metricLabel[m]} · {item.metrics[m]?.status || 'pending'}</summary><p>{readable(item.metrics[m]?.reason || "")}</p><pre>{JSON.stringify(item.metrics[m]?.calls?.map(c => ({ model: c.model, explanation: c.structured_output, usage: c.usage })) || [], null, 2)}</pre></details>)}</article>; })}</div></section>}
+    {question !== undefined && <section id="experiment-evidence" tabIndex={-1} className="experiment-section evidence-comparison" aria-label="Question evidence"><div className="experiment-heading"><h2>{run.snapshot.dataset.rows[question].question}</h2><Button variant="outline" onClick={() => setQuestion(undefined)}>Close evidence</Button></div><p>Reference: {run.snapshot.dataset.rows[question].reference_answer || 'Unavailable'}</p><div className="candidate-columns">{run.snapshot.candidates.map((candidate,ci) => { const item = run.items.find(i => i.ordinal === question && i.candidate === ci)!; return <article key={candidate.id}><h3>Candidate {ci ? 'B' : 'A'}</h3><AnswerText text={item.output.answer || item.error || 'No answer available.'}/><p>Query run: {item.query_run_id || 'Not started'}</p>{item.output.snapshot?.evidence?.map(e => <details key={e.label} open><summary>{e.label} · {e.filename} · rank {e.rank}</summary><p className="answer-text">{e.text}</p><small>Source {e.document_id} · page {e.page_number ?? 'n/a'}</small></details>)}{selected.map(m => <details key={m}><summary>{api.metricLabel[m]} · {item.metrics[m]?.status || 'pending'}</summary><p>{readable(item.metrics[m]?.reason || "")}</p><pre>{JSON.stringify(item.metrics[m]?.calls?.map(c => ({ model: c.model, explanation: c.structured_output, usage: c.usage })) || [], null, 2)}</pre></details>)}</article>; })}</div></section>}
     <details className="experiment-section"><summary>Immutable run configuration</summary><pre>{JSON.stringify(run.snapshot, null, 2)}</pre></details>
   </>}</section>;
 }

@@ -1,0 +1,30 @@
+
+> rag-quality-studio@0.1.0 test:e2e
+> playwright test
+
+
+Running 10 tests using 5 workers
+
+(node:14147) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:14144) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:14145) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:14146) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:14148) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  -   3 [chromium] › e2e/indexes.spec.ts:3:1 › reports missing embedding credentials without breaking document management
+  ✓   1 [chromium] › e2e/documents.spec.ts:3:1 › uploads, processes, inspects and revisits a versioned document (11.9s)
+  ✓   7 [chromium] › e2e/documents.spec.ts:43:1 › shows parsing failure and allows a new processing version (3.4s)
+  ✓   6 [chromium] › e2e/indexes.spec.ts:14:1 › indexes and retrieves persisted source evidence using the isolated provider fixture (17.7s)
+  ✓   9 [chromium] › e2e/projects.spec.ts:2:1 › creates a real project and preserves it across reload (1.4s)
+  ✓   8 [chromium] › e2e/documents.spec.ts:55:1 › processes a text PDF and displays its page provenance (5.8s)
+  ✓   4 [chromium] › e2e/pipelines.spec.ts:3:1 › pipeline create configure save reopen run evidence and immutable versions (21.8s)
+  ✓   5 [chromium] › e2e/playground.spec.ts:3:1 › retrieval-only search, editable pipeline draft, immutable save, answers and evidence (23.3s)
+  ✓  10 [chromium] › e2e/workspace.spec.ts:3:1 › project navigation, isolated state, direct links, history and mobile menu (4.1s)
+  ✓   2 [chromium] › e2e/experiments.spec.ts:3:1 › import reviewed dataset, compare two versions and inspect evidence (2.2m)
+
+  1 skipped
+  9 passed (2.2m)

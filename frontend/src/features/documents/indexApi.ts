@@ -12,3 +12,5 @@ export const listIndexes = (p: string, offset = 0) => request<IndexPage>(`${base
 export const createIndex = (p: string) => request<IndexVersion>(`${base(p)}/indexes`, { method: 'POST' });
 export const cancelIndex = (p: string, id: string) => request<IndexVersion>(`${base(p)}/indexes/${id}/cancel`, { method: 'POST' });
 export const retrieve = (p: string, index_id: string, query: string, top_k: number) => request<Retrieval>(`${base(p)}/retrieval`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ index_id, query, top_k }) });
+
+export const getIndex = (p: string, id: string) => request<IndexVersion>(`${base(p)}/indexes/${id}`);

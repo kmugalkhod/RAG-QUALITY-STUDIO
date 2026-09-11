@@ -61,6 +61,8 @@ def execute(
     template=None,
     defer=False,
     on_created=None,
+    preview_execution=None,
+    preview_base=None,
 ):
     index = indexes.get_index(session, project_id, request.index_id)
     if index.status != "succeeded":
@@ -82,7 +84,15 @@ def execute(
         generation_config=config,
         prompt_template=template,
         pipeline_version=version.version if version else None,
-        pipeline_execution=version.execution if version else None,
+        pipeline_execution=preview_execution
+        or (version.execution if version else None),
+        pipeline_preview=preview_execution is not None,
+        base_pipeline_id=str(preview_base.pipeline_id) if preview_base else None,
+        base_version_id=str(preview_base.id) if preview_base else None,
+        base_version=preview_base.version if preview_base else None,
+        pipeline_name=preview_base.name
+        if preview_base
+        else (version.name if version else None),
     )
     run = QueryRun(
         project_id=project_id,

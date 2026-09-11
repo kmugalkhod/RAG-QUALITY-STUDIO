@@ -18,7 +18,8 @@ test('shows loading then the empty state', async () => {
 
 test('validates whitespace and creates a project through the API', async () => {
   const fetch = mockFetch().mockResolvedValueOnce(response(empty)).mockResolvedValueOnce(response(project, 201)).mockResolvedValueOnce(response({ ...empty, total: 1, items: [project] }));
-  const user = userEvent.setup(); render(<ProjectsPage />);
+  const onCreated = vi.fn();
+  const user = userEvent.setup(); render(<ProjectsPage onCreated={onCreated} />);
   await screen.findByText('Your first project starts here');
   await user.click(screen.getByRole('button', { name: 'New project' }));
   expect(screen.getByLabelText(/Project name/)).toHaveFocus();
@@ -33,6 +34,7 @@ test('validates whitespace and creates a project through the API', async () => {
   expect(fetch.mock.calls[1][0]).toBe('/api/projects');
   expect(JSON.parse(fetch.mock.calls[1][1]?.body as string)).toEqual({ name: 'Research', description: '' });
   expect(screen.getByRole('status')).toHaveTextContent('created');
+  expect(onCreated).toHaveBeenCalledOnce();
 });
 
 test('shows list error and retries successfully', async () => {

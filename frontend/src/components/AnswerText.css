@@ -1,0 +1,38 @@
+.formatted-answer {
+  overflow-wrap: anywhere;
+  line-height: 1.75;
+  white-space: normal;
+}
+
+.formatted-answer p {
+  margin: 0 0 12px;
+  white-space: pre-wrap;
+}
+
+.formatted-answer :is(ul, ol) {
+  margin: 12px 0;
+  padding-left: 26px;
+  list-style: revert;
+}
+
+.formatted-answer li {
+  margin-block: 6px;
+}
+
+.formatted-answer code {
+  padding: 2px 5px;
+  border-radius: 3px;
+  background: var(--canvas);
+  font-size: .95em;
+}
+
+.formatted-answer pre {
+  padding: 14px;
+  background: var(--canvas);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.formatted-answer pre code {
+  padding: 0;
+}

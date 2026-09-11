@@ -242,3 +242,45 @@ def test_safe_substitution_is_single_pass():
     bad["nodes"][3]["temperature"] = float("nan")
     with pytest.raises(ValidationError):
         Execution.model_validate(bad)
+
+
+def test_preview_preserves_saved_version_and_executes_exact_draft(pipeline_api):
+    c, _, p, q, index = pipeline_api
+    base = f"/api/projects/{p}/pipelines"
+    payload = draft(index["id"])
+    saved = c.post(base, json=payload).json()
+    edited = deepcopy(payload["execution"])
+    edited["nodes"][1]["top_k"] = 2
+    edited["nodes"][2]["template"] = "Use two sentences. {question} {context}"
+    edited["nodes"][3].update(model="test/other", temperature=0.5, max_tokens=768)
+    request = dict(
+        question="abcd?",
+        execution=edited,
+        base_pipeline_id=saved["pipeline_id"],
+        base_version_id=saved["id"],
+    )
+    with patch.object(
+        generation.OpenRouterChat,
+        "generate",
+        return_value=generation.Completion("Answer [S1]", "test/other", {}, None),
+    ) as provider:
+        accepted = c.post(base + "/preview-runs", json=request)
+    assert accepted.status_code == 202, accepted.text
+    run = c.get(f"/api/projects/{p}/query-runs/{accepted.json()['id']}").json()
+    assert run["status"] == "succeeded"
+    assert run["pipeline_version_id"] is None
+    assert run["snapshot"]["pipeline_preview"] is True
+    assert run["snapshot"]["base_version_id"] == saved["id"]
+    assert run["snapshot"]["pipeline_execution"] == edited
+    assert len(run["snapshot"]["evidence"]) == 2
+    assert provider.call_args.args[1]["temperature"] == 0.5
+    assert "Use two sentences." in provider.call_args.args[0][-1]["content"]
+    versions = f"{base}/{saved['pipeline_id']}/versions"
+    assert c.get(versions).json()["total"] == 1
+    assert c.get(versions + "/" + saved["id"]).json() == saved
+    assert c.post(base.replace(p, q) + "/preview-runs", json=request).status_code == 404
+    request["execution"]["nodes"][1]["top_k"] = 51
+    assert c.post(base + "/preview-runs", json=request).status_code == 422
+    request["execution"]["nodes"][1]["top_k"] = 2
+    request.pop("base_version_id")
+    assert c.post(base + "/preview-runs", json=request).status_code == 422

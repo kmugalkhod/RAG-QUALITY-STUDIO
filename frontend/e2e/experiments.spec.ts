@@ -11,9 +11,9 @@ test('import reviewed dataset, compare two versions and inspect evidence', async
   await page.getByRole('button', { name: 'Upload document', exact: true }).click();
   await page.getByRole('button', { name: 'Start processing', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Inspect 1 chunks' })).toBeVisible({ timeout: 30000 });
-  await page.getByRole('button', { name: 'Indexes', exact: true }).click();
-  await page.getByRole('button', { name: 'Index documents' }).click();
-  await expect(page.getByRole('button', { name: 'Use index 1' })).toBeVisible({ timeout: 30000 });
+  await page.getByRole('button', { name: 'Document sets', exact: true }).click();
+  await page.getByRole('button', { name: 'Prepare document set' }).click();
+  await expect(page.getByRole('button', { name: 'Use document set 1' })).toBeVisible({ timeout: 30000 });
   const index = (await (await request.get(`/api/projects/${project.id}/indexes`)).json()).items[0];
   const nodes = [{ id: 'q', type: 'question' }, { id: 'r', type: 'retriever', index_id: index.id, top_k: 1 }, { id: 'p', type: 'prompt', template: '{question} {context}' }, { id: 'l', type: 'llm', model: 'test/chat', temperature: 0, max_tokens: 512 }, { id: 'a', type: 'answer' }];
   const payload = { name: 'Orchard comparison', execution: { schema_version: 1, nodes, edges: nodes.slice(1).map((n,i) => ({ source: nodes[i].id, target: n.id })) }, layout: { positions: Object.fromEntries(nodes.map((n,i) => [n.id, { x: 0, y: i*120 }])) } };
@@ -30,6 +30,12 @@ test('import reviewed dataset, compare two versions and inspect evidence', async
   await page.getByLabel('Experiment name', { exact: true }).fill('Two saved versions');
   await page.getByRole('combobox', { name: 'Candidate A', exact: true }).selectOption(first.id);
   await page.getByRole('combobox', { name: 'Candidate B (optional)', exact: true }).selectOption(second.id);
+  await page.getByRole('link', { name: 'Pipelines', exact: true }).click();
+  await page.goBack();
+  await page.reload();
+  await expect(page.getByLabel('Experiment name', { exact: true })).toHaveValue('Two saved versions');
+  await expect(page.getByRole('combobox', { name: 'Candidate A', exact: true })).toHaveValue(first.id);
+  await expect(page.getByRole('combobox', { name: 'Candidate B (optional)', exact: true })).toHaveValue(second.id);
   await page.getByRole('button', { name: 'Run experiment', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Two saved versions' })).toBeVisible();
   await expect(page.getByRole('status')).toContainText('succeeded · 6 / 6', { timeout: 150000 });

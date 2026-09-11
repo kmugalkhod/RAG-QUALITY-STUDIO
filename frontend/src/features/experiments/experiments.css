@@ -25,3 +25,12 @@
 .experiments .metric-choice input { width: 16px; height: 16px; flex: 0 0 16px; padding: 0; }
 .experiments .metric-choice > span { color: var(--text); font-size: 13px; }
 .experiments .metric-choice small { font-size: 12px; }
+
+.table-scroll-hint { color: var(--muted); font-size: 12px; }
+.experiment-table:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+@media (min-width: 1100px) { .table-scroll-hint { display: none; } }
+
+.linear-workspace .experiments .draft-notice {
+  font-size: 13px;
+  color: var(--muted);
+}

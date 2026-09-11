@@ -1,0 +1,42 @@
+
+> rag-quality-studio@0.1.0 test:e2e
+> playwright test e2e/playground.spec.ts
+
+
+Running 1 test using 1 worker
+
+(node:13861) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  1 [chromium] › e2e/playground.spec.ts:3:1 › retrieval-only search, editable pipeline draft, immutable save, answers and evidence (2.0m)
+
+
+  1) [chromium] › e2e/playground.spec.ts:3:1 › retrieval-only search, editable pipeline draft, immutable save, answers and evidence 
+
+    Test timeout of 120000ms exceeded.
+
+    Error: locator.fill: Test timeout of 120000ms exceeded.
+    Call log:
+      - waiting for getByLabel('Prompt', { exact: true })
+
+
+      35 |   await page.getByLabel('Documents to search').selectOption({ label: 'Document set · Version 1 · 1 passages' });
+      36 |   await page.getByLabel('Top k', { exact: true }).fill('1');
+    > 37 |   await page.getByLabel('Prompt', { exact: true }).fill('Use one short sentence. Question: {question} Context: {context}');
+         |                                                    ^
+      38 |   await page.getByLabel('Temperature', { exact: true }).fill('0.3');
+      39 |   await page.getByLabel('Max output tokens', { exact: true }).fill('128');
+      40 |   await page.getByLabel('Question', { exact: true }).fill('What does the orchard grow?');
+        at /Users/kunal007/projects/rag-quality-studio/frontend/e2e/playground.spec.ts:37:52
+
+    Error Context: test-results/playground-retrieval-only--ef76f-e-save-answers-and-evidence-chromium/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/playground-retrieval-only--ef76f-e-save-answers-and-evidence-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/playground-retrieval-only--ef76f-e-save-answers-and-evidence-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [chromium] › e2e/playground.spec.ts:3:1 › retrieval-only search, editable pipeline draft, immutable save, answers and evidence 

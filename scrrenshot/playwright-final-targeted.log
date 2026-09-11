@@ -1,0 +1,15 @@
+
+> rag-quality-studio@0.1.0 test:e2e
+> playwright test e2e/pipelines.spec.ts e2e/playground.spec.ts
+
+
+Running 2 tests using 2 workers
+
+(node:11475) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:11473) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 [chromium] › e2e/playground.spec.ts:3:1 › single-turn answers, evidence, insufficient evidence and persisted history (11.3s)
+  ✓  2 [chromium] › e2e/pipelines.spec.ts:3:1 › pipeline create configure save reopen run evidence and immutable versions (13.7s)
+
+  2 passed (14.7s)

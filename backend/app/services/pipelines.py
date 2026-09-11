@@ -137,3 +137,29 @@ def finish_run(run_id):
         run = session.get(QueryRun, run_id)
         if run is not None and run.status == "running":
             queries.finish(session, run)
+
+
+def preview(session, project_id, request):
+    """Persist an exact test snapshot without creating or changing saved versions."""
+    project(session, project_id)
+    base = None
+    if request.base_pipeline_id is not None:
+        base = get_version(
+            session, project_id, request.base_pipeline_id, request.base_version_id
+        )
+    nodes, config = validate(session, project_id, request.execution)
+    retriever = nodes["retriever"]
+    return queries.execute(
+        session,
+        project_id,
+        QueryRequest(
+            index_id=retriever.index_id,
+            top_k=retriever.top_k,
+            question=request.question,
+        ),
+        config=config,
+        template=nodes["prompt"].template,
+        preview_execution=request.execution.model_dump(mode="json"),
+        preview_base=base,
+        defer=True,
+    )

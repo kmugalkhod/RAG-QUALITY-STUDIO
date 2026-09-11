@@ -15,6 +15,7 @@ export const list = (p: string, offset = 0) => request<Page<Pipeline>>(`${base(p
 export const versions = (p: string, id: string, offset = 0) => request<Page<Version>>(`${base(p)}/${id}/versions?offset=${offset}`);
 export const save = (p: string, draft: Draft, id?: string) => request<Version>(`${base(p)}${id ? `/${id}/versions` : ''}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(draft) });
 export const run = (p: string, v: Version, question: string) => request<QueryRun>(`${base(p)}/${v.pipeline_id}/versions/${v.id}/runs`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question }) });
+export const preview = (p: string, execution: Execution, question: string, baseVersion?: Version) => request<QueryRun>(`${base(p)}/preview-runs`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ execution, question, ...(baseVersion ? { base_pipeline_id: baseVersion.pipeline_id, base_version_id: baseVersion.id } : {}) }) });
 export const readRun = (p: string, id: string) => request<QueryRun>(`/projects/${p}/query-runs/${id}`);
 export async function allPages<T>(fetch: (offset: number) => Promise<Page<T>>) {
   const all: T[] = [];
@@ -27,7 +28,7 @@ export function validate(execution: Execution, opts?: Options, readyIds?: string
   if (execution.edges.length !== 4 || order.slice(1).some((_, i) => !execution.edges.some(e => e.source === ids[i] && e.target === ids[i + 1]))) errors.push('Connect Question → Retriever → Prompt → LLM → Answer only; branches, cycles and disconnected nodes are unsupported.');
   for (const n of execution.nodes) {
     if (n.type === 'retriever') {
-      if (!n.index_id || (readyIds && !readyIds.includes(n.index_id))) errors.push('Retriever: choose a ready index in Node settings.');
+      if (!n.index_id || (readyIds && !readyIds.includes(n.index_id))) errors.push('Retriever: choose documents to search in Node settings.');
       if (!Number.isInteger(n.top_k) || n.top_k! < 1 || n.top_k! > 50) errors.push('Retriever: top k must be a whole number from 1 to 50.');
     }
     if (n.type === 'prompt' && (!n.template?.includes('{question}') || !n.template.includes('{context}') || /[{}]/.test(n.template.replaceAll('{question}', '').replaceAll('{context}', '')) || n.template.length > 8000)) errors.push('Prompt: include {question} and {context}; other braces or expressions are unsupported.');

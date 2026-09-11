@@ -1,0 +1,13 @@
+
+> rag-quality-studio@0.1.0 test
+> vitest --run
+
+
+ RUN  v4.1.11 /Users/kunal007/projects/rag-quality-studio/frontend
+
+
+ Test Files  9 passed (9)
+      Tests  36 passed (36)
+   Start at  01:05:53
+   Duration  3.27s (transform 2.25s, setup 4.08s, import 3.76s, tests 4.37s, environment 8.11s)
+

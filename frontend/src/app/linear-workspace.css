@@ -323,3 +323,26 @@
 .linear-workspace .citation-link { color:var(--accent); }
 .linear-workspace input[type=file]::file-selector-button { background:var(--surface-hover); color:var(--text); }
 .linear-workspace progress { accent-color:var(--accent); }
+
+/* Readable metadata and accessible controls across the operating workspace. */
+.linear-workspace :is(.field-hint,.chunk-provenance,.index-config,.source-metadata,.table-note,.candidate-settings span,.run-status,.sidebar-note,.all-projects-link,.project-switcher,.detail-toolbar,.pipeline-validation,.technical-value){font-size:13px;line-height:1.6}
+.linear-workspace :is(.source-table th,.source-table td,.knowledge-tabs button span){font-size:13px}
+.linear-workspace :is(.knowledge-heading p,.section-heading h2){font-size:14px}
+.linear-workspace input::placeholder,.linear-workspace textarea::placeholder{color:var(--muted);opacity:1}
+@media(max-width:720px){
+  .linear-workspace :is(button,[data-slot=button],.icon-button,summary,select,input:not([type=checkbox]),.sidebar nav a,.all-projects-link){min-height:44px;height:auto}
+  .linear-workspace :is(button,.icon-button){min-width:44px}
+  .linear-workspace :is(input:not([type=checkbox]),select,textarea){font-size:16px}
+  .linear-workspace :is(.field-hint,.chunk-provenance,.source-metadata,.candidate-settings span,.technical-value,.run-status,.experiments small){font-size:14px}
+  .linear-workspace .metric-choice{min-height:44px;padding-block:6px}
+  .linear-workspace .react-flow__controls-button{width:44px;height:44px}
+  .linear-workspace .pipeline-config label{font-size:14px}
+  .linear-workspace .pipeline-toolbar{gap:12px}
+  .linear-workspace .pipeline-toolbar label:nth-child(2){max-width:none}
+  .linear-workspace .citation-link{display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;min-width:44px;min-height:44px}
+  .linear-workspace .experiments a{display:inline-flex;align-items:center;min-height:44px}
+}
+@media(max-width:720px){
+  .linear-workspace .pipeline-canvas{margin-top:64px;height:60dvh;min-height:440px}
+  .linear-workspace .pipeline-config p,.linear-workspace .draft-status{font-size:14px}
+}

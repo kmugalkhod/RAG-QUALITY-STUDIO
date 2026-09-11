@@ -1,0 +1,7 @@
+Orchard Support policy — reviewed QA sample
+
+Customers may return an unused Orchard sensor within 30 days of delivery. A receipt is required. Contact support before shipping the return. Refunds are issued to the original payment method within 5 business days after inspection.
+
+Orchard Support is available Monday through Friday, 09:00 to 17:00 UTC. The support email is support@example.invalid. The standard sensor warranty lasts 12 months and covers manufacturing defects. Accidental damage is excluded.
+
+This document does not specify international shipping rates or a company founding date.

@@ -1,0 +1,68 @@
+
+> rag-quality-studio@0.1.0 test:e2e
+> playwright test
+
+
+Running 10 tests using 5 workers
+
+(node:9318) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:9320) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:9319) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:9316) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:9317) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  -   5 [chromium] › e2e/experiments.spec.ts:3:1 › import reviewed dataset, compare two versions and inspect evidence
+  -   4 [chromium] › e2e/playground.spec.ts:3:1 › single-turn answers, evidence, insufficient evidence and persisted history
+  -   2 [chromium] › e2e/pipelines.spec.ts:3:1 › pipeline create configure save reopen run evidence and immutable versions
+  ✓   6 [chromium] › e2e/projects.spec.ts:2:1 › creates a real project and preserves it across reload (458ms)
+  ✓   7 [chromium] › e2e/workspace.spec.ts:3:1 › project navigation, isolated state, direct links, history and mobile menu (1.4s)
+  ✓   3 [chromium] › e2e/documents.spec.ts:3:1 › uploads, processes, inspects and revisits a versioned document (3.8s)
+  ✘   1 [chromium] › e2e/indexes.spec.ts:3:1 › reports missing embedding credentials without breaking document management (5.6s)
+(node:9359) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  -   9 [chromium] › e2e/indexes.spec.ts:14:1 › indexes and retrieves persisted source evidence using the isolated provider fixture
+  ✓   8 [chromium] › e2e/documents.spec.ts:43:1 › shows parsing failure and allows a new processing version (4.7s)
+  ✓  10 [chromium] › e2e/documents.spec.ts:55:1 › processes a text PDF and displays its page provenance (4.7s)
+
+
+  1) [chromium] › e2e/indexes.spec.ts:3:1 › reports missing embedding credentials without breaking document management 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByText(/Set OPENROUTER_API_KEY/)
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" getByText(/Set OPENROUTER_API_KEY/) with timeout 5000ms
+      - waiting for getByText(/Set OPENROUTER_API_KEY/)
+
+
+       6 |   await page.goto(`/#/projects/${project.id}`);
+       7 |   await page.getByRole('button', { name: 'Indexes', exact: true }).click();
+    >  8 |   await expect(page.getByText(/Set OPENROUTER_API_KEY/)).toBeVisible();
+         |                                                          ^
+       9 |   await expect(page.getByRole('button', { name: 'Index documents' })).toBeDisabled();
+      10 |   await page.getByRole('button', { name: 'Add document', exact: true }).click();
+      11 |   await expect(page.getByRole('button', { name: 'Upload document', exact: true })).toBeEnabled();
+        at /Users/kunal007/projects/rag-quality-studio/frontend/e2e/indexes.spec.ts:8:58
+
+    Error Context: test-results/indexes-reports-missing-em-0e269-reaking-document-management-chromium/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/indexes-reports-missing-em-0e269-reaking-document-management-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/indexes-reports-missing-em-0e269-reaking-document-management-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [chromium] › e2e/indexes.spec.ts:3:1 › reports missing embedding credentials without breaking document management 
+  4 skipped
+  5 passed (13.9s)

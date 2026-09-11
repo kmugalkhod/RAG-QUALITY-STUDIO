@@ -7,6 +7,7 @@ import * as pipelines from '../pipelines/api';
 vi.mock('./api', async original => ({ ...await original<typeof api>(), datasets: vi.fn(), history: vi.fn(), options: vi.fn(), preview: vi.fn(), importDataset: vi.fn() }));
 vi.mock('../pipelines/api', async original => ({ ...await original<typeof pipelines>(), list: vi.fn() }));
 beforeEach(() => {
+  sessionStorage.clear();
   vi.mocked(api.datasets).mockResolvedValue({ items: [], total: 0, limit: 20, offset: 0 });
   vi.mocked(api.history).mockResolvedValue({ items: [], total: 0, limit: 20, offset: 0 });
   vi.mocked(pipelines.list).mockResolvedValue({ items: [], total: 0, limit: 20, offset: 0 });
@@ -30,4 +31,27 @@ describe('experiment setup', () => {
     await user.upload(screen.getByLabelText('CSV file'), new File(['question\nvalid'], 'good.csv', { type: 'text/csv' }));
     await waitFor(() => expect(screen.queryByText('Row 2: Question is empty.')).not.toBeInTheDocument());
   });
+});
+
+
+it('restores name and metrics on remount and resets only the draft', async () => {
+  const user = userEvent.setup();
+  const view = render(<ExperimentsPage projectId="p"/>);
+  await user.type(await screen.findByLabelText('Experiment name'), 'Saved draft');
+  await user.click(screen.getByRole('checkbox', { name: /Response relevancy/ }));
+  view.unmount();
+  render(<ExperimentsPage projectId="p"/>);
+  expect(await screen.findByLabelText('Experiment name')).toHaveValue('Saved draft');
+  expect(screen.getByRole('checkbox', { name: /Response relevancy/ })).not.toBeChecked();
+  await user.click(screen.getByRole('button', { name: 'Reset draft' }));
+  expect(screen.getByLabelText('Experiment name')).toHaveValue('');
+  expect(screen.getByRole('checkbox', { name: /Response relevancy/ })).toBeChecked();
+});
+
+it('removes stale saved IDs before allowing a run', async () => {
+  sessionStorage.setItem('experiment-draft:v1:p', JSON.stringify({name: 'Old', dataset: 'missing', a: 'missing', b: '', metrics: ['faithfulness']}));
+  render(<ExperimentsPage projectId="p"/>);
+  expect(await screen.findByLabelText('Dataset version')).toHaveValue('');
+  expect(screen.getByLabelText('Candidate A')).toHaveValue('');
+  expect(screen.getByRole('button', { name: 'Run experiment' })).toBeDisabled();
 });

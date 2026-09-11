@@ -1,0 +1,100 @@
+
+> rag-quality-studio@0.1.0 test:e2e
+> playwright test
+
+
+Running 10 tests using 5 workers
+
+(node:9425) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:9422) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:9426) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:9423) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:9424) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  -   2 [chromium] › e2e/indexes.spec.ts:3:1 › reports missing embedding credentials without breaking document management
+  ✓   4 [chromium] › e2e/documents.spec.ts:3:1 › uploads, processes, inspects and revisits a versioned document (4.0s)
+  ✓   7 [chromium] › e2e/documents.spec.ts:43:1 › shows parsing failure and allows a new processing version (2.7s)
+  ✓   6 [chromium] › e2e/indexes.spec.ts:14:1 › indexes and retrieves persisted source evidence using the isolated provider fixture (8.0s)
+  ✓   9 [chromium] › e2e/projects.spec.ts:2:1 › creates a real project and preserves it across reload (284ms)
+  ✓  10 [chromium] › e2e/workspace.spec.ts:3:1 › project navigation, isolated state, direct links, history and mobile menu (1.1s)
+  ✘   5 [chromium] › e2e/playground.spec.ts:3:1 › single-turn answers, evidence, insufficient evidence and persisted history (13.0s)
+  ✓   8 [chromium] › e2e/documents.spec.ts:55:1 › processes a text PDF and displays its page provenance (6.7s)
+  ✘   3 [chromium] › e2e/pipelines.spec.ts:3:1 › pipeline create configure save reopen run evidence and immutable versions (38.5s)
+  ✓   1 [chromium] › e2e/experiments.spec.ts:3:1 › import reviewed dataset, compare two versions and inspect evidence (2.1m)
+
+
+  1) [chromium] › e2e/pipelines.spec.ts:3:1 › pipeline create configure save reopen run evidence and immutable versions 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByRole('region', { name: 'Query result' }).getByText('The orchard grows apples.', { exact: true })
+    Expected: visible
+    Timeout: 30000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" getByRole('region', { name: 'Query result' }).getByText('The orchard grows apples.', { exact: true }) with timeout 30000ms
+      - waiting for getByRole('region', { name: 'Query result' }).getByText('The orchard grows apples.', { exact: true })
+
+
+      47 |   await page.getByRole('button', { name: 'Ask question', exact: true }).click();
+      48 |   const result = page.getByRole('region', { name: 'Query result' });
+    > 49 |   await expect(result.getByText('The orchard grows apples.', { exact: true })).toBeVisible({ timeout: 30000 });
+         |                                                                                ^
+      50 |   await result.getByRole('button', { name: '[S1]', exact: true }).click();
+      51 |   await expect(page.locator('#evidence-S1')).toBeFocused();
+      52 |   await expect(result.getByText(/Pipeline version 1/)).toBeVisible();
+        at /Users/kunal007/projects/rag-quality-studio/frontend/e2e/pipelines.spec.ts:49:80
+
+    Error Context: test-results/pipelines-pipeline-create--7709a-ence-and-immutable-versions-chromium/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/pipelines-pipeline-create--7709a-ence-and-immutable-versions-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/pipelines-pipeline-create--7709a-ence-and-immutable-versions-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) [chromium] › e2e/playground.spec.ts:3:1 › single-turn answers, evidence, insufficient evidence and persisted history 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByRole('region', { name: 'Query result' }).getByText('The orchard grows apples.', { exact: true })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" getByRole('region', { name: 'Query result' }).getByText('The orchard grows apples.', { exact: true }) with timeout 5000ms
+      - waiting for getByRole('region', { name: 'Query result' }).getByText('The orchard grows apples.', { exact: true })
+
+
+      20 |   await page.getByRole('button', { name: 'Ask question', exact: true }).click();
+      21 |   const result = page.getByRole('region', { name: 'Query result' });
+    > 22 |   await expect(result.getByText('The orchard grows apples.', { exact: true })).toBeVisible();
+         |                                                                                ^
+      23 |   await result.getByRole('button', { name: '[S1]', exact: true }).click();
+      24 |   await expect(page.locator('#evidence-S1')).toBeFocused();
+      25 |   await expect(result.getByText('The orchard grows apples. The harvest begins in September.', { exact: true })).toBeVisible();
+        at /Users/kunal007/projects/rag-quality-studio/frontend/e2e/playground.spec.ts:22:80
+
+    Error Context: test-results/playground-single-turn-ans-a2354-dence-and-persisted-history-chromium/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/playground-single-turn-ans-a2354-dence-and-persisted-history-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/playground-single-turn-ans-a2354-dence-and-persisted-history-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2 failed
+    [chromium] › e2e/pipelines.spec.ts:3:1 › pipeline create configure save reopen run evidence and immutable versions 
+    [chromium] › e2e/playground.spec.ts:3:1 › single-turn answers, evidence, insufficient evidence and persisted history 
+  1 skipped
+  7 passed (2.1m)

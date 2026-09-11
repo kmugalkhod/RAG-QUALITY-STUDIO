@@ -10,6 +10,7 @@ from app.schemas.pipeline import (
     VersionRead,
     VersionPage,
     RunRequest,
+    PreviewRequest,
     DEFAULT_TEMPLATE,
 )
 from app.schemas.query import QueryRead
@@ -35,6 +36,18 @@ def options(project_id: UUID, session: Database):
         "template": DEFAULT_TEMPLATE,
         "error": error,
     }
+
+
+@router.post("/preview-runs", response_model=QueryRead, status_code=202)
+def preview(
+    project_id: UUID,
+    request: PreviewRequest,
+    session: Database,
+    background: BackgroundTasks,
+):
+    row = pipelines.preview(session, project_id, request)
+    background.add_task(pipelines.finish_run, row.id)
+    return row
 
 
 @router.get("", response_model=PipelinePage)

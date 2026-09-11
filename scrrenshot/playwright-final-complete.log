@@ -1,0 +1,30 @@
+
+> rag-quality-studio@0.1.0 test:e2e
+> playwright test
+
+
+Running 10 tests using 5 workers
+
+(node:11771) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:11772) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:11775) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:11773) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:11774) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  -   3 [chromium] › e2e/indexes.spec.ts:3:1 › reports missing embedding credentials without breaking document management
+  ✓   5 [chromium] › e2e/documents.spec.ts:3:1 › uploads, processes, inspects and revisits a versioned document (5.9s)
+  ✓   6 [chromium] › e2e/indexes.spec.ts:14:1 › indexes and retrieves persisted source evidence using the isolated provider fixture (9.3s)
+  ✓   8 [chromium] › e2e/projects.spec.ts:2:1 › creates a real project and preserves it across reload (1.4s)
+  ✓   7 [chromium] › e2e/documents.spec.ts:43:1 › shows parsing failure and allows a new processing version (5.8s)
+  ✓   2 [chromium] › e2e/playground.spec.ts:3:1 › single-turn answers, evidence, insufficient evidence and persisted history (11.6s)
+  ✓   9 [chromium] › e2e/workspace.spec.ts:3:1 › project navigation, isolated state, direct links, history and mobile menu (3.2s)
+  ✓   4 [chromium] › e2e/pipelines.spec.ts:3:1 › pipeline create configure save reopen run evidence and immutable versions (15.0s)
+  ✓  10 [chromium] › e2e/documents.spec.ts:55:1 › processes a text PDF and displays its page provenance (3.6s)
+  ✓   1 [chromium] › e2e/experiments.spec.ts:3:1 › import reviewed dataset, compare two versions and inspect evidence (2.2m)
+
+  1 skipped
+  9 passed (2.2m)

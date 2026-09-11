@@ -144,3 +144,15 @@ class VersionPage(BaseModel):
 class RunRequest(Strict):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
     question: str = Field(min_length=1, max_length=8000)
+
+
+class PreviewRequest(RunRequest):
+    execution: Execution
+    base_pipeline_id: UUID | None = None
+    base_version_id: UUID | None = None
+
+    @model_validator(mode="after")
+    def paired_base(self):
+        if (self.base_pipeline_id is None) != (self.base_version_id is None):
+            raise ValueError("Provide both base pipeline and version, or neither.")
+        return self

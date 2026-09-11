@@ -1,0 +1,66 @@
+
+> rag-quality-studio@0.1.0 test:e2e
+> playwright test
+
+
+Running 10 tests using 5 workers
+
+(node:12493) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:12495) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:12494) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:12497) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:12496) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  -   5 [chromium] › e2e/indexes.spec.ts:3:1 › reports missing embedding credentials without breaking document management
+  ✓   1 [chromium] › e2e/documents.spec.ts:3:1 › uploads, processes, inspects and revisits a versioned document (6.3s)
+  ✓   7 [chromium] › e2e/documents.spec.ts:43:1 › shows parsing failure and allows a new processing version (4.9s)
+  ✓   3 [chromium] › e2e/playground.spec.ts:3:1 › single-turn answers, evidence, insufficient evidence and persisted history (14.5s)
+  ✓   9 [chromium] › e2e/projects.spec.ts:2:1 › creates a real project and preserves it across reload (641ms)
+  ✓   8 [chromium] › e2e/documents.spec.ts:55:1 › processes a text PDF and displays its page provenance (5.5s)
+  ✓   2 [chromium] › e2e/pipelines.spec.ts:3:1 › pipeline create configure save reopen run evidence and immutable versions (17.6s)
+  ✓  10 [chromium] › e2e/workspace.spec.ts:3:1 › project navigation, isolated state, direct links, history and mobile menu (2.7s)
+  ✘   6 [chromium] › e2e/indexes.spec.ts:14:1 › indexes and retrieves persisted source evidence using the isolated provider fixture (17.0s)
+  ✓   4 [chromium] › e2e/experiments.spec.ts:3:1 › import reviewed dataset, compare two versions and inspect evidence (2.3m)
+
+
+  1) [chromium] › e2e/indexes.spec.ts:14:1 › indexes and retrieves persisted source evidence using the isolated provider fixture 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByRole('region', { name: 'Retrieval results' }).getByText(/1 results from index version 1/)
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" getByRole('region', { name: 'Retrieval results' }).getByText(/1 results from index version 1/) with timeout 5000ms
+      - waiting for getByRole('region', { name: 'Retrieval results' }).getByText(/1 results from index version 1/)
+
+
+      32 |   await expect(results.getByText('The orchard grows apples. The harvest begins in September.', { exact: true })).toBeVisible();
+      33 |   await expect(results.getByText(/Cosine distance 0.0000/)).toBeVisible();
+    > 34 |   await expect(results.getByText(/1 results from index version 1/)).toBeVisible();
+         |                                                                     ^
+      35 |   await page.setViewportSize({ width: 1440, height: 1000 });
+      36 |   await page.getByRole('heading', { name: 'Index & test retrieval' }).scrollIntoViewIfNeeded();
+      37 |   await page.getByRole('region', { name: 'Index & test retrieval' }).screenshot({ path: 'test-results/index-desktop.png' });
+        at /Users/kunal007/projects/rag-quality-studio/frontend/e2e/indexes.spec.ts:34:69
+
+    Error Context: test-results/indexes-indexes-and-retrie-9a23e-e-isolated-provider-fixture-chromium/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/indexes-indexes-and-retrie-9a23e-e-isolated-provider-fixture-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/indexes-indexes-and-retrie-9a23e-e-isolated-provider-fixture-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [chromium] › e2e/indexes.spec.ts:14:1 › indexes and retrieves persisted source evidence using the isolated provider fixture 
+  1 skipped
+  8 passed (2.3m)

@@ -3,7 +3,7 @@ import { ArrowRight, FolderPlus, Plus, RotateCw, X } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 import { createProject, listProjects, type ProjectPage } from '../../lib/api';
 
-export function ProjectsPage() {
+export function ProjectsPage({ onCreated }: { onCreated?: () => void }) {
   const [page, setPage] = useState<ProjectPage | null>(null);
   const [offset, setOffset] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -38,6 +38,7 @@ export function ProjectsPage() {
     setSaving(true); setFormError(''); setNotice('');
     try {
       const project = await createProject({ name: name.trim(), description: description.trim() });
+      onCreated?.();
       setName(''); setDescription(''); closeForm(); setNotice(`Project “${project.name}” created.`);
       if (offset === 0) await load(0); else setOffset(0);
     } catch (err) { setFormError(`${(err as Error).message} If the connection was interrupted, refresh the project list before retrying to avoid a duplicate.`); }

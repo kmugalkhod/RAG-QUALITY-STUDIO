@@ -28,7 +28,7 @@ export function KnowledgeBase({ projectId, documentId = '' }: { projectId: strin
     window.addEventListener('hashchange', update);
     return () => window.removeEventListener('hashchange', update);
   }, []);
-  const [showUpload, setShowUpload] = useState(false);
+  const [showUpload, setShowUpload] = useState(() => new URLSearchParams(window.location.hash.split('?')[1]).get('upload') === '1');
   const [limit, setLimit] = useState<number>();
   const [page, setPage] = useState<api.Page<api.Document>>();
   const [offset, setOffset] = useState(0);
@@ -96,7 +96,7 @@ export function KnowledgeBase({ projectId, documentId = '' }: { projectId: strin
   }
   return <div className="knowledge-page">
     <div className="knowledge-heading"><div><h1>Knowledge Base</h1><p>Source documents and searchable indexes.</p></div><Button variant={selected || showUpload ? 'outline' : 'default'} onClick={() => { setTab('documents'); setShowUpload(v => !v); }} aria-expanded={showUpload} aria-controls="upload-panel"><Plus size={15}/>Add document</Button></div>
-    <nav className="knowledge-tabs" aria-label="Knowledge Base views"><button aria-current={tab === 'documents' ? 'page' : undefined} onClick={() => setTab('documents')}><Files size={15}/>Documents {page && <span>{page.total}</span>}</button><button aria-current={tab === 'indexes' ? 'page' : undefined} onClick={() => setTab('indexes')}><Database size={15}/>Indexes</button></nav>
+    <nav className="knowledge-tabs" aria-label="Knowledge Base views"><button aria-current={tab === 'documents' ? 'page' : undefined} onClick={() => setTab('documents')}><Files size={15}/>Documents {page && <span>{page.total}</span>}</button><button aria-current={tab === 'indexes' ? 'page' : undefined} onClick={() => setTab('indexes')}><Database size={15}/>Document sets</button></nav>
     {showUpload && <section id="upload-panel" className="create-panel upload-panel" aria-labelledby="upload-title"><h2 id="upload-title">Add a document</h2>
       <form className="upload-form" onSubmit={upload} aria-busy={uploading}>
         <div><label htmlFor="document-file">PDF or UTF-8 TXT</label><input ref={fileInput} id="document-file" type="file" accept=".pdf,.txt" disabled={uploading || !limit} aria-describedby="upload-hint"/><p className="field-hint" id="upload-hint">One file per upload. {limit ? `Maximum ${bytes(limit)}.` : 'Loading upload limit…'} Scanned PDFs require OCR and are unsupported.</p></div>
@@ -116,7 +116,7 @@ export function KnowledgeBase({ projectId, documentId = '' }: { projectId: strin
         <td><span className={`run-status status-${doc.latest_run?.status || 'uploaded'}`}>{doc.latest_run ? doc.latest_run.status === 'succeeded' ? 'Processed' : active(doc.latest_run) ? 'Processing' : doc.latest_run.status : 'Uploaded'}</span>{active(doc.latest_run) && <small> {doc.latest_run?.progress}%</small>}</td>
         <td>{doc.size_bytes < 1024 ? `${doc.size_bytes} B` : `${(doc.size_bytes / 1024).toFixed(1)} KB`}</td><td><time dateTime={doc.created_at}>{new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(new Date(doc.created_at))}</time></td>
         <td><button className="icon-button" onClick={() => selectDocument(doc)} aria-label={`Manage ${doc.filename}`}><PanelRight size={15}/></button></td>
-      </tr>)}</tbody></table><p className="table-note">Processed documents are ready to index. Only ready indexes can answer questions.</p></div>}
+      </tr>)}</tbody></table><p className="table-note">After processing, prepare a document set in the Document sets tab to start asking questions.</p></div>}
       {page && <Pagination offset={offset} total={page.total} onChange={value => { focusPage.current = true; setOffset(value); }} busy={loading} label="Document pages"/>}
     </section>}
     {tab === 'indexes' && <IndexPanel key={projectId} projectId={projectId}/>}
@@ -167,7 +167,7 @@ function DocumentInspector({ projectId, document, onChange }: { projectId: strin
     setBusy(true);
     try {
       const result = await api.startRun(projectId, document.id, chunkSize, chunkOverlap);
-      setNotice(`Version ${result.version} queued. Processing will start when a worker is available.`);
+      setNotice(`Version ${result.version} created. Follow its status in processing history.`);
       setActiveRun(true); setOffset(0); setRevision(n => n + 1); onChange();
     } catch (err) { setError(message(err)); }
     finally { setBusy(false); }

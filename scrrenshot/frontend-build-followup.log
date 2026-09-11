@@ -1,0 +1,80 @@
+#1 [internal] load local bake definitions
+#1 reading from stdin 424B done
+#1 DONE 0.0s
+
+#2 [internal] load build definition from Dockerfile
+#2 transferring dockerfile: 268B done
+#2 DONE 0.0s
+
+#3 [internal] load metadata for docker.io/library/node:22.18.0-alpine
+#3 DONE 1.0s
+
+#4 [internal] load metadata for docker.io/library/nginx:1.28.0-alpine
+#4 DONE 1.0s
+
+#5 [internal] load .dockerignore
+#5 transferring context: 94B done
+#5 DONE 0.0s
+
+#6 [build 1/6] FROM docker.io/library/node:22.18.0-alpine@sha256:1b2479dd35a99687d6638f5976fd235e26c5b37e8122f786fcd5fe231d63de5b
+#6 DONE 0.0s
+
+#7 [stage-1 1/3] FROM docker.io/library/nginx:1.28.0-alpine@sha256:30f1c0d78e0ad60901648be663a710bdadf19e4c10ac6782c235200619158284
+#7 DONE 0.0s
+
+#8 [internal] load build context
+#8 transferring context: 51.48kB done
+#8 DONE 0.0s
+
+#9 [build 2/6] WORKDIR /app
+#9 CACHED
+
+#10 [build 3/6] COPY package*.json ./
+#10 CACHED
+
+#11 [build 4/6] RUN npm ci
+#11 CACHED
+
+#12 [build 5/6] COPY . .
+#12 DONE 0.0s
+
+#13 [build 6/6] RUN npm run build
+#13 0.221 
+#13 0.221 > rag-quality-studio@0.1.0 build
+#13 0.221 > tsc -b && vite build
+#13 0.221 
+#13 5.580 vite v7.3.6 building client environment for production...
+#13 5.660 transforming...
+#13 8.242 ✓ 1858 modules transformed.
+#13 8.548 rendering chunks...
+#13 8.559 computing gzip size...
+#13 8.576 dist/index.html                   0.42 kB │ gzip:   0.30 kB
+#13 8.576 dist/assets/index-upOLREwV.css   78.41 kB │ gzip:  14.52 kB
+#13 8.576 dist/assets/index-B68waswY.js   501.41 kB │ gzip: 157.51 kB
+#13 8.576 
+#13 8.576 (!) Some chunks are larger than 500 kB after minification. Consider:
+#13 8.576 - Using dynamic import() to code-split the application
+#13 8.576 - Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+#13 8.576 - Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+#13 8.577 ✓ built in 2.95s
+#13 DONE 8.7s
+
+#14 [stage-1 2/3] COPY nginx.conf /etc/nginx/conf.d/default.conf
+#14 CACHED
+
+#15 [stage-1 3/3] COPY --from=build /app/dist /usr/share/nginx/html
+#15 DONE 0.0s
+
+#16 exporting to image
+#16 exporting layers 0.0s done
+#16 writing image sha256:70197ffb963b65688a99aa3d2e7d32a4cc6984831657190b0c27f726fd865c52 done
+#16 naming to docker.io/library/rag-quality-studio-frontend done
+#16 DONE 0.0s
+
+#17 resolving provenance for metadata file
+#17 DONE 0.0s
+ frontend  Built
+ Container rag-quality-studio-frontend-1  Recreate
+ Container rag-quality-studio-frontend-1  Recreated
+ Container rag-quality-studio-frontend-1  Starting
+ Container rag-quality-studio-frontend-1  Started

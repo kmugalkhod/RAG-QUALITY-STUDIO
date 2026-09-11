@@ -1,0 +1,75 @@
+
+> rag-quality-studio@0.1.0 test:e2e
+> playwright test
+
+
+Running 10 tests using 5 workers
+
+(node:11175) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:11178) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:11176) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:11177) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:11179) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  -   4 [chromium] › e2e/indexes.spec.ts:3:1 › reports missing embedding credentials without breaking document management
+  ✓   5 [chromium] › e2e/documents.spec.ts:3:1 › uploads, processes, inspects and revisits a versioned document (8.1s)
+  ✓   7 [chromium] › e2e/documents.spec.ts:43:1 › shows parsing failure and allows a new processing version (4.9s)
+  ✓   6 [chromium] › e2e/indexes.spec.ts:14:1 › indexes and retrieves persisted source evidence using the isolated provider fixture (14.0s)
+  ✓   9 [chromium] › e2e/projects.spec.ts:2:1 › creates a real project and preserves it across reload (1.2s)
+  ✓   3 [chromium] › e2e/playground.spec.ts:3:1 › single-turn answers, evidence, insufficient evidence and persisted history (17.0s)
+  ✓   8 [chromium] › e2e/documents.spec.ts:55:1 › processes a text PDF and displays its page provenance (5.0s)
+  ✓  10 [chromium] › e2e/workspace.spec.ts:3:1 › project navigation, isolated state, direct links, history and mobile menu (2.4s)
+  ✘   2 [chromium] › e2e/pipelines.spec.ts:3:1 › pipeline create configure save reopen run evidence and immutable versions (21.0s)
+  ✘   1 [chromium] › e2e/experiments.spec.ts:3:1 › import reviewed dataset, compare two versions and inspect evidence (2.3m)
+
+
+  1) [chromium] › e2e/experiments.spec.ts:3:1 › import reviewed dataset, compare two versions and inspect evidence 
+
+    Error: browserContext.close: ENOENT: no such file or directory, open '/Users/kunal007/projects/rag-quality-studio/frontend/test-results/.playwright-artifacts-1/traces/c79e7228dc2a358a6d86-531dc8da765c2e1ff6d0.network'
+
+    Error: ENOENT: no such file or directory, open '/Users/kunal007/projects/rag-quality-studio/frontend/test-results/.playwright-artifacts-1/e0bd3228f86b6857c25d78efa880b324.zip'
+
+    Error Context: test-results/experiments-import-reviewe-3201d-rsions-and-inspect-evidence-chromium/error-context.md
+
+  2) [chromium] › e2e/pipelines.spec.ts:3:1 › pipeline create configure save reopen run evidence and immutable versions 
+
+    Error: expect(page).toHaveURL(expected) failed
+
+    Expected: "http://127.0.0.1:5175/#/projects/969728f0-05b0-47c4-9580-4833daf7b573/playground?pipeline=4dc368e3-f870-4ae0-b136-746e960124a0&version=07375226-ae22-40eb-a96e-f1f3ff818765"
+    Received: "http://127.0.0.1:5175/#/projects/969728f0-05b0-47c4-9580-4833daf7b573/playground"
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveURL" with timeout 5000ms
+        14 × locator resolved to <html lang="en">…</html>
+           - unexpected value "http://127.0.0.1:5175/#/projects/969728f0-05b0-47c4-9580-4833daf7b573/playground"
+
+
+      47 |   await page.getByRole('link', { name: 'Pipelines', exact: true }).click();
+      48 |   await page.getByRole('link', { name: 'Playground', exact: true }).click();
+    > 49 |   await expect(page).toHaveURL(savedPlaygroundUrl);
+         |                      ^
+      50 |   await page.reload();
+      51 |   await expect(page.locator('.playground-context')).toHaveText('Orchard answers · Version 1');
+      52 |   await page.getByLabel('Question', { exact: true }).fill('What does the orchard grow?');
+        at /Users/kunal007/projects/rag-quality-studio/frontend/e2e/pipelines.spec.ts:49:22
+
+    Error Context: test-results/pipelines-pipeline-create--7709a-ence-and-immutable-versions-chromium/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/pipelines-pipeline-create--7709a-ence-and-immutable-versions-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/pipelines-pipeline-create--7709a-ence-and-immutable-versions-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2 failed
+    [chromium] › e2e/experiments.spec.ts:3:1 › import reviewed dataset, compare two versions and inspect evidence 
+    [chromium] › e2e/pipelines.spec.ts:3:1 › pipeline create configure save reopen run evidence and immutable versions 
+  1 skipped
+  7 passed (2.3m)

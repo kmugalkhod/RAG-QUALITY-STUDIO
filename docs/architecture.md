@@ -164,3 +164,14 @@ Each metric mean uses its own successfully scored denominator. Paired comparison
 The workspace adds `#/projects/:projectId/experiments` and `.../experiments/:experimentId`: preview/import, version inspection, one/two pipeline setup, input requirements, persisted polling/cancellation, summaries, paired and per-question comparison, exact evidence and structured judge output. Different indexes receive a visible comparison caveat. Full immutable snapshots are inspectable. Collection APIs retain bounded offset pagination; the local UI loads all pages for selectors/history. Detail responses are bounded by configured dataset limits but can be large because evidence and judge prompts are retained. Local unauthenticated access remains the deployment boundary.
 
 Versioned references: [Faithfulness](https://docs.ragas.io/en/v0.4.3/concepts/metrics/available_metrics/faithfulness/), [Response relevancy](https://docs.ragas.io/en/v0.4.3/concepts/metrics/available_metrics/answer_relevance/), [Context recall](https://docs.ragas.io/en/v0.4.3/concepts/metrics/available_metrics/context_recall/). Installed source and custom component abstract interfaces were inspected before implementation; deterministic adapter tests execute the actual three metric classes.
+
+### Browser selection continuity (2026-09-12)
+
+Knowledge Base links retain document/view and an explicit selected `index` query parameter. The frontend resolves that ID through the project-scoped index endpoint and only restores successful indexes. Hash changes cancel stale selection requests. Per-project session navigation remembers Knowledge Base and saved-pipeline Playground destinations; switching projects reuses only that project's destination. This stores navigation identifiers, not credentials or source text, and does not change execution snapshots or authorize cross-project access.
+
+
+### Playground draft execution and sidebar
+
+Retrieval tests use the existing project-scoped retrieval API without answer generation. Pipeline previews validate a typed execution graph and use the existing query engine; each run records the exact execution, prompt and generation configuration plus optional base pipeline/version in its JSON snapshot. Preview runs do not claim a saved pipeline version or mutate one. Explicit saving uses the existing immutable version API. No database migration is required.
+
+Playground styles live in the feature stylesheet. On desktop the inspector occupies a reserved right column over the workspace height; its header and save area remain fixed while fields scroll. Messages and source details scroll independently, keeping the composer visible.
