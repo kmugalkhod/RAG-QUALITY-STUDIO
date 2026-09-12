@@ -48,7 +48,7 @@ test('retrieves from explicit version and exposes source evidence and distance',
   await userEvent.click(await screen.findByRole('button', { name: 'Use document set 1' }));
   await userEvent.type(screen.getByLabelText('Search query'), 'Where is the evidence?');
   await userEvent.click(screen.getByRole('button', { name: 'Search documents only' }));
-  expect(api.retrieve).toHaveBeenCalledWith('p1', 'i1', 'Where is the evidence?', 5);
+  expect(api.retrieve).toHaveBeenCalledWith('p1', 'i1', 'Where is the evidence?', { mode: 'vector', top_k: 5, max_vector_distance: null });
   expect(await screen.findByText('Evidence.')).toBeVisible();
   expect(screen.getByText(/Cosine distance 0.1234/)).toHaveTextContent('PDF page 3');
   expect(screen.getByText(/1 passages from document set version 1/)).toBeVisible();
@@ -63,12 +63,12 @@ test('validates queries and top k; retry preserves error until a new action', as
   expect(await screen.findByRole('alert')).toHaveTextContent('enter a query');
   expect(api.retrieve).not.toHaveBeenCalled();
   await userEvent.type(screen.getByLabelText('Search query'), 'query');
-  await userEvent.clear(screen.getByLabelText('Number of results'));
-  await userEvent.type(screen.getByLabelText('Number of results'), '51');
+  await userEvent.clear(screen.getByLabelText('Top k'));
+  await userEvent.type(screen.getByLabelText('Top k'), '51');
   await userEvent.click(screen.getByRole('button', { name: 'Search documents only' }));
   expect(api.retrieve).not.toHaveBeenCalled();
-  await userEvent.clear(screen.getByLabelText('Number of results'));
-  await userEvent.type(screen.getByLabelText('Number of results'), '5');
+  await userEvent.clear(screen.getByLabelText('Top k'));
+  await userEvent.type(screen.getByLabelText('Top k'), '5');
   await userEvent.click(screen.getByRole('button', { name: 'Search documents only' }));
   expect(await screen.findByRole('alert')).toHaveTextContent('Provider unavailable');
   await userEvent.click(screen.getByRole('button', { name: 'Refresh document sets' }));

@@ -1,3 +1,5 @@
+from app.schemas.retrieval import algorithm_snapshot
+import json
 import copy
 import csv
 import hashlib
@@ -51,6 +53,8 @@ def submit(session, project_id, request):
                 "index_id": str(index.id),
                 "index_version": index.version,
                 "embedding_config": index.embedding_config,
+                "retrieval": nodes["retriever"].settings.model_dump(),
+                "retrieval_algorithm": algorithm_snapshot(),
             }
         )
     try:
@@ -288,6 +292,8 @@ def export_csv(session, project_id, experiment_id):
             "query_latency_ms",
             "query_tokens",
             "generation_cost_usd",
+            "retrieval_settings",
+            "retrieved_evidence",
             *[
                 f"{m}_{f}"
                 for m in selected
@@ -314,6 +320,8 @@ def export_csv(session, project_id, experiment_id):
                     snap.get("total_ms"),
                     (snap.get("usage") or {}).get("total_tokens"),
                     snap.get("cost_usd"),
+                    json.dumps(snap.get("retrieval") or candidate.get("retrieval")),
+                    json.dumps(snap.get("retrieval_result")),
                     *[
                         item.metrics.get(m, {}).get(f)
                         for m in selected

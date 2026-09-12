@@ -1,3 +1,4 @@
+from app.schemas.retrieval import algorithm_snapshot
 from datetime import datetime, timedelta, timezone
 from time import monotonic
 from fastapi import HTTPException
@@ -71,6 +72,8 @@ def execute(
         )
     snapshot = dict(
         top_k=request.top_k,
+        retrieval=request.retrieval.model_dump(),
+        retrieval_algorithm=algorithm_snapshot(),
         prompt_version="grounded-pipeline-template-v1" if template else PROMPT_VERSION,
         evidence=[],
         messages=[],
@@ -118,7 +121,10 @@ def finish(session, run, *, before_provider=None):
     started = monotonic()
     project_id = run.project_id
     request = QueryRequest(
-        index_id=run.index_id, question=run.question, top_k=run.snapshot["top_k"]
+        index_id=run.index_id,
+        question=run.question,
+        retrieval=run.snapshot.get("retrieval")
+        or {"mode": "vector", "top_k": run.snapshot["top_k"]},
     )
     snapshot = dict(run.snapshot)
     stage = None
@@ -134,11 +140,14 @@ def finish(session, run, *, before_provider=None):
             session,
             project_id,
             RetrievalRequest(
-                index_id=run.index_id, query=request.question, top_k=request.top_k
+                index_id=run.index_id,
+                query=request.question,
+                retrieval=request.retrieval,
             ),
         )
         snapshot[stage] = round((monotonic() - stage_start) * 1000, 3)
         stage = None
+        snapshot["retrieval_result"] = jsonable_encoder(result)
         sources, messages = build_context(
             request.question,
             jsonable_encoder(result["items"]),

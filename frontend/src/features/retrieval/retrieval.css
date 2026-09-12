@@ -1,0 +1,12 @@
+.retrieval-settings-form { border: 0; padding: 0; margin: 24px 0 12px; min-width: 0; display: grid; gap: 12px; }
+.retrieval-settings-form legend { font-size: 14px; font-weight: 600; margin-bottom: 12px; }
+.retrieval-settings-form label { display: grid; gap: 6px; min-width: 0; }
+.retrieval-settings-form input, .retrieval-settings-form select { width: 100%; min-width: 0; }
+.retrieval-settings-form .field-hint { margin: 0; }
+.retrieval-advanced { border-top: 1px solid var(--line, #343b46); padding-top: 12px; }
+.retrieval-advanced summary { cursor: pointer; font-size: 13px; }
+.retrieval-advanced label { margin-top: 16px; }
+.retrieval-advanced .field-hint { margin-top: 8px; }
+
+.linear-workspace .pipeline-config .retrieval-settings-form > label { margin-top: 0; }
+.linear-workspace .pipeline-config .retrieval-settings-form .retrieval-advanced label { margin-top: 16px; }

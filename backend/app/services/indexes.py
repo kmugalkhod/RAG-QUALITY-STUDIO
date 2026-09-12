@@ -135,47 +135,19 @@ def retrieve(session, project_id, request: RetrievalRequest):
             409, "Select a ready index. Partial indexes cannot be searched."
         )
     config = embeddings.EmbeddingConfig.model_validate(index.embedding_config)
-    provider = embeddings.provider_for(config)
-    vector = embeddings.validate_vectors(
-        provider.embed([request.query]), 1, index.dimensions
-    )[0]
-    distance = IndexChunk.embedding.cosine_distance(vector).label("cosine_distance")
-    rows = session.execute(
-        select(Chunk, ProcessingRun, Document, distance)
-        .select_from(IndexChunk)
-        .join(
-            Chunk,
-            (Chunk.run_id == IndexChunk.run_id) & (Chunk.ordinal == IndexChunk.ordinal),
-        )
-        .join(ProcessingRun, ProcessingRun.id == Chunk.run_id)
-        .join(Document, Document.id == ProcessingRun.document_id)
-        .where(
-            IndexChunk.index_id == index.id,
-            Document.project_id == project_id,
-            IndexChunk.embedding.is_not(None),
-        )
-        .order_by(distance, Chunk.run_id, Chunk.ordinal)
-        .limit(request.top_k)
-    ).all()
+    from app.pipelines.retrieval import search
+
+    items, diagnostics = search(session, project_id, index, request, config)
     return dict(
         index_id=index.id,
         index_version=index.version,
         embedding_config=config,
-        items=[
-            dict(
-                rank=rank,
-                document_id=doc.id,
-                filename=doc.filename,
-                content_hash=doc.content_hash,
-                run_id=run.id,
-                processing_version=run.version,
-                ordinal=chunk.ordinal,
-                page_number=chunk.page_number,
-                start_char=chunk.start_char,
-                end_char=chunk.end_char,
-                text=chunk.text,
-                cosine_distance=distance,
-            )
-            for rank, (chunk, run, doc, distance) in enumerate(rows, 1)
-        ],
+        retrieval=request.retrieval,
+        diagnostics=diagnostics,
+        items=items,
+        score_semantics=(
+            "Cosine distance: lower is closer; this is not confidence."
+            if request.retrieval.mode == "vector"
+            else "Lexical and weighted RRF scores: higher ranks first. Scores are not confidence and are not comparable across search modes."
+        ),
     )

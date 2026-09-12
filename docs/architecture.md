@@ -1,5 +1,15 @@
 # Application architecture
 
+## Retrieval settings extension (2026-09-12)
+
+Retrieval uses a shared discriminated settings contract for vector, PostgreSQL keyword and weighted hybrid search. Query/source binding is separated from search tuning in the interface. The existing five-node graph remains supported; no filters, source/filter nodes or reranker were added.
+
+Schema-v1 pipelines retain their original dense behavior. Editable copies normalize to schema v2, and saving creates an immutable new version with nested retrieval settings. Legacy flat Top k API requests normalize at the boundary; ambiguous legacy/new fields are rejected. Query and experiment snapshots persist effective settings before deferred work. Workers execute those values, including candidate counts, weight and cutoff, rather than reconstructing only Top k.
+
+Migration 0007 adds a GIN expression index over immutable chunk text using PostgreSQL simple analysis. Keyword search uses websearch_to_tsquery/ts_rank_cd and needs no query embedding. Hybrid fuses branch ranks with complementary weights and constant 60, bounded to 200 candidates per branch and 50 output chunks. Both branches enforce index membership and project scope; identity deduplication uses processing run and ordinal. A cutoff affects only vector candidates. A failed active branch fails the run; empty branches are valid. Zero-weight branches are skipped.
+
+Evidence distinguishes nullable distance, lexical and fusion scores and branch ranks. Run snapshots retain retrieved outputs separately from evidence supplied to generation; inspectors and experiment exports expose the recorded settings/results. The lexical index adds write cost and migration locking but avoids another search service or re-embedding. Vector search remains exact; no large-corpus recall/latency claim is made. See [retrieval settings](development.md#retrieval-search-settings) for API and operations and the [implementation plan](retrieval-settings-plan.md) for scope and acceptance criteria.
+
 The React workspace calls same-origin `/api` endpoints. Vite proxies requests during development; nginx serves the production build and proxies requests in Compose. Tailwind provides theme tokens; the local shadcn-style Button uses Radix Slot and class-variance-authority. Forms use native labeled controls.
 
 FastAPI routes delegate project operations to a service using a request-scoped synchronous SQLAlchemy session. Synchronous routes run in FastAPI's thread pool. Pydantic validates and trims inputs; PostgreSQL constraints also protect stored lengths. Project IDs are UUIDs, timestamps are database-generated timezone-aware values. Listing uses bounded offset pagination and a composite timestamp/ID index. Count and rows share a repeatable-read transaction. Duplicate names are allowed because names are labels, not identities.

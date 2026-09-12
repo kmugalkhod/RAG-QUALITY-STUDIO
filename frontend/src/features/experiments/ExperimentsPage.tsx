@@ -1,3 +1,4 @@
+import { nodeRetrieval, retrievalSummary } from '../retrieval/settings';
 import { AnswerText } from '../../components/AnswerText';
 import { readDraft, saveDraft, emptyDraft } from './draft';
 import { useEffect, useRef, useState } from 'react';
@@ -16,7 +17,7 @@ function Questions({ rows }: { rows: api.Row[] }) {
 function Configuration({ version }: { version: Version | api.Candidate }) {
   const retriever = version.execution.nodes.find(n => n.type === 'retriever');
   const llm = version.execution.nodes.find(n => n.type === 'llm');
-  return <p className="candidate-settings"><strong>{version.name} · v{version.version}</strong><br/>{llm?.model} · top k {retriever?.top_k} · temperature {llm?.temperature} · max output {llm?.max_tokens}<br/>Index {'index_version' in version ? `${version.index_version} · ` : ''}<span>{retriever?.index_id}</span></p>;
+  return <p className="candidate-settings"><strong>{version.name} · v{version.version}</strong><br/>{llm?.model} · {retrievalSummary(nodeRetrieval(retriever))} · temperature {llm?.temperature} · max output {llm?.max_tokens}<br/>Index {'index_version' in version ? `${version.index_version} · ` : ''}<span>{retriever?.index_id}</span></p>;
 }
 export function ExperimentsPage({ projectId, experimentId }: { projectId: string; experimentId?: string }) {
   const [datasets, setDatasets] = useState<api.Dataset[]>([]);

@@ -1,5 +1,23 @@
 # Implementation plan
 
+## Retrieval node settings — completed 2026-09-12
+
+Implemented the six agreed controls: search method, Top k, optional maximum vector distance, vector/keyword candidate counts and hybrid weighting. Shared validation and effective settings flow through canvas save/run, previews, direct retrieval, deferred queries and experiments. PostgreSQL keyword search and weighted RRF execute against scoped immutable index membership. No filters or reranking were implemented.
+
+Added migration 0007 for lexical indexing without re-embedding, v1/v2 graph compatibility, mode-specific evidence scores, recorded retrieval outputs/diagnostics, shared visual forms and experiment export fields. Existing saved versions and source data are preserved. See the [original acceptance plan](retrieval-settings-plan.md) and [operating/API documentation](development.md#retrieval-search-settings).
+
+Verification:
+
+- Isolated PostgreSQL/pgvector backend: **164 passed, 1 skipped** (opt-in live embedding check). Includes configuration bounds, cosine cutoff, lexical and weighted RRF ordering, same-project index membership and cross-project isolation, zero-weight branches, provider failure, keyword without credentials, saved/preview/experiment snapshots, clean migrations and populated lexical downgrade/upgrade with preserved evidence.
+- Frontend: **38 tests passed**, lint/typecheck and production builds passed. Backend Ruff lint/format passed.
+- Browser regressions: **9 existing journeys passed**, with **1 missing-credentials case intentionally skipped** in the provider-fixture stack. New legacy-to-hybrid save/reload, all six controls, keyword preview and retrieval-only journey passed separately after fixing navigation/label test locators. It verifies original saved JSON remains unchanged and preview evidence has keyword scores without fabricated distances.
+- Desktop/mobile screenshots reviewed; spacing refined and confirmed, no horizontal page overflow. Mechanical UI detector reported no findings. Direct agent-browser selection and keyword-search behavior were also inspected against isolated data.
+- Local Compose images rebuilt; application containers explicitly recreated after detecting stale running images. `alembic current` confirmed 0007, `/api/ready` returned ready, and the running OpenAPI schema exposed HybridSearch. Developer volumes were preserved. No paid model calls were made for this task.
+
+Limitations: simple lexical analysis has no language-specific stemming or exact substring guarantees; vector retrieval remains exact and source snapshots remain bounded to 50,000 chunks. No live-model quality comparison or large-corpus performance benchmark was run. Production build emits a bundle-size advisory (main bundle just over 500 kB); existing upstream test deprecation/color warnings remain. Schema-v2 pipelines require the updated backend; rollback must account for newly saved versions. Local unauthenticated deployment boundary is unchanged.
+
+Next action: open a project → Pipelines → select Retriever; choose Search method and Top k, then expand Advanced search settings for mode-specific controls. Save a new version or test the draft in Playground.
+
 ## Milestone 1 — Foundation
 
 Acceptance criteria (recorded before implementation):

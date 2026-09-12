@@ -28,7 +28,7 @@ test('pipeline create configure save reopen run evidence and immutable versions'
   await page.mouse.move(box.x + 35, box.y + 45, { steps: 8 });
   await page.mouse.up();
   await page.getByLabel('Documents to search', { exact: true }).selectOption({ label: 'Document set · Version 1 · 1 passages' });
-  await page.getByLabel('Passages to retrieve', { exact: true }).fill('3');
+  await page.getByLabel('Top k', { exact: true }).fill('3');
   await page.getByLabel('Selected node').selectOption('prompt');
   await page.getByLabel('Answer instructions').fill('Answer concisely. Question: {question} Context: {context}');
   await page.getByRole('button', { name: 'Save version', exact: true }).click();
@@ -65,13 +65,13 @@ test('pipeline create configure save reopen run evidence and immutable versions'
   await page.getByRole('link', { name: 'Pipelines', exact: true }).click();
   await page.getByRole('link', { name: 'Open Orchard answers', exact: true }).click();
   await page.getByLabel('Selected node').selectOption('retriever');
-  await page.getByLabel('Passages to retrieve', { exact: true }).fill('1');
+  await page.getByLabel('Top k', { exact: true }).fill('1');
   await expect(page.getByRole('button', { name: 'Open Playground', exact: true })).toBeDisabled();
   await page.getByRole('button', { name: 'Save version', exact: true }).click();
   await expect(page.getByText('Saved version 2', { exact: true })).toBeVisible();
   await page.getByLabel('Saved version', { exact: true }).selectOption({ label: 'Version 1' });
   await page.getByLabel('Selected node').selectOption('retriever');
-  await expect(page.getByLabel('Passages to retrieve', { exact: true })).toHaveValue('3');
+  await expect(page.getByLabel('Top k', { exact: true })).toHaveValue('3');
   await page.setViewportSize({ width: 1600, height: 1100 });
   await page.getByLabel('Selected node').selectOption('question');
   await page.getByLabel('Selected node').selectOption('retriever');

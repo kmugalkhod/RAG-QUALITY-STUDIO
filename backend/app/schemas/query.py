@@ -4,11 +4,13 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 
-class QueryRequest(BaseModel):
+from app.schemas.retrieval import RetrievalInput
+
+
+class QueryRequest(RetrievalInput):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
     index_id: UUID
     question: str = Field(min_length=1, max_length=8000)
-    top_k: int = Field(default=5, strict=True, ge=1, le=50)
 
 
 class QueryRead(BaseModel):

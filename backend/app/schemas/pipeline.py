@@ -2,7 +2,9 @@ from datetime import datetime
 from typing import Annotated, Literal
 from uuid import UUID
 import re
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator, model_serializer
+
+from app.schemas.retrieval import RetrievalSettings, VectorSearch
 
 DEFAULT_TEMPLATE = "Answer the question concisely using the retrieved context.\nQuestion: {question}\nRetrieved context: {context}"
 ORDER = ["question", "retriever", "prompt", "llm", "answer"]
@@ -23,7 +25,16 @@ class Question(NodeBase):
 class Retriever(NodeBase):
     type: Literal["retriever"]
     index_id: UUID
-    top_k: int = Field(strict=True, ge=1, le=50)
+    top_k: int | None = Field(default=None, strict=True, ge=1, le=50)
+    retrieval: RetrievalSettings | None = None
+
+    @property
+    def settings(self):
+        return self.retrieval or VectorSearch(top_k=self.top_k)
+
+    @model_serializer(mode="wrap")
+    def serialize(self, handler):
+        return {k: v for k, v in handler(self).items() if v is not None}
 
 
 class Prompt(NodeBase):
@@ -64,12 +75,22 @@ class Edge(Strict):
 
 
 class Execution(Strict):
-    schema_version: Literal[1]
+    schema_version: Literal[1, 2]
     nodes: list[Node] = Field(min_length=5, max_length=5)
     edges: list[Edge] = Field(min_length=4, max_length=4)
 
     @model_validator(mode="after")
     def supported_graph(self):
+        for node in self.nodes:
+            if node.type == "retriever":
+                if self.schema_version == 1 and (
+                    node.top_k is None or node.retrieval is not None
+                ):
+                    raise ValueError("Schema v1 requires legacy top_k only.")
+                if self.schema_version == 2 and (
+                    node.retrieval is None or node.top_k is not None
+                ):
+                    raise ValueError("Schema v2 requires retrieval settings only.")
         by_type = {n.type: n.id for n in self.nodes}
         if set(by_type) != set(ORDER) or len({n.id for n in self.nodes}) != 5:
             raise ValueError(

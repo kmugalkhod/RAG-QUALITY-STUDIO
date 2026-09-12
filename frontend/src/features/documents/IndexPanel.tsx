@@ -1,3 +1,5 @@
+import { RetrievalSettingsForm } from '../retrieval/RetrievalSettingsForm';
+import { defaultRetrieval, retrievalErrors, scoreText, type RetrievalSettings } from '../retrieval/settings';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Button } from '../../components/ui/button';
 import * as api from './indexApi';
@@ -17,7 +19,7 @@ export function IndexPanel({ projectId }: { projectId: string }) {
   const [hasActive, setHasActive] = useState(false);
   const [selected, setSelected] = useState<api.IndexVersion>();
   const [query, setQuery] = useState('');
-  const [topK, setTopK] = useState('5');
+  const [retrieval, setRetrieval] = useState<RetrievalSettings>(defaultRetrieval());
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState('');
   const [result, setResult] = useState<api.Retrieval>();
@@ -84,12 +86,11 @@ export function IndexPanel({ projectId }: { projectId: string }) {
   }
   async function search(event: FormEvent) {
     event.preventDefault(); setSearchError(''); setResult(undefined);
-    const count = Number(topK);
-    if (!selected || !query.trim() || query.trim().length > 8000 || !Number.isInteger(count) || count < 1 || count > 50) {
+    if (!selected || !query.trim() || query.trim().length > 8000 || retrievalErrors(retrieval).length > 0) {
       setSearchError('Choose a prepared document set, enter a query of 1–8,000 characters, and set results to an integer from 1 to 50.'); return;
     }
     setSearching(true);
-    try { setResult(await api.retrieve(projectId, selected.id, query.trim(), count)); }
+    try { setResult(await api.retrieve(projectId, selected.id, query.trim(), retrieval)); }
     catch (e) { setSearchError(message(e)); }
     finally { setSearching(false); }
   }
@@ -116,13 +117,14 @@ export function IndexPanel({ projectId }: { projectId: string }) {
       <p>{selected ? `Searching document set · Version ${selected.version}` : 'Choose “Use document set” above.'}</p>
       <form onSubmit={search} noValidate aria-busy={searching}>
         <label htmlFor="retrieval-query">Search query</label><textarea id="retrieval-query" rows={3} maxLength={8000} value={query} onChange={e => { setQuery(e.target.value); setResult(undefined); }} disabled={searching}/>
-        <div className="chunk-settings retrieval-actions"><div><label htmlFor="retrieval-count">Number of results</label><input id="retrieval-count" type="number" min={1} max={50} value={topK} onChange={e => { setTopK(e.target.value); setResult(undefined); }} disabled={searching}/></div><Button type="submit" disabled={searching || !selected}>{searching ? 'Searching…' : 'Search documents only'}</Button></div>
-        <p className="field-hint">Cosine distance: lower is closer; this is not confidence. Returns document passages only. It does not generate an answer.</p>
+        <RetrievalSettingsForm value={retrieval} disabled={searching} onChange={value => { setRetrieval(value); setResult(undefined); }}/>
+        <Button type="submit" disabled={searching || !selected || !!retrievalErrors(retrieval).length}>{searching ? 'Searching…' : 'Search documents only'}</Button>
+        <p className="field-hint">Returns document passages only. It does not generate an answer.</p>
       </form>
       {searchError && <p role="alert" className="error-message">{searchError}</p>}
       {result && <section aria-label="Retrieval results"><p role="status">{result.items.length} passages from document set version {result.index_version}</p>
         {result.items.length === 0 && <p>No matching passages in this document set.</p>}
-        <ol className="chunk-list">{result.items.map(item => <li key={`${item.run_id}-${item.ordinal}`}><h3>{item.rank}. {item.filename}</h3><p className="chunk-provenance">Cosine distance {item.cosine_distance.toFixed(4)} · Processing version {item.processing_version} · Chunk {item.ordinal + 1} · {item.page_number ? `PDF page ${item.page_number} · ` : ''}Characters {item.start_char}–{item.end_char}</p><pre>{item.text}</pre><details className="source-metadata"><summary>Source identity</summary><p>Document: {item.document_id}</p><p>Processing run: {item.run_id}</p><p>SHA-256: {item.content_hash}</p></details></li>)}</ol>
+        <ol className="chunk-list">{result.items.map(item => <li key={`${item.run_id}-${item.ordinal}`}><h3>{item.rank}. {item.filename}</h3><p className="chunk-provenance">{scoreText(item)} · Processing version {item.processing_version} · Chunk {item.ordinal + 1} · {item.page_number ? `PDF page ${item.page_number} · ` : ''}Characters {item.start_char}–{item.end_char}</p><pre>{item.text}</pre><details className="source-metadata"><summary>Source identity</summary><p>Document: {item.document_id}</p><p>Processing run: {item.run_id}</p><p>SHA-256: {item.content_hash}</p></details></li>)}</ol>
       </section>}
     </details>
   </section>;

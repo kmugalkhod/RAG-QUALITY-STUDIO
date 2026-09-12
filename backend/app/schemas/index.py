@@ -4,6 +4,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 from app.providers.embeddings import EmbeddingConfig
+from app.schemas.retrieval import RetrievalInput, RetrievalSettings
 
 
 class IndexRead(BaseModel):
@@ -28,11 +29,10 @@ class IndexPage(BaseModel):
     offset: int
 
 
-class RetrievalRequest(BaseModel):
+class RetrievalRequest(RetrievalInput):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
     index_id: UUID
     query: str = Field(min_length=1, max_length=8000)
-    top_k: int = Field(default=5, strict=True, ge=1, le=50)
 
 
 class Evidence(BaseModel):
@@ -47,7 +47,11 @@ class Evidence(BaseModel):
     start_char: int
     end_char: int
     text: str
-    cosine_distance: float
+    cosine_distance: float | None = None
+    lexical_score: float | None = None
+    fusion_score: float | None = None
+    vector_rank: int | None = None
+    keyword_rank: int | None = None
 
 
 class RetrievalRead(BaseModel):
@@ -55,4 +59,6 @@ class RetrievalRead(BaseModel):
     index_version: int
     embedding_config: EmbeddingConfig
     items: list[Evidence]
+    retrieval: RetrievalSettings
+    diagnostics: dict
     score_semantics: str = "Cosine distance: lower is closer; this is not confidence."

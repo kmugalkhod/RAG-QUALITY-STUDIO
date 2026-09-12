@@ -1,3 +1,5 @@
+import { RetrievalSettingsForm } from '../retrieval/RetrievalSettingsForm';
+import { nodeRetrieval } from '../retrieval/settings';
 import { Button } from '../../components/ui/button';
 import type { IndexVersion } from '../documents/indexApi';
 import type { Draft, ExecutionNode, Kind, Options, Pipeline, Version } from '../pipelines/api';
@@ -49,17 +51,14 @@ export function PipelineTestSettings(props: Props) {
         <p className={`test-draft-status ${props.dirty ? 'is-dirty' : ''}`} role="status">
           {props.dirty ? 'Test draft · changes are not saved' : props.pipelineId ? 'Testing the saved version' : 'Custom test · no saved version'}
         </p>
-        <h3>Retrieval</h3>
+        <h3>Retrieval inputs</h3>
         <label>Documents to search
           <select value={retriever?.index_id || ''} onChange={e => update('retriever', { index_id: e.target.value })}>
             <option value="">Choose prepared documents</option>
             {props.indexes.map(i => <option key={i.id} value={i.id}>Document set · Version {i.version} · {i.chunk_count} passages</option>)}
           </select>
         </label>
-        <label>Top k
-          <input type="number" min={1} max={50} value={retriever?.top_k ?? ''} onChange={e => update('retriever', { top_k: e.target.valueAsNumber })}/>
-        </label>
-        <p className="field-hint">Maximum number of passages to find for each answer.</p>
+        <RetrievalSettingsForm value={nodeRetrieval(retriever)} onChange={retrieval => update('retriever', { retrieval })}/>
         <h3>Answer generation</h3>
         <div className="test-prompt-field"><label htmlFor="playground-prompt">Prompt</label>
           <textarea id="playground-prompt" rows={6} maxLength={8000} value={prompt?.template || ''} onChange={e => update('prompt', { template: e.target.value })}/>

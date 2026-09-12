@@ -1,3 +1,5 @@
+import { RetrievalSettingsForm } from '../retrieval/RetrievalSettingsForm';
+import { defaultRetrieval, retrievalErrors, type RetrievalSettings } from '../retrieval/settings';
 import './playground.css';
 import { useEffect, useState, type FormEvent } from 'react';
 import { ArrowUp, History, LoaderCircle, PanelRightOpen, Search, SlidersHorizontal, Sparkles, X } from 'lucide-react';
@@ -18,14 +20,14 @@ const copy = <T,>(value: T): T => structuredClone(value);
 function newDraft(options: pipelinesApi.Options, indexId: string, topK: number): pipelinesApi.Draft {
   const nodes: pipelinesApi.ExecutionNode[] = [
     { id: 'question', type: 'question' },
-    { id: 'retriever', type: 'retriever', index_id: indexId, top_k: topK },
+    { id: 'retriever', type: 'retriever', index_id: indexId, retrieval: defaultRetrieval(topK) },
     { id: 'prompt', type: 'prompt', template: options.template },
     { id: 'llm', type: 'llm', model: options.models[0] || '', max_tokens: options.max_tokens, temperature: 0 },
     { id: 'answer', type: 'answer' },
   ];
   return {
     name: 'Playground pipeline',
-    execution: { schema_version: 1, nodes, edges: pipelinesApi.order.slice(1).map((kind, i) => ({ source: pipelinesApi.order[i], target: kind })) },
+    execution: { schema_version: 2, nodes, edges: pipelinesApi.order.slice(1).map((kind, i) => ({ source: pipelinesApi.order[i], target: kind })) },
     layout: { positions: Object.fromEntries(nodes.map((node, i) => [node.id, { x: 80, y: 40 + i * 116 }])) },
   };
 }
@@ -51,7 +53,8 @@ export function Playground({ projectId, pipelineId = '', versionId = '', readyIn
   const [draft, setDraft] = useState<pipelinesApi.Draft>();
   const [baseline, setBaseline] = useState('');
   const [indexId, setIndexId] = useState(readyIndexId);
-  const [topK, setTopK] = useState(Number(retrievalCount) || 5);
+  const [retrieval, setRetrieval] = useState<RetrievalSettings>(() => defaultRetrieval(Number(retrievalCount) || 5));
+  const topK = retrieval.top_k;
   const [question, setQuestion] = useState('');
   const [run, setRun] = useState<api.QueryRun>();
   const [retrievalResult, setRetrievalResult] = useState<RetrievalTestResult>();
@@ -80,7 +83,7 @@ export function Playground({ projectId, pipelineId = '', versionId = '', readyIn
     setSelectedPipeline(pipelineId);
     setSelectedVersion(versionId);
     setIndexId(readyIndexId);
-    setTopK(Number(retrievalCount) || 5);
+    setRetrieval(current => ({ ...current, top_k: Number(retrievalCount) || 5 }));
   }, [pipelineId, versionId, readyIndexId, retrievalCount, testMode]);
 
   useEffect(() => {
@@ -129,7 +132,7 @@ export function Playground({ projectId, pipelineId = '', versionId = '', readyIn
 
   useEffect(() => {
     if (!saved) return;
-    const value = copy({ name: saved.name, execution: saved.execution, layout: saved.layout });
+    const value = copy({ name: saved.name, execution: pipelinesApi.editableExecution(saved.execution), layout: saved.layout });
     setDraft(value);
     setBaseline(pipelinesApi.canonical(value));
   }, [saved]);
@@ -178,7 +181,7 @@ export function Playground({ projectId, pipelineId = '', versionId = '', readyIn
   }
   function resetDraft() {
     if (!options) return;
-    const value = saved ? copy({ name: saved.name, execution: saved.execution, layout: saved.layout }) : newDraft(options, readyIndexId, Number(retrievalCount) || 5);
+    const value = saved ? copy({ name: saved.name, execution: pipelinesApi.editableExecution(saved.execution), layout: saved.layout }) : newDraft(options, readyIndexId, Number(retrievalCount) || 5);
     setDraft(value); setBaseline(pipelinesApi.canonical(value)); setNotice('Test changes reset.');
   }
   async function saveDraft() {
@@ -196,7 +199,7 @@ export function Playground({ projectId, pipelineId = '', versionId = '', readyIn
     } catch (e) { setError(errorText(e)); }
     finally { setSaving(false); }
   }
-  const validRetrieval = indexes.some(index => index.id === indexId) && Number.isInteger(topK) && topK >= 1 && topK <= 50;
+  const validRetrieval = indexes.some(index => index.id === indexId) && !retrievalErrors(retrieval).length;
   const canTest = !running && !saving && !loading && !loadError && !!question.trim() && (mode === 'retrieval' ? validRetrieval : !!draft && !versionsLoading && !draftErrors.length && !options?.error);
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -205,7 +208,7 @@ export function Playground({ projectId, pipelineId = '', versionId = '', readyIn
     const text = question.trim();
     try {
       if (mode === 'retrieval') {
-        const result = await retrieve(projectId, indexId, text, topK);
+        const result = await retrieve(projectId, indexId, text, retrieval);
         setRetrievalResult({ query: text, topK, result });
         setPanel(null);
       } else {
@@ -237,7 +240,7 @@ export function Playground({ projectId, pipelineId = '', versionId = '', readyIn
     <div className={`playground-layout ${panel ? 'settings-open' : ''}`}>
       <aside id="playground-settings" className="playground-settings" hidden={!panel} aria-label="Playground side panel" onKeyDown={e => { if (e.key === 'Escape') closePanel(); }}>
         <button className="inspector-close icon-button" aria-label="Close side panel" onClick={closePanel}><X size={18}/></button>
-        {panel === 'settings' && (mode === 'pipeline' ? <PipelineTestSettings pipelines={pipelines} versions={versions} indexes={indexes} options={options} pipelineId={selectedPipeline} versionId={selectedVersion} draft={draft} dirty={dirty} disabled={!!running || saving || versionsLoading} errors={draftErrors} onPipeline={choosePipeline} onVersion={chooseVersion} onChange={setDraft} onSave={() => void saveDraft()} onReset={resetDraft}/> : <div className="retrieval-test-settings"><h2>Retrieval settings</h2><fieldset disabled={!!running}><label>Documents to search<select value={indexId} onChange={e => { setIndexId(e.target.value); remember(mode, selectedPipeline, selectedVersion, e.target.value); }}><option value="">Choose prepared documents</option>{indexes.map(index => <option key={index.id} value={index.id}>Document set · Version {index.version} · {index.chunk_count} passages</option>)}</select></label><label>Top k<input type="number" min={1} max={50} value={topK} onChange={e => { setTopK(e.target.valueAsNumber); remember(mode, selectedPipeline, selectedVersion, indexId, e.target.valueAsNumber); }}/></label><p className="field-hint">Maximum matching passages to return. This test does not call an answer model.</p></fieldset></div>)}
+        {panel === 'settings' && (mode === 'pipeline' ? <PipelineTestSettings pipelines={pipelines} versions={versions} indexes={indexes} options={options} pipelineId={selectedPipeline} versionId={selectedVersion} draft={draft} dirty={dirty} disabled={!!running || saving || versionsLoading} errors={draftErrors} onPipeline={choosePipeline} onVersion={chooseVersion} onChange={setDraft} onSave={() => void saveDraft()} onReset={resetDraft}/> : <div className="retrieval-test-settings"><h2>Retrieval settings</h2><fieldset disabled={!!running}><label>Documents to search<select value={indexId} onChange={e => { setIndexId(e.target.value); remember(mode, selectedPipeline, selectedVersion, e.target.value); }}><option value="">Choose prepared documents</option>{indexes.map(index => <option key={index.id} value={index.id}>Document set · Version {index.version} · {index.chunk_count} passages</option>)}</select></label><RetrievalSettingsForm value={retrieval} onChange={value => { setRetrieval(value); remember(mode, selectedPipeline, selectedVersion, indexId, value.top_k); }}/><p className="field-hint">This test does not call an answer model.</p></fieldset></div>)}
         {panel === 'history' && <div className="playground-history"><section aria-labelledby="history-title"><div className="section-heading"><h2 id="history-title">Past questions</h2><Button variant="outline" disabled={!!running} onClick={() => setRevision(n => n + 1)}>Refresh</Button></div>{!runs.length && <p>No saved questions yet.</p>}<ul className="document-list">{runs.map(item => <li key={item.id}><div><button className="document-name" disabled={!!running} onClick={() => { setRun(item); setPanel(null); }}>{item.question}</button><p>{item.snapshot.pipeline_preview ? 'Test draft' : item.pipeline_version_id ? `Pipeline v${item.snapshot.pipeline_version}` : 'Default settings'} · {item.status.replaceAll('_', ' ')}</p></div></li>)}</ul>{(total > 20 || offset > 0) && <nav className="pagination" aria-label="Query history pages"><Button variant="outline" disabled={!offset || !!running} onClick={() => setOffset(n => n - 20)}>Previous queries</Button><span>Page {offset / 20 + 1}</span><Button variant="outline" disabled={offset + 20 >= total || !!running} onClick={() => setOffset(n => n + 20)}>Next queries</Button></nav>}</section></div>}
         {run && (panel === 'sources' || panel === 'details') && <><div className="inspector-tabs" role="group" aria-label="Answer inspection"><Button variant="outline" aria-pressed={panel === 'sources'} onClick={() => setPanel('sources')}>Sources</Button><Button variant="outline" aria-pressed={panel === 'details'} onClick={() => setPanel('details')}>Answer details</Button></div><RunInspector run={run} mode={panel} sourceLabel={sourceLabel} focusRequest={focusRequest}/></>}
         {panel === 'retrieval' && selectedPassage && <RetrievalInspector item={selectedPassage}/>}

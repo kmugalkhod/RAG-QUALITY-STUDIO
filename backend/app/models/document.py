@@ -96,3 +96,10 @@ class Chunk(Base):
     start_char: Mapped[int]
     end_char: Mapped[int]
     text: Mapped[str] = mapped_column(Text)
+
+
+Index(
+    "ix_chunks_lexical",
+    func.to_tsvector(text("'simple'::regconfig"), Chunk.text),
+    postgresql_using="gin",
+)

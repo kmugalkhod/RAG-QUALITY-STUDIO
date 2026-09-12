@@ -1,5 +1,6 @@
 """One generation or one metric per delivery; fenced, persisted checkpoints."""
 
+from app.schemas.retrieval import settings_from_node
 import copy
 import uuid
 from datetime import datetime, timezone, timedelta
@@ -131,7 +132,8 @@ def run_step(job_id, db_engine=engine):
                     QueryRequest(
                         index_id=candidate["index_id"],
                         question=question["question"],
-                        top_k=nodes["retriever"]["top_k"],
+                        retrieval=candidate.get("retrieval")
+                        or settings_from_node(nodes["retriever"]),
                     ),
                     version=version,
                     config=candidate["generation_config"],

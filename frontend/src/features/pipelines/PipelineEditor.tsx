@@ -1,3 +1,5 @@
+import { RetrievalSettingsForm } from '../retrieval/RetrievalSettingsForm';
+import { defaultRetrieval, nodeRetrieval, retrievalSummary } from '../retrieval/settings';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ReactFlow, Background, Controls, addEdge, useNodesState, useEdgesState, useUpdateNodeInternals, Position, Handle, type NodeProps, type Node, type Edge, type ReactFlowInstance } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
@@ -15,7 +17,7 @@ function WorkflowNode({ id, data, selected }: NodeProps<FlowNode>) {
   useEffect(() => { updateNodeInternals(id); }, [id, data.vertical, updateNodeInternals]);
   const c = data.config;
   const Icon = { question: MessageSquare, retriever: Search, prompt: TextQuote, llm: Cpu, answer: CheckCheck }[c.type];
-  const detail = c.type === 'retriever' ? `Up to ${c.top_k} passages · ${c.index_id ? 'Documents selected' : 'Choose documents'}` : c.type === 'llm' ? c.model || 'Choose a model' : c.type === 'prompt' ? 'Answer with evidence' : c.type === 'question' ? 'User input · single turn' : 'Response + citations';
+  const detail = c.type === 'retriever' ? `${retrievalSummary(nodeRetrieval(c))} · ${c.index_id ? 'Documents selected' : 'Choose documents'}` : c.type === 'llm' ? c.model || 'Choose a model' : c.type === 'prompt' ? 'Answer with evidence' : c.type === 'question' ? 'User input · single turn' : 'Response + citations';
   return <div className={`workflow-node ${data.vertical ? 'vertical-node' : 'horizontal-node'}${selected ? ' workflow-selected' : ''}`}>
     {c.type !== 'question' && <Handle type="target" position={data.vertical ? Position.Top : Position.Left}/>}
     <Icon className="node-symbol" size={22}/><div className="node-copy"><strong>{data.label}</strong><div className="workflow-node-content">{detail}</div></div>
@@ -57,7 +59,7 @@ export function PipelineEditor({ projectId, pipelineId, versionId = '' }: { proj
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [refresh, setRefresh] = useState(0);
-  const execution: api.Execution = { schema_version: 1, nodes: nodes.map(n => n.data.config), edges: edges.map(({ source, target }) => ({ source, target })) };
+  const execution: api.Execution = { schema_version: 2, nodes: nodes.map(n => n.data.config), edges: edges.map(({ source, target }) => ({ source, target })) };
   const draft: api.Draft = { name, execution, layout: { positions: Object.fromEntries(nodes.map(n => [n.id, n.position])) } };
   const serialized = api.canonical(draft);
   const dirty = (nodes.length > 0 || !!saved) && serialized !== baseline;
@@ -65,7 +67,7 @@ export function PipelineEditor({ projectId, pipelineId, versionId = '' }: { proj
   const errors = api.validate(execution, opts, indexes.map(i => i.id));
   const config = nodes.find(n => n.id === selected)?.data.config;
   function defaults(kind: api.Kind): api.ExecutionNode {
-    return { id: kind, type: kind, ...(kind === 'retriever' ? { index_id: '', top_k: 5 } : kind === 'prompt' ? { template: opts?.template ?? 'Answer concisely.\nQuestion: {question}\nRetrieved context: {context}' } : kind === 'llm' ? { model: opts?.models[0] ?? '', max_tokens: opts?.max_tokens ?? 1024, temperature: 0 } : {}) };
+    return { id: kind, type: kind, ...(kind === 'retriever' ? { index_id: '', retrieval: defaultRetrieval() } : kind === 'prompt' ? { template: opts?.template ?? 'Answer concisely.\nQuestion: {question}\nRetrieved context: {context}' } : kind === 'llm' ? { model: opts?.models[0] ?? '', max_tokens: opts?.max_tokens ?? 1024, temperature: 0 } : {}) };
   }
   function template() {
     setNodes(api.order.map((k, i) => ({ ...flowNode(defaults(k), { x: 80, y: i * 116 + 40 }), selected: k === 'retriever' })));
@@ -77,11 +79,11 @@ export function PipelineEditor({ projectId, pipelineId, versionId = '' }: { proj
     window.history.replaceState(null, '', `#/projects/${v.project_id}/pipelines/${v.pipeline_id}?version=${v.id}`);
     const positions = Object.values(v.layout.positions);
     const vertical = Math.max(...positions.map(p => p.y)) - Math.min(...positions.map(p => p.y)) > Math.max(...positions.map(p => p.x)) - Math.min(...positions.map(p => p.x));
-    setName(v.name); setNodes(v.execution.nodes.map((n, i) => ({ ...flowNode(n, v.layout.positions[n.id], vertical), selected: i === 0 })));
+    setName(v.name); setNodes(api.editableExecution(v.execution).nodes.map((n, i) => ({ ...flowNode(n, v.layout.positions[n.id], vertical), selected: i === 0 })));
     const position = v.layout.positions[v.execution.nodes[0].id];
     void flowRef.current?.setCenter(position.x + 160, position.y + 42, { zoom: 0.9 });
     setEdges(v.execution.edges.map((e, i) => ({ ...e, id: `edge-${i}` })));
-    setSaved(v); setBaseline(api.canonical({ name: v.name, execution: v.execution, layout: v.layout })); setSelected(v.execution.nodes[0].id);
+    setSaved(v); setBaseline(api.canonical({ name: v.name, execution: api.editableExecution(v.execution), layout: v.layout })); setSelected(v.execution.nodes[0].id);
   }, [setNodes, setEdges]);
   useEffect(() => {
     let disposed = false;
@@ -90,7 +92,7 @@ export function PipelineEditor({ projectId, pipelineId, versionId = '' }: { proj
       if (disposed) return;
       setOpts(o); setIndexes(ix.filter(i => i.status === 'succeeded')); setError('');
       if (pipelineId !== 'new') { if (!vs.length) throw new Error('No saved versions found.'); setVersions(vs); const linked = new URLSearchParams(window.location.hash.split('?')[1] || '').get('version') || versionId; const target = linked ? vs.find(v => v.id === linked) : vs[0]; if (!target) throw new Error('The linked pipeline version is unavailable. Open this pipeline from the pipeline list.'); open(target); }
-      else { const configs = api.order.map(k => ({ id: k, type: k, ...(k === 'retriever' ? { index_id: '', top_k: 5 } : k === 'prompt' ? { template: o.template } : k === 'llm' ? { model: o.models[0] || '', max_tokens: o.max_tokens, temperature: 0 } : {}) })); setNodes(configs.map((n, i) => flowNode(n, { x: 80, y: i * 116 + 40 }))); setEdges(api.order.slice(1).map((k, i) => ({ id: `${api.order[i]}-${k}`, source: api.order[i], target: k }))); }
+      else { const configs = api.order.map(k => ({ id: k, type: k, ...(k === 'retriever' ? { index_id: '', retrieval: defaultRetrieval() } : k === 'prompt' ? { template: o.template } : k === 'llm' ? { model: o.models[0] || '', max_tokens: o.max_tokens, temperature: 0 } : {}) })); setNodes(configs.map((n, i) => flowNode(n, { x: 80, y: i * 116 + 40 }))); setEdges(api.order.slice(1).map((k, i) => ({ id: `${api.order[i]}-${k}`, source: api.order[i], target: k }))); }
     }).catch(e => { if (!disposed) setError(errorText(e)); }).finally(() => { if (!disposed) setLoading(false); });
     return () => { disposed = true; };
   }, [projectId, pipelineId, versionId, refresh, open, setNodes, setEdges]);
@@ -144,7 +146,7 @@ export function PipelineEditor({ projectId, pipelineId, versionId = '' }: { proj
           <ReactFlow fitView fitViewOptions={{ padding: 0.12, maxZoom: 1 }} nodeTypes={nodeTypes} nodes={nodes} edges={edges} onInit={setFlow} onNodesChange={changes => { onNodesChange(changes); const picked = changes.find(c => c.type === 'select' && c.selected); if (picked?.type === 'select') selectNode(picked.id, false); else if (changes.some(c => c.type === 'select' && c.id === selected && !c.selected)) setSelected(''); }} onEdgesChange={onEdgesChange} onConnect={c => setEdges(es => addEdge(c, es))} onNodeClick={(_, n) => selectNode(n.id, false)} defaultViewport={{ x: 24, y: 80, zoom: 0.9 }} minZoom={0.15} nodesDraggable={!busy && !running} nodesConnectable={!busy && !running} deleteKeyCode={busy || running ? null : ['Backspace', 'Delete']}><Background gap={22} size={1.2}/><Controls/></ReactFlow>
         </div>
         <aside id="node-settings" className="pipeline-config" hidden={!inspectorOpen}><h2>{config ? label(config.type) : 'Node settings'}</h2><label>Selected node<select aria-label="Selected node" value={selected} onChange={e => selectNode(e.target.value)}><option value="">Select a node</option>{nodes.map(n => <option key={n.id} value={n.id}>{n.data.label}</option>)}</select></label>
-          {config?.type === 'retriever' && <><label>Documents to search<select aria-label="Documents to search" value={config.index_id} onChange={e => update({ index_id: e.target.value })}><option value="">Choose a prepared document set</option>{indexes.map(i => <option key={i.id} value={i.id}>Document set · Version {i.version} · {i.chunk_count} passages</option>)}</select></label>{!indexes.length && <p>Prepare a document set in the Knowledge Base to start asking questions.</p>}<label>Passages to retrieve<input type="number" min={1} max={50} value={config.top_k ?? ''} onChange={e => update({ top_k: e.target.valueAsNumber })}/></label><div className="node-fact"><span>Search method</span><strong>Vector similarity</strong></div><p className="field-hint">Search uses this saved document set. Changing it does not change earlier answers.</p></>}
+          {config?.type === 'retriever' && <><h3>Inputs</h3><label>Documents to search<select aria-label="Documents to search" value={config.index_id} onChange={e => update({ index_id: e.target.value })}><option value="">Choose a prepared document set</option>{indexes.map(i => <option key={i.id} value={i.id}>Document set · Version {i.version} · {i.chunk_count} passages</option>)}</select></label>{!indexes.length && <p>Prepare a document set in the Knowledge Base to start asking questions.</p>}<RetrievalSettingsForm value={nodeRetrieval(config)} onChange={retrieval => update({ retrieval })}/><p className="field-hint">Search uses this saved document set. Changing it does not change earlier answers.</p></>}
           {config?.type === 'prompt' && <><label>Answer instructions<textarea rows={9} maxLength={8000} value={config.template} onChange={e => update({ template: e.target.value })}/></label><p className="field-hint">Use {'{question}'} and {'{context}'}. These are literal substitutions, with no expressions or code. Context is labeled evidence. Source labels, citation rules and grounding instructions are controlled by the application.</p></>}
           {config?.type === 'llm' && <><label>Chat model<select aria-label="Chat model" value={config.model} onChange={e => update({ model: e.target.value })}><option value="">Select a model</option>{opts?.models.map(m => <option key={m}>{m}</option>)}</select></label><label>Maximum output tokens<input type="number" min={128} max={8192} value={config.max_tokens ?? ''} onChange={e => update({ max_tokens: e.target.valueAsNumber })}/></label><label>Temperature<input type="number" min={0} max={2} step={0.1} value={config.temperature ?? ''} onChange={e => update({ temperature: e.target.valueAsNumber })}/></label><p className="field-hint">Server context budget: {opts?.context_tokens} tokens. Credentials stay on the server.</p></>}
           {config?.type === 'question' && <p>Each question is independent. Enter your question in Playground after saving this pipeline.</p>}{config?.type === 'answer' && <p>Displays the generated answer with checked source references, evidence and usage.</p>}

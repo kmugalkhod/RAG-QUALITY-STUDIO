@@ -119,7 +119,7 @@ def start(session, project_id, pipeline_id, version_id, request):
         project_id,
         QueryRequest(
             index_id=retriever.index_id,
-            top_k=retriever.top_k,
+            retrieval=retriever.settings,
             question=request.question,
         ),
         version=version,
@@ -154,7 +154,7 @@ def preview(session, project_id, request):
         project_id,
         QueryRequest(
             index_id=retriever.index_id,
-            top_k=retriever.top_k,
+            retrieval=retriever.settings,
             question=request.question,
         ),
         config=config,
