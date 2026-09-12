@@ -188,6 +188,10 @@ Index APIs under `/api/projects/{project_id}`:
 - `POST /indexes`: returns 202 and the index UUID (also its durable job ID). An optional body accepts `knowledge_set_id` and one or more explicit `document_ids`; omitting the body preserves the default Knowledge Base action.
 - `GET /indexes?limit=20&offset=0` and `GET /indexes/{index_id}`: history/progress with knowledge-set identity and exact processing-run count.
 - `GET /knowledge-sets?limit=20&offset=0` and `GET /knowledge-sets/{knowledge_set_id}/indexes`: project-scoped knowledge sets and their immutable versions.
+
+Existing Files ingestion is available under **Pipelines → Ingestion pipelines**. Select already processed project files, preview whether their processing versions will be reused, save the immutable graph, then run it. The durable run coordinates any required reprocessing and publishes one new ready index to the chosen knowledge set only after all embeddings succeed. Its per-file inspector retains content hashes, processing versions and chunk counts; the published link opens the exact immutable index that an answer pipeline can select.
+
+The corresponding project-scoped API operations are `POST /ingestion-previews`, `POST /pipelines/{pipeline_id}/versions/{version_id}/ingestion-runs`, and `GET/POST /ingestion-runs/...` for progress, paginated items and cancellation. Website and credentialed connectors are not yet available.
 - `POST /indexes/{index_id}/cancel`: cancel queued/running indexing.
 - `POST /retrieval`: `{ "index_id": "<ready UUID>", "query": "question", "top_k": 5 }`.
 

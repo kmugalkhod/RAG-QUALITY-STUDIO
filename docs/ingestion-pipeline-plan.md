@@ -1,6 +1,6 @@
 # Ingestion pipeline implementation plan
 
-Status: Phases 1–2 complete on 2026-09-12; Phase 3 ready. No ingestion execution is implemented yet.
+Status: Phases 1–3 complete on 2026-09-12. Existing Files ingestion is released; Phase 4 is next.
 
 This plan adds a second saved pipeline kind for acquiring and indexing knowledge. It preserves the existing answer pipeline and the current charcoal/lavender workspace. The first complete slice uses existing project documents, the second adds bounded public-website ingestion, and later slices add credentialed connectors through the same source-node contract.
 
@@ -353,7 +353,7 @@ Each phase is a reviewable vertical slice. Execute them in order. At the end of 
 | --- | --- | --- | --- |
 | 1 | Contracts, pipeline kinds and ingestion graph persistence | Existing application | Complete |
 | 2 | Knowledge sets and explicit index membership | Phase 1 | Complete |
-| 3 | Existing-files ingestion end to end | Phase 2 | Ready |
+| 3 | Existing-files ingestion end to end | Phase 2 | Complete |
 | 4 | Public website discovery and preview | Phase 3 | Not started |
 | 5 | Website ingestion and incremental refresh | Phase 4 | Not started |
 | 6 | Secure connection-management foundation | Phase 5 and a credential-storage decision | Not started |

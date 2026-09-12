@@ -1,4 +1,5 @@
 import { KnowledgeBase } from '../features/documents/KnowledgeBase';
+import { IngestionPipelineEditor } from '../features/ingestion-pipelines/IngestionPipelineEditor';
 import { ExperimentsPage } from '../features/experiments/ExperimentsPage';
 import { PipelineEditor } from '../features/pipelines/PipelineEditor';
 import { PipelinesPage } from '../features/pipelines/PipelinesPage';
@@ -37,11 +38,19 @@ export function WorkspacePage({ route, onProjectCreated }: WorkspacePageProps) {
       return <KnowledgeBase projectId={projectId} documentId={query.get('document') || ''} />;
     case 'pipelines':
       return detail ? (
-        <PipelineEditor
-          projectId={projectId}
-          pipelineId={detail}
-          versionId={query.get('version') || ''}
-        />
+        query.get('kind') === 'ingestion' ? (
+          <IngestionPipelineEditor
+            projectId={projectId}
+            pipelineId={detail}
+            versionId={query.get('version') || ''}
+          />
+        ) : (
+          <PipelineEditor
+            projectId={projectId}
+            pipelineId={detail}
+            versionId={query.get('version') || ''}
+          />
+        )
       ) : (
         <PipelinesPage projectId={projectId} kind={query.get('kind') || 'answer'} />
       );

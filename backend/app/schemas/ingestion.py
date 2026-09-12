@@ -4,6 +4,7 @@ This module defines persisted configuration only. Execution, knowledge sets and
 connector transports are introduced by later ingestion phases.
 """
 
+from datetime import datetime
 from typing import Annotated, Literal
 from uuid import UUID
 
@@ -182,6 +183,7 @@ class EmbedNode(NodeBase):
 class PublishIndexNode(NodeBase):
     type: Literal["publish_index"]
     knowledge_set_name: str = Field(min_length=1, max_length=120)
+    knowledge_set_id: UUID | None = None
 
     @model_validator(mode="after")
     def clean_name(self):
@@ -264,3 +266,83 @@ class IngestionPipelineSave(Strict):
         if set(self.layout.positions) != {node.id for node in self.execution.nodes}:
             raise ValueError("Layout must contain exactly the execution node IDs.")
         return self
+
+
+class IngestionPreviewRequest(Strict):
+    execution: IngestionExecution
+
+
+class IngestionPreviewItem(Strict):
+    source_node_id: str
+    document_id: UUID
+    filename: str
+    media_type: str
+    content_hash: str
+    size_bytes: int
+    included: bool
+    reason: str
+    processing_run_id: UUID | None = None
+    processing_version: int | None = None
+    chunk_count: int = 0
+
+
+class IngestionPreviewRead(Strict):
+    items: list[IngestionPreviewItem]
+    discovered_count: int
+    included_count: int
+    excluded_count: int
+
+
+class IngestionRunRead(Strict):
+    id: UUID
+    project_id: UUID
+    pipeline_version_id: UUID
+    knowledge_set_id: UUID
+    knowledge_set_name: str
+    status: Literal["queued", "running", "succeeded", "failed", "cancelled"]
+    stage: Literal["processing", "indexing", "complete"]
+    progress: int
+    discovered_count: int
+    processed_count: int
+    failed_count: int
+    chunk_count: int
+    embedded_count: int
+    published_count: int
+    attempts: int
+    failures: int
+    error: str | None
+    published_index_id: UUID | None
+    published_index_version: int | None
+    created_at: datetime
+    updated_at: datetime
+    started_at: datetime | None
+    finished_at: datetime | None
+
+
+class IngestionRunPage(Strict):
+    items: list[IngestionRunRead]
+    total: int
+    limit: int
+    offset: int
+
+
+class IngestionRunItemRead(Strict):
+    document_id: UUID
+    filename: str
+    content_hash: str
+    media_type: str
+    source_node_id: str
+    processing_run_id: UUID
+    processing_version: int
+    processing_created: bool
+    status: Literal["processing", "ready", "succeeded", "failed", "cancelled"]
+    chunk_count: int
+    error: str | None
+    updated_at: datetime
+
+
+class IngestionRunItemPage(Strict):
+    items: list[IngestionRunItemRead]
+    total: int
+    limit: int
+    offset: int

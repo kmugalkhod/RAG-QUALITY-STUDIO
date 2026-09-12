@@ -21,6 +21,7 @@ from app.models.project import Project  # noqa: F401
 class Document(Base):
     __tablename__ = "documents"
     __table_args__ = (
+        UniqueConstraint("id", "project_id", name="uq_document_project"),
         CheckConstraint("size_bytes > 0", name="ck_document_size"),
         Index("ix_documents_project_created", "project_id", "created_at", "id"),
     )
@@ -40,6 +41,7 @@ class ProcessingRun(Base):
     __tablename__ = "processing_runs"
     __table_args__ = (
         UniqueConstraint("document_id", "version", name="uq_run_version"),
+        UniqueConstraint("id", "document_id", name="uq_processing_run_document"),
         CheckConstraint(
             "chunk_size > 0 AND overlap >= 0 AND overlap < chunk_size",
             name="ck_run_chunking",

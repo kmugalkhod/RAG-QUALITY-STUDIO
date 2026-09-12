@@ -4,7 +4,13 @@ Local setup and baseline verification commands are documented in [README](../REA
 
 ## Pipeline kinds
 
-Pipeline collections accept `kind=answer` or `kind=ingestion`; executable answer selectors always request `answer`. Existing create requests without `kind` remain answer pipelines. Phase 1 accepts a strictly validated ingestion configuration through the shared create/version APIs, but the production UI intentionally disables ingestion creation and there is no ingestion preview, run or worker endpoint yet. Do not treat a saved ingestion graph as an index or successful execution.
+Pipeline collections accept `kind=answer` or `kind=ingestion`; executable answer selectors always request `answer`. Existing create requests without `kind` remain answer pipelines. The production ingestion editor currently supports the complete Existing Files graph only. A saved graph is configuration, not a successful execution: preview it separately, then run an exact unchanged immutable version and inspect its durable result.
+
+## Existing Files ingestion
+
+Upload and successfully process PDF/TXT documents first. In **Pipelines → Ingestion pipelines**, select explicit files, choose character chunk settings and a new or existing knowledge set, preview the server decision, save a version, then run that exact version. Matching processing runs are reused; changed chunk settings create new document processing versions. The dispatcher coordinates processing and indexing through the existing Celery worker.
+
+Preview uses `POST /api/projects/{project_id}/ingestion-previews` and performs no embedding. Start with `POST /api/projects/{project_id}/pipelines/{pipeline_id}/versions/{version_id}/ingestion-runs`; poll `GET /api/projects/{project_id}/ingestion-runs/{run_id}` and page its `/items`. Cancellation is a separate POST to `/ingestion-runs/{run_id}/cancel`. Run/index execution tokens and snapshots are intentionally absent from API reads.
 
 ## Knowledge sets and explicit index snapshots
 

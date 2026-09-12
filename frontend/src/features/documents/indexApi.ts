@@ -1,6 +1,7 @@
 import { postJson, request } from '../../lib/api';
 import type { RetrievalSettings } from '../../lib/retrieval';
-import type { EmbeddingSettings, IndexPage, IndexVersion, Retrieval } from './model';
+import type { EmbeddingSettings, IndexPage, IndexVersion, KnowledgeSet, Retrieval } from './model';
+import type { Page } from '../../lib/pagination';
 
 function projectPath(projectId: string): string {
   return `/projects/${encodeURIComponent(projectId)}`;
@@ -12,6 +13,10 @@ export function getEmbeddingSettings(projectId: string): Promise<EmbeddingSettin
 
 export function listIndexes(projectId: string, offset = 0): Promise<IndexPage> {
   return request<IndexPage>(`${projectPath(projectId)}/indexes?offset=${offset}`);
+}
+
+export function listKnowledgeSets(projectId: string, offset = 0): Promise<Page<KnowledgeSet>> {
+  return request<Page<KnowledgeSet>>(`${projectPath(projectId)}/knowledge-sets?offset=${offset}`);
 }
 
 export function getIndex(projectId: string, indexId: string): Promise<IndexVersion> {

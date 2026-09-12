@@ -16,7 +16,7 @@ beforeEach(() => {
   );
 });
 
-test('uses URL-addressable kind tabs and keeps ingestion actions unavailable', async () => {
+test('uses URL-addressable kind tabs and enables the ingestion editor', async () => {
   const user = userEvent.setup();
   const { rerender } = render(<PipelinesPage projectId="project-a" kind="answer" />);
   await screen.findByText('Build your first answer pipeline');
@@ -37,9 +37,10 @@ test('uses URL-addressable kind tabs and keeps ingestion actions unavailable', a
     '/api/projects/project-a/pipelines?kind=ingestion&offset=0',
     expect.any(Object),
   );
-  expect(screen.getByRole('button', { name: 'New ingestion pipeline' })).toBeDisabled();
-  expect(screen.queryByRole('link', { name: /New ingestion pipeline/ })).not.toBeInTheDocument();
-  expect(screen.queryByRole('button', { name: /run|preview|connector/i })).not.toBeInTheDocument();
+  expect(screen.getByRole('link', { name: 'New ingestion pipeline' })).toHaveAttribute(
+    'href',
+    '#/projects/project-a/pipelines/new?kind=ingestion',
+  );
 });
 
 test('normalizes an unknown tab to answer without sending it to the API', async () => {

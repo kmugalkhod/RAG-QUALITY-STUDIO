@@ -18,9 +18,10 @@ test('pipeline kind tabs survive refresh and stay scoped to each project', async
   );
   await page.getByRole('tab', { name: 'Ingestion pipelines' }).click();
   await expect(page).toHaveURL(new RegExp(`/projects/${first.id}/pipelines\\?kind=ingestion$`));
-  await expect(page.getByRole('button', { name: 'New ingestion pipeline' })).toBeDisabled();
-  await expect(page.getByText('Available when ingestion execution is implemented.')).toBeVisible();
-  await expect(page.getByRole('button', { name: /run|preview|connector/i })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'New ingestion pipeline' })).toHaveAttribute(
+    'href',
+    `#/projects/${first.id}/pipelines/new?kind=ingestion`,
+  );
 
   await page.reload();
   await expect(page.getByRole('tab', { name: 'Ingestion pipelines' })).toHaveAttribute(

@@ -103,6 +103,9 @@ def create_index_from_processing_runs(
     project_id: UUID,
     knowledge_set_id: UUID,
     processing_run_ids: list[UUID],
+    *,
+    ingestion_run_id: UUID | None = None,
+    commit: bool = True,
 ):
     if not processing_run_ids:
         raise HTTPException(422, "Select at least one processing run to index.")
@@ -167,6 +170,7 @@ def create_index_from_processing_runs(
     result = IndexVersion(
         project_id=project_id,
         knowledge_set_id=knowledge_set_id,
+        ingestion_run_id=ingestion_run_id,
         version=version,
         dimensions=config.dimensions,
         embedding_config=config.model_dump(),
@@ -187,8 +191,11 @@ def create_index_from_processing_runs(
                 for r, o in members[start : start + 500]
             ],
         )
-    session.commit()
-    session.refresh(result)
+    if commit:
+        session.commit()
+        session.refresh(result)
+    else:
+        session.flush()
     return result
 
 
@@ -200,6 +207,17 @@ def create_index(session: Session, project_id: UUID, data: IndexCreate):
         if data.knowledge_set_id
         else default_knowledge_set(session, project_id)
     )
+    from app.models.ingestion import IngestionRun
+
+    if session.scalar(
+        select(IngestionRun.id).where(
+            IngestionRun.knowledge_set_id == knowledge_set.id,
+            IngestionRun.status.in_(["queued", "running"]),
+        )
+    ):
+        raise HTTPException(
+            409, "This knowledge set already has an active ingestion run."
+        )
     run_ids = snapshot_latest_processing_runs(session, project_id, data.document_ids)
     return create_index_from_processing_runs(
         session, project_id, knowledge_set.id, run_ids

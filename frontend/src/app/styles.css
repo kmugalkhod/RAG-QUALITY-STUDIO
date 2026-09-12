@@ -2190,6 +2190,85 @@ summary {
   padding: 14px;
   gap: 10px;
 }
+
+/* Existing-files ingestion extends the established editor without sharing answer-node state. */
+.app-shell .ingestion-editor-grid {
+  grid-template-columns: minmax(0, 1fr) 330px;
+  min-height: 560px;
+}
+.app-shell .ingestion-editor > .back-link {
+  position: static;
+  margin: 12px 20px 0;
+  width: fit-content;
+}
+.app-shell .ingestion-editor-grid .pipeline-canvas {
+  min-height: 560px;
+}
+.app-shell .ingestion-editor-grid .node-settings {
+  min-width: 0;
+  overflow: auto;
+  border-left: 1px solid var(--border);
+  background: var(--background);
+  padding: 28px 24px;
+}
+.app-shell .ingestion-editor-grid .node-settings h2 {
+  font-size: 20px;
+  font-weight: 550;
+  margin-bottom: 22px;
+}
+.app-shell .ingestion-editor-grid .field-stack {
+  display: grid;
+  gap: 16px;
+}
+.app-shell .ingestion-editor-grid .field-stack > label {
+  display: grid;
+  gap: 7px;
+  font-size: 12px;
+}
+.app-shell .ingestion-document-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+}
+.app-shell .ingestion-document-option span {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+  overflow-wrap: anywhere;
+}
+.app-shell .ingestion-document-option small,
+.app-shell .ingestion-results p {
+  color: var(--muted-foreground);
+}
+.app-shell .ingestion-results {
+  margin-top: 24px;
+}
+.app-shell .ingestion-results .project-list {
+  list-style: none;
+  padding: 0;
+}
+.app-shell .ingestion-results .project-list li > div {
+  min-width: 0;
+}
+.app-shell .ingestion-results .project-list li {
+  padding-inline: 4px;
+}
+.app-shell .ingestion-results .project-list p {
+  margin: 5px 0 0;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 760px) {
+  .app-shell .ingestion-editor-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .app-shell .ingestion-editor-grid .node-settings {
+    border-left: 0;
+    border-top: 1px solid var(--border);
+  }
+}
 .app-shell .pipeline-palette > .canvas-tools:not([hidden]) {
   display: flex;
   gap: 8px;

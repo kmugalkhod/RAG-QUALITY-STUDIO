@@ -59,7 +59,7 @@ export function PipelinesPage({
       <p>
         {isAnswer
           ? 'Create a pipeline, choose the documents to search, and save a version to test in Playground.'
-          : 'Ingestion configuration is available through the API in this phase. Creation and execution will appear here after the end-to-end ingestion slice is implemented.'}
+          : 'Build a source-to-index workflow from explicitly selected, processed project files.'}
       </p>
     </div>
   ) : (
@@ -72,16 +72,16 @@ export function PipelinesPage({
             <p>
               {isAnswer
                 ? 'Versioned question → retrieval → answer pipeline'
-                : 'Saved ingestion configuration · execution unavailable'}
+                : 'Versioned existing-files → ready index pipeline'}
             </p>
           </div>
-          {isAnswer && (
-            <Button variant="outline" asChild>
-              <a href={`#/projects/${projectId}/pipelines/${pipeline.id}`}>
-                Open<span className="sr-only"> {pipeline.name}</span>
-              </a>
-            </Button>
-          )}
+          <Button variant="outline" asChild>
+            <a
+              href={`#/projects/${projectId}/pipelines/${pipeline.id}${isAnswer ? '' : '?kind=ingestion'}`}
+            >
+              Open<span className="sr-only"> {pipeline.name}</span>
+            </a>
+          </Button>
         </li>
       ))}
     </ul>
@@ -105,15 +105,12 @@ export function PipelinesPage({
             </a>
           </Button>
         ) : (
-          <div className="text-right">
-            <Button disabled aria-describedby="ingestion-unavailable">
+          <Button asChild>
+            <a href={`#/projects/${projectId}/pipelines/new?kind=ingestion`}>
               <Plus size={14} />
               New ingestion pipeline
-            </Button>
-            <p id="ingestion-unavailable" className="mt-2 max-w-64 text-xs text-muted-foreground">
-              Available when ingestion execution is implemented.
-            </p>
-          </div>
+            </a>
+          </Button>
         )}
       </div>
       <Tabs

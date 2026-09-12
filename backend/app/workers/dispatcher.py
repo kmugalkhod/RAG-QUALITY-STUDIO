@@ -4,7 +4,7 @@ import logging
 import time
 from datetime import timedelta
 
-from sqlalchemy import or_, select
+from sqlalchemy import or_, select, update
 from sqlalchemy.orm import Session
 
 from app.db.session import engine
@@ -110,11 +110,96 @@ def dispatch_indexes_once(db_engine=engine, send=None):
         session.commit()
 
 
+def dispatch_ingestion_once(db_engine=engine, send=None):
+    from app.models.ingestion import IngestionRun, IngestionRunItem
+    from app.models.index import IndexVersion
+    from app.workers.ingestion import coordinate_ingestion
+
+    send = send or (lambda run_id: coordinate_ingestion.apply_async(args=[str(run_id)]))
+    current = now()
+    with Session(
+        db_engine.execution_options(isolation_level="READ COMMITTED")
+    ) as session:
+        stale = session.scalars(
+            select(IngestionRun)
+            .where(
+                IngestionRun.status == "running",
+                IngestionRun.started_at < current - timedelta(seconds=180),
+            )
+            .with_for_update(skip_locked=True)
+        ).all()
+        for job in stale:
+            job.failures += 1
+            job.execution_token = None
+            job.status = "failed" if job.failures >= 3 else "queued"
+            job.error = (
+                "Ingestion worker was interrupted; recovery uses its saved checkpoint."
+            )
+            job.updated_at = current
+            job.dispatched_at = None
+            if job.status == "failed":
+                job.finished_at = current
+                created_processing = select(IngestionRunItem.processing_run_id).where(
+                    IngestionRunItem.run_id == job.id,
+                    IngestionRunItem.processing_created.is_(True),
+                )
+                session.execute(
+                    update(ProcessingRun)
+                    .where(
+                        ProcessingRun.id.in_(created_processing),
+                        ProcessingRun.status.in_(["queued", "running"]),
+                    )
+                    .values(
+                        status="cancelled",
+                        execution_token=None,
+                        error="Parent ingestion recovery exhausted its retry budget.",
+                        updated_at=current,
+                        finished_at=current,
+                    )
+                )
+                session.execute(
+                    update(IndexVersion)
+                    .where(
+                        IndexVersion.ingestion_run_id == job.id,
+                        IndexVersion.status.in_(["queued", "running"]),
+                    )
+                    .values(
+                        status="cancelled",
+                        execution_token=None,
+                        error="Parent ingestion recovery exhausted its retry budget.",
+                        updated_at=current,
+                        finished_at=current,
+                    )
+                )
+        session.commit()
+    with Session(
+        db_engine.execution_options(isolation_level="READ COMMITTED")
+    ) as session:
+        queued = session.scalars(
+            select(IngestionRun)
+            .where(
+                IngestionRun.status == "queued",
+                or_(
+                    IngestionRun.dispatched_at.is_(None),
+                    IngestionRun.dispatched_at < current - timedelta(seconds=30),
+                ),
+            )
+            .order_by(IngestionRun.created_at)
+            .limit(20)
+            .with_for_update(skip_locked=True)
+        ).all()
+        for job in queued:
+            send(job.id)
+            job.dispatched_at = current
+        session.commit()
+
+
 def main():
     while True:
         try:
             dispatch_once()
             dispatch_indexes_once()
+            dispatch_ingestion_once()
             from app.workers.experiments import dispatch_experiments_once
 
             dispatch_experiments_once()

@@ -60,6 +60,13 @@ export interface IndexVersion {
   error: string | null;
   created_at: string;
 }
+export interface KnowledgeSet {
+  id: string;
+  project_id: string;
+  name: string;
+  current_ready_index_id: string | null;
+  created_at: string;
+}
 
 export function formatIndexOption(index: IndexVersion): string {
   return `${index.knowledge_set_name} · Version ${index.version} · ${index.chunk_count} passages`;

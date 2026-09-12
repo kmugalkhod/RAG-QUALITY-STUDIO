@@ -1,5 +1,40 @@
 # Implementation plan
 
+## Ingestion pipelines — Phase 3 acceptance criteria
+
+Recorded before implementation on 2026-09-12:
+
+- Existing Files source nodes persist explicit unique project document IDs. Preview and run submission reject missing, cross-project, unprocessed, failed or active documents and verify the saved parser/chunk/embedding configuration before queueing paid work.
+- Alembic adds project-scoped ingestion runs and per-item records with constrained status/stage/counters, immutable pipeline-version and knowledge-set ownership, active-destination exclusion, bounded attempts and dispatcher/stale-recovery indexes. No credentials or source content are stored in pipeline configuration or errors.
+- Run creation snapshots the exact immutable ingestion-pipeline version, explicit documents, selected successful processing runs, knowledge set and processing/embedding configuration. Every later stage consumes those IDs; it never discovers all project documents implicitly.
+- PostgreSQL-backed dispatch and fenced workers execute bounded validation/membership/embed/publication units, tolerate duplicate delivery, persist progress, recover safe stale work and prevent failed, stale or cancelled attempts from publishing. Successful publication creates a new immutable ready index and updates only that knowledge set's current-ready pointer.
+- Cancellation invalidates the run token, stops further scheduling and prevents partial publication. Per-item and run reads expose explicit queued/running/succeeded/failed/cancelled state, safe errors, stage and inspectable source/run/chunk provenance through bounded project-scoped APIs.
+- The ingestion editor is feature-owned, accessible without dragging and preserves the current workspace design. Users can create/save/reopen an Existing Files graph, select explicit processed documents and a stable knowledge set, see authoritative validation, run the exact saved version, poll sequentially, cancel while actionable, inspect item provenance and open the published index.
+- A completed browser journey uploads and processes two documents, saves an ingestion pipeline, runs it, inspects both items and the exact published index, selects that index from an answer pipeline and receives a grounded answer with citations. Existing answer, Knowledge Base, Playground and experiment behavior remains compatible.
+- Clean/populated migrations, database constraints, project isolation, duplicate delivery, cancellation, stale recovery, atomic publication, frontend unit/build checks and isolated browser journeys pass before Phase 3 is marked complete.
+
+Status: complete for ingestion-pipeline Phase 3. Verified on 2026-09-12.
+
+Implemented:
+
+- Alembic `0010` adds project-constrained ingestion runs/items, a single active run per knowledge set, bounded counters/attempts and a one-to-one published-index link. Run snapshots retain the immutable pipeline version, destination, exact document/content hashes, processing versions and complete embedding configuration.
+- The Existing Files adapter discovers explicit project document IDs in stable paginated order. Preview explains reuse or required reprocessing without embedding; submission rejects missing, cross-project, unprocessed, active and failed latest document state before accepting work.
+- The ingestion coordinator reuses matching successful character-window processing or creates a new processing version, then persists exact index membership and waits for the existing fenced processing/index workers. Duplicate delivery is inert after terminal state; cancellation and exhausted stale recovery fence coordinator, created processing, and unpublished index work.
+- Project-scoped preview/run/detail/item/cancel APIs expose safe stage, progress, counts and per-file provenance. A ready `index_versions.ingestion_run_id` proves the publishing run, while atomic index publication keeps earlier ready knowledge-set versions usable.
+- A feature-owned React Flow editor now creates, saves and reopens Existing Files pipelines, edits accessible document/chunk/destination settings outside drag interactions, previews real server decisions, runs only an unchanged saved version, polls sequentially, cancels active work and links to the exact published Knowledge Base version. Answer and ingestion routes remain explicitly separated by pipeline kind.
+
+Verification:
+
+- Clean isolated PostgreSQL/pgvector suite: **185 passed, 1 skipped** (the existing opt-in live embedding check). This includes clean/model migrations, exact two-file membership/publication, answer-index selection, pagination/order, project isolation, cancellation, duplicate delivery and exhausted stale recovery. Backend Ruff lint and format checks passed.
+- Frontend format, structure/ESLint, strict typecheck, **72 tests across 20 files**, and production build passed. The known approximately 601 kB Vite chunk advisory remains.
+- The full isolated deterministic-provider Chromium run completed with **10 passed, 1 intentional missing-credentials skip and 2 failures**; the ingestion failure was a test navigation issue after switching to mobile and the answer-editor failure was non-reproducing. After correcting navigation and rebuilding, the complete ingestion journey plus both pipeline regressions passed together: **3 passed**.
+- The browser journey uploaded and processed two files, previewed both, saved and executed the immutable ingestion version, inspected per-file provenance and the published index link, selected that exact two-passage index in an answer pipeline and received a cited grounded answer. Desktop 1440×1000 and mobile 390×844 captures had no page overflow; the confirmation pass verified canvas refitting and corrected return-link placement.
+- The Impeccable detector reported only the repository's established Inter font warning and no new Phase 3 pattern. Its referenced degraded reviewer file was absent and workspace instructions prohibited spawning the optional finish-review sub-agent, so the bounded review was completed in-thread. No live provider, paid call, external source, developer data reset or persistent-volume deletion was used.
+
+Remaining limitations: Phase 3 supports only already uploaded PDF/TXT files. Preview is synchronous because discovery is bounded to explicit project IDs. Website fetch/revision storage, async preview, credentialed connections, scheduling and shared-access authorization remain later phases. A processing or embedding request already in flight may finish and incur cost after cancellation, but its fenced result cannot publish through the cancelled run.
+
+Next phase: Phase 4 may add bounded public Website discovery and async preview with the SSRF controls in the ingestion plan. It must not fetch content for indexing or embed during preview.
+
 ## Ingestion pipelines — Phase 2 acceptance criteria
 
 Recorded before implementation on 2026-09-12:
@@ -456,4 +491,4 @@ Final verification: Prettier check, structure/ESLint, strict TypeScript, all 66 
 
 ## Ingestion pipeline expansion — in progress
 
-Phase 1 established the separate versioned ingestion-pipeline kind, strict graph persistence, connector-neutral contracts and kind-aware navigation while preserving the answer pipeline and frontend design. Phase 2—knowledge sets and explicit index membership—is dependency-unblocked and ready but was not started in this task. Durable staged runs and the bounded Website connector remain later phases. The phase table, exit gates and copy-paste prompt for every phase are in [ingestion-pipeline-plan.md](ingestion-pipeline-plan.md).
+Phases 1–3 established separate versioned ingestion graphs, stable knowledge sets, explicit immutable index membership and the complete Existing Files editor/preview/durable-run/publication path while preserving answer-pipeline behavior. Phase 4—bounded public Website discovery and preview—is next. The phase table, exit gates and copy-paste prompt for every phase are in [ingestion-pipeline-plan.md](ingestion-pipeline-plan.md).

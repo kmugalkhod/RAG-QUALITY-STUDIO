@@ -87,6 +87,13 @@ class IndexVersion(Base):
             ["knowledge_sets.id", "knowledge_sets.project_id"],
             name="fk_index_knowledge_set_project",
         ),
+        ForeignKeyConstraint(
+            ["ingestion_run_id", "project_id"],
+            ["ingestion_runs.id", "ingestion_runs.project_id"],
+            name="fk_index_ingestion_run_project",
+            use_alter=True,
+        ),
+        UniqueConstraint("ingestion_run_id", name="uq_index_ingestion_run"),
         Index(
             "ix_indexes_knowledge_set_created", "knowledge_set_id", "created_at", "id"
         ),
@@ -94,6 +101,7 @@ class IndexVersion(Base):
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     project_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("projects.id"))
     knowledge_set_id: Mapped[uuid.UUID]
+    ingestion_run_id: Mapped[uuid.UUID | None]
     version: Mapped[int]
     dimensions: Mapped[int]
     embedding_config: Mapped[dict] = mapped_column(JSONB)

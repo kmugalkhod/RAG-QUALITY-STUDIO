@@ -2,6 +2,7 @@ from fastapi import HTTPException
 from sqlalchemy import select, func
 from app.core.config import settings
 from app.models.document import Document
+from app.models.index import KnowledgeSet
 from app.models.pipeline import Pipeline, PipelineVersion
 from app.models.query import QueryRun
 from app.providers import generation
@@ -89,6 +90,20 @@ def validate_ingestion(session, project_id, execution: IngestionExecution):
             422,
             "Embedding settings must match the server's configured provider, model, dimensions and revision.",
         )
+    publish = next(node for node in execution.nodes if node.type == "publish_index")
+    if publish.knowledge_set_id is not None:
+        knowledge_set = session.scalar(
+            select(KnowledgeSet).where(
+                KnowledgeSet.id == publish.knowledge_set_id,
+                KnowledgeSet.project_id == project_id,
+            )
+        )
+        if knowledge_set is None:
+            raise HTTPException(404, "Knowledge set not found in this project.")
+        if knowledge_set.name != publish.knowledge_set_name:
+            raise HTTPException(
+                409, "The knowledge-set name does not match its saved identity."
+            )
 
 
 def save(session, project_id, request, pipeline_id=None):

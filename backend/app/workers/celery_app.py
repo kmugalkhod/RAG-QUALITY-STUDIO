@@ -9,6 +9,7 @@ celery = Celery(
     include=[
         "app.workers.processing",
         "app.workers.indexing",
+        "app.workers.ingestion",
         "app.workers.experiments",
     ],
 )
