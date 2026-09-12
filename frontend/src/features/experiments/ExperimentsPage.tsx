@@ -67,7 +67,7 @@ export function ExperimentsPage({
       allPages((o) => api.listDatasets(projectId, o)),
       allPages((o) => api.listExperiments(projectId, o)),
       api.getEvaluationOptions(projectId),
-      allPages((o) => listPipelines(projectId, o))
+      allPages((o) => listPipelines(projectId, 'answer', o))
         .then((ps) =>
           Promise.all(ps.map((p) => allPages((o) => listPipelineVersions(projectId, p.id, o)))),
         )

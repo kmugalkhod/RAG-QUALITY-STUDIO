@@ -2,6 +2,10 @@
 
 Local setup and baseline verification commands are documented in [README](../README.md).
 
+## Pipeline kinds
+
+Pipeline collections accept `kind=answer` or `kind=ingestion`; executable answer selectors always request `answer`. Existing create requests without `kind` remain answer pipelines. Phase 1 accepts a strictly validated ingestion configuration through the shared create/version APIs, but the production UI intentionally disables ingestion creation and there is no ingestion preview, run or worker endpoint yet. Do not treat a saved ingestion graph as an index or successful execution.
+
 ## Evaluation experiments
 
 Set server-only `EVALUATOR_MODEL` (independent of `CHAT_MODEL`) and `OPENROUTER_API_KEY`, then recreate backend, worker and dispatcher. Response relevancy reuses the configured OpenRouter embedding model. `EVALUATOR_MAX_TOKENS` defaults to 4096; `DATASET_MAX_ROWS` defaults to 200 and `DATASET_MAX_BYTES` to 2097152. Model calls have no automatic paid retries. Keep the dispatcher running for progress and stale recovery.

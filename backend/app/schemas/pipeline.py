@@ -5,6 +5,11 @@ import re
 from pydantic import BaseModel, ConfigDict, Field, model_validator, model_serializer
 
 from app.schemas.retrieval import RetrievalSettings, VectorSearch
+from app.schemas.ingestion import (
+    IngestionExecution,
+    IngestionLayout,
+    IngestionPipelineSave,
+)
 
 DEFAULT_TEMPLATE = "Answer the question concisely using the retrieved context.\nQuestion: {question}\nRetrieved context: {context}"
 ORDER = ["question", "retriever", "prompt", "llm", "answer"]
@@ -114,6 +119,7 @@ class Layout(Strict):
 
 
 class PipelineSave(Strict):
+    kind: Literal["answer"] = "answer"
     name: str = Field(min_length=1, max_length=120)
     execution: Execution
     layout: Layout
@@ -135,8 +141,8 @@ class VersionRead(BaseModel):
     project_id: UUID
     version: int
     name: str
-    execution: Execution
-    layout: Layout
+    execution: Execution | IngestionExecution
+    layout: Layout | IngestionLayout
     created_at: datetime
 
 
@@ -145,6 +151,7 @@ class PipelineRead(BaseModel):
     id: UUID
     project_id: UUID
     name: str
+    kind: Literal["answer", "ingestion"]
     created_at: datetime
 
 
@@ -177,3 +184,6 @@ class PreviewRequest(RunRequest):
         if (self.base_pipeline_id is None) != (self.base_version_id is None):
             raise ValueError("Provide both base pipeline and version, or neither.")
         return self
+
+
+PipelineSaveRequest = PipelineSave | IngestionPipelineSave

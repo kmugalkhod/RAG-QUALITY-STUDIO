@@ -23,13 +23,16 @@ export function App() {
   }, [projectId, page, detail]);
   const queryString = route.query.toString();
   useEffect(() => {
-    if (projectId && (page === 'knowledge-base' || page === 'playground')) {
+    if (
+      projectId &&
+      (page === 'knowledge-base' || page === 'playground' || (page === 'pipelines' && !detail))
+    ) {
       sessionStorage.setItem(
         `${page}:${projectId}`,
         `#/projects/${projectId}/${page}${queryString ? `?${queryString}` : ''}`,
       );
     }
-  }, [projectId, page, queryString]);
+  }, [detail, projectId, page, queryString]);
   return (
     <div className="app-shell flex min-h-screen">
       <a

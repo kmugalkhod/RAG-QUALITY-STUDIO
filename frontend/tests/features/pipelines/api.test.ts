@@ -1,6 +1,7 @@
 import {
   createPipeline,
   createPipelineVersion,
+  listPipelines,
   previewPipeline,
   runPipelineVersion,
 } from '../../../src/features/pipelines/api';
@@ -50,4 +51,12 @@ test('records preview provenance only when based on a saved version', async () =
     base_pipeline_id: 'pipeline',
     base_version_id: 'version',
   });
+});
+
+test('lists one pipeline kind through the server-side filter', async () => {
+  await listPipelines('project', 'ingestion', 40);
+  expect(fetch).toHaveBeenCalledWith(
+    '/api/projects/project/pipelines?kind=ingestion&offset=40',
+    expect.any(Object),
+  );
 });

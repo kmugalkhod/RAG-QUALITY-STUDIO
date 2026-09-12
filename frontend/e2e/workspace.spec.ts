@@ -35,7 +35,7 @@ test('project navigation, isolated state, direct links, history and mobile menu'
   await page.goForward();
   await expect(page.getByRole('heading', { name: 'No documents yet' })).toBeVisible();
   await page.getByRole('link', { name: 'Pipelines', exact: true }).click();
-  await page.getByRole('link', { name: 'New pipeline', exact: true }).click();
+  await page.getByRole('link', { name: 'New answer pipeline', exact: true }).click();
   await expect(page.getByText('Unsaved changes', { exact: true })).toBeVisible();
   page.once('dialog', (d) => d.dismiss());
   await page.getByRole('link', { name: 'Overview', exact: true }).click();

@@ -1,11 +1,13 @@
 from uuid import UUID
-from fastapi import APIRouter, BackgroundTasks
+from typing import Literal
+
+from fastapi import APIRouter, BackgroundTasks, Query
 from app.api.routes import Database
 from app.api.documents import Limit, Offset
 from app.core.config import settings
 from app.providers import generation
 from app.schemas.pipeline import (
-    PipelineSave,
+    PipelineSaveRequest,
     PipelinePage,
     VersionRead,
     VersionPage,
@@ -51,17 +53,28 @@ def preview(
 
 
 @router.get("", response_model=PipelinePage)
-def listing(project_id: UUID, session: Database, limit: Limit = 20, offset: Offset = 0):
-    return pipelines.list_pipelines(session, project_id, limit, offset)
+def listing(
+    project_id: UUID,
+    session: Database,
+    limit: Limit = 20,
+    offset: Offset = 0,
+    kind: Literal["answer", "ingestion"] | None = Query(default=None),
+):
+    return pipelines.list_pipelines(session, project_id, limit, offset, kind)
 
 
 @router.post("", response_model=VersionRead, status_code=201)
-def create(project_id: UUID, request: PipelineSave, session: Database):
+def create(project_id: UUID, request: PipelineSaveRequest, session: Database):
     return pipelines.save(session, project_id, request)
 
 
 @router.post("/{pipeline_id}/versions", response_model=VersionRead, status_code=201)
-def save(project_id: UUID, pipeline_id: UUID, request: PipelineSave, session: Database):
+def save(
+    project_id: UUID,
+    pipeline_id: UUID,
+    request: PipelineSaveRequest,
+    session: Database,
+):
     return pipelines.save(session, project_id, request, pipeline_id)
 
 

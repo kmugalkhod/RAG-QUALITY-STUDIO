@@ -9,7 +9,7 @@ export async function loadProjectSummary(projectId: string) {
     getProject(projectId),
     allPages((offset) => listDocuments(projectId, offset)),
     allPages((offset) => listIndexes(projectId, offset)),
-    allPages((offset) => listPipelines(projectId, offset)),
+    allPages((offset) => listPipelines(projectId, 'answer', offset)),
   ]);
   return { project, documents, indexes, pipelines };
 }

@@ -65,7 +65,7 @@ export function WorkspaceSidebar({
             onChange={(e) => {
               const destination = e.target.value;
               window.location.hash = destination
-                ? ((page === 'knowledge-base' || page === 'playground') &&
+                ? ((page === 'knowledge-base' || page === 'playground' || page === 'pipelines') &&
                     sessionStorage.getItem(`${page}:${destination}`)) ||
                   `/projects/${destination}/${pages.some((p) => p[0] === page) ? page : 'overview'}`
                 : '/';
@@ -88,7 +88,7 @@ export function WorkspaceSidebar({
               <a
                 key={path}
                 href={
-                  path === 'playground' || path === 'knowledge-base'
+                  path === 'playground' || path === 'knowledge-base' || path === 'pipelines'
                     ? sessionStorage.getItem(`${path}:${projectId}`) || `${base}/${path}`
                     : `${base}/${path}`
                 }

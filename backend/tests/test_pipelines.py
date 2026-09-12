@@ -3,9 +3,10 @@ from uuid import UUID, uuid4
 from unittest.mock import patch
 import pytest
 from pydantic import ValidationError
-from sqlalchemy import delete
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 from app.core.config import settings
+from app.models.document import Document
 from app.models.pipeline import Pipeline, PipelineVersion
 from app.models.query import QueryRun
 from app.schemas.pipeline import Execution, PipelineSave, DEFAULT_TEMPLATE
@@ -14,6 +15,7 @@ from app.services import pipelines
 from test_queries import query_api  # noqa: F401
 from test_indexes import index_api, embedding_config  # noqa: F401
 from test_documents import documents_api  # noqa: F401
+from test_ingestion_contracts import ingestion_draft
 
 
 def draft(index_id):
@@ -284,3 +286,68 @@ def test_preview_preserves_saved_version_and_executes_exact_draft(pipeline_api):
     request["execution"]["nodes"][1]["top_k"] = 2
     request.pop("base_version_id")
     assert c.post(base + "/preview-runs", json=request).status_code == 422
+
+
+def test_pipeline_kind_filtering_and_ingestion_version_persistence(pipeline_api):
+    c, engine, p, q, index = pipeline_api
+    base = f"/api/projects/{p}/pipelines"
+    answer = c.post(base, json=draft(index["id"]))
+    assert answer.status_code == 201, answer.text
+    ingestion_payload = ingestion_draft()
+    embed = next(
+        node
+        for node in ingestion_payload["execution"]["nodes"]
+        if node["type"] == "embed"
+    )
+    embed.update(
+        provider=settings.embedding_provider,
+        model=settings.embedding_model,
+        dimensions=settings.embedding_dimensions,
+        config_version=settings.embedding_revision,
+    )
+    ingestion = c.post(base, json=ingestion_payload)
+    assert ingestion.status_code == 201, ingestion.text
+    saved = ingestion.json()
+
+    answer_page = c.get(base + "?kind=answer").json()
+    ingestion_page = c.get(base + "?kind=ingestion").json()
+    assert answer_page["total"] == 1
+    assert answer_page["items"][0]["kind"] == "answer"
+    assert ingestion_page["total"] == 1
+    assert ingestion_page["items"][0]["kind"] == "ingestion"
+    assert c.get(base).json()["total"] == 2
+    assert c.get(base + "?kind=other").status_code == 422
+
+    versions = f"{base}/{saved['pipeline_id']}/versions"
+    assert c.get(versions + "/" + saved["id"]).json() == saved
+    assert c.post(versions, json=draft(index["id"])).status_code == 409
+    assert (
+        c.post(
+            versions + "/" + saved["id"] + "/runs", json={"question": "No"}
+        ).status_code
+        == 409
+    )
+    assert c.get(versions.replace(p, q)).status_code == 404
+    with Session(engine) as session:
+        document_id = session.scalar(
+            select(Document.id).where(Document.project_id == UUID(p))
+        )
+    cross_project = deepcopy(ingestion_payload)
+    cross_project["execution"]["nodes"][0]["config"] = {
+        "kind": "existing_files",
+        "document_ids": [str(document_id)],
+    }
+    assert c.post(base.replace(p, q), json=cross_project).status_code == 404
+
+
+def test_invalid_ingestion_graph_never_persists(pipeline_api):
+    c, _, p, _, _ = pipeline_api
+    base = f"/api/projects/{p}/pipelines"
+    payload = ingestion_draft()
+    payload["execution"]["edges"][-1] = {
+        "source": "publish",
+        "target": "extract",
+    }
+    response = c.post(base, json=payload)
+    assert response.status_code == 422, response.text
+    assert c.get(base + "?kind=ingestion").json()["total"] == 0

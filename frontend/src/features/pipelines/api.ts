@@ -7,6 +7,7 @@ import type {
   PipelineExecution,
   PipelineOptions,
   Pipeline,
+  PipelineKind,
   PipelineVersion,
 } from './model';
 
@@ -22,8 +23,12 @@ export function getPipelineOptions(projectId: string): Promise<PipelineOptions> 
   return request<PipelineOptions>(`${pipelinesPath(projectId)}/options`);
 }
 
-export function listPipelines(projectId: string, offset = 0): Promise<Page<Pipeline>> {
-  return request<Page<Pipeline>>(`${pipelinesPath(projectId)}?offset=${offset}`);
+export function listPipelines(
+  projectId: string,
+  kind: PipelineKind,
+  offset = 0,
+): Promise<Page<Pipeline>> {
+  return request<Page<Pipeline>>(`${pipelinesPath(projectId)}?kind=${kind}&offset=${offset}`);
 }
 
 export function listPipelineVersions(

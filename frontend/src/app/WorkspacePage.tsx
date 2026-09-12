@@ -43,7 +43,7 @@ export function WorkspacePage({ route, onProjectCreated }: WorkspacePageProps) {
           versionId={query.get('version') || ''}
         />
       ) : (
-        <PipelinesPage projectId={projectId} />
+        <PipelinesPage projectId={projectId} kind={query.get('kind') || 'answer'} />
       );
     case 'playground':
       return (

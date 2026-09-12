@@ -27,7 +27,7 @@ export function usePlaygroundCatalog(
     setLoading(true);
     void Promise.all([
       allPages((offset) => listIndexes(projectId, offset)),
-      allPages((offset) => pipelinesApi.listPipelines(projectId, offset)),
+      allPages((offset) => pipelinesApi.listPipelines(projectId, 'answer', offset)),
       pipelinesApi.getPipelineOptions(projectId),
     ])
       .then(([allIndexes, allPipelines, serverOptions]) => {

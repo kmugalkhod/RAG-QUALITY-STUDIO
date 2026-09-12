@@ -1,5 +1,42 @@
 import { test, expect } from '@playwright/test';
 
+test('pipeline kind tabs survive refresh and stay scoped to each project', async ({
+  page,
+  request,
+}) => {
+  const first = (await (
+    await request.post('/api/projects', { data: { name: `Kinds A ${Date.now()}` } })
+  ).json()) as { id: string };
+  const second = (await (
+    await request.post('/api/projects', { data: { name: `Kinds B ${Date.now()}` } })
+  ).json()) as { id: string };
+
+  await page.goto(`/#/projects/${first.id}/pipelines`);
+  await expect(page.getByRole('tab', { name: 'Answer pipelines' })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  );
+  await page.getByRole('tab', { name: 'Ingestion pipelines' }).click();
+  await expect(page).toHaveURL(new RegExp(`/projects/${first.id}/pipelines\\?kind=ingestion$`));
+  await expect(page.getByRole('button', { name: 'New ingestion pipeline' })).toBeDisabled();
+  await expect(page.getByText('Available when ingestion execution is implemented.')).toBeVisible();
+  await expect(page.getByRole('button', { name: /run|preview|connector/i })).toHaveCount(0);
+
+  await page.reload();
+  await expect(page.getByRole('tab', { name: 'Ingestion pipelines' })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  );
+  await page.getByLabel('Switch project').selectOption(second.id);
+  await expect(page).toHaveURL(new RegExp(`/projects/${second.id}/pipelines$`));
+  await expect(page.getByRole('tab', { name: 'Answer pipelines' })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  );
+  await page.getByLabel('Switch project').selectOption(first.id);
+  await expect(page).toHaveURL(new RegExp(`/projects/${first.id}/pipelines\\?kind=ingestion$`));
+});
+
 test('pipeline create configure save reopen run evidence and immutable versions', async ({
   page,
   request,
@@ -31,7 +68,7 @@ test('pipeline create configure save reopen run evidence and immutable versions'
     timeout: 30000,
   });
   await page.getByRole('link', { name: 'Pipelines', exact: true }).click();
-  await page.getByRole('link', { name: 'New pipeline', exact: true }).click();
+  await page.getByRole('link', { name: 'New answer pipeline', exact: true }).click();
   await page.getByLabel('Pipeline name', { exact: true }).fill('Orchard answers');
   const questionBox = (await page.locator('.react-flow__node[data-id="question"]').boundingBox())!;
   const retrieverBox = (await page

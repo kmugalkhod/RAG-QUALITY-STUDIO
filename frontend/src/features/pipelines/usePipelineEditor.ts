@@ -321,7 +321,7 @@ export function usePipelineEditor(projectId: string, pipelineId: string, version
     : busy
       ? ['Wait for the current request to finish.']
       : !nodes.length && !saved
-        ? ['Choose New pipeline to start.']
+        ? ['Choose New answer pipeline to start.']
         : [
             ...errors,
             ...(!name.trim() ? ['Enter a pipeline name.'] : []),

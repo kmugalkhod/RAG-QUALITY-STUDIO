@@ -22,6 +22,7 @@ export type PipelineExecution = {
   edges: { source: string; target: string }[];
 };
 export type PipelineDraft = {
+  kind?: 'answer';
   name: string;
   execution: PipelineExecution;
   layout: { positions: Record<string, { x: number; y: number }> };
@@ -33,7 +34,8 @@ export type PipelineVersion = PipelineDraft & {
   version: number;
   created_at: string;
 };
-export type Pipeline = { id: string; name: string };
+export type PipelineKind = 'answer' | 'ingestion';
+export type Pipeline = { id: string; name: string; kind: PipelineKind };
 export type PipelineOptions = {
   models: string[];
   template: string;

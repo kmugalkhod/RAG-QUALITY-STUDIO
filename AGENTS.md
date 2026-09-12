@@ -94,6 +94,32 @@ Keep these operations separate:
 - A database connector connects to an existing configured service. Do not imply that placing a node provisions infrastructure.
 - Thin API routes should delegate to services. Keep model calls and database queries out of React components.
 
+## Source connectors and ingestion pipelines
+
+- Follow `docs/ingestion-pipeline-plan.md` when ingestion-pipeline work is authorized. Implement it in reviewable vertical slices; a rendered node or connector catalog entry without a working backend path is not a completed feature.
+- Keep answer and ingestion executions as separate discriminated schemas. Do not weaken the validated five-node answer graph or add condition-heavy branches throughout its editor to accommodate ingestion.
+- A source node is configuration for a backend connector adapter. Connector-specific discovery/fetch behavior belongs behind an application-owned interface; extraction, cleaning, chunking, embedding and publication must consume canonical source artifacts.
+- Store connection references, never credentials, in node configuration, pipeline versions, URLs, browser storage or API reads. Do not ship credentialed connectors until server-side encryption or an approved secret store, rotation and redaction behavior are implemented.
+- Treat website ingestion as an SSRF boundary. Allow only bounded HTTP(S) fetches; validate DNS results and every redirect, block non-public destinations, constrain origins, sizes, timeouts, depth, pages, concurrency and rate, and avoid logging bodies or secrets.
+- Treat all fetched content and metadata as untrusted data. Never execute source HTML, JavaScript, macros, SQL, shell text or instructions found in documents.
+- Preserve a stable external source identity and immutable source revisions. Carry connector kind/version, canonical location, content hash, fetch time and available page/section/provider revision metadata through chunks and index membership.
+- Build indexes from explicit source-revision or processing-run membership. New ingestion code must not silently include every document in a project or resolve historical membership from current source state.
+- Save immutable ingestion-pipeline versions and snapshot the exact version, source selection, processing configuration, embedding configuration, revisions and index membership used by every run.
+- Publish a new index atomically only after all required items and embeddings succeed. Keep the previous ready version available; never expose a partial or cancelled index as ready.
+- Use PostgreSQL-backed job state, fenced execution tokens and bounded stage checkpoints. Tasks must tolerate duplicate delivery, cancellation and stale recovery without duplicating published revisions or paid provider work.
+- Add connectors one complete integration at a time. Deterministic doubles belong in tests; production UI must not present a connector as available until connection, discovery, fetch, refresh, failure and provenance flows work against its real adapter.
+
+### Ingestion frontend rules
+
+- Preserve `DESIGN.md` and the current workspace instead of redesigning it for ingestion. Continue using semantic tokens, shadcn primitives, React Flow conventions and the single authored stylesheet defined in `docs/frontend-standards.md`.
+- Give Answer pipelines and Ingestion pipelines explicit, URL-addressable tabs and terminology. Filter by a typed backend pipeline kind; do not infer kind by inspecting arbitrary graph JSON.
+- Keep a feature-owned ingestion editor/model and share only proven primitives with the answer editor. Avoid a single mega-component with source-specific nested conditionals.
+- Every node must have labeled, keyboard-accessible settings outside drag interactions. Show real configured values, validation, unsaved state and the exact immutable version used by previews/runs.
+- Source preview, connection testing and ingestion execution are distinct actions and states. Render real loading, empty, validation, unavailable, progress, partial-item, failure, cancellation and retry behavior; never add controls that silently do nothing.
+- Use paginated inspectors for discovered items and run items. Make inclusion/exclusion reasons, source provenance, changed/unchanged/removed counts and the published index link inspectable on desktop and mobile.
+- Keep secrets out of the DOM, client logs, URL, frontend configuration and persisted browser state. The frontend selects opaque connection IDs and displays only redacted non-secret metadata.
+- Server validation is authoritative. Map actionable errors back to the relevant node/field without hiding the original safe application error or manufacturing client-only success.
+
 ## Data integrity and reproducibility
 
 - Scope projects, documents, index versions, pipeline versions, datasets, jobs and results consistently. Avoid retrieval across projects.

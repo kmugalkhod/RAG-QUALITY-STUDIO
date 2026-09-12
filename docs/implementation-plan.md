@@ -1,5 +1,40 @@
 # Implementation plan
 
+## Ingestion pipelines — Phase 1 acceptance criteria
+
+Recorded before implementation on 2026-09-12:
+
+- Alembic adds a non-null `pipelines.kind` constrained to `answer` or `ingestion`, backfills every existing pipeline as `answer`, and preserves existing pipeline/version/query identifiers and behavior through upgrade and downgrade checks.
+- Pipeline create/list/version APIs remain project-scoped, accept an explicit kind, support server-side `kind=answer|ingestion` filtering, and preserve the legacy answer request shape as an `answer` pipeline.
+- Answer versions continue to use the existing strict execution schema. Ingestion versions use a separate strict, versioned schema that permits one to ten recognized source nodes followed by exactly Extract → Clean → Chunk → Embed → Publish, rejects extra fields, mismatched layout, duplicate IDs, cycles and unsupported graph shapes, and never treats display/layout data as execution parameters.
+- Connector-neutral contracts define deterministic discovery, fetch, unchanged and sanitized retry-classified error results, with deterministic fixtures/tests and no provider SDK dependency.
+- Existing answer pipeline, version, query-run and project-wide document-indexing regressions remain behaviorally compatible; cross-project pipeline access remains rejected.
+- The Pipelines page exposes refreshable/history-safe, project-scoped Answer pipelines and Ingestion pipelines tabs backed by the real kind filter. Answer creation/opening continues to work; ingestion creation is clearly unavailable and no preview, run, connector or other fake executable control is introduced.
+- Backend schema/API/service tests, clean and populated upgrade migration checks, backend lint/format, frontend format/lint/typecheck/unit/build, affected browser regressions and one bounded desktop/mobile inspection pass satisfy the Phase 1 exit gate.
+
+Status: complete for ingestion-pipeline Phase 1. Verified on 2026-09-12.
+
+Implemented:
+
+- Alembic `0008` adds and constrains `pipelines.kind`, backfills populated pre-Phase-1 rows as `answer`, and indexes project/kind/creation listings. Pipeline/version IDs and JSON survive the populated `0007 → 0008 → 0007 → 0008` path.
+- Existing answer create/version requests remain valid without a `kind` field and are stored as `answer`. The project collection accepts `kind=answer|ingestion`; create and append dispatch strict validation from the requested/parent kind. Kind changes on append are rejected, ingestion versions cannot enter answer-run/preview/experiment paths, and existing answer validation remains the stable query/experiment contract.
+- `app.schemas.ingestion` owns the separate schema-v1 execution union: one to ten Existing Files or Website source configurations, exactly one Extract/Clean/character Chunk/Embed/Publish index node, the exact supported fan-in plus linear processing chain, exact layout IDs, bounded numeric/URL/path settings and forbidden unknown fields. Existing-file IDs and embedding configuration are checked against the project/server before persistence.
+- `app.connectors.base` defines immutable connector-neutral connection checks, stable discovered items, paginated discovery successes/failures, changed/unchanged/failed fetch results, content/provenance metadata and sanitized retry classification. Deterministic test doubles prove stable ordering and result behavior without provider SDKs or network traffic.
+- The Pipelines page has URL-addressable Answer pipelines/Ingestion pipelines tabs backed by the server kind filter. The selected list URL is remembered per project only. Answer creation/opening remains operational; ingestion creation is disabled with explicit availability copy, ingestion rows have no editor/run action, and no connector/preview/worker behavior is exposed.
+- Feature-owned frontend ingestion request/model contracts are present for later editor work. No knowledge set, ingestion run, worker, website fetch or connection record was introduced.
+
+Verification:
+
+- Isolated PostgreSQL/pgvector backend suite: **179 passed, 1 skipped** (the existing opt-in live embedding check), including clean/model migration checks, populated pipeline-kind upgrade/downgrade/re-upgrade, strict ingestion validation, project isolation and all answer/index/query/experiment regressions. Backend Ruff lint and format checks passed.
+- Frontend format, structure/ESLint, strict typecheck and production build passed; **71 tests passed** across 20 files. The known Vite advisory remains for the approximately 587 kB main JavaScript chunk.
+- Isolated Chromium stack: the initial complete run passed 9 journeys with 1 intentional missing-credentials skip; two answer/workspace journeys found only the deliberately renamed **New answer pipeline** locator. After updating those regressions, all three affected journeys passed together, including the new refresh/history/project-isolation tab flow and the full answer create/save/reopen/run/evidence path.
+- Desktop 1440×1000 and mobile 390×844 ingestion-tab captures were inspected once; mobile had no horizontal page overflow. Agent-browser accessibility output exposed the tabs, disabled creation control and empty state. The Impeccable mechanical detector returned no findings.
+- No provider SDK, external connector traffic, model call, developer-volume reset or ingestion execution was used. Browser verification ran in the separate `rag-phase1-e2e` stack.
+
+Remaining limitations: this phase persists contracts/configuration only. Knowledge sets and explicit index membership begin in Phase 2; ingestion creation/editing, workers, preview and execution remain unavailable. Website schemas do not fetch URLs and therefore do not yet implement the Phase 4 SSRF transport boundary. Existing local unauthenticated access, upstream test warning and frontend bundle advisory remain unchanged.
+
+Next phase: Phase 2 may add knowledge sets and explicit immutable index membership. It must not begin as part of this Phase 1 task.
+
 ## Retrieval node settings — completed 2026-09-12
 
 Implemented the six agreed controls: search method, Top k, optional maximum vector distance, vector/keyword candidate counts and hybrid weighting. Shared validation and effective settings flow through canvas save/run, previews, direct retrieval, deferred queries and experiments. PostgreSQL keyword search and weighted RRF execute against scoped immutable index membership. No filters or reranking were implemented.
@@ -382,3 +417,7 @@ Frontend restructuring implementation (2026-09-12): official shadcn CLI installa
 The component pass now uses shadcn Table, Badge, Tabs, Separator, Alert, Skeleton, Accordion and Progress in addition to the form primitives. Raw feature tables and progress elements were removed. Large route components were split into feature-owned sections; reusable Pagination, RetrievalSettingsForm, AnswerText and StatusBadge remain shared. Every non-generated TSX component is below 300 lines, while the longer Pipeline and Playground controller hooks retain cohesive state/request lifecycles.
 
 Final verification: Prettier check, structure/ESLint, strict TypeScript, all 66 Vitest tests across 18 files and the production build passed. A fresh isolated Compose stack passed 10 applicable Chromium journeys in 2.2 minutes; the credential-free scenario was skipped because this run intentionally enabled the local embedding-provider fixture. Visual confirmation covered Projects, Overview, Knowledge Base, Playground, Pipelines and Experiments at desktop size plus responsive project and experiment layouts. No live provider execution was used. The build reports a 586 kB minified JavaScript chunk warning; route-level code splitting remains a separate performance change. See [frontend restructuring plan](frontend-restructure-plan.md#implementation-result-2026-09-12) for concrete before/after examples and boundary decisions.
+
+## Ingestion pipeline expansion — in progress
+
+Phase 1 established the separate versioned ingestion-pipeline kind, strict graph persistence, connector-neutral contracts and kind-aware navigation while preserving the answer pipeline and frontend design. Phase 2—knowledge sets and explicit index membership—is dependency-unblocked and ready but was not started in this task. Durable staged runs and the bounded Website connector remain later phases. The phase table, exit gates and copy-paste prompt for every phase are in [ingestion-pipeline-plan.md](ingestion-pipeline-plan.md).

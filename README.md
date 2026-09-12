@@ -240,7 +240,7 @@ This fixture module lives only in `backend/tests`; it does not activate fake beh
 
 ### Visual pipelines (Milestone 4)
 
-Open a project's **Open pipeline editor**, then **New pipeline**. Select Retriever to choose a ready index and top k; select Prompt to edit answer instructions; select LLM for the server-configured model, output limit and temperature. Save a version, enter a question and **Run pipeline**. Click source references to inspect evidence; expand the effective prompt to inspect actual messages/settings. **Refresh runs** reopens persisted pipeline runs. The existing Playground remains available.
+Open a project's **Open pipeline editor**, then **New answer pipeline**. Select Retriever to choose a ready index and top k; select Prompt to edit answer instructions; select LLM for the server-configured model, output limit and temperature. Save a version, enter a question and **Run pipeline**. Click source references to inspect evidence; expand the effective prompt to inspect actual messages/settings. **Refresh runs** reopens persisted pipeline runs. The existing Playground remains available.
 
 The supported graph is exactly Question → Retriever → Prompt → LLM → Answer. Nodes can be dragged, selected, deleted and re-added from the palette; drag handles to connect them. Use the labeled Selected node form without dragging. Delete selected edges with Delete/Backspace. Invalid graphs show errors and cannot be saved or run. Save/discard edits before switching versions, duplicating or executing. Versions preserve configuration and layout; duplicates get a new pipeline identity. Invalid unsaved drafts are not persisted.
 

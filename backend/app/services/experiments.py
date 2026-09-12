@@ -38,6 +38,9 @@ def submit(session, project_id, request):
         )
         if version is None:
             raise HTTPException(404, "Pipeline version not found in this project.")
+        pipeline = pipelines.get_pipeline(session, project_id, version.pipeline_id)
+        if pipeline.kind != "answer":
+            raise HTTPException(409, "Experiments require answer pipeline versions.")
         nodes, config = pipelines.validate(
             session, project_id, Execution.model_validate(version.execution)
         )

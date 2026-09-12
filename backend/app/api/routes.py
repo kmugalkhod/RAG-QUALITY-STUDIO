@@ -30,7 +30,7 @@ def ready(session: Database) -> dict[str, str]:
     session.execute(
         text("SELECT pipeline_version_id, snapshot FROM query_runs LIMIT 0")
     )
-    session.execute(text("SELECT project_id, name FROM pipelines LIMIT 0"))
+    session.execute(text("SELECT project_id, name, kind FROM pipelines LIMIT 0"))
     session.execute(text("SELECT execution, layout FROM pipeline_versions LIMIT 0"))
     session.execute(text("SELECT rows FROM dataset_versions LIMIT 0"))
     session.execute(text("SELECT snapshot, progress FROM experiments LIMIT 0"))

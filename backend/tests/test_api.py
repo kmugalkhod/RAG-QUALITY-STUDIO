@@ -194,3 +194,120 @@ def test_milestone_two_a_upgrade_preserves_chunks(database):
         session.flush()
         session.delete(session.get(Project, p))
         session.commit()
+
+
+def test_pipeline_kind_upgrade_backfills_existing_rows(database):
+    import json
+    from uuid import uuid4
+
+    engine, env = database
+    subprocess.run(
+        [sys.executable, "-m", "alembic", "downgrade", "0007"], env=env, check=True
+    )
+    project_id, pipeline_id, version_id = uuid4(), uuid4(), uuid4()
+    execution = {
+        "schema_version": 1,
+        "nodes": [],
+        "edges": [],
+    }
+    layout = {"positions": {}}
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "INSERT INTO projects (id, name, description) "
+                "VALUES (:id, :name, :description)"
+            ),
+            {
+                "id": project_id,
+                "name": "Pipeline kind upgrade",
+                "description": "Legacy populated migration fixture",
+            },
+        )
+        connection.execute(
+            text(
+                "INSERT INTO pipelines (id, project_id, name) VALUES (:id, :project, :name)"
+            ),
+            {"id": pipeline_id, "project": project_id, "name": "Legacy answer"},
+        )
+        connection.execute(
+            text(
+                "INSERT INTO pipeline_versions "
+                "(id, pipeline_id, project_id, version, name, execution, layout) "
+                "VALUES (:id, :pipeline, :project, 1, :name, "
+                "CAST(:execution AS jsonb), CAST(:layout AS jsonb))"
+            ),
+            {
+                "id": version_id,
+                "pipeline": pipeline_id,
+                "project": project_id,
+                "name": "Legacy answer",
+                "execution": json.dumps(execution),
+                "layout": json.dumps(layout),
+            },
+        )
+    subprocess.run(
+        [sys.executable, "-m", "alembic", "upgrade", "head"], env=env, check=True
+    )
+    with engine.begin() as connection:
+        assert (
+            connection.scalar(
+                text("SELECT kind FROM pipelines WHERE id=:id"), {"id": pipeline_id}
+            )
+            == "answer"
+        )
+        assert (
+            connection.scalar(
+                text("SELECT id FROM pipeline_versions WHERE id=:id"),
+                {"id": version_id},
+            )
+            == version_id
+        )
+        assert (
+            connection.scalar(
+                text(
+                    "SELECT count(*) FROM pg_constraint "
+                    "WHERE conname='ck_pipeline_kind'"
+                )
+            )
+            == 1
+        )
+    subprocess.run(
+        [sys.executable, "-m", "alembic", "downgrade", "0007"], env=env, check=True
+    )
+    with engine.connect() as connection:
+        assert (
+            connection.scalar(
+                text("SELECT id FROM pipeline_versions WHERE id=:id"),
+                {"id": version_id},
+            )
+            == version_id
+        )
+        assert (
+            connection.scalar(
+                text(
+                    "SELECT count(*) FROM information_schema.columns "
+                    "WHERE table_name='pipelines' AND column_name='kind'"
+                )
+            )
+            == 0
+        )
+    subprocess.run(
+        [sys.executable, "-m", "alembic", "upgrade", "head"], env=env, check=True
+    )
+    with engine.connect() as connection:
+        assert (
+            connection.scalar(
+                text("SELECT kind FROM pipelines WHERE id=:id"), {"id": pipeline_id}
+            )
+            == "answer"
+        )
+    with engine.begin() as connection:
+        connection.execute(
+            text("DELETE FROM pipeline_versions WHERE id=:id"), {"id": version_id}
+        )
+        connection.execute(
+            text("DELETE FROM pipelines WHERE id=:id"), {"id": pipeline_id}
+        )
+        connection.execute(
+            text("DELETE FROM projects WHERE id=:id"), {"id": project_id}
+        )

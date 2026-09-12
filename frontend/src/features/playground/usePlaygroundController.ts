@@ -209,7 +209,7 @@ export function usePlaygroundController({
       setSelectedVersion(value.id);
       setVersions((current) => [value, ...current.filter((version) => version.id !== value.id)]);
       setPipelines((current) => [
-        { id: value.pipeline_id, name: value.name },
+        { id: value.pipeline_id, name: value.name, kind: 'answer' },
         ...current.filter((pipeline) => pipeline.id !== value.pipeline_id),
       ]);
       remember(mode, value.pipeline_id, value.id);
