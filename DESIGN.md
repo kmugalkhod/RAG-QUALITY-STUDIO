@@ -6,7 +6,7 @@ The current visual authority is the user's supplied dark pipeline-editor referen
 
 Use charcoal content (#181b21), a slightly lighter canvas/sidebar (#20242b), subtle borders (#343b46), readable foreground (#e8eaf0), secondary text (#a5afbf), and lavender accents (#afa1ff). Accent marks active navigation, selection, focus and the primary action. Success, failure and in-progress states have separate colors and explicit labels. Native inputs use a dark color scheme. Self-hosted Inter remains the UI font; its OFL license is included.
 
-The shared theme lives in `frontend/src/app/linear-workspace.css` (the historical filename is retained). Common surface/text/border/accent tokens apply to every route. The 232px sidebar holds the project switcher and five implemented sections. The project/page header is 48px high. On mobile the navigation expands inline with visible focus and Escape support.
+The shared theme lives in `frontend/src/app/styles.css`, the only application-owned stylesheet. Semantic shadcn tokens define common surface, text, border and accent colors; Tailwind utilities handle ordinary component layout. The 232px sidebar holds the project switcher and five implemented sections. The project/page header is 48px high. On mobile the navigation expands inline with visible focus and Escape support.
 
 ## Pipeline editor
 

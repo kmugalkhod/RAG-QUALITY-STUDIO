@@ -1,57 +1,102 @@
 import { test, expect } from '@playwright/test';
 
-test('retrieval-only search, editable pipeline draft, immutable save, answers and evidence', async ({ page, request }) => {
-  test.skip(process.env.E2E_EMBEDDING_FIXTURE !== '1', 'Requires isolated deterministic providers.');
+test('retrieval-only search, editable pipeline draft, immutable save, answers and evidence', async ({
+  page,
+  request,
+}) => {
+  test.skip(
+    process.env.E2E_EMBEDDING_FIXTURE !== '1',
+    'Requires isolated deterministic providers.',
+  );
   test.setTimeout(120000);
-  const project = await (await request.post('/api/projects', { data: { name: `Playground ${Date.now()}` } })).json() as { id: string };
+  const project = (await (
+    await request.post('/api/projects', { data: { name: `Playground ${Date.now()}` } })
+  ).json()) as { id: string };
   await page.goto(`/#/projects/${project.id}`);
   await page.getByRole('button', { name: 'Add document', exact: true }).click();
-  await page.getByLabel('PDF or UTF-8 TXT').setInputFiles({ name: 'orchard.txt', mimeType: 'text/plain', buffer: Buffer.from('The orchard grows apples. The harvest begins in September.') });
+  await page.getByLabel('PDF or UTF-8 TXT').setInputFiles({
+    name: 'orchard.txt',
+    mimeType: 'text/plain',
+    buffer: Buffer.from('The orchard grows apples. The harvest begins in September.'),
+  });
   await page.getByRole('button', { name: 'Upload document', exact: true }).click();
   await page.getByRole('button', { name: 'Start processing', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Inspect 1 chunks' })).toBeVisible({ timeout: 30000 });
-  await page.getByRole('button', { name: 'Document sets', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Inspect 1 chunks' })).toBeVisible({
+    timeout: 30000,
+  });
+  await page.getByRole('tab', { name: 'Document sets', exact: true }).click();
   await page.getByRole('button', { name: 'Prepare document set' }).click();
-  await expect(page.getByRole('button', { name: 'Use document set 1' })).toBeVisible({ timeout: 30000 });
+  await expect(page.getByRole('button', { name: 'Use document set 1' })).toBeVisible({
+    timeout: 30000,
+  });
   await page.getByRole('link', { name: 'Playground', exact: true }).click();
 
   await page.getByRole('button', { name: 'Retrieval test', exact: true }).click();
-  await page.getByLabel('Documents to search').selectOption({ label: 'Document set · Version 1 · 1 passages' });
+  await page
+    .getByLabel('Documents to search')
+    .selectOption({ label: 'Document set · Version 1 · 1 passages' });
   await page.getByLabel('Top k', { exact: true }).fill('3');
   await page.reload();
-  await expect(page.getByRole('button', { name: 'Retrieval test', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('button', { name: 'Retrieval test', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
   await expect(page.getByLabel('Top k', { exact: true })).toHaveValue('3');
   await page.getByLabel('Search query', { exact: true }).fill('What does the orchard grow?');
   await page.getByRole('button', { name: 'Run retrieval test', exact: true }).click();
   const matches = page.getByRole('region', { name: 'Retrieval test results' });
   await expect(matches).toContainText('The orchard grows apples.');
   await expect(matches).toContainText('No answer was generated.');
-  const emptyHistory = await (await request.get(`/api/projects/${project.id}/query-runs`)).json() as { total: number };
+  const emptyHistory = (await (
+    await request.get(`/api/projects/${project.id}/query-runs`)
+  ).json()) as { total: number };
   expect(emptyHistory.total).toBe(0);
   await matches.getByRole('button', { name: 'View passage 1' }).click();
-  await expect(page.getByRole('region', { name: 'Retrieved passage' })).toContainText('The harvest begins in September.');
+  await expect(page.getByRole('region', { name: 'Retrieved passage' })).toContainText(
+    'The harvest begins in September.',
+  );
 
   await page.getByRole('button', { name: 'Pipeline test', exact: true }).click();
-  await page.getByLabel('Documents to search').selectOption({ label: 'Document set · Version 1 · 1 passages' });
+  await page
+    .getByLabel('Documents to search')
+    .selectOption({ label: 'Document set · Version 1 · 1 passages' });
   await page.getByLabel('Top k', { exact: true }).fill('1');
-  await page.getByLabel('Prompt', { exact: true }).fill('Use one short sentence. Question: {question} Context: {context}');
+  await page
+    .getByLabel('Prompt', { exact: true })
+    .fill('Use one short sentence. Question: {question} Context: {context}');
   await page.getByLabel('Temperature', { exact: true }).fill('0.3');
   await page.getByLabel('Max output tokens', { exact: true }).fill('128');
   await page.getByLabel('Question', { exact: true }).fill('What does the orchard grow?');
   await page.getByRole('button', { name: 'Run pipeline test', exact: true }).click();
   const result = page.getByRole('region', { name: 'Query result' });
-  await expect(result.locator('.formatted-answer')).toHaveText('The orchard grows apples. [S1]', { timeout: 30000 });
+  await expect(result.locator('.formatted-answer')).toHaveText('The orchard grows apples. [S1]', {
+    timeout: 30000,
+  });
   await result.getByRole('button', { name: '[S1]', exact: true }).click();
   await expect(page.locator('#evidence-S1')).toBeFocused();
   await page.getByRole('button', { name: 'Answer details', exact: true }).click();
   await expect(page.getByRole('region', { name: 'Answer details' })).toContainText('Test draft');
-  const beforeSave = await (await request.get(`/api/projects/${project.id}/pipelines`)).json() as { total: number };
+  const beforeSave = (await (
+    await request.get(`/api/projects/${project.id}/pipelines`)
+  ).json()) as { total: number };
   expect(beforeSave.total).toBe(0);
-  const history = await (await request.get(`/api/projects/${project.id}/query-runs`)).json() as { items: { snapshot: { pipeline_preview: boolean; top_k: number; prompt_template: string; generation_config: { temperature: number; max_tokens: number } } }[] };
+  const history = (await (await request.get(`/api/projects/${project.id}/query-runs`)).json()) as {
+    items: {
+      snapshot: {
+        pipeline_preview: boolean;
+        top_k: number;
+        prompt_template: string;
+        generation_config: { temperature: number; max_tokens: number };
+      };
+    }[];
+  };
   expect(history.items[0].snapshot.pipeline_preview).toBe(true);
   expect(history.items[0].snapshot.top_k).toBe(1);
   expect(history.items[0].snapshot.prompt_template).toContain('Use one short sentence.');
-  expect(history.items[0].snapshot.generation_config).toMatchObject({ temperature: 0.3, max_tokens: 128 });
+  expect(history.items[0].snapshot.generation_config).toMatchObject({
+    temperature: 0.3,
+    max_tokens: 128,
+  });
 
   await page.getByRole('button', { name: 'Pipeline settings', exact: true }).click();
   await page.getByText('Save these settings as a version', { exact: true }).click();
@@ -61,7 +106,9 @@ test('retrieval-only search, editable pipeline draft, immutable save, answers an
   await page.getByLabel('Top k', { exact: true }).fill('2');
   await page.getByLabel('Question', { exact: true }).fill('What is the launch code?');
   await page.getByRole('button', { name: 'Run pipeline test', exact: true }).click();
-  await expect(result.getByRole('heading', { name: 'Insufficient evidence', exact: true })).toBeVisible({ timeout: 30000 });
+  await expect(
+    result.getByRole('heading', { name: 'Insufficient evidence', exact: true }),
+  ).toBeVisible({ timeout: 30000 });
   await page.getByRole('button', { name: 'Reset changes', exact: true }).click();
   await expect(page.getByLabel('Top k', { exact: true })).toHaveValue('1');
   await page.reload();

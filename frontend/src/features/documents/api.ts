@@ -1,20 +1,71 @@
-import { request, type Project } from '../../lib/api';
-export interface Page<T> { items: T[]; total: number; limit: number; offset: number }
-export interface Run {
-  id: string; document_id: string; version: number; chunk_size: number; overlap: number;
-  status: 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled';
-  progress: number; error: string | null; chunk_count: number; attempts: number;
-  config_version: string; parser_version: string; created_at: string;
+import { postJson, request } from '../../lib/api';
+import type { Page } from '../../lib/pagination';
+import type { Chunk, Document, Run } from './model';
+
+export interface UploadSettings {
+  max_upload_bytes: number;
 }
-export interface Document { id: string; filename: string; size_bytes: number; content_hash: string; created_at: string; latest_run: Run | null }
-export interface Chunk { ordinal: number; page_number: number | null; start_char: number; end_char: number; text: string }
-const base = (project: string) => `/projects/${project}`;
-const doc = (project: string, document: string) => `${base(project)}/documents/${document}`;
-export const getProject = (p: string) => request<Project>(base(p));
-export const getSettings = (p: string) => request<{ max_upload_bytes: number }>(`${base(p)}/upload-settings`);
-export const listDocuments = (p: string, offset = 0) => request<Page<Document>>(`${base(p)}/documents?offset=${offset}`);
-export const uploadDocument = (p: string, file: File) => { const body = new FormData(); body.append('file', file); return request<Document>(`${base(p)}/documents`, { method: 'POST', body }); };
-export const listRuns = (p: string, d: string, offset = 0) => request<Page<Run>>(`${doc(p, d)}/runs?offset=${offset}`);
-export const startRun = (p: string, d: string, chunk_size: number, overlap: number) => request<Run>(`${doc(p, d)}/runs`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ chunk_size, overlap }) });
-export const cancelRun = (p: string, d: string, r: string) => request<Run>(`${doc(p, d)}/runs/${r}/cancel`, { method: 'POST' });
-export const listChunks = (p: string, d: string, r: string, offset = 0) => request<Page<Chunk>>(`${doc(p, d)}/runs/${r}/chunks?offset=${offset}`);
+
+function documentsPath(projectId: string): string {
+  return `/projects/${encodeURIComponent(projectId)}/documents`;
+}
+
+function documentPath(projectId: string, documentId: string): string {
+  return `${documentsPath(projectId)}/${encodeURIComponent(documentId)}`;
+}
+
+export function getUploadSettings(projectId: string): Promise<UploadSettings> {
+  return request<UploadSettings>(`/projects/${encodeURIComponent(projectId)}/upload-settings`);
+}
+
+export function listDocuments(projectId: string, offset = 0): Promise<Page<Document>> {
+  return request<Page<Document>>(`${documentsPath(projectId)}?offset=${offset}`);
+}
+
+export function uploadDocument(projectId: string, file: File): Promise<Document> {
+  const body = new FormData();
+  body.append('file', file);
+  return request<Document>(documentsPath(projectId), { method: 'POST', body });
+}
+
+export function listProcessingRuns(
+  projectId: string,
+  documentId: string,
+  offset = 0,
+): Promise<Page<Run>> {
+  return request<Page<Run>>(`${documentPath(projectId, documentId)}/runs?offset=${offset}`);
+}
+
+export function startProcessingRun(
+  projectId: string,
+  documentId: string,
+  chunkSize: number,
+  overlap: number,
+): Promise<Run> {
+  return postJson<Run>(`${documentPath(projectId, documentId)}/runs`, {
+    chunk_size: chunkSize,
+    overlap,
+  });
+}
+
+export function cancelProcessingRun(
+  projectId: string,
+  documentId: string,
+  runId: string,
+): Promise<Run> {
+  return request<Run>(
+    `${documentPath(projectId, documentId)}/runs/${encodeURIComponent(runId)}/cancel`,
+    { method: 'POST' },
+  );
+}
+
+export function listDocumentChunks(
+  projectId: string,
+  documentId: string,
+  runId: string,
+  offset = 0,
+): Promise<Page<Chunk>> {
+  return request<Page<Chunk>>(
+    `${documentPath(projectId, documentId)}/runs/${encodeURIComponent(runId)}/chunks?offset=${offset}`,
+  );
+}
