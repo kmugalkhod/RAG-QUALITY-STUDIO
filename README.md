@@ -31,6 +31,8 @@ docker compose down
 
 `down` preserves named `postgres_data`, `document_data` and `redis_data` volumes. Do not use `down -v` for routine cleanup. Changing the password in `.env` after initialization does not change an existing PostgreSQL role's password. All published ports bind to `127.0.0.1`; authentication is not implemented, so keep this workspace local.
 
+Source connections are disabled by default. To enable the local encrypted vault, generate a 32-byte key with `openssl rand -base64 32`, place it in `SOURCE_CONNECTION_KEYS` under a version name, set that version in `SOURCE_CONNECTION_ACTIVE_KEY`, and set `SOURCE_CONNECTIONS_ENABLED=true`. Never commit the populated values. Keep every old key available until its connections have been re-encrypted from Settings; losing a required key makes those credentials unrecoverable. See [deployment guidance](docs/deployment.md#source-connection-vault).
+
 ## Verification
 
 Frontend (Node.js 22.12+ and npm):
@@ -193,7 +195,9 @@ Existing Files ingestion is available under **Pipelines → Ingestion pipelines*
 
 The corresponding project-scoped API operations are `POST /ingestion-previews`, `GET/POST /source-previews/...` for durable preview progress, paginated outcomes and cancellation, `POST /pipelines/{pipeline_id}/versions/{version_id}/ingestion-runs`, and `GET/POST /ingestion-runs/...` for execution progress, items and cancellation.
 
-Website sources support both preview and execution. Single URLs, explicit URL lists, bounded same-origin crawls and XML sitemaps use origin/path rules, robots.txt, canonical duplicate detection and hard page/depth/byte/time/rate/redirect limits. The backend revalidates DNS and redirects against non-public destinations and never renders or executes fetched HTML. A saved run stores immutable HTML revisions, extracts deterministic main content with section provenance, reports new/changed/unchanged/removed URLs and atomically publishes an exact index while preserving older ready versions. Credentialed connectors remain unavailable pending the Phase 6 secret-storage decision.
+Website sources support both preview and execution. Single URLs, explicit URL lists, bounded same-origin crawls and XML sitemaps use origin/path rules, robots.txt, canonical duplicate detection and hard page/depth/byte/time/rate/redirect limits. The backend revalidates DNS and redirects against non-public destinations and never renders or executes fetched HTML. A saved run stores immutable HTML revisions, extracts deterministic main content with section provenance, reports new/changed/unchanged/removed URLs and atomically publishes an exact index while preserving older ready versions.
+
+Project Settings provides the local source-connection vault. S3, Notion and Confluence credential shapes can be stored using AES-256-GCM, read only as redacted metadata, replaced, tested through the connector-owned boundary and re-encrypted under the active key. Provider tests currently report unavailable until each complete connector phase supplies its real adapter; storing credentials does not advertise or enable source fetching by itself.
 - `POST /indexes/{index_id}/cancel`: cancel queued/running indexing.
 - `POST /retrieval`: `{ "index_id": "<ready UUID>", "query": "question", "top_k": 5 }`.
 

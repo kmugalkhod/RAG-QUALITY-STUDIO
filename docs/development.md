@@ -18,6 +18,14 @@ Choose Website as the source, then select a single URL, URL list, crawl start or
 
 Save the validated graph before running it. The worker stores immutable raw revisions, extracts bounded main/article text with heading provenance, classifies refresh items as new, changed, unchanged or removed, and reuses compatible embeddings. Publication advances the knowledge set only after all required content and embeddings succeed; failed or cancelled refreshes leave the prior ready version current. The same ingestion-run endpoints documented above expose progress and per-URL results.
 
+## Local source connections
+
+Connection APIs are deliberately unavailable until `SOURCE_CONNECTIONS_ENABLED=true`, `SOURCE_CONNECTION_ACTIVE_KEY` names an entry in `SOURCE_CONNECTION_KEYS`, and that entry decodes to exactly 32 bytes. `SOURCE_CONNECTION_KEYS` is a JSON object of version names to base64 keys. The Settings screen sends credential fields only in create/rotate POST bodies and clears its secret controls after every attempt. Reads expose connection name, kind, status, dates, safe errors and deliberately masked hints; they never expose ciphertext, nonce, tag or key version.
+
+The API is restricted to loopback Host/Origin values and Compose publishes nginx, FastAPI and PostgreSQL only on `127.0.0.1`. This is a local deployment boundary, not user authentication. Do not remove it or publicly proxy these routes until authentication and server-side project authorization are implemented. Production tester registration remains unavailable until the matching S3, Notion or Confluence adapter is complete; deterministic test doubles exercise the boundary without manufacturing production success.
+
+Credential replacement and master-key re-encryption are separate actions. Add a new key version while retaining the old entry, make it active, restart services, re-encrypt every connection, verify no rows still name the old version, and only then remove the old key. See [deployment guidance](deployment.md#source-connection-vault).
+
 ## Knowledge sets and explicit index snapshots
 
 Every project has a stable **Uploaded documents** knowledge set. `POST /api/projects/{project_id}/indexes` without a body preserves the Knowledge Base workflow by resolving every currently successful document to its latest successful processing run. To snapshot a narrower selection, send `{"document_ids":["<document UUID>"]}`; callers may also specify a project-owned `knowledge_set_id`. The backend converts either request to exact processing-run/chunk membership before queueing. Missing, cross-project, unfinished, duplicate and empty selections are rejected.

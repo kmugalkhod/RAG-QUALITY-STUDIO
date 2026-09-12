@@ -15,6 +15,9 @@ services:
       REDIS_URL: redis://redis:6379/0
       STORAGE_PATH: /data/documents
       MAX_UPLOAD_BYTES: 20971520
+      SOURCE_CONNECTIONS_ENABLED: "true"
+      SOURCE_CONNECTION_ACTIVE_KEY: e2e-v1
+      SOURCE_CONNECTION_KEYS: '{"e2e-v1":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="}'
   backend:
     extends: { file: compose.yaml, service: backend }
     environment: *test-env

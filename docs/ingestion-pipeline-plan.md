@@ -1,6 +1,6 @@
 # Ingestion pipeline implementation plan
 
-Status: Phases 1–5 complete on 2026-09-12; Phase 6 awaits the required credential-storage decision.
+Status: Phases 1–6 complete. Phase 6 uses user-approved AES-256-GCM encryption and was verified on 2026-09-13.
 
 This plan adds a second saved pipeline kind for acquiring and indexing knowledge. It preserves the existing answer pipeline and the current charcoal/lavender workspace. The first complete slice uses existing project documents, the second adds bounded public-website ingestion, and later slices add credentialed connectors through the same source-node contract.
 
@@ -356,7 +356,7 @@ Each phase is a reviewable vertical slice. Execute them in order. At the end of 
 | 3 | Existing-files ingestion end to end | Phase 2 | Complete |
 | 4 | Public website discovery and preview | Phase 3 | Complete |
 | 5 | Website ingestion and incremental refresh | Phase 4 | Complete |
-| 6 | Secure connection-management foundation | Phase 5 and a credential-storage decision | Not started |
+| 6 | Secure connection-management foundation | Phase 5 and a credential-storage decision | Complete |
 | 7A | S3 connector | Phase 6 | Not started |
 | 7B | Notion connector | Phase 7A | Not started |
 | 7C | Confluence connector | Phase 7B | Not started |

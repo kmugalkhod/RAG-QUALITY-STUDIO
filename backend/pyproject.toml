@@ -16,6 +16,7 @@ dependencies = [
   "pydantic-settings==2.10.1",
   "ragas==0.4.3",
   "langchain-community==0.4.1",
+  "cryptography==46.0.3",
 ]
 [dependency-groups]
 dev = ["pytest==8.4.1", "httpx==0.28.1", "ruff==0.12.11"]

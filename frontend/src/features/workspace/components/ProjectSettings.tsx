@@ -1,6 +1,7 @@
 import { StatusBadge } from '../../../components/StatusBadge';
 import { Separator } from '../../../components/ui/separator';
 import type { ProjectSettingsData } from '../data';
+import { ConnectionVault } from '../../connections/ConnectionVault';
 
 function SettingsSection({
   title,
@@ -39,7 +40,7 @@ export function ProjectSettings({
           <h1>Settings</h1>
           <p>Project identity and server configuration.</p>
         </div>
-        <span className="quiet-label">Read only</span>
+        <span className="quiet-label">Local workspace</span>
       </div>
       <SettingsSection title="Project" description="Identity shared across this workspace.">
         <dt>Name</dt>
@@ -75,8 +76,24 @@ export function ProjectSettings({
         <dt>Context budget</dt>
         <dd>{data.generation.context_tokens.toLocaleString()} tokens</dd>
       </SettingsSection>
+      <Separator />
+      <section className="connection-settings py-7">
+        <div className="settings-section-intro mb-6 max-w-2xl">
+          <h2>Source connections</h2>
+          <p>
+            Credentials are encrypted on the server. Reads expose only intentionally redacted
+            metadata.
+          </p>
+          <p>
+            Vaulting is available now. Provider validation and source selection become available
+            only when each connector ships.
+          </p>
+        </div>
+        <ConnectionVault projectId={projectId} settings={data.connections} />
+      </section>
       <p className="field-hint settings-note">
-        Credentials stay on the server. Project settings are currently read only.
+        Source credentials never enter pipeline versions or browser storage. Shared deployments
+        require authentication before this local-only vault can be enabled.
       </p>
     </>
   );

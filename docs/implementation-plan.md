@@ -1,5 +1,38 @@
 # Implementation plan
 
+## Ingestion pipelines — Phase 6 acceptance criteria
+
+Recorded before implementation on 2026-09-13 after the user approved AES-256-GCM:
+
+- Alembic adds project-scoped named source connections and append-only audit events. A connection stores only AES-256-GCM ciphertext, a unique 96-bit nonce, key version, schema version and intentionally redacted metadata; project/name/kind constraints and composite ownership keys reject cross-project references.
+- Encryption uses a pinned maintained library, a freshly generated nonce per write and authenticated associated data binding schema/project/connection/kind. Versioned 32-byte keys and one active key come only from server environment configuration. Missing, malformed, unknown or unauthentic keys fail closed without exposing ciphertext, submitted credentials or cryptographic errors.
+- Typed create and credential-rotation requests accept only the fields supported for S3, Notion or Confluence foundations. Redacted reads never return credential fields, ciphertext, nonce, authentication tag or encryption-key version. Rotation is transactional, changes the nonce/ciphertext and records safe audit metadata; master-key rewrap to the configured active version preserves the credential and is separately testable.
+- Connection testing decrypts only inside the service boundary and invokes an application-owned tester interface. Production reports a clear unavailable state until that connector phase supplies its real adapter; deterministic doubles verify successful/failed checks and exception sanitization without presenting mock success in production.
+- Connection endpoints are disabled without valid key configuration and are restricted to the local deployment boundary. Local Host/Origin checks and loopback-only Compose bindings prevent this unauthenticated application from enabling credential management on a shared/public origin; future shared deployment requires authenticated server-side project authorization.
+- The Settings UI loads real project-scoped connection state, creates typed connections, selects one, tests it, rotates credentials and rewraps encryption without placing secret values in URLs, rendered copy, browser storage or pipeline versions. Submitted secret controls clear after every attempt and expose loading, unavailable, safe-error and empty states accessibly on desktop and mobile.
+- Secret round-trip/tamper/AAD/key-version/unique-nonce tests, API redaction and raw-database scans, rotation/rewrap, cross-project isolation, safe audit/error tests, frontend DOM/storage/URL leakage checks, clean/upgrade migrations and isolated browser verification pass before Phase 6 is marked complete.
+
+Status: complete for ingestion-pipeline Phase 6. Verified on 2026-09-13.
+
+Implemented:
+
+- Alembic `0013` adds project-scoped named source connections and append-only lifecycle events with composite ownership constraints. Credential payloads are stored only as AES-256-GCM ciphertext using fresh 96-bit nonces, authenticated project/connection/kind/schema context and an environment-supplied versioned 32-byte keyring.
+- Typed S3, Notion and Confluence connection APIs create, list, read, test, rotate and rewrap credentials. Reads expose deliberately limited hints only; decryption and connector-tester invocation remain inside the service boundary, arbitrary provider errors are sanitized, and audit events contain no request bodies or credential values.
+- Credential management is disabled by default and fails closed for absent, malformed, retired or unauthentic keys. The unauthenticated development application restricts the vault to loopback Host/Origin requests and loopback-bound Compose services; documentation explicitly requires authentication and project authorization before any shared deployment.
+- Project Settings now provides a responsive connection vault with honest connector-unavailable behavior, accessible selection state, typed secret-entry forms and real create/test/rotate/rewrap API flows. Secret controls are cleared after every attempt and values never enter route state, browser storage, rendered summaries or response bodies.
+- Deployment and development documentation now covers key generation, enablement, rotation/rewrap, backup dependencies and the exact localhost-only security boundary.
+
+Verification:
+
+- Clean isolated PostgreSQL/pgvector suite: **216 passed, 1 skipped**, including encryption round-trip, unique nonce, AAD/tamper/unknown-key failure, redaction/raw-database scans, all credential kinds, rotation/rewrap, audit safety, project isolation and exception sanitization. Backend Ruff lint and formatting checks passed.
+- Frontend structure/ESLint, strict TypeScript, **76 Vitest tests across 22 files** and production build passed. Vite retains the known non-blocking approximately 618 kB chunk advisory.
+- The isolated Chromium vault journey passed after a production rebuild: **1 passed**. It verifies DOM, URL, browser-storage and API-response leakage boundaries, unavailable testing, rotation, rewrap, desktop/mobile rendering and mobile overflow. Runtime logs were scanned for submitted test secrets with no matches.
+- The required finish review returned **PASS** after the selected connection received a programmatically exposed pressed state.
+
+Remaining limits: Phase 6 deliberately supplies no live connector success path; test actions report unavailable until the matching real adapter is installed. The loopback boundary is not a substitute for user authentication, so source connections must remain disabled for shared/public deployments. Rotation retains old keys until all records are rewrapped; losing an in-use key makes those credentials intentionally undecryptable.
+
+Next actionable step: Phase 7A adds S3 first, using the pinned official SDK contract, bounded paginated discovery/fetch and complete incremental provenance before S3 becomes available in production.
+
 ## Ingestion pipelines — Phase 5 acceptance criteria
 
 Recorded before implementation on 2026-09-12:

@@ -1840,6 +1840,70 @@ summary {
   border: 0;
   margin: 0;
 }
+.app-shell .connection-settings {
+  max-width: 1080px;
+}
+.app-shell .connection-vault {
+  align-items: start;
+}
+.app-shell .connection-vault .section-heading {
+  margin: 0 0 10px;
+}
+.app-shell .connection-list li {
+  padding: 0;
+}
+.app-shell .connection-choice {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 10px;
+  color: var(--foreground);
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  text-align: left;
+}
+.app-shell .connection-choice:hover,
+.app-shell .connection-choice.selected {
+  background: var(--sidebar-accent);
+}
+.app-shell .connection-choice.selected {
+  color: var(--primary);
+}
+.app-shell .connection-choice > span {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+}
+.app-shell .connection-choice small,
+.app-shell .connection-detail > p,
+.app-shell .connection-form > p,
+.app-shell .settings-section-intro p {
+  color: var(--muted-foreground);
+  overflow-wrap: anywhere;
+}
+.app-shell .connection-detail {
+  min-width: 0;
+  padding: 22px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--background);
+}
+.app-shell .connection-identity svg {
+  flex-shrink: 0;
+  color: var(--primary);
+}
+.app-shell .connection-form {
+  max-width: 520px;
+  margin-top: 22px;
+}
+.app-shell .connection-form label {
+  display: grid;
+  gap: 7px;
+}
 .app-shell .project-list li {
   border-color: var(--border);
   padding: 20px 0;
@@ -1979,6 +2043,12 @@ summary {
   .app-shell .settings-list {
     grid-template-columns: 110px 1fr;
     gap: 16px;
+  }
+  .app-shell .connection-vault {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .app-shell .connection-detail {
+    padding: 18px;
   }
   .editor-workspace {
     height: auto;

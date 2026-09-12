@@ -1,4 +1,5 @@
 from app.api.experiments import router as experiment_router
+from app.api.connections import router as connection_router
 from app.api.pipelines import router as pipeline_router
 from app.api.queries import router as query_router
 from app.api.indexes import router as index_router
@@ -13,6 +14,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.exc import SQLAlchemyError
 from app.api.routes import router
 from app.core.config import settings
+from app.core.connection_secrets import SecretDecryptionError
 
 app = FastAPI(title="RAG Quality Studio API", version="0.1.0")
 app.add_middleware(
@@ -22,6 +24,7 @@ app.add_middleware(
     allow_headers=["Content-Type"],
 )
 app.include_router(router)
+app.include_router(connection_router)
 app.include_router(experiment_router)
 app.include_router(document_router)
 app.include_router(index_router)
@@ -51,3 +54,11 @@ async def validation_error(request: Request, exc: RequestValidationError):
 @app.exception_handler(EmbeddingError)
 async def embedding_error(request: Request, exc: EmbeddingError):
     return JSONResponse(status_code=503, content={"detail": str(exc)})
+
+
+@app.exception_handler(SecretDecryptionError)
+async def connection_decryption_error(request: Request, exc: SecretDecryptionError):
+    return JSONResponse(
+        status_code=503,
+        content={"detail": "Stored connection credentials are unavailable."},
+    )
