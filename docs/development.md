@@ -4,13 +4,17 @@ Local setup and baseline verification commands are documented in [README](../REA
 
 ## Pipeline kinds
 
-Pipeline collections accept `kind=answer` or `kind=ingestion`; executable answer selectors always request `answer`. Existing create requests without `kind` remain answer pipelines. The production ingestion editor currently supports the complete Existing Files graph only. A saved graph is configuration, not a successful execution: preview it separately, then run an exact unchanged immutable version and inspect its durable result.
+Pipeline collections accept `kind=answer` or `kind=ingestion`; executable answer selectors always request `answer`. Existing create requests without `kind` remain answer pipelines. The ingestion editor supports complete Existing Files execution and bounded Website discovery preview. A saved graph is configuration, not a successful execution: preview it separately, then run an exact unchanged immutable version only when that source has an implemented execution path.
 
 ## Existing Files ingestion
 
 Upload and successfully process PDF/TXT documents first. In **Pipelines → Ingestion pipelines**, select explicit files, choose character chunk settings and a new or existing knowledge set, preview the server decision, save a version, then run that exact version. Matching processing runs are reused; changed chunk settings create new document processing versions. The dispatcher coordinates processing and indexing through the existing Celery worker.
 
-Preview uses `POST /api/projects/{project_id}/ingestion-previews` and performs no embedding. Start with `POST /api/projects/{project_id}/pipelines/{pipeline_id}/versions/{version_id}/ingestion-runs`; poll `GET /api/projects/{project_id}/ingestion-runs/{run_id}` and page its `/items`. Cancellation is a separate POST to `/ingestion-runs/{run_id}/cancel`. Run/index execution tokens and snapshots are intentionally absent from API reads.
+Preview uses `POST /api/projects/{project_id}/ingestion-previews`, returns 202 with a durable preview ID and performs no processing or embedding. Poll `GET /api/projects/{project_id}/source-previews/{preview_id}`, page its `/items`, or POST `/cancel`. Existing Files execution starts with `POST /api/projects/{project_id}/pipelines/{pipeline_id}/versions/{version_id}/ingestion-runs`; poll `GET /api/projects/{project_id}/ingestion-runs/{run_id}` and page its `/items`. Run/index execution tokens and snapshots are intentionally absent from API reads.
+
+## Website discovery preview
+
+Choose Website as the source, then select a single URL, URL list, crawl start or sitemap. Configure exact allowed origins and optional include/exclude path prefixes plus page/depth, response/total byte, timeout/deadline, request-rate, concurrency and redirect bounds. robots.txt is enabled by default. The inspector reports included, excluded, duplicate and failed canonical URLs without rendering fetched HTML. Public DNS and every redirect are revalidated; private, loopback, link-local, multicast, reserved, unspecified and metadata destinations are rejected. Website pipelines may be saved but cannot run until Phase 5 adds immutable revision and publication behavior.
 
 ## Knowledge sets and explicit index snapshots
 

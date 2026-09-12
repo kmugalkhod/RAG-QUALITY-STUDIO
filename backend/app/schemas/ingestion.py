@@ -293,6 +293,46 @@ class IngestionPreviewRead(Strict):
     excluded_count: int
 
 
+class SourcePreviewRead(Strict):
+    id: UUID
+    project_id: UUID
+    status: Literal["queued", "running", "succeeded", "failed", "cancelled"]
+    progress: int
+    discovered_count: int
+    included_count: int
+    excluded_count: int
+    duplicate_count: int
+    failed_count: int
+    attempts: int
+    failures: int
+    error: str | None
+    created_at: datetime
+    updated_at: datetime
+    started_at: datetime | None
+    finished_at: datetime | None
+
+
+class SourcePreviewItemRead(Strict):
+    ordinal: int
+    source_node_id: str
+    external_id: str | None
+    display_name: str
+    canonical_location: str | None
+    media_type: str | None
+    status: Literal["included", "excluded", "duplicate", "failed"]
+    reason: str
+    size_bytes: int | None
+    depth: int | None
+    error_code: str | None
+
+
+class SourcePreviewItemPage(Strict):
+    items: list[SourcePreviewItemRead]
+    total: int
+    limit: int
+    offset: int
+
+
 class IngestionRunRead(Strict):
     id: UUID
     project_id: UUID

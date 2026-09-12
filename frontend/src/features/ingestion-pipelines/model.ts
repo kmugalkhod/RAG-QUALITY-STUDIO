@@ -85,25 +85,37 @@ export type IngestionPipelineVersion = IngestionPipelineDraft & {
   created_at: string;
 };
 
-export type IngestionPreviewItem = {
+export type SourcePreviewItem = {
+  ordinal: number;
   source_node_id: string;
-  document_id: string;
-  filename: string;
-  media_type: string;
-  content_hash: string;
-  size_bytes: number;
-  included: boolean;
+  external_id: string | null;
+  display_name: string;
+  canonical_location: string | null;
+  media_type: string | null;
+  status: 'included' | 'excluded' | 'duplicate' | 'failed';
   reason: string;
-  processing_run_id: string | null;
-  processing_version: number | null;
-  chunk_count: number;
+  size_bytes: number | null;
+  depth: number | null;
+  error_code: string | null;
 };
 
-export type IngestionPreview = {
-  items: IngestionPreviewItem[];
+export type SourcePreview = {
+  id: string;
+  project_id: string;
+  status: 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled';
+  progress: number;
   discovered_count: number;
   included_count: number;
   excluded_count: number;
+  duplicate_count: number;
+  failed_count: number;
+  attempts: number;
+  failures: number;
+  error: string | null;
+  created_at: string;
+  updated_at: string;
+  started_at: string | null;
+  finished_at: string | null;
 };
 
 export type IngestionRun = {

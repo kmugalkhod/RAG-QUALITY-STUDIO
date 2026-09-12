@@ -10,6 +10,7 @@ celery = Celery(
         "app.workers.processing",
         "app.workers.indexing",
         "app.workers.ingestion",
+        "app.workers.previews",
         "app.workers.experiments",
     ],
 )

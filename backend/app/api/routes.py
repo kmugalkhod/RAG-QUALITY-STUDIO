@@ -35,6 +35,8 @@ def ready(session: Database) -> dict[str, str]:
     session.execute(
         text("SELECT processing_run_id, status FROM ingestion_run_items LIMIT 0")
     )
+    session.execute(text("SELECT execution, status FROM source_previews LIMIT 0"))
+    session.execute(text("SELECT reason, status FROM source_preview_items LIMIT 0"))
     session.execute(text("SELECT vector_dims(embedding) FROM index_chunks LIMIT 0"))
     session.execute(
         text("SELECT pipeline_version_id, snapshot FROM query_runs LIMIT 0")

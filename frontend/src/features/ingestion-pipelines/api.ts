@@ -3,9 +3,10 @@ import type { Page } from '../../lib/pagination';
 import type {
   IngestionPipelineDraft,
   IngestionPipelineVersion,
-  IngestionPreview,
   IngestionRun,
   IngestionRunItem,
+  SourcePreview,
+  SourcePreviewItem,
 } from './model';
 
 function pipelinesPath(projectId: string): string {
@@ -43,10 +44,32 @@ export function listIngestionPipelineVersions(
 export function previewIngestion(
   projectId: string,
   execution: IngestionPipelineDraft['execution'],
-): Promise<IngestionPreview> {
-  return postJson<IngestionPreview>(
-    `/projects/${encodeURIComponent(projectId)}/ingestion-previews`,
-    { execution },
+): Promise<SourcePreview> {
+  return postJson<SourcePreview>(`/projects/${encodeURIComponent(projectId)}/ingestion-previews`, {
+    execution,
+  });
+}
+
+export function getSourcePreview(projectId: string, previewId: string): Promise<SourcePreview> {
+  return request<SourcePreview>(
+    `/projects/${encodeURIComponent(projectId)}/source-previews/${encodeURIComponent(previewId)}`,
+  );
+}
+
+export function listSourcePreviewItems(
+  projectId: string,
+  previewId: string,
+  offset = 0,
+): Promise<Page<SourcePreviewItem>> {
+  return request<Page<SourcePreviewItem>>(
+    `/projects/${encodeURIComponent(projectId)}/source-previews/${encodeURIComponent(previewId)}/items?offset=${offset}`,
+  );
+}
+
+export function cancelSourcePreview(projectId: string, previewId: string): Promise<SourcePreview> {
+  return request<SourcePreview>(
+    `/projects/${encodeURIComponent(projectId)}/source-previews/${encodeURIComponent(previewId)}/cancel`,
+    { method: 'POST' },
   );
 }
 

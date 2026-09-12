@@ -194,12 +194,64 @@ def dispatch_ingestion_once(db_engine=engine, send=None):
         session.commit()
 
 
+def dispatch_previews_once(db_engine=engine, send=None):
+    from app.models.preview import SourcePreview
+    from app.workers.previews import preview_sources
+
+    send = send or (
+        lambda preview_id: preview_sources.apply_async(args=[str(preview_id)])
+    )
+    current = now()
+    with Session(
+        db_engine.execution_options(isolation_level="READ COMMITTED")
+    ) as session:
+        stale = session.scalars(
+            select(SourcePreview)
+            .where(
+                SourcePreview.status == "running",
+                SourcePreview.started_at < current - timedelta(seconds=3660),
+            )
+            .with_for_update(skip_locked=True)
+        ).all()
+        for preview in stale:
+            preview.failures += 1
+            preview.execution_token = None
+            preview.status = "failed" if preview.failures >= 3 else "queued"
+            preview.error = "Source preview worker exceeded its bounded deadline."
+            preview.updated_at = current
+            preview.dispatched_at = None
+            if preview.status == "failed":
+                preview.finished_at = current
+        session.commit()
+    with Session(
+        db_engine.execution_options(isolation_level="READ COMMITTED")
+    ) as session:
+        queued = session.scalars(
+            select(SourcePreview)
+            .where(
+                SourcePreview.status == "queued",
+                or_(
+                    SourcePreview.dispatched_at.is_(None),
+                    SourcePreview.dispatched_at < current - timedelta(seconds=30),
+                ),
+            )
+            .order_by(SourcePreview.created_at)
+            .limit(10)
+            .with_for_update(skip_locked=True)
+        ).all()
+        for preview in queued:
+            send(preview.id)
+            preview.dispatched_at = current
+        session.commit()
+
+
 def main():
     while True:
         try:
             dispatch_once()
             dispatch_indexes_once()
             dispatch_ingestion_once()
+            dispatch_previews_once()
             from app.workers.experiments import dispatch_experiments_once
 
             dispatch_experiments_once()

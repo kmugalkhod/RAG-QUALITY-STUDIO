@@ -2225,6 +2225,37 @@ summary {
   gap: 7px;
   font-size: 12px;
 }
+.app-shell .website-preview-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--muted) 45%, transparent);
+}
+.app-shell .website-preview-notice svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+.app-shell .website-preview-notice p {
+  margin: 0;
+}
+.app-shell .website-limit-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.app-shell .website-limit-grid label {
+  display: grid;
+  gap: 7px;
+}
+.app-shell .website-checkbox {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 8px;
+}
 .app-shell .ingestion-document-option {
   display: flex;
   align-items: flex-start;
@@ -2267,6 +2298,9 @@ summary {
   .app-shell .ingestion-editor-grid .node-settings {
     border-left: 0;
     border-top: 1px solid var(--border);
+  }
+  .app-shell .website-limit-grid {
+    grid-template-columns: 1fr;
   }
 }
 .app-shell .pipeline-palette > .canvas-tools:not([hidden]) {

@@ -1,5 +1,36 @@
 # Implementation plan
 
+## Ingestion pipelines — Phase 4 acceptance criteria
+
+Recorded before implementation on 2026-09-12:
+
+- A dedicated safe HTTP boundary accepts only credential-free HTTP(S), canonicalizes host/port/path, resolves before every request and redirect, and rejects loopback, private, link-local, multicast, reserved, unspecified and cloud-metadata destinations for every IPv4/IPv6 answer. Tests control both DNS resolution and transport, including rebinding and redirect targets.
+- Website discovery supports one URL, explicit URL lists, bounded same-origin crawl and sitemap modes. Allowed origins and include/exclude paths cannot widen scope; robots is honored by default; redirects, pages, depth, bytes, timeout/deadline, concurrency and request rate remain within the immutable source-node configuration.
+- HTML parsing is deterministic, non-executing and bounded. Only supported HTML responses enter link discovery; malformed pages, duplicate/canonical URLs, excluded paths, blocked targets, unsupported media types, response overflow and timeouts produce safe inspectable outcomes without response bodies or secrets in logs/errors.
+- Alembic adds project-scoped asynchronous preview jobs and paginated preview items with constrained status/counts, immutable draft snapshot, cancellation token, dispatch/stale recovery fields and bounded retention behavior. Duplicate delivery, cancellation and exhausted recovery cannot resume network work or perform embedding/publication.
+- Preview submission persists the validated draft before returning 202. The dispatcher and fenced preview worker execute bounded discovery checkpoints; project-scoped reads expose loading/queued/running/succeeded/failed/cancelled plus included/excluded/duplicate/failed items and reasons. Preview never creates processing runs, source revisions, embeddings or indexes.
+- The ingestion editor adds Website source settings and a paginated preview inspector using real APIs. It preserves the Existing Files flow, authoritative validation, immutable-save/dirty boundaries, sequential polling, cancellation, responsive canvas/settings and clear URL-level reasons without rendering fetched HTML.
+- Controlled resolver/transport security tests, clean/populated migration checks, backend regressions, frontend checks and an isolated controlled-site Chromium preview journey pass before Phase 4 is marked complete.
+
+Status: complete for ingestion-pipeline Phase 4. Verified on 2026-09-12.
+
+Implemented:
+
+- A pinned-address standard-library HTTP boundary canonicalizes credential-free HTTP(S), validates every DNS answer before every request and redirect, preserves TLS SNI/Host while connecting to the approved address, rejects non-public and multicast destinations, refuses compressed bodies, and enforces response/aggregate byte, timeout, deadline and redirect budgets.
+- The Website adapter supports single URL, URL list, same-origin crawl and bounded sitemap discovery. It applies origin/path scope, robots.txt by default, canonical duplicate handling, rate limits, HTML-only non-executing link parsing and explicit included/excluded/duplicate/failed reasons.
+- Alembic `0011` adds project-scoped durable preview jobs and paginated items, one active preview per project, constrained counters/status, execution fencing, cancellation, stale recovery and bounded terminal retention. Preview snapshots the validated draft and cannot create processing, revision, embedding or index records.
+- The ingestion editor exposes all Website discovery modes and budgets, polls and cancels real preview jobs sequentially, pages URL outcomes and clearly keeps Website execution disabled until Phase 5. Existing Files preview now uses the same asynchronous job path.
+
+Verification:
+
+- Backend isolated PostgreSQL suite: 203 passed, 1 skipped. Focused controlled resolver/transport suite: 18 passed, including DNS rebinding, cross-origin redirects, private/multicast IPv4/IPv6, timeouts, robots, duplicates, malformed/unsafe sitemaps, cancellation and project isolation.
+- Backend Ruff format and lint passed. Frontend structure/lint, strict TypeScript, 72 Vitest tests and production build passed; Vite retains the known non-blocking ~608 kB chunk advisory.
+- Isolated Chromium journeys passed for controlled Website preview and the Existing Files → ready index → grounded answer regression. Desktop 1440×1000 and mobile 390×844 states were inspected; the mobile horizontal-overflow assertion passed.
+
+Remaining limits: Website is preview-only until Phase 5; JavaScript rendering and linked PDFs are unsupported; robots failures are fail-closed; preview discovery is deliberately sequential even though configuration snapshots a bounded future concurrency value. Live public-site traffic was not needed or performed because deterministic resolver/transport coverage exercises the security boundary without reaching external hosts.
+
+Next actionable step: implement Phase 5 immutable Website identities/revisions, deterministic content extraction, incremental refresh and atomic index publication while preserving the previous ready index.
+
 ## Ingestion pipelines — Phase 3 acceptance criteria
 
 Recorded before implementation on 2026-09-12:

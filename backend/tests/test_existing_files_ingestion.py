@@ -17,6 +17,7 @@ from app.workers.indexing import process_index
 from app.workers.dispatcher import dispatch_ingestion_once
 from app.workers.ingestion import process_ingestion
 from app.workers.processing import now, process
+from app.workers.previews import process_preview
 from test_documents import documents_api, start, upload  # noqa: F401
 from test_indexes import ProviderDouble
 
@@ -124,9 +125,17 @@ def test_existing_files_preview_run_publication_and_exact_answer_index(ingestion
         f"/api/projects/{project_id}/ingestion-previews",
         json={"execution": payload["execution"]},
     )
-    assert preview.status_code == 200, preview.text
-    assert preview.json()["included_count"] == 2
-    assert all("will be reused" in item["reason"] for item in preview.json()["items"])
+    assert preview.status_code == 202, preview.text
+    preview_id = preview.json()["id"]
+    process_preview(UUID(preview_id), engine)
+    preview_result = client.get(
+        f"/api/projects/{project_id}/source-previews/{preview_id}"
+    ).json()
+    assert preview_result["included_count"] == 2
+    preview_items = client.get(
+        f"/api/projects/{project_id}/source-previews/{preview_id}/items"
+    ).json()["items"]
+    assert all("will be reused" in item["reason"] for item in preview_items)
     cross_project = client.post(
         f"/api/projects/{other_project_id}/ingestion-previews",
         json={"execution": payload["execution"]},

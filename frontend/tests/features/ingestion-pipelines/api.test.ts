@@ -1,10 +1,13 @@
 import {
   cancelIngestionRun,
+  cancelSourcePreview,
   createIngestionPipeline,
   createIngestionPipelineVersion,
   getIngestionRun,
+  getSourcePreview,
   listIngestionPipelineVersions,
   listIngestionRunItems,
+  listSourcePreviewItems,
   previewIngestion,
   startIngestionRun,
 } from '../../../src/features/ingestion-pipelines/api';
@@ -36,6 +39,9 @@ test('sends explicit ingestion kind for create and immutable-version operations'
 
 test('keeps preview and durable run operations distinct', async () => {
   await previewIngestion('project', draft.execution);
+  await getSourcePreview('project', 'preview');
+  await listSourcePreviewItems('project', 'preview');
+  await cancelSourcePreview('project', 'preview');
   await listIngestionPipelineVersions('project', 'pipeline');
   await startIngestionRun('project', 'pipeline', 'version');
   await getIngestionRun('project', 'run');
@@ -48,13 +54,18 @@ test('keeps preview and durable run operations distinct', async () => {
     expect.objectContaining({ method: 'POST' }),
   );
   expect(fetch).toHaveBeenNthCalledWith(
-    3,
+    6,
     '/api/projects/project/pipelines/pipeline/versions/version/ingestion-runs',
     expect.objectContaining({ method: 'POST' }),
   );
   expect(fetch).toHaveBeenNthCalledWith(
-    6,
+    9,
     '/api/projects/project/ingestion-runs/run/cancel',
+    expect.objectContaining({ method: 'POST' }),
+  );
+  expect(fetch).toHaveBeenNthCalledWith(
+    4,
+    '/api/projects/project/source-previews/preview/cancel',
     expect.objectContaining({ method: 'POST' }),
   );
 });

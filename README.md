@@ -191,7 +191,9 @@ Index APIs under `/api/projects/{project_id}`:
 
 Existing Files ingestion is available under **Pipelines → Ingestion pipelines**. Select already processed project files, preview whether their processing versions will be reused, save the immutable graph, then run it. The durable run coordinates any required reprocessing and publishes one new ready index to the chosen knowledge set only after all embeddings succeed. Its per-file inspector retains content hashes, processing versions and chunk counts; the published link opens the exact immutable index that an answer pipeline can select.
 
-The corresponding project-scoped API operations are `POST /ingestion-previews`, `POST /pipelines/{pipeline_id}/versions/{version_id}/ingestion-runs`, and `GET/POST /ingestion-runs/...` for progress, paginated items and cancellation. Website and credentialed connectors are not yet available.
+The corresponding project-scoped API operations are `POST /ingestion-previews`, `GET/POST /source-previews/...` for durable preview progress, paginated outcomes and cancellation, `POST /pipelines/{pipeline_id}/versions/{version_id}/ingestion-runs`, and `GET/POST /ingestion-runs/...` for execution progress, items and cancellation.
+
+Website source discovery is available as a preview-only workflow. It supports single URLs, explicit URL lists, bounded same-origin crawls and XML sitemaps with origin/path rules, robots.txt, canonical duplicate detection and hard page/depth/byte/time/rate/redirect limits. The backend revalidates DNS and redirects against non-public destinations and never renders or executes fetched HTML. The inspector shows per-URL included, excluded, duplicate and failed reasons. Website index publication arrives in Phase 5; credentialed connectors remain unavailable.
 - `POST /indexes/{index_id}/cancel`: cancel queued/running indexing.
 - `POST /retrieval`: `{ "index_id": "<ready UUID>", "query": "question", "top_k": 5 }`.
 
