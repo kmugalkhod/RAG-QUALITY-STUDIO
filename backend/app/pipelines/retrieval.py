@@ -6,6 +6,7 @@ from sqlalchemy import func, literal_column, select
 
 from app.models.document import Chunk, Document, ProcessingRun
 from app.models.index import IndexChunk
+from app.models.source import SourceItem, SourceRevision
 from app.providers import embeddings
 from app.schemas.retrieval import algorithm_snapshot
 
@@ -13,7 +14,7 @@ from app.schemas.retrieval import algorithm_snapshot
 def search(session, project_id, index, request, config):
     settings = request.retrieval
     base = (
-        select(Chunk, ProcessingRun, Document)
+        select(Chunk, ProcessingRun, Document, SourceItem)
         .select_from(IndexChunk)
         .join(
             Chunk,
@@ -21,6 +22,8 @@ def search(session, project_id, index, request, config):
         )
         .join(ProcessingRun, ProcessingRun.id == Chunk.run_id)
         .join(Document, Document.id == ProcessingRun.document_id)
+        .outerjoin(SourceRevision, SourceRevision.processing_run_id == ProcessingRun.id)
+        .outerjoin(SourceItem, SourceItem.id == SourceRevision.source_item_id)
         .where(IndexChunk.index_id == index.id, Document.project_id == project_id)
     )
     hybrid = settings.mode == "hybrid"
@@ -67,7 +70,7 @@ def search(session, project_id, index, request, config):
         rows = session.execute(query.limit(limit)).all()
         diagnostics[f"{branch}_count"] = len(rows)
         diagnostics[f"{branch}_ms"] = round((monotonic() - started) * 1000, 3)
-        for rank, (chunk, run, doc, score) in enumerate(rows, 1):
+        for rank, (chunk, run, doc, source_item, score) in enumerate(rows, 1):
             key = (str(run.id), chunk.ordinal)
             item = candidates.setdefault(
                 key,
@@ -82,6 +85,10 @@ def search(session, project_id, index, request, config):
                     start_char=chunk.start_char,
                     end_char=chunk.end_char,
                     text=chunk.text,
+                    source_url=(
+                        source_item.canonical_location if source_item else None
+                    ),
+                    section_path=chunk.provenance.get("section_path", []),
                     cosine_distance=None,
                     lexical_score=None,
                     fusion_score=None,

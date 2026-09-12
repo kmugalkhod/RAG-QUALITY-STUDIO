@@ -1,5 +1,37 @@
 # Implementation plan
 
+## Ingestion pipelines — Phase 5 acceptance criteria
+
+Recorded before implementation on 2026-09-12:
+
+- Alembic adds project-scoped stable source identities and immutable revisions plus explicit website run-item/revision/index membership. Every revision records canonical URL, fetch time, media type, content hash, safe validator metadata, stored-artifact identity and deterministic extraction/cleaning configuration; published chunks retain URL, heading/section and revision provenance.
+- Starting a saved Website pipeline snapshots the exact version, source selection, processing/cleaning/chunking/embedding configuration and current prior-ready index. Discovery/fetch consumes only that snapshot and reuses Phase 4 SSRF, redirect, robots and budget enforcement; it never resolves historical membership from mutable current source state.
+- First ingestion fetches, extracts, cleans, chunks and embeds every included HTML page. Refresh uses safe ETag/Last-Modified validators and content hashes to classify new, changed and unchanged pages, reuses only exactly compatible vectors, reports previously indexed URLs no longer discovered as removed, and retains every historical revision and index snapshot.
+- Each bounded worker checkpoint is PostgreSQL-backed and execution-token fenced. Duplicate delivery, cancellation, retry exhaustion and stale recovery cannot duplicate revisions, repeat completed paid embedding work or publish a partial index. Any required discovery/fetch/extract/embed failure leaves the previous ready index/current pointer unchanged.
+- Successful execution atomically publishes a new immutable index with exact source-revision membership and advances the destination's current-ready pointer only after all required items and embeddings succeed. The preceding ready version remains selectable and searchable by saved answer pipelines.
+- Project-scoped run/item APIs and the ingestion editor expose discovered/new/changed/unchanged/removed/failed counters, stage progress, safe errors, exact revision/provenance and the published immutable index. Website run is enabled only for a valid saved unchanged pipeline; Existing Files behavior stays compatible.
+- Controlled-site tests verify first crawl, incremental new/change/unchanged/removal, validator fallback, deterministic extraction/cleaning, embedding reuse, duplicate delivery, cancellation, stale recovery, failure rollback, project isolation and grounded answer retrieval from both preserved index versions. Clean/upgrade migrations, backend/frontend gates and isolated Chromium pass before Phase 5 is marked complete.
+
+Status: complete for ingestion-pipeline Phase 5. Verified on 2026-09-12.
+
+Implemented:
+
+- Alembic `0012` adds project-scoped stable website items, immutable source revisions, exact index/revision/source-node membership and per-URL run outcomes. Raw HTML is stored under generated artifact identities; chunks retain canonical URL, revision and heading/section provenance.
+- Saved Website versions now execute through the durable ingestion coordinator. Runs snapshot the exact graph, destination, prior-ready index and embedding configuration; the existing SSRF-safe connector performs bounded fetches and safe conditional requests.
+- Deterministic extraction ignores executable and common layout content, prefers main/article content, preserves heading hierarchy and creates section-local character chunks. Content hashes classify new, changed and unchanged revisions; identical extracted content is deduplicated and compatible embeddings are reused.
+- Refreshes explicitly report removals, retain historical revisions, and build indexes from exact revision membership. A new knowledge-set version becomes current only after its entire embedding job succeeds; failures and cancellation leave the previous ready index selectable.
+- Project-scoped run/item reads expose Website outcome counts, safe reasons, immutable revision IDs and canonical locations. The ingestion editor runs only saved unchanged graphs, displays progress and per-item provenance, and reveals the published-index link only after successful atomic publication. Retrieval evidence now exposes source URL and section hierarchy.
+
+Verification:
+
+- Clean isolated PostgreSQL/pgvector suite: **208 passed, 1 skipped**, including first crawl, incremental refresh, new/change/unchanged/removal, conditional validators, deterministic extraction, vector reuse, duplicate delivery, cancellation, stale recovery, failed refresh rollback, project isolation and retrieval from preserved versions.
+- Backend Ruff formatting/lint passed. Frontend ESLint, strict TypeScript, **72 Vitest tests** and production build passed; Vite retains the known non-blocking approximately 608 kB chunk advisory.
+- Isolated Chromium journeys passed for Website preview → first publication → unchanged refresh → exact v2 answer retrieval and for the Existing Files regression: **2 passed**. Desktop 1440×1000 and mobile 390×844 captures were inspected and the mobile horizontal-overflow assertion passed.
+
+Remaining limits: Website ingestion supports bounded server-rendered HTML only; JavaScript rendering, linked PDFs and authenticated sites remain unsupported. Required-page failures are fail-closed. A transaction failure after an artifact file is durably written can leave an unreferenced artifact for later cleanup, but it cannot publish or enter index membership. No live public-site or paid-provider call was used.
+
+Next boundary: Phase 6 must not begin until the credential encryption/secret-store mechanism is selected. That choice controls connection persistence, rotation and deployment behavior.
+
 ## Ingestion pipelines — Phase 4 acceptance criteria
 
 Recorded before implementation on 2026-09-12:

@@ -95,7 +95,7 @@ export function RunInspector({
           {s.evidence.map((e) => (
             <article key={e.label} id={`evidence-${e.label}`} tabIndex={-1}>
               <h3>
-                [{e.label}] {e.filename}
+                [{e.label}] {e.source_url ?? e.filename}
               </h3>
               <p className="field-hint text-[11px] text-muted-foreground mt-2 leading-relaxed">
                 {e.page_number ? `Page ${e.page_number} · ` : ''}Passage {e.ordinal + 1} · Rank{' '}

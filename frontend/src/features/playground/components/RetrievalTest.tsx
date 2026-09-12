@@ -47,7 +47,7 @@ export function RetrievalResults({
           <li key={`${item.run_id}:${item.ordinal}`}>
             <div className="retrieval-hit-title">
               <h3>
-                {item.rank}. {item.filename}
+                {item.rank}. {item.source_url ?? item.filename}
               </h3>
               <Button variant="outline" onClick={() => onInspect(item)}>
                 View passage {item.rank}
@@ -71,7 +71,10 @@ export function RetrievalResults({
 export function RetrievalInspector({ item }: { item: Evidence }) {
   return (
     <section className="answer-inspector" aria-label="Retrieved passage">
-      <h2>{item.filename}</h2>
+      <h2>{item.source_url ?? item.filename}</h2>
+      {item.section_path && item.section_path.length > 0 && (
+        <p className="field-hint">Section: {item.section_path.join(' › ')}</p>
+      )}
       <p className="field-hint text-[11px] text-muted-foreground mt-2 leading-relaxed">
         Rank {item.rank} · Passage {item.ordinal + 1}
         {item.page_number ? ` · Page ${item.page_number}` : ''}

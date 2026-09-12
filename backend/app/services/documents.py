@@ -25,7 +25,9 @@ def project(session: Session, project_id: UUID):
 def document(session: Session, project_id: UUID, document_id: UUID):
     result = session.scalar(
         select(Document).where(
-            Document.id == document_id, Document.project_id == project_id
+            Document.id == document_id,
+            Document.project_id == project_id,
+            Document.origin_kind == "upload",
         )
     )
     if result is None:
@@ -139,7 +141,7 @@ def list_documents(session, project_id, limit, offset):
     result = paginate(
         session,
         select(Document)
-        .where(Document.project_id == project_id)
+        .where(Document.project_id == project_id, Document.origin_kind == "upload")
         .order_by(Document.created_at.desc(), Document.id.desc()),
         limit,
         offset,

@@ -10,6 +10,7 @@ from app.connectors.existing_files import ExistingFilesConnector
 from app.models.document import Document, ProcessingRun
 from app.models.index import IndexVersion, KnowledgeSet
 from app.models.ingestion import IngestionRun, IngestionRunItem
+from app.models.source import WebsiteRunItem
 from app.pipelines.parsing import PARSER_VERSION
 from app.providers import embeddings
 from app.schemas.document import ProcessingConfig
@@ -79,7 +80,9 @@ def preview(session: Session, project_id: UUID, execution: IngestionExecution):
         connector = ExistingFilesConnector(session, project_id)
         document = session.scalar(
             select(Document).where(
-                Document.id == document_id, Document.project_id == project_id
+                Document.id == document_id,
+                Document.project_id == project_id,
+                Document.origin_kind == "upload",
             )
         )
         if document is None:
@@ -156,6 +159,53 @@ def start_run(
     execution = IngestionExecution.model_validate(version.execution)
     pipelines.validate_ingestion(session, project_id, execution)
     embeddings.configured()
+    sources = [node for node in execution.nodes if node.type == "source"]
+    if all(source.config.kind == "website" for source in sources):
+        publish = next(node for node in execution.nodes if node.type == "publish_index")
+        knowledge_set = _knowledge_set(session, project_id, publish, create=True)
+        session.execute(
+            select(KnowledgeSet)
+            .where(KnowledgeSet.id == knowledge_set.id)
+            .with_for_update()
+        )
+        if session.scalar(
+            select(IngestionRun.id).where(
+                IngestionRun.knowledge_set_id == knowledge_set.id,
+                IngestionRun.status.in_(["queued", "running"]),
+            )
+        ):
+            raise HTTPException(
+                409, "This knowledge set already has an active ingestion run."
+            )
+        run = IngestionRun(
+            project_id=project_id,
+            pipeline_version_id=version.id,
+            knowledge_set_id=knowledge_set.id,
+            stage="discovering",
+            progress=0,
+            discovered_count=0,
+            snapshot={
+                "source_kind": "website",
+                "pipeline_id": str(pipeline.id),
+                "pipeline_version_id": str(version.id),
+                "pipeline_version": version.version,
+                "execution": execution.model_dump(mode="json"),
+                "knowledge_set_id": str(knowledge_set.id),
+                "knowledge_set_name": knowledge_set.name,
+                "prior_ready_index_id": (
+                    str(knowledge_set.current_ready_index_id)
+                    if knowledge_set.current_ready_index_id
+                    else None
+                ),
+                "embedding": embeddings.configured().model_dump(mode="json"),
+            },
+        )
+        session.add(run)
+        session.commit()
+        session.refresh(run)
+        return read_run(session, run)
+    if any(source.config.kind != "existing_files" for source in sources):
+        raise HTTPException(409, "A run cannot mix Website and Existing Files sources.")
     selected, chunk, publish = _document_selection(execution)
     knowledge_set = _knowledge_set(session, project_id, publish, create=True)
     session.execute(
@@ -178,7 +228,11 @@ def start_run(
     for source_node_id, document_id in sorted(selected, key=lambda value: value[1]):
         document = session.scalar(
             select(Document)
-            .where(Document.id == document_id, Document.project_id == project_id)
+            .where(
+                Document.id == document_id,
+                Document.project_id == project_id,
+                Document.origin_kind == "upload",
+            )
             .with_for_update()
         )
         if document is None:
@@ -251,6 +305,7 @@ def start_run(
             "pipeline_id": str(pipeline.id),
             "pipeline_version_id": str(version.id),
             "pipeline_version": version.version,
+            "source_kind": "existing_files",
             "execution": execution.model_dump(mode="json"),
             "knowledge_set_id": str(knowledge_set.id),
             "knowledge_set_name": knowledge_set.name,
@@ -284,19 +339,33 @@ def _run_rows(session: Session, statement):
         .join(KnowledgeSet, KnowledgeSet.id == IngestionRun.knowledge_set_id)
         .outerjoin(IndexVersion, IndexVersion.ingestion_run_id == IngestionRun.id)
     ).all()
-    return [
-        {
-            **{
-                column.name: getattr(run, column.name)
-                for column in IngestionRun.__table__.columns
-                if column.name not in ("execution_token", "snapshot", "dispatched_at")
-            },
-            "knowledge_set_name": set_name,
-            "published_index_id": index_id,
-            "published_index_version": index_version,
-        }
-        for run, set_name, index_id, index_version in rows
-    ]
+    results = []
+    for run, set_name, index_id, index_version in rows:
+        outcome_counts = dict(
+            session.execute(
+                select(WebsiteRunItem.outcome, func.count())
+                .where(WebsiteRunItem.run_id == run.id)
+                .group_by(WebsiteRunItem.outcome)
+            ).all()
+        )
+        results.append(
+            {
+                **{
+                    column.name: getattr(run, column.name)
+                    for column in IngestionRun.__table__.columns
+                    if column.name
+                    not in ("execution_token", "snapshot", "dispatched_at")
+                },
+                "knowledge_set_name": set_name,
+                "published_index_id": index_id,
+                "published_index_version": index_version,
+                "new_count": outcome_counts.get("new", 0),
+                "changed_count": outcome_counts.get("changed", 0),
+                "unchanged_count": outcome_counts.get("unchanged", 0),
+                "removed_count": outcome_counts.get("removed", 0),
+            }
+        )
+    return results
 
 
 def read_run(session: Session, run: IngestionRun):
@@ -324,7 +393,34 @@ def list_runs(session: Session, project_id: UUID, limit: int, offset: int):
 def list_items(
     session: Session, project_id: UUID, run_id: UUID, limit: int, offset: int
 ):
-    get_run(session, project_id, run_id)
+    run = get_run(session, project_id, run_id)
+    if run.snapshot.get("source_kind") == "website":
+        query = (
+            select(WebsiteRunItem)
+            .where(
+                WebsiteRunItem.run_id == run_id,
+                WebsiteRunItem.project_id == project_id,
+            )
+            .order_by(WebsiteRunItem.ordinal)
+        )
+        total = session.scalar(select(func.count()).select_from(query.subquery()))
+        rows = session.scalars(query.limit(limit).offset(offset)).all()
+        return dict(
+            items=[
+                {
+                    "source_kind": "website",
+                    **{
+                        column.name: getattr(item, column.name)
+                        for column in WebsiteRunItem.__table__.columns
+                        if column.name not in ("run_id", "project_id", "created_at")
+                    },
+                }
+                for item in rows
+            ],
+            total=total,
+            limit=limit,
+            offset=offset,
+        )
     query = (
         select(IngestionRunItem, Document, ProcessingRun)
         .join(Document, Document.id == IngestionRunItem.document_id)
@@ -340,6 +436,7 @@ def list_items(
     return dict(
         items=[
             dict(
+                source_kind="existing_files",
                 document_id=document.id,
                 filename=document.filename,
                 content_hash=document.content_hash,
@@ -380,6 +477,11 @@ def cancel_run(session: Session, project_id: UUID, run_id: UUID):
             updated_at=func.now(),
             finished_at=func.now(),
         )
+    )
+    session.execute(
+        update(WebsiteRunItem)
+        .where(WebsiteRunItem.run_id == run.id)
+        .values(status="cancelled", updated_at=func.now())
     )
     session.execute(
         update(IngestionRunItem)

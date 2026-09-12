@@ -1,11 +1,14 @@
 import { expect, test } from '@playwright/test';
 
-test('website discovery is bounded, inspectable, and preview-only', async ({ page, request }) => {
+test('website discovery publishes and incrementally refreshes an exact index', async ({
+  page,
+  request,
+}) => {
   test.skip(
     process.env.E2E_EMBEDDING_FIXTURE !== '1',
     'Requires isolated deterministic providers.',
   );
-  test.setTimeout(90000);
+  test.setTimeout(120000);
   const project = (await (
     await request.post('/api/projects', {
       data: { name: `Website preview ${Date.now()}` },
@@ -33,13 +36,46 @@ test('website discovery is bounded, inspectable, and preview-only', async ({ pag
 
   await page.getByRole('button', { name: 'Save version' }).click();
   await expect(page.getByText('Saved version 1', { exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Run saved version' })).toBeDisabled();
-  await expect(page.getByText(/preview-only in this phase/)).toBeVisible();
+  await page.getByRole('button', { name: 'Run saved version' }).click();
+  await expect(page.getByRole('heading', { name: 'Ingested knowledge · succeeded' })).toBeVisible({
+    timeout: 60000,
+  });
+  await expect(page.getByText('2 new · 0 changed · 0 unchanged · 0 removed')).toBeVisible();
+  await expect(page.getByText(/new · succeeded/)).toHaveCount(2);
+  await expect(page.getByRole('link', { name: 'Inspect published index v1' })).toBeVisible();
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.screenshot({ path: 'test-results/website-preview-desktop.png', fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: 'test-results/website-preview-mobile.png', fullPage: true });
+
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.getByRole('button', { name: 'Run saved version' }).click();
+  await expect(page.getByText('0 new · 0 changed · 2 unchanged · 0 removed')).toBeVisible({
+    timeout: 60000,
+  });
+  await expect(page.getByRole('link', { name: 'Inspect published index v2' })).toBeVisible({
+    timeout: 60000,
+  });
+
+  await page.getByRole('link', { name: 'Pipelines', exact: true }).click();
+  await page.getByRole('tab', { name: 'Answer pipelines' }).click();
+  await page.getByRole('link', { name: 'New answer pipeline' }).click();
+  // Refresh the route-owned catalog after the worker published the replacement index.
+  await page.reload();
+  await page
+    .getByLabel('Documents to search', { exact: true })
+    .selectOption({ label: 'Ingested knowledge · Version 2 · 3 passages' });
+  await page.getByRole('button', { name: 'Save version' }).click();
+  await page.getByRole('button', { name: 'Open Playground' }).click();
+  await page
+    .getByLabel('Question', { exact: true })
+    .fill('What does the controlled guide document?');
+  await page.getByRole('button', { name: 'Run pipeline test', exact: true }).click();
+  await expect(page.getByRole('region', { name: 'Query result' })).toContainText(
+    'The controlled guide documents solar orchards. [S1]',
+    { timeout: 30000 },
+  );
 });
 
 test('existing files publish an exact index that grounds an answer pipeline', async ({

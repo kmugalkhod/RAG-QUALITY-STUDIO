@@ -61,7 +61,9 @@ def snapshot_latest_processing_runs(
     if document_ids is not None:
         found = session.scalars(
             select(Document.id).where(
-                Document.project_id == project_id, Document.id.in_(document_ids)
+                Document.project_id == project_id,
+                Document.origin_kind == "upload",
+                Document.id.in_(document_ids),
             )
         ).all()
         if len(found) != len(document_ids):
@@ -73,7 +75,11 @@ def snapshot_latest_processing_runs(
             ProcessingRun.document_id, func.max(ProcessingRun.version).label("version")
         )
         .join(Document)
-        .where(Document.project_id == project_id, ProcessingRun.status == "succeeded")
+        .where(
+            Document.project_id == project_id,
+            Document.origin_kind == "upload",
+            ProcessingRun.status == "succeeded",
+        )
     )
     if document_ids is not None:
         latest = latest.where(Document.id.in_(document_ids))

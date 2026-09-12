@@ -218,6 +218,7 @@ class SafeHttpClient:
         max_response_bytes: int,
         max_total_bytes: int,
         allowed: Callable[[str], bool],
+        request_headers: dict[str, str] | None = None,
     ) -> HttpResponse:
         current = canonical_url(url)
         total = 0
@@ -249,6 +250,15 @@ class SafeHttpClient:
                 "Host": parts.netloc,
                 "Connection": "close",
             }
+            for key, value in (request_headers or {}).items():
+                if key.lower() not in ("if-none-match", "if-modified-since"):
+                    raise failure(
+                        "unsafe_header",
+                        "Only safe website validator headers are accepted.",
+                    )
+                if not value or "\r" in value or "\n" in value or len(value) > 500:
+                    raise failure("invalid_header", "A website validator is invalid.")
+                headers[key] = value
             status, response_headers, content = self.transport.request(
                 current,
                 addresses[0],

@@ -142,44 +142,47 @@ def test_milestone_one_upgrade_preserves_project(database):
 def test_milestone_two_a_upgrade_preserves_chunks(database):
     from uuid import uuid4
     from sqlalchemy.orm import Session
+    from app.models.document import Chunk, Document, ProcessingRun
     from app.models.project import Project
-    from app.models.document import Document, ProcessingRun, Chunk
 
     engine, env = database
     subprocess.run(
         [sys.executable, "-m", "alembic", "downgrade", "0002"], env=env, check=True
     )
     p, d, r = uuid4(), uuid4(), uuid4()
-    with Session(engine) as session:
-        session.add(Project(id=p, name="Before 2B", description="Upgrade fixture"))
-        session.flush()
-        session.add(
-            Document(
-                id=d,
-                project_id=p,
-                filename="source.txt",
-                storage_name=uuid4().hex,
-                media_type="text/plain",
-                content_hash="a" * 64,
-                size_bytes=4,
-            )
+    # Use the historical 0002 columns while the database is deliberately
+    # downgraded; current ORM defaults include fields introduced later.
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "INSERT INTO projects (id,name,description) VALUES (:id,'Before 2B','Upgrade fixture')"
+            ),
+            {"id": p},
         )
-        session.flush()
-        session.add(
-            ProcessingRun(
-                id=r,
-                document_id=d,
-                version=1,
-                chunk_size=4,
-                overlap=0,
-                parser_version="test",
-                status="succeeded",
-                chunk_count=1,
-            )
+        connection.execute(
+            text(
+                "INSERT INTO documents "
+                "(id,project_id,filename,storage_name,media_type,content_hash,size_bytes) "
+                "VALUES (:id,:project,'source.txt',:storage,'text/plain',:hash,4)"
+            ),
+            {"id": d, "project": p, "storage": uuid4().hex, "hash": "a" * 64},
         )
-        session.flush()
-        session.add(Chunk(run_id=r, ordinal=0, start_char=0, end_char=4, text="kept"))
-        session.commit()
+        connection.execute(
+            text(
+                "INSERT INTO processing_runs "
+                "(id,document_id,version,chunk_size,overlap,config_version,parser_version,"
+                "status,attempts,progress,chunk_count) VALUES "
+                "(:id,:document,1,4,0,'characters-v1','test','succeeded',0,100,1)"
+            ),
+            {"id": r, "document": d},
+        )
+        connection.execute(
+            text(
+                "INSERT INTO chunks (run_id,ordinal,page_number,start_char,end_char,text) "
+                "VALUES (:run,0,NULL,0,4,'kept')"
+            ),
+            {"run": r},
+        )
     subprocess.run(
         [sys.executable, "-m", "alembic", "upgrade", "head"], env=env, check=True
     )

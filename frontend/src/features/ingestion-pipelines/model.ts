@@ -125,11 +125,15 @@ export type IngestionRun = {
   knowledge_set_id: string;
   knowledge_set_name: string;
   status: 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled';
-  stage: 'processing' | 'indexing' | 'complete';
+  stage: 'discovering' | 'processing' | 'indexing' | 'complete';
   progress: number;
   discovered_count: number;
   processed_count: number;
   failed_count: number;
+  new_count: number;
+  changed_count: number;
+  unchanged_count: number;
+  removed_count: number;
   chunk_count: number;
   embedded_count: number;
   published_count: number;
@@ -144,7 +148,8 @@ export type IngestionRun = {
   finished_at: string | null;
 };
 
-export type IngestionRunItem = {
+export type ExistingIngestionRunItem = {
+  source_kind: 'existing_files';
   document_id: string;
   filename: string;
   content_hash: string;
@@ -158,6 +163,25 @@ export type IngestionRunItem = {
   error: string | null;
   updated_at: string;
 };
+
+export type WebsiteIngestionRunItem = {
+  source_kind: 'website';
+  ordinal: number;
+  source_node_id: string;
+  source_item_id: string | null;
+  source_revision_id: string | null;
+  canonical_location: string | null;
+  display_name: string;
+  media_type: string | null;
+  outcome: 'new' | 'changed' | 'unchanged' | 'removed' | 'excluded' | 'duplicate' | 'failed';
+  status: 'ready' | 'succeeded' | 'failed' | 'cancelled';
+  reason: string;
+  chunk_count: number;
+  error: string | null;
+  updated_at: string;
+};
+
+export type IngestionRunItem = ExistingIngestionRunItem | WebsiteIngestionRunItem;
 
 export function canonicalIngestion(value: unknown): string {
   if (Array.isArray(value)) {

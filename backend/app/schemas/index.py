@@ -73,6 +73,8 @@ class Evidence(BaseModel):
     start_char: int
     end_char: int
     text: str
+    source_url: str | None = None
+    section_path: list[str] = Field(default_factory=list)
     cosine_distance: float | None = None
     lexical_score: float | None = None
     fusion_score: float | None = None

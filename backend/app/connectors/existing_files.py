@@ -41,6 +41,7 @@ class ExistingFilesConnector:
             self.session.scalars(
                 select(Document.id).where(
                     Document.project_id == self.project_id,
+                    Document.origin_kind == "upload",
                     Document.id.in_(parsed.document_ids),
                 )
             )
@@ -91,6 +92,7 @@ class ExistingFilesConnector:
             for document in self.session.scalars(
                 select(Document).where(
                     Document.project_id == self.project_id,
+                    Document.origin_kind == "upload",
                     Document.id.in_(selected),
                 )
             )
@@ -117,7 +119,9 @@ class ExistingFilesConnector:
             ) from exc
         document = self.session.scalar(
             select(Document).where(
-                Document.id == document_id, Document.project_id == self.project_id
+                Document.id == document_id,
+                Document.project_id == self.project_id,
+                Document.origin_kind == "upload",
             )
         )
         if document is None:

@@ -129,6 +129,10 @@ def dispatch_ingestion_once(db_engine=engine, send=None):
             .with_for_update(skip_locked=True)
         ).all()
         for job in stale:
+            if job.snapshot.get(
+                "source_kind"
+            ) == "website" and job.started_at >= current - timedelta(seconds=3660):
+                continue
             job.failures += 1
             job.execution_token = None
             job.status = "failed" if job.failures >= 3 else "queued"

@@ -340,11 +340,15 @@ class IngestionRunRead(Strict):
     knowledge_set_id: UUID
     knowledge_set_name: str
     status: Literal["queued", "running", "succeeded", "failed", "cancelled"]
-    stage: Literal["processing", "indexing", "complete"]
+    stage: Literal["discovering", "processing", "indexing", "complete"]
     progress: int
     discovered_count: int
     processed_count: int
     failed_count: int
+    new_count: int = 0
+    changed_count: int = 0
+    unchanged_count: int = 0
+    removed_count: int = 0
     chunk_count: int
     embedded_count: int
     published_count: int
@@ -366,7 +370,8 @@ class IngestionRunPage(Strict):
     offset: int
 
 
-class IngestionRunItemRead(Strict):
+class ExistingIngestionRunItemRead(Strict):
+    source_kind: Literal["existing_files"] = "existing_files"
     document_id: UUID
     filename: str
     content_hash: str
@@ -379,6 +384,31 @@ class IngestionRunItemRead(Strict):
     chunk_count: int
     error: str | None
     updated_at: datetime
+
+
+class WebsiteIngestionRunItemRead(Strict):
+    source_kind: Literal["website"] = "website"
+    ordinal: int
+    source_node_id: str
+    source_item_id: UUID | None
+    source_revision_id: UUID | None
+    canonical_location: str | None
+    display_name: str
+    media_type: str | None
+    outcome: Literal[
+        "new", "changed", "unchanged", "removed", "excluded", "duplicate", "failed"
+    ]
+    status: Literal["ready", "succeeded", "failed", "cancelled"]
+    reason: str
+    chunk_count: int
+    error: str | None
+    updated_at: datetime
+
+
+IngestionRunItemRead = Annotated[
+    ExistingIngestionRunItemRead | WebsiteIngestionRunItemRead,
+    Field(discriminator="source_kind"),
+]
 
 
 class IngestionRunItemPage(Strict):

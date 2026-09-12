@@ -245,8 +245,8 @@ function WebsiteSettings({
       <div className="website-preview-notice">
         <CircleAlert size={17} />
         <p>
-          Website discovery is preview-only in this phase. Saving is supported; publishing a website
-          index becomes available with the next ingestion phase.
+          Website runs fetch bounded HTML, preserve immutable revisions, and publish only after
+          every required page succeeds. Preview the exact scope before saving.
         </p>
       </div>
       <Label>
@@ -687,7 +687,7 @@ export function IngestionPipelineEditor({
       </a>
       <div className="editor-title">
         <h1>Ingestion editor</h1>
-        <span>{websiteSource ? 'Website discovery preview' : 'Existing files → ready index'}</span>
+        <span>{websiteSource ? 'Website → ready index' : 'Existing files → ready index'}</span>
       </div>
       {error && (
         <p role="alert" className="error-message">
@@ -735,7 +735,7 @@ export function IngestionPipelineEditor({
           <Button variant="outline" onClick={runPreview} disabled={validation.length > 0}>
             Preview source
           </Button>
-          <Button onClick={startRun} disabled={!saved || dirty || websiteSource}>
+          <Button onClick={startRun} disabled={!saved || dirty}>
             <Play size={15} />
             Run saved version
           </Button>
@@ -1028,6 +1028,15 @@ export function IngestionPipelineEditor({
               <p>
                 {run.stage} · {run.progress}% · {run.embedded_count}/{run.chunk_count} embedded
               </p>
+              {(run.new_count > 0 ||
+                run.changed_count > 0 ||
+                run.unchanged_count > 0 ||
+                run.removed_count > 0) && (
+                <p>
+                  {run.new_count} new · {run.changed_count} changed · {run.unchanged_count}{' '}
+                  unchanged · {run.removed_count} removed
+                </p>
+              )}
             </div>
             {!terminal.has(run.status) && (
               <Button
@@ -1046,7 +1055,7 @@ export function IngestionPipelineEditor({
               {run.error}
             </p>
           )}
-          {run.published_index_id && (
+          {run.status === 'succeeded' && run.published_index_id && (
             <Button asChild variant="outline">
               <a
                 href={`#/projects/${projectId}/knowledge-base?view=indexes&index=${run.published_index_id}`}
@@ -1057,14 +1066,26 @@ export function IngestionPipelineEditor({
           )}
           <ul className="project-list">
             {items.map((item) => (
-              <li key={item.document_id}>
+              <li key={item.source_kind === 'website' ? item.ordinal : item.document_id}>
                 <FileText size={18} />
                 <div>
-                  <strong>{item.filename}</strong>
-                  <p>
-                    {item.status} · processing v{item.processing_version} · {item.chunk_count}{' '}
-                    chunks · {item.content_hash.slice(0, 12)}
-                  </p>
+                  {item.source_kind === 'website' ? (
+                    <>
+                      <strong>{item.display_name}</strong>
+                      <p>
+                        {item.outcome} · {item.status} · {item.chunk_count} chunks · {item.reason}
+                      </p>
+                      {item.canonical_location && <small>{item.canonical_location}</small>}
+                    </>
+                  ) : (
+                    <>
+                      <strong>{item.filename}</strong>
+                      <p>
+                        {item.status} · processing v{item.processing_version} · {item.chunk_count}{' '}
+                        chunks · {item.content_hash.slice(0, 12)}
+                      </p>
+                    </>
+                  )}
                 </div>
               </li>
             ))}

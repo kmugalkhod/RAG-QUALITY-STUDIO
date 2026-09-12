@@ -41,12 +41,12 @@ class IngestionRun(Base):
             name="ck_ingestion_run_status",
         ),
         CheckConstraint(
-            "stage IN ('processing','indexing','complete')",
+            "stage IN ('discovering','processing','indexing','complete')",
             name="ck_ingestion_run_stage",
         ),
         CheckConstraint("progress BETWEEN 0 AND 100", name="ck_ingestion_run_progress"),
         CheckConstraint(
-            "discovered_count BETWEEN 1 AND 1000 "
+            "discovered_count BETWEEN 0 AND 50000 "
             "AND processed_count BETWEEN 0 AND discovered_count "
             "AND failed_count BETWEEN 0 AND discovered_count "
             "AND processed_count + failed_count <= discovered_count "

@@ -69,7 +69,9 @@ def validate_ingestion(session, project_id, execution: IngestionExecution):
         found = set(
             session.scalars(
                 select(Document.id).where(
-                    Document.project_id == project_id, Document.id.in_(document_ids)
+                    Document.project_id == project_id,
+                    Document.origin_kind == "upload",
+                    Document.id.in_(document_ids),
                 )
             )
         )

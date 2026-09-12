@@ -108,7 +108,7 @@ class SourcePreviewItem(Base):
     )
     ordinal: Mapped[int] = mapped_column(Integer, primary_key=True)
     source_node_id: Mapped[str] = mapped_column(String(80))
-    external_id: Mapped[str | None] = mapped_column(String(1000))
+    external_id: Mapped[str | None] = mapped_column(String(4000))
     display_name: Mapped[str] = mapped_column(String(500))
     canonical_location: Mapped[str | None] = mapped_column(String(4000))
     media_type: Mapped[str | None] = mapped_column(String(200))

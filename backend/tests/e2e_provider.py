@@ -9,7 +9,7 @@ from app.connectors.safe_http import SafeHttpClient
 from app.connectors.website import WebsiteConnector
 from app.providers.openrouter import OpenRouterEmbeddings
 from app.providers import embeddings, generation
-from app.workers import previews
+from app.workers import ingestion as ingestion_worker, previews
 from app.main import app  # noqa: F401
 
 
@@ -40,7 +40,11 @@ def chat_respond(request):
     answer = (
         "INSUFFICIENT_EVIDENCE: The sources do not give a launch code."
         if "launch code" in question.lower()
-        else "The orchard grows apples. [S1]"
+        else (
+            "The controlled guide documents solar orchards. [S1]"
+            if "controlled guide" in question.lower()
+            else "The orchard grows apples. [S1]"
+        )
     )
     return httpx.Response(
         200,
@@ -93,13 +97,13 @@ class WebsiteTransport:
         ),
         "https://controlled.example/": (
             200,
-            {"content-type": "text/html"},
-            b"<a href='/guide'>Guide</a><a href='/guide#copy'>Copy</a><a href='/private'>Private</a><a href='https://elsewhere.example/out'>Out</a>",
+            {"content-type": "text/html", "etag": '"home-v1"'},
+            b"<main><h1>Controlled website</h1><p>The controlled site catalogs research.</p><a href='/guide'>Guide</a><a href='/guide#copy'>Copy</a><a href='/private'>Private</a><a href='https://elsewhere.example/out'>Out</a></main>",
         ),
         "https://controlled.example/guide": (
             200,
-            {"content-type": "text/html"},
-            b"<h1>Controlled guide</h1>",
+            {"content-type": "text/html", "etag": '"guide-v1"'},
+            b"<main><h1>Controlled guide</h1><p>The controlled guide documents solar orchards.</p></main>",
         ),
     }
 
@@ -116,10 +120,15 @@ class WebsiteTransport:
         return response
 
 
-previews.WebsiteConnector = lambda: WebsiteConnector(
-    client=SafeHttpClient(resolver=website_resolver, transport=WebsiteTransport()),
-    sleeper=lambda _: None,
-)
+def website_connector():
+    return WebsiteConnector(
+        client=SafeHttpClient(resolver=website_resolver, transport=WebsiteTransport()),
+        sleeper=lambda _: None,
+    )
+
+
+previews.WebsiteConnector = website_connector
+ingestion_worker.WebsiteConnector = website_connector
 
 if __name__ == "__main__" and sys.argv[-1] == "worker":
     from app.workers.celery_app import celery

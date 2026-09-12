@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.connectors.base import ConnectorFailure, ConnectorIssue
 from app.connectors.safe_http import SafeHttpClient, canonical_url, resolve_public
-from app.connectors.website import WebsiteConnector
+from app.connectors.website import PriorWebsiteRevision, WebsiteConnector
 from app.core.config import settings
 from app.models.document import ProcessingRun
 from app.models.index import IndexVersion
@@ -195,6 +195,38 @@ def test_timeout_is_reported_as_a_safe_failed_item():
     assert outcomes[0].status == "failed"
     assert outcomes[0].error_code == "request_timeout"
     assert outcomes[0].reason == "The website request timed out."
+
+
+def test_validator_refresh_reuses_prior_body():
+    transport = TransportDouble(
+        {
+            "https://public.example/": (
+                304,
+                {"etag": '"v1"'},
+                b"",
+            )
+        }
+    )
+    connector = WebsiteConnector(
+        client=SafeHttpClient(resolver=public_resolver, transport=transport),
+        sleeper=lambda _: None,
+    )
+    prior = PriorWebsiteRevision(
+        content=b"<main><a href='/next'>Next</a></main>",
+        media_type="text/html",
+        etag='"v1"',
+    )
+    outcomes, artifacts = connector.fetch_all(
+        config(
+            selection={"mode": "single_url", "url": "https://public.example/"},
+            respect_robots=False,
+        ),
+        {"https://public.example/": prior},
+    )
+    assert outcomes[0].status == "included"
+    assert artifacts[0].content == prior.content
+    assert artifacts[0].validator_unchanged is True
+    assert transport.calls[0][3]["If-None-Match"] == '"v1"'
 
 
 def test_crawl_reports_included_excluded_duplicates_failures_and_robots():

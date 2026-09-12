@@ -228,6 +228,14 @@ Migration `0011` adds `source_previews` and `source_preview_items`. A preview st
 
 `POST /ingestion-previews` now returns 202 for both Existing Files and Website sources. The dispatcher claims queued/stale previews and a Celery worker executes behind an execution token; cancellation or obsolete delivery prevents result commit. `GET /source-previews/{id}` and its paginated `/items` plus POST `/cancel` are project-scoped. The editor exposes every Website bound, uses sequential polling and keeps Website run disabled with explicit preview-only copy until immutable revision/publication behavior exists.
 
+## Website revisions and incremental publication (Phase 5, 2026-09-12)
+
+Migration `0012` adds stable `source_items`, immutable `source_revisions`, per-URL `website_run_items` and explicit `index_source_revisions`. Stable identities are project, connector-kind and canonical-URL hashes. Each revision binds generated raw-artifact storage, content/extracted hashes, safe HTTP validators, fetch time, deterministic extraction configuration and a completed synthetic processing run; these website documents are hidden from upload and Existing Files selection paths. Chunk JSON provenance carries source URL, revision and section hierarchy into retrieval evidence.
+
+Website execution snapshots the saved graph, destination, prior-ready index and complete embedding configuration. The Phase 4 safe client permits only bounded `If-None-Match` and `If-Modified-Since` headers. A 304 reuses the prior stored body; otherwise content hashes determine new/changed/unchanged status. Deterministic HTML extraction ignores scripts/styles and common layout containers, prefers main/article content and creates section-local character windows. Exact extracted-content duplicates reuse a revision, and index construction reuses only embedding vectors compatible in project, text and full provider configuration.
+
+The fenced ingestion coordinator persists discovery/revision membership before delegating to the existing bounded embedding worker. Removed prior URLs are retained historically but omitted from the replacement membership. Required fetch/extraction failures prevent index creation; embedding failure or cancellation cannot advance the destination. Only the existing atomic index completion transaction updates `knowledge_sets.current_ready_index_id`, after which the coordinator marks the run and URL items succeeded. Earlier ready indexes and the answer pipelines that name them remain unchanged.
+
 ## Frontend organization
 
 The frontend separates workspace navigation, route rendering, and project-loading lifecycle. Document/chunk inspectors and experiment comparison/configuration components belong to their respective features. Unit/component tests live in `frontend/tests/`, mirroring `src/`; browser journeys remain in `frontend/e2e/`. Application imports cannot reference test code or testing libraries (enforced by ESLint).

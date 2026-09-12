@@ -27,6 +27,25 @@ class PreviewOutcome:
     error_code: str | None = None
 
 
+@dataclass(frozen=True)
+class PriorWebsiteRevision:
+    content: bytes
+    media_type: str
+    etag: str | None = None
+    last_modified: str | None = None
+
+
+@dataclass(frozen=True)
+class WebsiteArtifact:
+    canonical_location: str
+    content: bytes
+    media_type: str
+    etag: str | None
+    last_modified: str | None
+    validator_unchanged: bool
+    depth: int
+
+
 class _Links(HTMLParser):
     def __init__(self, limit: int):
         super().__init__(convert_charrefs=True)
@@ -95,15 +114,20 @@ class WebsiteConnector:
 
         return origin_allowed, page_allowed
 
-    def discover_all(self, config: object) -> list[PreviewOutcome]:
+    def _discover(
+        self,
+        config: object,
+        priors: dict[str, PriorWebsiteRevision] | None = None,
+    ) -> tuple[list[PreviewOutcome], list[WebsiteArtifact]]:
         parsed = WebsiteConfig.model_validate(config)
+        priors = priors or {}
         origin_allowed, page_allowed = self._scope(parsed)
         deadline = self.clock() + parsed.deadline_seconds
         transferred = 0
         last_request = 0.0
         robots: dict[str, RobotFileParser | None] = {}
 
-        def request(url: str, *, page_scope=True):
+        def request(url: str, *, page_scope=True, validators=None):
             nonlocal transferred, last_request
             delay = 1 / parsed.requests_per_second - (self.clock() - last_request)
             if delay > 0:
@@ -117,6 +141,7 @@ class WebsiteConnector:
                 max_response_bytes=parsed.max_response_bytes,
                 max_total_bytes=parsed.max_total_bytes - transferred,
                 allowed=page_allowed if page_scope else origin_allowed,
+                request_headers=validators,
             )
             last_request = self.clock()
             transferred += response.transferred_bytes
@@ -189,6 +214,7 @@ class WebsiteConnector:
             ]
 
         outcomes: list[PreviewOutcome] = []
+        artifacts: list[WebsiteArtifact] = []
         queue = list(seeds)
         seen: set[str] = set()
         duplicate_reported: set[str] = set()
@@ -270,8 +296,20 @@ class WebsiteConnector:
                         url, "excluded", "robots.txt disallows this URL.", depth=depth
                     )
                     continue
-                response = request(url)
-                if not 200 <= response.status < 300:
+                prior = priors.get(url)
+                validators = {}
+                if prior and prior.etag:
+                    validators["If-None-Match"] = prior.etag
+                if prior and prior.last_modified:
+                    validators["If-Modified-Since"] = prior.last_modified
+                response = request(url, validators=validators)
+                validator_unchanged = response.status == 304
+                if validator_unchanged and prior is None:
+                    raise failure(
+                        "invalid_not_modified",
+                        "Website returned not-modified without a prior revision.",
+                    )
+                if response.status != 304 and not 200 <= response.status < 300:
                     record(
                         url,
                         "failed",
@@ -280,29 +318,49 @@ class WebsiteConnector:
                         code="http_status",
                     )
                     continue
-                media = _media_type(response.headers)
+                media = (
+                    prior.media_type
+                    if validator_unchanged
+                    else _media_type(response.headers)
+                )
                 if media != "text/html":
                     record(
                         response.url,
                         "excluded",
                         "Only HTML pages are supported in Website preview.",
                         media=media or None,
-                        size=len(response.content),
+                        size=len(
+                            prior.content if validator_unchanged else response.content
+                        ),
                         depth=depth,
                     )
                     continue
                 fetched_pages += 1
+                content = prior.content if validator_unchanged else response.content
                 record(
                     response.url,
                     "included",
                     "HTML page is within scope and fetchable.",
                     media=media,
-                    size=len(response.content),
+                    size=len(content),
                     depth=depth,
+                )
+                artifacts.append(
+                    WebsiteArtifact(
+                        canonical_location=response.url,
+                        content=content,
+                        media_type=media,
+                        etag=response.headers.get("etag")
+                        or (prior.etag if prior else None),
+                        last_modified=response.headers.get("last-modified")
+                        or (prior.last_modified if prior else None),
+                        validator_unchanged=validator_unchanged,
+                        depth=depth,
+                    )
                 )
                 if crawl and depth < parsed.max_depth:
                     parser = _Links(max(0, discovery_limit - len(outcomes)))
-                    parser.feed(response.content.decode("utf-8", errors="replace"))
+                    parser.feed(content.decode("utf-8", errors="replace"))
                     queue.extend(
                         (urljoin(response.url, link), depth + 1)
                         for link in parser.links
@@ -316,7 +374,17 @@ class WebsiteConnector:
             record(
                 None, "excluded", "Additional URLs were omitted by the discovery limit."
             )
-        return outcomes
+        return outcomes, artifacts
+
+    def discover_all(self, config: object) -> list[PreviewOutcome]:
+        return self._discover(config)[0]
+
+    def fetch_all(
+        self,
+        config: object,
+        priors: dict[str, PriorWebsiteRevision] | None = None,
+    ) -> tuple[list[PreviewOutcome], list[WebsiteArtifact]]:
+        return self._discover(config, priors)
 
     def discover(self, config: object, cursor: str | None = None):
         raise failure(

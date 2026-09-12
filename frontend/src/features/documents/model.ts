@@ -84,6 +84,8 @@ export interface Evidence {
   start_char: number;
   end_char: number;
   text: string;
+  source_url?: string | null;
+  section_path?: string[];
   cosine_distance: number | null;
   lexical_score?: number | null;
   fusion_score?: number | null;
