@@ -22,11 +22,42 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.db.session import Base
 
 
+class KnowledgeSet(Base):
+    __tablename__ = "knowledge_sets"
+    __table_args__ = (
+        UniqueConstraint("id", "project_id", name="uq_knowledge_set_project"),
+        UniqueConstraint("project_id", "name", name="uq_knowledge_set_name"),
+        CheckConstraint(
+            "char_length(btrim(name)) BETWEEN 1 AND 120",
+            name="ck_knowledge_set_name",
+        ),
+        ForeignKeyConstraint(
+            ["current_ready_index_id", "project_id"],
+            ["index_versions.id", "index_versions.project_id"],
+            name="fk_knowledge_set_current_index_project",
+            use_alter=True,
+            ondelete="SET NULL (current_ready_index_id)",
+        ),
+        Index("ix_knowledge_sets_project_created", "project_id", "created_at", "id"),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE")
+    )
+    name: Mapped[str] = mapped_column(String(120))
+    current_ready_index_id: Mapped[uuid.UUID | None]
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
 class IndexVersion(Base):
     __tablename__ = "index_versions"
     __table_args__ = (
         UniqueConstraint("id", "project_id", name="uq_index_project"),
-        UniqueConstraint("project_id", "version", name="uq_index_version"),
+        UniqueConstraint(
+            "knowledge_set_id", "version", name="uq_index_knowledge_set_version"
+        ),
         UniqueConstraint("id", "dimensions", name="uq_index_dimensions"),
         CheckConstraint("dimensions BETWEEN 1 AND 16000", name="ck_index_dimensions"),
         CheckConstraint(
@@ -46,14 +77,23 @@ class IndexVersion(Base):
         ),
         Index("ix_indexes_status_updated", "status", "updated_at"),
         Index(
-            "uq_index_active_project",
-            "project_id",
+            "uq_index_active_knowledge_set",
+            "knowledge_set_id",
             unique=True,
             postgresql_where=text("status IN ('queued','running')"),
+        ),
+        ForeignKeyConstraint(
+            ["knowledge_set_id", "project_id"],
+            ["knowledge_sets.id", "knowledge_sets.project_id"],
+            name="fk_index_knowledge_set_project",
+        ),
+        Index(
+            "ix_indexes_knowledge_set_created", "knowledge_set_id", "created_at", "id"
         ),
     )
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     project_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("projects.id"))
+    knowledge_set_id: Mapped[uuid.UUID]
     version: Mapped[int]
     dimensions: Mapped[int]
     embedding_config: Mapped[dict] = mapped_column(JSONB)

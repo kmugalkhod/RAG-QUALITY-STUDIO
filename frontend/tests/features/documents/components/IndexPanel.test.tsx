@@ -15,6 +15,8 @@ const config: apiModel.EmbeddingConfig = {
 const index: apiModel.IndexVersion = {
   id: 'i1',
   project_id: 'p1',
+  knowledge_set_id: 'k1',
+  knowledge_set_name: 'Uploaded documents',
   version: 1,
   embedding_config: config,
   status: 'succeeded',
@@ -22,6 +24,8 @@ const index: apiModel.IndexVersion = {
   embedded_count: 3,
   attempts: 1,
   failures: 0,
+  processing_run_count: 1,
+  is_current: true,
   error: null,
   created_at: '2026-09-09T00:00:00Z',
 };
@@ -100,6 +104,9 @@ test('retrieves from explicit version and exposes source evidence and distance',
   });
   render(<IndexPanel projectId="p1" />);
   await userEvent.click(await screen.findByRole('button', { name: 'Use document set 1' }));
+  expect(screen.getByRole('heading', { name: 'Uploaded documents' })).toBeVisible();
+  expect(screen.getByText('Current')).toBeVisible();
+  expect(screen.getByText(/prepared from 1 processing run/)).toBeVisible();
   await userEvent.type(screen.getByLabelText('Search query'), 'Where is the evidence?');
   await userEvent.click(screen.getByRole('button', { name: 'Search documents only' }));
   expect(api.retrieve).toHaveBeenCalledWith('p1', 'i1', 'Where is the evidence?', {

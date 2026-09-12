@@ -1,13 +1,13 @@
 """One bounded embedding batch per Celery delivery; PostgreSQL owns checkpoints."""
 
 from uuid import UUID, uuid4
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session, aliased
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.db.session import engine
 from app.models.document import Chunk, Document, ProcessingRun
-from app.models.index import IndexChunk, IndexVersion
+from app.models.index import IndexChunk, IndexVersion, KnowledgeSet
 from app.providers import embeddings
 from app.workers.celery_app import celery
 from app.workers.processing import now
@@ -130,6 +130,14 @@ def process_index(index_id: UUID, db_engine=engine):
             job.status = "succeeded" if completed == job.chunk_count else "queued"
             if job.status == "succeeded":
                 job.finished_at = now()
+                session.execute(
+                    update(KnowledgeSet)
+                    .where(
+                        KnowledgeSet.id == job.knowledge_set_id,
+                        KnowledgeSet.project_id == job.project_id,
+                    )
+                    .values(current_ready_index_id=job.id)
+                )
             session.commit()
     except Exception as exc:
         transient = isinstance(exc, (OSError, SQLAlchemyError)) or (

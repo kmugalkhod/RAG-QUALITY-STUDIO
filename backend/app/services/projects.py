@@ -1,12 +1,15 @@
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 from app.models.project import Project
+from app.models.index import KnowledgeSet
 from app.schemas.project import ProjectCreate, ProjectPage
 
 
 def create_project(session: Session, data: ProjectCreate) -> Project:
     project = Project(**data.model_dump())
     session.add(project)
+    session.flush()
+    session.add(KnowledgeSet(project_id=project.id, name="Uploaded documents"))
     session.commit()
     session.refresh(project)
     return project

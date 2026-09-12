@@ -7,10 +7,34 @@ from app.providers.embeddings import EmbeddingConfig
 from app.schemas.retrieval import RetrievalInput, RetrievalSettings
 
 
+class KnowledgeSetRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: UUID
+    project_id: UUID
+    name: str
+    current_ready_index_id: UUID | None
+    created_at: datetime
+
+
+class KnowledgeSetPage(BaseModel):
+    items: list[KnowledgeSetRead]
+    total: int
+    limit: int
+    offset: int
+
+
+class IndexCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    knowledge_set_id: UUID | None = None
+    document_ids: list[UUID] | None = Field(default=None, min_length=1, max_length=1000)
+
+
 class IndexRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: UUID
     project_id: UUID
+    knowledge_set_id: UUID
+    knowledge_set_name: str
     version: int
     embedding_config: EmbeddingConfig
     status: Literal["queued", "running", "succeeded", "failed", "cancelled"]
@@ -18,6 +42,8 @@ class IndexRead(BaseModel):
     embedded_count: int
     attempts: int
     failures: int
+    processing_run_count: int
+    is_current: bool
     error: str | None
     created_at: datetime
 

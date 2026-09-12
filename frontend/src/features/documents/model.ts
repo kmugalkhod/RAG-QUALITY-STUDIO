@@ -46,6 +46,8 @@ export interface EmbeddingSettings {
 export interface IndexVersion {
   id: string;
   project_id: string;
+  knowledge_set_id: string;
+  knowledge_set_name: string;
   version: number;
   embedding_config: EmbeddingConfig;
   status: Run['status'];
@@ -53,8 +55,14 @@ export interface IndexVersion {
   embedded_count: number;
   attempts: number;
   failures: number;
+  processing_run_count: number;
+  is_current: boolean;
   error: string | null;
   created_at: string;
+}
+
+export function formatIndexOption(index: IndexVersion): string {
+  return `${index.knowledge_set_name} · Version ${index.version} · ${index.chunk_count} passages`;
 }
 export type IndexPage = Page<IndexVersion>;
 export interface Evidence {

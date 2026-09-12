@@ -2,7 +2,7 @@ import { Label } from '../../../components/ui/label';
 import { NativeSelect, NativeSelectOption } from '../../../components/ui/native-select';
 import { RetrievalSettingsForm } from '../../../components/RetrievalSettingsForm';
 import type { RetrievalSettings } from '../../../lib/retrieval';
-import type { IndexVersion } from '../../documents/model';
+import { formatIndexOption, type IndexVersion } from '../../documents/model';
 
 interface RetrievalTestSettingsProps {
   indexes: IndexVersion[];
@@ -31,7 +31,7 @@ export function RetrievalTestSettings({
             <NativeSelectOption value="">Choose prepared documents</NativeSelectOption>
             {indexes.map((index) => (
               <NativeSelectOption key={index.id} value={index.id}>
-                Document set · Version {index.version} · {index.chunk_count} passages
+                {formatIndexOption(index)}
               </NativeSelectOption>
             ))}
           </NativeSelect>

@@ -5,11 +5,15 @@ from sqlalchemy import func, insert, select, update
 from sqlalchemy.orm import Session
 
 from app.models.document import Chunk, Document, ProcessingRun
-from app.models.index import IndexChunk, IndexVersion
+from app.models.index import IndexChunk, IndexVersion, KnowledgeSet
 from app.models.project import Project
 from app.providers import embeddings
-from app.schemas.index import RetrievalRequest
+from app.schemas.index import IndexCreate, RetrievalRequest
 from app.services.documents import paginate, project
+
+
+DEFAULT_KNOWLEDGE_SET_NAME = "Uploaded documents"
+MAX_INDEX_CHUNKS = 50_000
 
 
 def get_index(session: Session, project_id: UUID, index_id: UUID):
@@ -23,40 +27,131 @@ def get_index(session: Session, project_id: UUID, index_id: UUID):
     return result
 
 
-def create_index(session, project_id):
-    project(session, project_id)
-    config = embeddings.configured()
-    session.execute(select(Project).where(Project.id == project_id).with_for_update())
-    if session.scalar(
-        select(IndexVersion.id).where(
-            IndexVersion.project_id == project_id,
-            IndexVersion.status.in_(["queued", "running"]),
+def get_knowledge_set(session: Session, project_id: UUID, knowledge_set_id: UUID):
+    result = session.scalar(
+        select(KnowledgeSet).where(
+            KnowledgeSet.id == knowledge_set_id,
+            KnowledgeSet.project_id == project_id,
         )
-    ):
-        raise HTTPException(409, "This project already has an active indexing job.")
-    # A single snapshot chooses the latest successful processing version per source.
+    )
+    if result is None:
+        raise HTTPException(404, "Knowledge set not found in this project.")
+    return result
+
+
+def default_knowledge_set(session: Session, project_id: UUID):
+    result = session.scalar(
+        select(KnowledgeSet).where(
+            KnowledgeSet.project_id == project_id,
+            KnowledgeSet.name == DEFAULT_KNOWLEDGE_SET_NAME,
+        )
+    )
+    if result is None:
+        result = KnowledgeSet(project_id=project_id, name=DEFAULT_KNOWLEDGE_SET_NAME)
+        session.add(result)
+        session.flush()
+    return result
+
+
+def snapshot_latest_processing_runs(
+    session: Session, project_id: UUID, document_ids: list[UUID] | None = None
+) -> list[UUID]:
+    if document_ids is not None and len(set(document_ids)) != len(document_ids):
+        raise HTTPException(422, "Document IDs must be unique.")
+    if document_ids is not None:
+        found = session.scalars(
+            select(Document.id).where(
+                Document.project_id == project_id, Document.id.in_(document_ids)
+            )
+        ).all()
+        if len(found) != len(document_ids):
+            raise HTTPException(
+                404, "A selected document was not found in this project."
+            )
     latest = (
         select(
             ProcessingRun.document_id, func.max(ProcessingRun.version).label("version")
         )
         .join(Document)
         .where(Document.project_id == project_id, ProcessingRun.status == "succeeded")
-        .group_by(ProcessingRun.document_id)
-        .subquery()
     )
-    runs = select(ProcessingRun.id).join(
-        latest,
-        (ProcessingRun.document_id == latest.c.document_id)
-        & (ProcessingRun.version == latest.c.version),
-    )
-    members = session.execute(
-        select(Chunk.run_id, Chunk.ordinal).where(Chunk.run_id.in_(runs)).limit(50001)
+    if document_ids is not None:
+        latest = latest.where(Document.id.in_(document_ids))
+    latest = latest.group_by(ProcessingRun.document_id).subquery()
+    run_ids = session.scalars(
+        select(ProcessingRun.id)
+        .join(
+            latest,
+            (ProcessingRun.document_id == latest.c.document_id)
+            & (ProcessingRun.version == latest.c.version),
+        )
+        .order_by(ProcessingRun.document_id)
     ).all()
-    if not members:
+    if document_ids is not None and len(run_ids) != len(document_ids):
+        raise HTTPException(
+            409, "Process every selected document successfully before indexing."
+        )
+    if not run_ids:
         raise HTTPException(
             409, "Process at least one document successfully before indexing."
         )
-    if len(members) > 50000:
+    return list(run_ids)
+
+
+def create_index_from_processing_runs(
+    session: Session,
+    project_id: UUID,
+    knowledge_set_id: UUID,
+    processing_run_ids: list[UUID],
+):
+    if not processing_run_ids:
+        raise HTTPException(422, "Select at least one processing run to index.")
+    if len(set(processing_run_ids)) != len(processing_run_ids):
+        raise HTTPException(422, "Processing run IDs must be unique.")
+    project(session, project_id)
+    config = embeddings.configured()
+    knowledge_set = session.scalar(
+        select(KnowledgeSet)
+        .where(
+            KnowledgeSet.id == knowledge_set_id,
+            KnowledgeSet.project_id == project_id,
+        )
+        .with_for_update()
+    )
+    if knowledge_set is None:
+        raise HTTPException(404, "Knowledge set not found in this project.")
+    if session.scalar(
+        select(IndexVersion.id).where(
+            IndexVersion.knowledge_set_id == knowledge_set_id,
+            IndexVersion.status.in_(["queued", "running"]),
+        )
+    ):
+        raise HTTPException(
+            409, "This knowledge set already has an active indexing job."
+        )
+    runs = session.execute(
+        select(ProcessingRun.id, ProcessingRun.status)
+        .join(Document)
+        .where(
+            ProcessingRun.id.in_(processing_run_ids), Document.project_id == project_id
+        )
+    ).all()
+    if len(runs) != len(processing_run_ids):
+        raise HTTPException(404, "A processing run was not found in this project.")
+    if any(status != "succeeded" for _, status in runs):
+        raise HTTPException(409, "Only successful processing runs can be indexed.")
+    members = session.execute(
+        select(Chunk.run_id, Chunk.ordinal)
+        .where(Chunk.run_id.in_(processing_run_ids))
+        .order_by(Chunk.run_id, Chunk.ordinal)
+        .limit(MAX_INDEX_CHUNKS + 1)
+    ).all()
+    if not members:
+        raise HTTPException(409, "Selected processing runs contain no chunks.")
+    represented_runs = {run_id for run_id, _ in members}
+    if represented_runs != set(processing_run_ids):
+        raise HTTPException(409, "Every selected processing run must contain chunks.")
+    if len(members) > MAX_INDEX_CHUNKS:
         raise HTTPException(
             422,
             "An index supports at most 50,000 chunks. Increase chunk size or use a smaller project.",
@@ -64,13 +159,14 @@ def create_index(session, project_id):
     version = (
         session.scalar(
             select(func.max(IndexVersion.version)).where(
-                IndexVersion.project_id == project_id
+                IndexVersion.knowledge_set_id == knowledge_set_id
             )
         )
         or 0
     ) + 1
     result = IndexVersion(
         project_id=project_id,
+        knowledge_set_id=knowledge_set_id,
         version=version,
         dimensions=config.dimensions,
         embedding_config=config.model_dump(),
@@ -96,13 +192,85 @@ def create_index(session, project_id):
     return result
 
 
-def list_indexes(session, project_id, limit, offset):
+def create_index(session: Session, project_id: UUID, data: IndexCreate):
+    project(session, project_id)
+    session.execute(select(Project).where(Project.id == project_id).with_for_update())
+    knowledge_set = (
+        get_knowledge_set(session, project_id, data.knowledge_set_id)
+        if data.knowledge_set_id
+        else default_knowledge_set(session, project_id)
+    )
+    run_ids = snapshot_latest_processing_runs(session, project_id, data.document_ids)
+    return create_index_from_processing_runs(
+        session, project_id, knowledge_set.id, run_ids
+    )
+
+
+def _index_rows(session, statement):
+    run_count = (
+        select(func.count(func.distinct(IndexChunk.run_id)))
+        .where(IndexChunk.index_id == IndexVersion.id)
+        .correlate(IndexVersion)
+        .scalar_subquery()
+    )
+    rows = session.execute(
+        statement.add_columns(
+            KnowledgeSet.name, KnowledgeSet.current_ready_index_id, run_count
+        ).join(KnowledgeSet, KnowledgeSet.id == IndexVersion.knowledge_set_id)
+    ).all()
+    return [
+        {
+            **{
+                column.name: getattr(index, column.name)
+                for column in IndexVersion.__table__.columns
+            },
+            "knowledge_set_name": knowledge_set_name,
+            "processing_run_count": processing_run_count,
+            "is_current": current_ready_index_id == index.id,
+        }
+        for index, knowledge_set_name, current_ready_index_id, processing_run_count in rows
+    ]
+
+
+def read_index(session: Session, index: IndexVersion):
+    return _index_rows(
+        session, select(IndexVersion).where(IndexVersion.id == index.id)
+    )[0]
+
+
+def list_indexes(
+    session, project_id, limit, offset, knowledge_set_id: UUID | None = None
+):
+    project(session, project_id)
+    conditions = [IndexVersion.project_id == project_id]
+    if knowledge_set_id is not None:
+        get_knowledge_set(session, project_id, knowledge_set_id)
+        conditions.append(IndexVersion.knowledge_set_id == knowledge_set_id)
+    total = session.scalar(
+        select(func.count()).select_from(IndexVersion).where(*conditions)
+    )
+    items = _index_rows(
+        session,
+        select(IndexVersion)
+        .where(*conditions)
+        .order_by(
+            IndexVersion.knowledge_set_id,
+            IndexVersion.version.desc(),
+            IndexVersion.id.desc(),
+        )
+        .limit(limit)
+        .offset(offset),
+    )
+    return dict(items=items, total=total, limit=limit, offset=offset)
+
+
+def list_knowledge_sets(session, project_id, limit, offset):
     project(session, project_id)
     return paginate(
         session,
-        select(IndexVersion)
-        .where(IndexVersion.project_id == project_id)
-        .order_by(IndexVersion.version.desc()),
+        select(KnowledgeSet)
+        .where(KnowledgeSet.project_id == project_id)
+        .order_by(KnowledgeSet.created_at, KnowledgeSet.id),
         limit,
         offset,
     )

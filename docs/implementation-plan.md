@@ -1,5 +1,41 @@
 # Implementation plan
 
+## Ingestion pipelines — Phase 2 acceptance criteria
+
+Recorded before implementation on 2026-09-12:
+
+- Alembic adds project-scoped knowledge sets, creates a stable default knowledge set for every existing project, associates every existing index version with its project's default set without changing index IDs, and preserves historical query, pipeline and experiment references through clean and populated upgrade checks.
+- Index-version numbering and active-job exclusion are scoped to a knowledge set. Composite database constraints reject cross-project knowledge-set/index associations, and a knowledge set's current-ready pointer can reference only an index from the same project.
+- New index construction accepts an explicit, bounded list of successful processing-run IDs and persists every selected run/chunk as immutable membership. Cross-project, missing, duplicate, incomplete and empty selections are rejected before an index is queued.
+- The existing Knowledge Base action remains compatible by resolving its selected/default documents to an explicit latest-successful processing-run snapshot before calling the explicit construction path; later processing or uploads cannot alter that index's membership.
+- Project-scoped knowledge-set and per-set index listings use bounded pagination. Existing index routes remain compatible while index reads identify their knowledge set, exact version and source-run count.
+- Knowledge Base index rows are grouped and labeled by knowledge set. Answer-pipeline and Playground Retriever choices show the knowledge-set name plus exact ready index version and do not silently advance saved selections.
+- Backend migration, project-isolation, explicit-membership and historical-reference regressions pass, together with backend lint/format, frontend format/lint/typecheck/unit/build and affected browser journeys.
+
+Status: complete for ingestion-pipeline Phase 2. Verified on 2026-09-12.
+
+Implemented:
+
+- Alembic `0009` creates a stable **Uploaded documents** knowledge set for every existing project, assigns historical indexes without changing their IDs, scopes version/active-build constraints per knowledge set and enforces project-consistent index/current-ready references. New projects create their default set transactionally.
+- Index construction now has an explicit processing-run service boundary. It rejects missing, duplicate, cross-project, incomplete, empty and over-limit membership, then persists every exact run/chunk before queueing. The compatible `POST /indexes` action resolves current or submitted document IDs to concrete latest-successful run IDs first.
+- Successful fenced worker publication updates the destination's current-ready pointer atomically. Older ready indexes, saved pipeline index IDs, historical queries and experiments remain unchanged and searchable.
+- Bounded project-scoped knowledge-set and per-set index APIs were added. Existing index reads now include knowledge-set identity/name, distinct processing-run count and current-ready state without exposing execution tokens or credentials.
+- Knowledge Base groups immutable versions beneath the knowledge-set name and shows source-run/current-ready state. Answer editor and both Playground selectors show the knowledge-set name plus exact version and passage count; selection remains by immutable index UUID.
+- Architecture, development and README guidance now describe the explicit/default snapshot boundary and current-ready semantics. No ingestion run, source revision, Website transport or credentialed connection was introduced.
+
+Verification:
+
+- Clean isolated PostgreSQL/pgvector suite: **182 passed, 1 skipped** (the existing opt-in live embedding check), including Alembic model drift/clean round-trip, populated `0008 → 0009` index-ID preservation, project constraints, explicit membership immutability and all query/pipeline/experiment regressions. The final focused composite-boundary check also passed after making its fixture unambiguous.
+- Backend Ruff lint and format checks passed.
+- Frontend format, structure/ESLint, strict typecheck, **71 tests across 20 files**, and production build passed. The known approximately 588 kB Vite chunk advisory remains.
+- Isolated deterministic-provider Chromium checks passed for Knowledge Base indexing/retrieval, answer pipeline create/save/reopen/run and Playground retrieval/answer flows: **4 passed, 1 intentional missing-credentials skip**. The final index-label/current-ready confirmation passed separately: **1 passed, 1 intentional skip**.
+- The existing-files index screen was inspected at 1440×1000 and 390×844; the mobile page had no horizontal overflow. Knowledge-set grouping, exact version, Ready/Current text, source-run count and controls remained readable. The Impeccable mechanical detector returned no findings.
+- No live provider, paid model call, external source, developer database reset or persistent-volume deletion was used. Verification used `rag-phase2-test` and `rag-phase2-e2e` isolation.
+
+Remaining limitations: the compatibility Knowledge Base action still targets the generated **Uploaded documents** set; named ingestion destinations become user-configurable with the Phase 3 editor. The frontend does not yet expose arbitrary document subsets because the Existing Files source node owns that selection in Phase 3. Ingestion workers, previews and cancellation do not exist yet. Existing local unauthenticated access, the upstream Starlette/AnyIO warning and Vite bundle advisory are unchanged.
+
+Next phase: Phase 3 may implement Existing Files ingestion end to end against the explicit membership and knowledge-set foundation. Website and credentialed connectors remain out of scope until their later phases.
+
 ## Ingestion pipelines — Phase 1 acceptance criteria
 
 Recorded before implementation on 2026-09-12:

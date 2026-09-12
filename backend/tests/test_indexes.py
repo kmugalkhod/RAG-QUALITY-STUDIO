@@ -12,7 +12,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.models.index import IndexChunk, IndexVersion
+from app.models.index import IndexChunk, IndexVersion, KnowledgeSet
 from app.providers import embeddings
 from app.providers.openrouter import OpenRouterEmbeddings
 from app.workers.indexing import process_index
@@ -83,6 +83,9 @@ def test_snapshot_retrieval_provenance_scope_and_reuse(index_api):
     index = create(client, p)
     route = f"/api/projects/{p}/indexes/{index['id']}"
     assert index["embedding_config"]["provider"] == "openrouter"
+    assert index["knowledge_set_name"] == "Uploaded documents"
+    assert index["processing_run_count"] == 1
+    assert index["is_current"] is False
     assert "secret" not in json.dumps(index) and "execution_token" not in index
     assert client.post(f"/api/projects/{p}/indexes").status_code == 409
     assert search(client, p, index).status_code == 409
@@ -100,6 +103,22 @@ def test_snapshot_retrieval_provenance_scope_and_reuse(index_api):
         ready["status"] == "succeeded"
         and ready["embedded_count"] == 3
         and ready["attempts"] == 1
+    )
+    assert ready["is_current"] is True
+    sets = client.get(f"/api/projects/{p}/knowledge-sets").json()
+    assert sets["total"] == 1
+    assert sets["items"][0]["current_ready_index_id"] == index["id"]
+    assert (
+        client.get(
+            f"/api/projects/{p}/knowledge-sets/{index['knowledge_set_id']}/indexes"
+        ).json()["items"][0]["id"]
+        == index["id"]
+    )
+    assert (
+        client.get(
+            f"/api/projects/{q}/knowledge-sets/{index['knowledge_set_id']}/indexes"
+        ).status_code
+        == 404
     )
     result = search(client, p, index).json()
     first = result["items"][0]
@@ -132,6 +151,85 @@ def test_snapshot_retrieval_provenance_scope_and_reuse(index_api):
         ]
         == index["id"]
     )
+
+
+def test_explicit_document_snapshot_and_project_boundaries(index_api):
+    client, engine, p, q, _ = index_api
+    selected = upload(client, p, b"selected text", "selected.txt")
+    selected_run = start(client, p, selected["id"], 20, 0)
+    process(UUID(selected_run["id"]), engine)
+    ignored = upload(client, p, b"ignored text", "ignored.txt")
+    ignored_run = start(client, p, ignored["id"], 20, 0)
+    process(UUID(ignored_run["id"]), engine)
+    foreign = upload(client, q, b"foreign text", "foreign.txt")
+    foreign_run = start(client, q, foreign["id"], 20, 0)
+    process(UUID(foreign_run["id"]), engine)
+
+    response = client.post(
+        f"/api/projects/{p}/indexes", json={"document_ids": [selected["id"]]}
+    )
+    assert response.status_code == 202, response.text
+    index = response.json()
+    assert index["processing_run_count"] == 1 and index["chunk_count"] == 1
+    with Session(engine) as session:
+        assert set(
+            session.scalars(
+                select(IndexChunk.run_id).where(
+                    IndexChunk.index_id == UUID(index["id"])
+                )
+            )
+        ) == {UUID(selected_run["id"])}
+
+    newer = start(client, p, selected["id"], 5, 0)
+    process(UUID(newer["id"]), engine)
+    with Session(engine) as session:
+        assert set(
+            session.scalars(
+                select(IndexChunk.run_id).where(
+                    IndexChunk.index_id == UUID(index["id"])
+                )
+            )
+        ) == {UUID(selected_run["id"])}
+
+    assert (
+        client.post(
+            f"/api/projects/{p}/indexes", json={"document_ids": [foreign["id"]]}
+        ).status_code
+        == 404
+    )
+    foreign_set = client.get(f"/api/projects/{q}/knowledge-sets").json()["items"][0]
+    assert (
+        client.post(
+            f"/api/projects/{p}/indexes",
+            json={
+                "knowledge_set_id": foreign_set["id"],
+                "document_ids": [selected["id"]],
+            },
+        ).status_code
+        == 404
+    )
+
+
+def test_database_rejects_cross_project_knowledge_set(index_api):
+    client, engine, p, q, _ = index_api
+    prepared(client, engine, p)
+    index = create(client, p)
+    prepared(client, engine, q)
+    foreign_index = create(client, q)
+    client.post(f"/api/projects/{q}/indexes/{foreign_index['id']}/cancel")
+    foreign_set = client.get(f"/api/projects/{q}/knowledge-sets").json()["items"][0]
+    with Session(engine) as session, pytest.raises(IntegrityError):
+        session.execute(
+            update(IndexVersion)
+            .where(IndexVersion.id == UUID(index["id"]))
+            .values(knowledge_set_id=UUID(foreign_set["id"]), version=2)
+        )
+        session.commit()
+    with Session(engine) as session:
+        own_set = session.get(KnowledgeSet, UUID(index["knowledge_set_id"]))
+        with pytest.raises(IntegrityError):
+            own_set.current_ready_index_id = UUID(foreign_index["id"])
+            session.commit()
 
 
 def test_partial_failure_resume_and_no_publication(index_api, monkeypatch):

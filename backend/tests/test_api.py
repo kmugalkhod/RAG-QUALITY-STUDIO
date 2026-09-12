@@ -1,3 +1,4 @@
+import json
 import subprocess
 import sys
 from unittest.mock import MagicMock
@@ -307,6 +308,108 @@ def test_pipeline_kind_upgrade_backfills_existing_rows(database):
         )
         connection.execute(
             text("DELETE FROM pipelines WHERE id=:id"), {"id": pipeline_id}
+        )
+        connection.execute(
+            text("DELETE FROM projects WHERE id=:id"), {"id": project_id}
+        )
+
+
+def test_knowledge_set_upgrade_preserves_existing_index(database):
+    from uuid import uuid4
+
+    engine, env = database
+    subprocess.run(
+        [sys.executable, "-m", "alembic", "downgrade", "0008"], env=env, check=True
+    )
+    project_id, document_id, run_id, index_id = (uuid4() for _ in range(4))
+    with engine.begin() as connection:
+        connection.execute(
+            text("INSERT INTO projects (id,name,description) VALUES (:id, :name, '')"),
+            {"id": project_id, "name": "Knowledge-set migration"},
+        )
+        connection.execute(
+            text(
+                "INSERT INTO documents "
+                "(id,project_id,filename,storage_name,media_type,content_hash,size_bytes) "
+                "VALUES (:id,:project,'legacy.txt',:storage,'text/plain',:hash,6)"
+            ),
+            {
+                "id": document_id,
+                "project": project_id,
+                "storage": str(uuid4()),
+                "hash": "a" * 64,
+            },
+        )
+        connection.execute(
+            text(
+                "INSERT INTO processing_runs "
+                "(id,document_id,version,chunk_size,overlap,config_version,parser_version,"
+                "status,attempts,progress,chunk_count) "
+                "VALUES (:id,:document,1,100,0,'characters-v1','utf8-v1',"
+                "'succeeded',1,100,1)"
+            ),
+            {"id": run_id, "document": document_id},
+        )
+        connection.execute(
+            text(
+                "INSERT INTO chunks (run_id,ordinal,page_number,start_char,end_char,text) "
+                "VALUES (:run,0,NULL,0,6,'legacy')"
+            ),
+            {"run": run_id},
+        )
+        connection.execute(
+            text(
+                "INSERT INTO index_versions "
+                "(id,project_id,version,dimensions,embedding_config,status,chunk_count,"
+                "embedded_count,attempts,failures) "
+                "VALUES (:id,:project,1,3,CAST(:config AS jsonb),'queued',1,0,0,0)"
+            ),
+            {
+                "id": index_id,
+                "project": project_id,
+                "config": json.dumps(
+                    {
+                        "provider": "openrouter",
+                        "model": "test",
+                        "dimensions": 3,
+                        "endpoint_id": "test",
+                        "revision": "1",
+                    }
+                ),
+            },
+        )
+        connection.execute(
+            text(
+                "INSERT INTO index_chunks (index_id,run_id,ordinal,dimensions) "
+                "VALUES (:index,:run,0,3)"
+            ),
+            {"index": index_id, "run": run_id},
+        )
+    subprocess.run(
+        [sys.executable, "-m", "alembic", "upgrade", "head"], env=env, check=True
+    )
+    with engine.begin() as connection:
+        migrated = connection.execute(
+            text(
+                "SELECT indexes.id, sets.name FROM index_versions AS indexes "
+                "JOIN knowledge_sets AS sets ON sets.id=indexes.knowledge_set_id "
+                "WHERE indexes.id=:id"
+            ),
+            {"id": index_id},
+        ).one()
+        assert migrated == (index_id, "Uploaded documents")
+        connection.execute(
+            text("DELETE FROM index_chunks WHERE index_id=:id"), {"id": index_id}
+        )
+        connection.execute(
+            text("DELETE FROM index_versions WHERE id=:id"), {"id": index_id}
+        )
+        connection.execute(text("DELETE FROM chunks WHERE run_id=:id"), {"id": run_id})
+        connection.execute(
+            text("DELETE FROM processing_runs WHERE id=:id"), {"id": run_id}
+        )
+        connection.execute(
+            text("DELETE FROM documents WHERE id=:id"), {"id": document_id}
         )
         connection.execute(
             text("DELETE FROM projects WHERE id=:id"), {"id": project_id}

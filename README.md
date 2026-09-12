@@ -178,15 +178,16 @@ EMBEDDING_REQUESTS_PER_MINUTE=60
 Run `docker compose up --build -d` after changing settings. A plain `restart` does not load changed Compose environment values. Migration `0003` enables the vector extension and preserves existing documents/chunks. Missing credentials leave document processing available and show an actionable indexing configuration message. There is no synthetic embedding fallback.
 
 1. Upload and successfully process one or more documents in a project's Knowledge Base.
-2. Select **Index documents**. This saves an immutable snapshot of the latest successful processing run per document, including all its chunks and the embedding configuration. A newer failed or unfinished processing run does not replace the last successful run. The UI reports the saved index version and completed chunk count.
-3. Wait for **Indexed · ready**, then select **Use index** on that version. Previously ready indexes remain usable while replacements build.
+2. Select **Prepare document set**. This resolves the current successfully processed documents to exact processing-run IDs, then saves their immutable chunk membership and embedding configuration under the project's **Uploaded documents** knowledge set. A newer failed or unfinished processing run does not replace the last successful run. API callers may submit `document_ids` to narrow the snapshot.
+3. Wait for **Ready**, then select **Use document set** on that exact version. The knowledge set records its current ready version, while every earlier ready version remains usable.
 4. Enter a query and a result count from 1 to 50, then select **Test retrieval**. Results show the exact index version, ranked text, filename, document/run identity, content hash, PDF page and character offsets. Cosine distance is lower for closer vectors; it is not confidence or proof of relevance. This feature does not generate answers.
 
 Index APIs under `/api/projects/{project_id}`:
 
 - `GET /embedding-settings`: safe provider configuration/readiness, never credentials.
-- `POST /indexes`: returns 202 and the index UUID (also its durable job ID).
-- `GET /indexes?limit=20&offset=0` and `GET /indexes/{index_id}`: history/progress.
+- `POST /indexes`: returns 202 and the index UUID (also its durable job ID). An optional body accepts `knowledge_set_id` and one or more explicit `document_ids`; omitting the body preserves the default Knowledge Base action.
+- `GET /indexes?limit=20&offset=0` and `GET /indexes/{index_id}`: history/progress with knowledge-set identity and exact processing-run count.
+- `GET /knowledge-sets?limit=20&offset=0` and `GET /knowledge-sets/{knowledge_set_id}/indexes`: project-scoped knowledge sets and their immutable versions.
 - `POST /indexes/{index_id}/cancel`: cancel queued/running indexing.
 - `POST /retrieval`: `{ "index_id": "<ready UUID>", "query": "question", "top_k": 5 }`.
 

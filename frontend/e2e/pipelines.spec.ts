@@ -84,7 +84,7 @@ test('pipeline create configure save reopen run evidence and immutable versions'
   await page.mouse.up();
   await page
     .getByLabel('Documents to search', { exact: true })
-    .selectOption({ label: 'Document set · Version 1 · 1 passages' });
+    .selectOption({ label: 'Uploaded documents · Version 1 · 1 passages' });
   await page.getByLabel('Top k', { exact: true }).fill('3');
   await page.getByLabel('Selected node').selectOption('prompt');
   await page

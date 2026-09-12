@@ -6,6 +6,12 @@ Local setup and baseline verification commands are documented in [README](../REA
 
 Pipeline collections accept `kind=answer` or `kind=ingestion`; executable answer selectors always request `answer`. Existing create requests without `kind` remain answer pipelines. Phase 1 accepts a strictly validated ingestion configuration through the shared create/version APIs, but the production UI intentionally disables ingestion creation and there is no ingestion preview, run or worker endpoint yet. Do not treat a saved ingestion graph as an index or successful execution.
 
+## Knowledge sets and explicit index snapshots
+
+Every project has a stable **Uploaded documents** knowledge set. `POST /api/projects/{project_id}/indexes` without a body preserves the Knowledge Base workflow by resolving every currently successful document to its latest successful processing run. To snapshot a narrower selection, send `{"document_ids":["<document UUID>"]}`; callers may also specify a project-owned `knowledge_set_id`. The backend converts either request to exact processing-run/chunk membership before queueing. Missing, cross-project, unfinished, duplicate and empty selections are rejected.
+
+Use `GET /api/projects/{project_id}/knowledge-sets` and `GET /api/projects/{project_id}/knowledge-sets/{knowledge_set_id}/indexes` for bounded destination/version listings. Index reads identify their knowledge set, distinct source-run count and current-ready status. “Current” is informational: answer pipelines and experiments continue to execute their saved index UUID and never advance automatically.
+
 ## Evaluation experiments
 
 Set server-only `EVALUATOR_MODEL` (independent of `CHAT_MODEL`) and `OPENROUTER_API_KEY`, then recreate backend, worker and dispatcher. Response relevancy reuses the configured OpenRouter embedding model. `EVALUATOR_MAX_TOKENS` defaults to 4096; `DATASET_MAX_ROWS` defaults to 200 and `DATASET_MAX_BYTES` to 2097152. Model calls have no automatic paid retries. Keep the dispatcher running for progress and stale recovery.

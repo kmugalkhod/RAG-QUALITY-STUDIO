@@ -6,7 +6,7 @@ import { RetrievalSettingsForm } from '../../../components/RetrievalSettingsForm
 import { getNodeRetrievalSettings } from '../../../lib/retrieval';
 import { Button } from '../../../components/ui/button';
 
-import { type IndexVersion } from '../../documents/model';
+import { formatIndexOption, type IndexVersion } from '../../documents/model';
 import type {
   PipelineDraft,
   PipelineNodeConfig,
@@ -107,7 +107,7 @@ export function PipelineTestSettings(props: Props) {
                   <NativeSelectOption value="">Choose prepared documents</NativeSelectOption>
                   {props.indexes.map((i) => (
                     <NativeSelectOption key={i.id} value={i.id}>
-                      Document set · Version {i.version} · {i.chunk_count} passages
+                      {formatIndexOption(i)}
                     </NativeSelectOption>
                   ))}
                 </NativeSelect>

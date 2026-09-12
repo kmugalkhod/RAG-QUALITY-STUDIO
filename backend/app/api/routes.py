@@ -24,8 +24,11 @@ def ready(session: Database) -> dict[str, str]:
     session.execute(text("SELECT status, execution_token FROM processing_runs LIMIT 0"))
     session.execute(text("SELECT run_id, ordinal FROM chunks LIMIT 0"))
     session.execute(
-        text("SELECT embedding_config, embedded_count FROM index_versions LIMIT 0")
+        text(
+            "SELECT knowledge_set_id, embedding_config, embedded_count FROM index_versions LIMIT 0"
+        )
     )
+    session.execute(text("SELECT current_ready_index_id FROM knowledge_sets LIMIT 0"))
     session.execute(text("SELECT vector_dims(embedding) FROM index_chunks LIMIT 0"))
     session.execute(
         text("SELECT pipeline_version_id, snapshot FROM query_runs LIMIT 0")

@@ -47,6 +47,9 @@ test('indexes and retrieves persisted source evidence using the isolated provide
   await expect(page.getByRole('button', { name: 'Use document set 1' })).toBeVisible({
     timeout: 30000,
   });
+  await expect(page.getByRole('heading', { name: 'Uploaded documents' })).toBeVisible();
+  await expect(page.getByText('Current', { exact: true })).toBeVisible();
+  await expect(page.getByText(/prepared from 1 processing run/)).toBeVisible();
   await page.reload();
   await expect(page.getByRole('tab', { name: 'Document sets', exact: true })).toHaveAttribute(
     'data-state',

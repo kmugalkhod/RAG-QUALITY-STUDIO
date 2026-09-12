@@ -6,7 +6,7 @@ import { Button } from '../../../components/ui/button';
 import { RetrievalSettingsForm } from '../../../components/RetrievalSettingsForm';
 import { getNodeRetrievalSettings } from '../../../lib/retrieval';
 
-import { type IndexVersion } from '../../documents/model';
+import { formatIndexOption, type IndexVersion } from '../../documents/model';
 import type { PipelineNodeConfig, PipelineOptions } from '../model';
 import type { FlowNode } from './WorkflowNode';
 import { getNodeLabel } from '../model';
@@ -67,7 +67,7 @@ export function NodeSettings({
               <NativeSelectOption value="">Choose a prepared document set</NativeSelectOption>
               {indexes.map((i) => (
                 <NativeSelectOption key={i.id} value={i.id}>
-                  Document set · Version {i.version} · {i.chunk_count} passages
+                  {formatIndexOption(i)}
                 </NativeSelectOption>
               ))}
             </NativeSelect>
