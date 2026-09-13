@@ -11,6 +11,7 @@ from app.db.session import engine
 from app.connectors.base import ConnectorFailure, ConnectorIssue
 from app.connectors.website import PriorWebsiteRevision, WebsiteConnector
 from app.connectors.s3 import S3Connector
+from app.connectors.notion import NotionConnector
 from app.core.connection_secrets import ConnectionKeyring
 from app.core.config import settings
 from app.models.document import ProcessingRun
@@ -24,7 +25,13 @@ from app.models.source import (
 )
 from app.pipelines.parsing import ProcessingError
 from app.schemas.ingestion import IngestionExecution
-from app.services import connections, indexes, s3_ingestion, website_ingestion
+from app.services import (
+    connections,
+    indexes,
+    notion_ingestion,
+    s3_ingestion,
+    website_ingestion,
+)
 from app.workers.celery_app import celery
 from app.workers.processing import now
 
@@ -128,7 +135,7 @@ def _discover_website(run_id, db_engine, connector_factory):
     return execution, revisions, results
 
 
-def _s3_priors(session, job):
+def _credentialed_priors(session, job, kind):
     index_id = job.snapshot.get("prior_ready_index_id")
     if not index_id:
         return {}
@@ -142,7 +149,7 @@ def _s3_priors(session, job):
         .where(
             IndexSourceRevision.index_id == UUID(index_id),
             IndexSourceRevision.project_id == job.project_id,
-            SourceItem.kind == "s3",
+            SourceItem.kind == kind,
         )
     ).all()
     return {
@@ -151,15 +158,23 @@ def _s3_priors(session, job):
     }
 
 
-def _discover_s3(run_id, db_engine, connector_factory):
+def _discover_credentialed(
+    run_id,
+    db_engine,
+    connector_factory,
+    *,
+    kind,
+    connector_type,
+    persistence,
+):
     with Session(db_engine) as session:
         job = session.get(IngestionRun, run_id)
         execution = IngestionExecution.model_validate(job.snapshot["execution"])
-        priors = _s3_priors(session, job)
+        priors = _credentialed_priors(session, job, kind)
         keyring = ConnectionKeyring.from_settings(settings)
         chunk = next(node for node in execution.nodes if node.type == "chunk")
         clean = next(node for node in execution.nodes if node.type == "clean")
-        _, processing_hash = s3_ingestion.processing_configuration(chunk, clean)
+        _, processing_hash = persistence.processing_configuration(chunk, clean)
         sources = [
             (
                 source,
@@ -167,7 +182,7 @@ def _discover_s3(run_id, db_engine, connector_factory):
                     session,
                     job.project_id,
                     source.config.connection_id,
-                    "s3",
+                    kind,
                     keyring,
                 ),
             )
@@ -181,7 +196,7 @@ def _discover_s3(run_id, db_engine, connector_factory):
         connector = (
             connector_factory(credentials)
             if connector_factory
-            else S3Connector(credentials)
+            else connector_type(credentials)
         )
         source_priors = {
             location: revision
@@ -195,9 +210,24 @@ def _discover_s3(run_id, db_engine, connector_factory):
     return execution, priors, results
 
 
-def _advance_s3(run_id, token, db_engine, connector_factory):
-    execution, prior_revisions, results = _discover_s3(
-        run_id, db_engine, connector_factory
+def _advance_credentialed(
+    run_id,
+    token,
+    db_engine,
+    connector_factory,
+    *,
+    kind,
+    label,
+    connector_type,
+    persistence,
+):
+    execution, prior_revisions, results = _discover_credentialed(
+        run_id,
+        db_engine,
+        connector_factory,
+        kind=kind,
+        connector_type=connector_type,
+        persistence=persistence,
     )
     chunk = next(node for node in execution.nodes if node.type == "chunk")
     clean = next(node for node in execution.nodes if node.type == "clean")
@@ -252,7 +282,7 @@ def _advance_s3(run_id, token, db_engine, connector_factory):
                         raise ConnectorFailure(
                             ConnectorIssue(
                                 code="prior_revision_unavailable",
-                                message="A prior S3 revision is unavailable for safe refresh.",
+                                message=f"A prior {label} revision is unavailable for safe refresh.",
                                 retryable=True,
                             )
                         )
@@ -266,7 +296,7 @@ def _advance_s3(run_id, token, db_engine, connector_factory):
                         classification,
                         extracted_hash,
                         _stored_path,
-                    ) = s3_ingestion.persist_artifact(
+                    ) = persistence.persist_artifact(
                         session,
                         job.project_id,
                         connection_id,
@@ -280,12 +310,12 @@ def _advance_s3(run_id, token, db_engine, connector_factory):
                     and extracted_hash in seen_extracted
                 ):
                     classification = "excluded"
-                    reason = "Extracted text duplicates another included S3 object."
+                    reason = f"Extracted text duplicates another included {label}."
                 else:
                     seen_extracted.add(extracted_hash)
                     included.add((source_node_id, artifact.item.canonical_location))
                     memberships.append((source_node_id, source_item, revision))
-                    reason = f"S3 object revision is {classification}."
+                    reason = f"{label.capitalize()} revision is {classification}."
                 website_ingestion.add_run_item(
                     session,
                     run=job,
@@ -310,7 +340,7 @@ def _advance_s3(run_id, token, db_engine, connector_factory):
                 ordinal=ordinal,
                 source_node_id=source_node_id,
                 outcome="removed",
-                reason="Previously indexed S3 object was not included by this refresh.",
+                reason=f"Previously indexed {label} was not included by this refresh.",
                 location=location,
                 display_name=item.external_id,
                 source_item=item,
@@ -325,13 +355,13 @@ def _advance_s3(run_id, token, db_engine, connector_factory):
             _fail(
                 session,
                 job,
-                "One or more required S3 objects failed. The previous ready index remains current.",
+                f"One or more required {label}s failed. The previous ready index remains current.",
             )
             session.commit()
             return
         if not memberships:
             raise HTTPException(
-                409, "S3 discovery found no indexable TXT or PDF objects."
+                409, f"{label.capitalize()} discovery found no indexable pages."
             )
         processing_ids = list(
             dict.fromkeys(revision.processing_run_id for _, _, revision in memberships)
@@ -366,6 +396,32 @@ def _advance_s3(run_id, token, db_engine, connector_factory):
         job.dispatched_at = None
         job.updated_at = now()
         session.commit()
+
+
+def _advance_s3(run_id, token, db_engine, connector_factory):
+    return _advance_credentialed(
+        run_id,
+        token,
+        db_engine,
+        connector_factory,
+        kind="s3",
+        label="S3 object",
+        connector_type=S3Connector,
+        persistence=s3_ingestion,
+    )
+
+
+def _advance_notion(run_id, token, db_engine, connector_factory):
+    return _advance_credentialed(
+        run_id,
+        token,
+        db_engine,
+        connector_factory,
+        kind="notion",
+        label="Notion page",
+        connector_type=NotionConnector,
+        persistence=notion_ingestion,
+    )
 
 
 def _advance_website(run_id, token, db_engine, connector_factory):
@@ -556,7 +612,7 @@ def process_ingestion(run_id: UUID, db_engine=engine, connector_factory=None):
         source_kind = job.snapshot.get("source_kind", "existing_files")
         session.commit()
     try:
-        if source_kind in ("website", "s3"):
+        if source_kind in ("website", "s3", "notion"):
             with Session(db_engine) as session:
                 index = session.scalar(
                     select(IndexVersion).where(IndexVersion.ingestion_run_id == run_id)
@@ -564,8 +620,10 @@ def process_ingestion(run_id: UUID, db_engine=engine, connector_factory=None):
             if index is None:
                 if source_kind == "website":
                     _advance_website(run_id, token, db_engine, connector_factory)
-                else:
+                elif source_kind == "s3":
                     _advance_s3(run_id, token, db_engine, connector_factory)
+                else:
+                    _advance_notion(run_id, token, db_engine, connector_factory)
                 return
             with Session(db_engine) as session:
                 job = session.scalar(

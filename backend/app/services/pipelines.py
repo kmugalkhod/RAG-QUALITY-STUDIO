@@ -101,6 +101,27 @@ def validate_ingestion(session, project_id, execution: IngestionExecution):
             raise HTTPException(
                 404, "One or more S3 connections were not found in this project."
             )
+    notion_connections = {
+        node.config.connection_id
+        for node in execution.nodes
+        if node.type == "source" and node.config.kind == "notion"
+    }
+    if notion_connections:
+        if not settings.source_connections_enabled:
+            raise HTTPException(503, "Source connection management is not enabled.")
+        found = set(
+            session.scalars(
+                select(SourceConnection.id).where(
+                    SourceConnection.project_id == project_id,
+                    SourceConnection.kind == "notion",
+                    SourceConnection.id.in_(notion_connections),
+                )
+            )
+        )
+        if found != notion_connections:
+            raise HTTPException(
+                404, "One or more Notion connections were not found in this project."
+            )
     embed = next(node for node in execution.nodes if node.type == "embed")
     expected = (
         settings.embedding_provider,

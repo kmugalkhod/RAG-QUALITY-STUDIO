@@ -21,9 +21,10 @@ from app.services import pipelines as pipeline_service
 router = APIRouter(prefix="/api/projects/{project_id}")
 
 
-def _protect_s3(request: Request, execution: IngestionExecution):
+def _protect_credentialed_source(request: Request, execution: IngestionExecution):
     if any(
-        node.type == "source" and node.config.kind == "s3" for node in execution.nodes
+        node.type == "source" and node.config.kind in ("s3", "notion")
+        for node in execution.nodes
     ):
         require_keyring(request)
 
@@ -35,7 +36,7 @@ def preview(
     request: Request,
     session: Database,
 ):
-    _protect_s3(request, data.execution)
+    _protect_credentialed_source(request, data.execution)
     return previews.start(session, project_id, data.execution)
 
 
@@ -73,7 +74,9 @@ def start_run(
     session: Database,
 ):
     version = pipeline_service.get_version(session, project_id, pipeline_id, version_id)
-    _protect_s3(request, IngestionExecution.model_validate(version.execution))
+    _protect_credentialed_source(
+        request, IngestionExecution.model_validate(version.execution)
+    )
     return ingestion.start_run(session, project_id, pipeline_id, version_id)
 
 

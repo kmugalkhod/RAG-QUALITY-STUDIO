@@ -174,8 +174,62 @@ class S3Config(Strict):
         return self
 
 
+class NotionWorkspaceSelection(Strict):
+    mode: Literal["workspace"]
+
+
+class NotionPageSelection(Strict):
+    mode: Literal["pages"]
+    page_ids: list[UUID] = Field(min_length=1, max_length=1000)
+
+    @model_validator(mode="after")
+    def unique_pages(self):
+        if len(set(self.page_ids)) != len(self.page_ids):
+            raise ValueError("Notion page IDs must be unique.")
+        return self
+
+
+class NotionDataSourceSelection(Strict):
+    mode: Literal["data_sources"]
+    data_source_ids: list[UUID] = Field(min_length=1, max_length=100)
+
+    @model_validator(mode="after")
+    def unique_data_sources(self):
+        if len(set(self.data_source_ids)) != len(self.data_source_ids):
+            raise ValueError("Notion data source IDs must be unique.")
+        return self
+
+
+NotionSelection = Annotated[
+    NotionWorkspaceSelection | NotionPageSelection | NotionDataSourceSelection,
+    Field(discriminator="mode"),
+]
+
+
+class NotionConfig(Strict):
+    kind: Literal["notion"]
+    connection_id: UUID
+    selection: NotionSelection
+    max_pages: int = Field(default=500, strict=True, ge=1, le=5000)
+    max_api_pages: int = Field(default=50, strict=True, ge=1, le=500)
+    max_blocks_per_page: int = Field(default=5000, strict=True, ge=1, le=20000)
+    max_block_depth: int = Field(default=8, strict=True, ge=0, le=16)
+    max_text_chars: int = Field(default=2_000_000, strict=True, ge=100, le=2_000_000)
+    request_timeout_seconds: float = Field(default=30, ge=1, le=60, allow_inf_nan=False)
+
+    @model_validator(mode="after")
+    def bounded_explicit_selection(self):
+        if (
+            self.selection.mode == "pages"
+            and len(self.selection.page_ids) > self.max_pages
+        ):
+            raise ValueError("Notion page selection cannot exceed the page limit.")
+        return self
+
+
 SourceConfig = Annotated[
-    ExistingFilesConfig | WebsiteConfig | S3Config, Field(discriminator="kind")
+    ExistingFilesConfig | WebsiteConfig | S3Config | NotionConfig,
+    Field(discriminator="kind"),
 ]
 
 
@@ -479,8 +533,15 @@ class S3IngestionRunItemRead(Strict):
     updated_at: datetime
 
 
+class NotionIngestionRunItemRead(S3IngestionRunItemRead):
+    source_kind: Literal["notion"] = "notion"
+
+
 IngestionRunItemRead = Annotated[
-    ExistingIngestionRunItemRead | WebsiteIngestionRunItemRead | S3IngestionRunItemRead,
+    ExistingIngestionRunItemRead
+    | WebsiteIngestionRunItemRead
+    | S3IngestionRunItemRead
+    | NotionIngestionRunItemRead,
     Field(discriminator="source_kind"),
 ]
 

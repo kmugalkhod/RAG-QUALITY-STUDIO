@@ -1,6 +1,6 @@
 # Ingestion pipeline implementation plan
 
-Status: Phases 1–7A complete; Phase 7B (Notion) is in progress as of 2026-09-13.
+Status: Phases 1–7B complete as of 2026-09-13; Phase 7C (Confluence) is next.
 
 This plan adds a second saved pipeline kind for acquiring and indexing knowledge. It preserves the existing answer pipeline and the current charcoal/lavender workspace. The first complete slice uses existing project documents, the second adds bounded public-website ingestion, and later slices add credentialed connectors through the same source-node contract.
 
@@ -358,7 +358,7 @@ Each phase is a reviewable vertical slice. Execute them in order. At the end of 
 | 5 | Website ingestion and incremental refresh | Phase 4 | Complete |
 | 6 | Secure connection-management foundation | Phase 5 and a credential-storage decision | Complete |
 | 7A | S3 connector | Phase 6 | Complete |
-| 7B | Notion connector | Phase 7A | In progress |
+| 7B | Notion connector | Phase 7A | Complete |
 | 7C | Confluence connector | Phase 7B | Not started |
 | 8 | Scheduling and operations | At least one reliable incremental connector | Not started |
 | 9 | Final cross-feature hardening | Released connector phases | Not started |

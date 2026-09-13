@@ -22,7 +22,7 @@ Save the validated graph before running it. The worker stores immutable raw revi
 
 Connection APIs are deliberately unavailable until `SOURCE_CONNECTIONS_ENABLED=true`, `SOURCE_CONNECTION_ACTIVE_KEY` names an entry in `SOURCE_CONNECTION_KEYS`, and that entry decodes to exactly 32 bytes. `SOURCE_CONNECTION_KEYS` is a JSON object of version names to base64 keys. The Settings screen sends credential fields only in create/rotate POST bodies and clears its secret controls after every attempt. Reads expose connection name, kind, status, dates, safe errors and deliberately masked hints; they never expose ciphertext, nonce, tag or key version.
 
-The API is restricted to loopback Host/Origin values and Compose publishes nginx, FastAPI and PostgreSQL only on `127.0.0.1`. This is a local deployment boundary, not user authentication. Do not remove it or publicly proxy these routes until authentication and server-side project authorization are implemented. S3 now has a real bounded tester and ingestion adapter. Notion and Confluence remain unavailable; deterministic test doubles exercise their connection boundary without manufacturing production success.
+The API is restricted to loopback Host/Origin values and Compose publishes nginx, FastAPI and PostgreSQL only on `127.0.0.1`. This is a local deployment boundary, not user authentication. Do not remove it or publicly proxy these routes until authentication and server-side project authorization are implemented. S3 and Notion have real bounded testers and ingestion adapters. Confluence remains unavailable; deterministic test doubles exercise its connection boundary without manufacturing production success.
 
 Credential replacement and master-key re-encryption are separate actions. Add a new key version while retaining the old entry, make it active, restart services, re-encrypt every connection, verify no rows still name the old version, and only then remove the old key. See [deployment guidance](deployment.md#source-connection-vault).
 
@@ -45,6 +45,25 @@ python -m pytest -q tests/test_s3_live.py
 ```
 
 It lists at most five objects on one page and fetches at most one 1 MB TXT/PDF object. Optional `S3_LIVE_SESSION_TOKEN` and `S3_LIVE_EXPECTED_BUCKET_OWNER` are supported. Do not use an empty or broad prefix. Default CI uses deterministic provider doubles and makes no AWS calls.
+
+## Notion ingestion
+
+Create a Notion integration, share only the intended pages or data sources with it, then store its integration token in Project Settings. The saved pipeline contains only the encrypted connection UUID, a workspace/explicit-page/data-source selection, and page/request/block/depth/text/timeout bounds. Requests use the explicit `2026-03-11` Notion API version and the existing pinned HTTP client; tokens are decrypted only for connection tests, previews, and worker execution.
+
+Workspace discovery searches pages shared with the integration. Explicit page mode retrieves only the listed UUIDs, while data-source mode queries each listed data source with bounded cursor pagination. Page UUID is the stable external identity and `last_edited_time` is the provider revision. Trashed pages are excluded; pages missing from a later complete discovery become removed from only the replacement index. A permission or not-found response fails safely because Notion intentionally does not distinguish every unshared resource from a missing resource.
+
+Fetch recursively reads block children, enforcing the configured API-request, block-count, nesting-depth, and text limits. Supported rich text, headings, lists, tasks, quotes, equations, child titles, and table rows become deterministic plain text; embedded content is never executed. Chunk provenance includes page ID, block ID/type/depth and section path. An unchanged page with compatible processing configuration avoids block fetch and embedding. Every changed page is revision-checked after fetch, and any required failure leaves the previous ready index current.
+
+The opt-in live test is disabled by default. Run it only for one page the user has explicitly shared with the supplied integration:
+
+```sh
+RUN_LIVE_NOTION_AUTHORIZED=1 \
+NOTION_LIVE_INTEGRATION_TOKEN=... NOTION_LIVE_PAGE_ID=... \
+docker compose -f compose.test.yaml run --rm tests \
+python -m pytest -q tests/test_notion_live.py
+```
+
+It discovers exactly one configured page, permits at most 20 API requests, 100 blocks, depth 4 and 50,000 text characters, and performs no writes to Notion. Default tests use deterministic transports and make no Notion calls.
 
 ## Knowledge sets and explicit index snapshots
 

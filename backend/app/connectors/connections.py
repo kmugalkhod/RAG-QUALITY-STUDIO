@@ -25,4 +25,8 @@ def tester_for(kind: str) -> ConnectionTester:
         from app.connectors.s3 import S3ConnectionTester
 
         return S3ConnectionTester()
+    if kind == "notion":
+        from app.connectors.notion import NotionConnectionTester
+
+        return NotionConnectionTester()
     return UnavailableTester()

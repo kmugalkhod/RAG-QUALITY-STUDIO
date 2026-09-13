@@ -29,7 +29,9 @@ class SourceItem(Base):
         UniqueConstraint(
             "project_id", "kind", "identity_hash", name="uq_source_item_identity"
         ),
-        CheckConstraint("kind IN ('website','s3')", name="ck_source_item_kind"),
+        CheckConstraint(
+            "kind IN ('website','s3','notion')", name="ck_source_item_kind"
+        ),
         CheckConstraint("char_length(identity_hash) = 64", name="ck_source_item_hash"),
         Index("ix_source_items_project_kind", "project_id", "kind", "updated_at"),
     )

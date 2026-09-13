@@ -225,19 +225,30 @@ def test_connection_test_rotation_rewrap_and_safe_events(connections_api, monkey
 def test_unavailable_and_exception_are_sanitized(connections_api, monkeypatch):
     client, _, project_id, _ = connections_api
     route = f"/api/projects/{project_id}/source-connections"
-    created = client.post(route, json=notion()).json()
+    created = client.post(
+        route,
+        json={
+            "name": "Unreleased wiki",
+            "credentials": {
+                "kind": "confluence",
+                "site_url": "https://docs.example.com",
+                "email": "reader@example.com",
+                "api_token": "confluence-secret",
+            },
+        },
+    ).json()
     unavailable = client.post(f"{route}/{created['id']}/test")
     assert unavailable.json()["status"] == "unavailable"
     assert "until this connector is installed" in unavailable.json()["last_error"]
 
     class Broken:
         def check(self, credentials):
-            raise RuntimeError(f"provider echoed {credentials['integration_token']}")
+            raise RuntimeError(f"provider echoed {credentials['api_token']}")
 
     monkeypatch.setattr(connections, "tester_for", lambda kind: Broken())
     failed = client.post(f"{route}/{created['id']}/test")
     assert failed.status_code == 200 and failed.json()["status"] == "invalid"
-    assert "notion-secret" not in failed.text
+    assert "confluence-secret" not in failed.text
     assert failed.json()["last_error"].startswith("The connection check failed safely")
 
 

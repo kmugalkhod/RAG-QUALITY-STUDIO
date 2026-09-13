@@ -43,10 +43,28 @@ export type S3Config = {
   request_timeout_seconds: number;
 };
 
+export type NotionConfig = {
+  kind: 'notion';
+  connection_id: string;
+  selection:
+    | { mode: 'workspace' }
+    | { mode: 'pages'; page_ids: string[] }
+    | { mode: 'data_sources'; data_source_ids: string[] };
+  max_pages: number;
+  max_api_pages: number;
+  max_blocks_per_page: number;
+  max_block_depth: number;
+  max_text_chars: number;
+  request_timeout_seconds: number;
+};
+
 type NodeBase = { id: string };
 
 export type IngestionNode =
-  | (NodeBase & { type: 'source'; config: ExistingFilesConfig | WebsiteConfig | S3Config })
+  | (NodeBase & {
+      type: 'source';
+      config: ExistingFilesConfig | WebsiteConfig | S3Config | NotionConfig;
+    })
   | (NodeBase & {
       type: 'extract';
       strategy?: 'media_type_registry';
@@ -201,10 +219,15 @@ export type S3IngestionRunItem = Omit<WebsiteIngestionRunItem, 'source_kind'> & 
   source_kind: 's3';
 };
 
+export type NotionIngestionRunItem = Omit<WebsiteIngestionRunItem, 'source_kind'> & {
+  source_kind: 'notion';
+};
+
 export type IngestionRunItem =
   | ExistingIngestionRunItem
   | WebsiteIngestionRunItem
-  | S3IngestionRunItem;
+  | S3IngestionRunItem
+  | NotionIngestionRunItem;
 
 export function canonicalIngestion(value: unknown): string {
   if (Array.isArray(value)) {

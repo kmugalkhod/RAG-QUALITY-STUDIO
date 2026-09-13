@@ -161,7 +161,7 @@ def start_run(
     embeddings.configured()
     sources = [node for node in execution.nodes if node.type == "source"]
     remote_kind = sources[0].config.kind if sources else None
-    if remote_kind in ("website", "s3") and all(
+    if remote_kind in ("website", "s3", "notion") and all(
         source.config.kind == remote_kind for source in sources
     ):
         publish = next(node for node in execution.nodes if node.type == "publish_index")
@@ -398,7 +398,7 @@ def list_items(
 ):
     run = get_run(session, project_id, run_id)
     source_kind = run.snapshot.get("source_kind")
-    if source_kind in ("website", "s3"):
+    if source_kind in ("website", "s3", "notion"):
         query = (
             select(WebsiteRunItem)
             .where(

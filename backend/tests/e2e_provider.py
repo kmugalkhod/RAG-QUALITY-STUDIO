@@ -9,6 +9,9 @@ from app.connectors.safe_http import SafeHttpClient
 from app.connectors.website import WebsiteConnector
 from app.connectors.s3 import S3ConnectionResult, S3Connector
 from app.connectors import s3 as s3_module
+from app.connectors.connections import ConnectionCheck as StoredConnectionCheck
+from app.connectors.notion import NotionConnector
+from app.connectors import notion as notion_module
 from app.providers.openrouter import OpenRouterEmbeddings
 from app.providers import embeddings, generation
 from app.workers import ingestion as ingestion_worker, previews
@@ -258,6 +261,143 @@ def set_s3_state(state: str):
         return {"updated": False}
     S3_STATE.parent.mkdir(parents=True, exist_ok=True)
     S3_STATE.write_text(state)
+    return {"updated": True}
+
+
+NOTION_STATE = Path("/data/documents/.notion-fixture-state")
+NOTION_PAGES = {
+    "first": {
+        "11111111-1111-4111-8111-111111111111": (
+            "Controlled orchard",
+            "2026-09-12T10:00:00.000Z",
+            "The controlled Notion orchard grows apples in carefully managed rows. "
+            * 3,
+        ),
+        "22222222-2222-4222-8222-222222222222": (
+            "Old notes",
+            "2026-09-12T11:00:00.000Z",
+            "These notes will be removed from the next workspace refresh. " * 3,
+        ),
+    },
+    "second": {
+        "11111111-1111-4111-8111-111111111111": (
+            "Controlled orchard",
+            "2026-09-12T10:00:00.000Z",
+            "The controlled Notion orchard grows apples in carefully managed rows. "
+            * 3,
+        ),
+        "33333333-3333-4333-8333-333333333333": (
+            "Packing guide",
+            "2026-09-13T10:00:00.000Z",
+            "The controlled Notion packing guide requires recycled paper boxes. " * 3,
+        ),
+    },
+}
+
+
+class NotionResponse:
+    def __init__(self, status_code, value):
+        self.status_code = status_code
+        self.value = value
+        self.headers = {}
+
+    def json(self):
+        return self.value
+
+
+class NotionTransport:
+    def close(self):
+        pass
+
+    @staticmethod
+    def state():
+        try:
+            return NOTION_STATE.read_text().strip()
+        except OSError:
+            return "first"
+
+    @staticmethod
+    def page(page_id, value):
+        title, edited, _ = value
+        return {
+            "object": "page",
+            "id": page_id,
+            "last_edited_time": edited,
+            "in_trash": False,
+            "url": f"https://www.notion.so/{page_id}",
+            "parent": {"type": "workspace", "workspace": True},
+            "properties": {
+                "Name": {
+                    "type": "title",
+                    "title": [{"plain_text": title}],
+                }
+            },
+        }
+
+    def request(self, method, path, **kwargs):
+        state = self.state()
+        if state == "denied":
+            return NotionResponse(
+                403, {"code": "restricted_resource", "message": "fixture denied"}
+            )
+        if path == "/users/me":
+            return NotionResponse(200, {"object": "user", "id": "fixture-bot"})
+        pages = NOTION_PAGES[state]
+        if path == "/search":
+            return NotionResponse(
+                200,
+                {
+                    "results": [self.page(key, value) for key, value in pages.items()],
+                    "has_more": False,
+                },
+            )
+        if path.startswith("/pages/"):
+            page_id = path.rsplit("/", 1)[1]
+            return NotionResponse(200, self.page(page_id, pages[page_id]))
+        if path.startswith("/blocks/"):
+            page_id = path.split("/")[2]
+            text = pages[page_id][2]
+            return NotionResponse(
+                200,
+                {
+                    "results": [
+                        {
+                            "id": f"block-{page_id}",
+                            "type": "paragraph",
+                            "paragraph": {"rich_text": [{"plain_text": text}]},
+                            "has_children": False,
+                        }
+                    ],
+                    "has_more": False,
+                },
+            )
+        raise AssertionError(path)
+
+
+def notion_connector(credentials):
+    return NotionConnector(
+        credentials,
+        client_factory=lambda credentials, timeout: NotionTransport(),
+        sleeper=lambda _: None,
+    )
+
+
+class NotionTester:
+    def check(self, credentials):
+        return StoredConnectionCheck("succeeded", "ok")
+
+
+notion_module.NotionConnectionTester = NotionTester
+previews.NotionConnector = notion_connector
+ingestion_worker.NotionConnector = notion_connector
+
+
+@app.post("/api/test/notion-state/{state}")
+def set_notion_state(state: str):
+    if state not in {"first", "second", "denied"}:
+        return {"updated": False}
+    NOTION_STATE.parent.mkdir(parents=True, exist_ok=True)
+    NOTION_STATE.write_text(state)
     return {"updated": True}
 
 

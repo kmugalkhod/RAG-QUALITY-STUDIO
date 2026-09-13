@@ -19,7 +19,9 @@ To rotate the encryption key, add a newly generated version without removing the
 SELECT key_version, count(*) FROM source_connections GROUP BY key_version;
 ```
 
-Credential rotation is separate: **Rotate credentials** replaces the provider credential under the active encryption key and returns the connection to `untested`. S3 connection testing performs a bounded `ListBuckets` request; Notion and Confluence testing remains unavailable until those adapters are installed.
+Credential rotation is separate: **Rotate credentials** replaces the provider credential under the active encryption key and returns the connection to `untested`. S3 testing performs a bounded `ListBuckets` request and Notion testing retrieves the integration bot identity. Confluence testing remains unavailable until that adapter is installed.
+
+For Notion, create an internal integration with read-content capability and explicitly share only the pages or data sources intended for ingestion. The integration can read shared descendants according to Notion's access rules; review those descendants before a run. Do not grant update or insert capabilities. Removing a page from the integration can surface as Notion's safe not-found response and fails a required explicit selection; a later complete workspace/data-source discovery records previously indexed absent pages as removed without deleting historical revisions. Rotate the Notion token separately from the AES key and retest it before refreshing an index.
 
 The API enforces a local Host/Origin boundary and the supplied Compose file uses loopback port bindings. Those checks are defense in depth, not identity. A shared or public deployment must add authenticated users and server-side project authorization before connection routes can be enabled or the local boundary can be changed.
 

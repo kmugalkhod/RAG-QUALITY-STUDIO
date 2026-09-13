@@ -36,6 +36,7 @@ import {
   type IngestionPipelineVersion,
   type IngestionRun,
   type IngestionRunItem,
+  type NotionConfig,
   type SourcePreview,
   type SourcePreviewItem,
   type S3Config,
@@ -85,6 +86,18 @@ const defaultS3 = (connectionId = ''): S3Config => ({
   max_pages: 10,
   max_object_bytes: 20 * 1024 * 1024,
   max_total_bytes: 100 * 1024 * 1024,
+  request_timeout_seconds: 30,
+});
+
+const defaultNotion = (connectionId = ''): NotionConfig => ({
+  kind: 'notion',
+  connection_id: connectionId,
+  selection: { mode: 'workspace' },
+  max_pages: 500,
+  max_api_pages: 50,
+  max_blocks_per_page: 5000,
+  max_block_depth: 8,
+  max_text_chars: 2_000_000,
   request_timeout_seconds: 30,
 });
 
@@ -189,6 +202,16 @@ function detail(node: IngestionNode, documents: Document[]) {
   if (node.type === 'source' && node.config.kind === 's3') {
     return `S3 · ${node.config.bucket || 'Choose a bucket'}`;
   }
+  if (node.type === 'source' && node.config.kind === 'notion') {
+    const selection = node.config.selection;
+    const scope =
+      selection.mode === 'workspace'
+        ? 'shared workspace'
+        : selection.mode === 'pages'
+          ? `${selection.page_ids.length} pages`
+          : `${selection.data_source_ids.length} data sources`;
+    return `Notion · ${scope}`;
+  }
   if (node.type === 'chunk') {
     return `${node.size} characters · ${node.overlap} overlap`;
   }
@@ -199,7 +222,7 @@ function detail(node: IngestionNode, documents: Document[]) {
     return node.knowledge_set_name;
   }
   if (node.type === 'extract') {
-    return 'Text-based PDF and TXT';
+    return 'Supported source text';
   }
   if (node.type === 'clean') {
     return 'Normalize and deduplicate';
@@ -504,6 +527,131 @@ function S3Settings({
   );
 }
 
+function NotionSettings({
+  config,
+  connections,
+  projectId,
+  update,
+}: {
+  config: NotionConfig;
+  connections: SourceConnection[];
+  projectId: string;
+  update: (config: NotionConfig) => void;
+}) {
+  const notionConnections = connections.filter((connection) => connection.kind === 'notion');
+  const selectionIds =
+    config.selection.mode === 'pages'
+      ? config.selection.page_ids.join('\n')
+      : config.selection.mode === 'data_sources'
+        ? config.selection.data_source_ids.join('\n')
+        : '';
+  const numberField = (
+    key:
+      | 'max_pages'
+      | 'max_api_pages'
+      | 'max_blocks_per_page'
+      | 'max_block_depth'
+      | 'max_text_chars'
+      | 'request_timeout_seconds',
+    label: string,
+    min: number,
+  ) => (
+    <Label>
+      {label}
+      <Input
+        type="number"
+        min={min}
+        value={config[key]}
+        onChange={(event) => update({ ...config, [key]: Number(event.target.value) })}
+      />
+    </Label>
+  );
+  return (
+    <>
+      <div className="website-preview-notice">
+        <CircleAlert size={17} />
+        <p>
+          Notion reads only content shared with the selected integration, extracts supported text
+          blocks, and publishes only after every required page succeeds.
+        </p>
+      </div>
+      <Label>
+        Notion connection
+        <NativeSelect
+          value={config.connection_id}
+          onChange={(event) => update({ ...config, connection_id: event.target.value })}
+        >
+          <NativeSelectOption value="">Select an encrypted connection</NativeSelectOption>
+          {notionConnections.map((connection) => (
+            <NativeSelectOption key={connection.id} value={connection.id}>
+              {connection.name} · {connection.status}
+            </NativeSelectOption>
+          ))}
+        </NativeSelect>
+      </Label>
+      {notionConnections.length === 0 && (
+        <p className="field-hint">
+          No Notion connection is available.{' '}
+          <a href={`#/projects/${projectId}/settings`}>Add one in project settings</a>.
+        </p>
+      )}
+      <Label>
+        Discovery scope
+        <NativeSelect
+          value={config.selection.mode}
+          onChange={(event) => {
+            const mode = event.target.value;
+            update({
+              ...config,
+              selection:
+                mode === 'pages'
+                  ? { mode: 'pages', page_ids: [] }
+                  : mode === 'data_sources'
+                    ? { mode: 'data_sources', data_source_ids: [] }
+                    : { mode: 'workspace' },
+            });
+          }}
+        >
+          <NativeSelectOption value="workspace">
+            All pages shared with integration
+          </NativeSelectOption>
+          <NativeSelectOption value="pages">Explicit page IDs</NativeSelectOption>
+          <NativeSelectOption value="data_sources">Data source IDs</NativeSelectOption>
+        </NativeSelect>
+      </Label>
+      {config.selection.mode !== 'workspace' && (
+        <Label>
+          {config.selection.mode === 'pages'
+            ? 'Page IDs (one UUID per line)'
+            : 'Data source IDs (one UUID per line)'}
+          <Textarea
+            rows={4}
+            value={selectionIds}
+            onChange={(event) => {
+              const ids = lines(event.target.value);
+              update({
+                ...config,
+                selection:
+                  config.selection.mode === 'pages'
+                    ? { mode: 'pages', page_ids: ids }
+                    : { mode: 'data_sources', data_source_ids: ids },
+              });
+            }}
+          />
+        </Label>
+      )}
+      <div className="website-limit-grid">
+        {numberField('max_pages', 'Maximum pages', 1)}
+        {numberField('max_api_pages', 'Maximum API requests', 1)}
+        {numberField('max_blocks_per_page', 'Blocks per page', 1)}
+        {numberField('max_block_depth', 'Maximum block depth', 0)}
+        {numberField('max_text_chars', 'Text characters per page', 100)}
+        {numberField('request_timeout_seconds', 'Request timeout (seconds)', 1)}
+      </div>
+    </>
+  );
+}
+
 export function IngestionPipelineEditor({
   projectId,
   pipelineId,
@@ -623,7 +771,9 @@ export function IngestionPipelineEditor({
               ? 'Website'
               : node.config.kind === 's3'
                 ? 'Amazon S3'
-                : 'Existing files'
+                : node.config.kind === 'notion'
+                  ? 'Notion'
+                  : 'Existing files'
             : labels[node.type],
         detail: detail(node, documents),
         first: index === 0,
@@ -676,17 +826,17 @@ export function IngestionPipelineEditor({
     if (!canvas || !flow) {
       return;
     }
-    let frame = 0;
+    let timer = 0;
     const observer = new ResizeObserver(() => {
-      cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(() => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
         void flow.fitView({ padding: 0.14, maxZoom: 1 });
-      });
+      }, 80);
     });
     observer.observe(canvas);
     return () => {
       observer.disconnect();
-      cancelAnimationFrame(frame);
+      window.clearTimeout(timer);
     };
   }, [flow]);
 
@@ -744,6 +894,22 @@ export function IngestionPipelineEditor({
       }
       if (source.config.max_total_bytes < source.config.max_object_bytes) {
         reasons.push('S3 total bytes must be at least the per-object limit.');
+      }
+    }
+    if (source?.type === 'source' && source.config.kind === 'notion') {
+      if (!connectionSettings?.enabled) {
+        reasons.push('Enable the local encrypted connection vault before using Notion.');
+      }
+      if (!source.config.connection_id) {
+        reasons.push('Select a Notion connection.');
+      }
+      if (
+        (source.config.selection.mode === 'pages' &&
+          source.config.selection.page_ids.length === 0) ||
+        (source.config.selection.mode === 'data_sources' &&
+          source.config.selection.data_source_ids.length === 0)
+      ) {
+        reasons.push('Enter at least one Notion page or data source ID.');
       }
     }
     const chunk = draft.execution.nodes.find((node) => node.type === 'chunk');
@@ -859,6 +1025,7 @@ export function IngestionPipelineEditor({
 
   const websiteSource = source?.type === 'source' && source.config.kind === 'website';
   const s3Source = source?.type === 'source' && source.config.kind === 's3';
+  const notionSource = source?.type === 'source' && source.config.kind === 'notion';
 
   if (loading || !draft) {
     return <p role="status">Loading ingestion pipeline…</p>;
@@ -876,7 +1043,9 @@ export function IngestionPipelineEditor({
             ? 'Website → ready index'
             : s3Source
               ? 'Amazon S3 → ready index'
-              : 'Existing files → ready index'}
+              : notionSource
+                ? 'Notion → ready index'
+                : 'Existing files → ready index'}
         </span>
       </div>
       {error && (
@@ -967,7 +1136,7 @@ export function IngestionPipelineEditor({
           <aside id="node-settings" className="node-settings">
             <h2>
               {selected
-                ? `${selected.type === 'source' ? (selected.config.kind === 'website' ? 'Website' : selected.config.kind === 's3' ? 'Amazon S3' : 'Existing files') : labels[selected.type]} settings`
+                ? `${selected.type === 'source' ? (selected.config.kind === 'website' ? 'Website' : selected.config.kind === 's3' ? 'Amazon S3' : selected.config.kind === 'notion' ? 'Notion' : 'Existing files') : labels[selected.type]} settings`
                 : 'Node settings'}
             </h2>
             {selected?.type === 'source' && (
@@ -986,10 +1155,14 @@ export function IngestionPipelineEditor({
                                   ? defaultWebsite()
                                   : event.target.value === 's3'
                                     ? defaultS3(connections.find((item) => item.kind === 's3')?.id)
-                                    : ({
-                                        kind: 'existing_files',
-                                        document_ids: [],
-                                      } satisfies ExistingFilesConfig),
+                                    : event.target.value === 'notion'
+                                      ? defaultNotion(
+                                          connections.find((item) => item.kind === 'notion')?.id,
+                                        )
+                                      : ({
+                                          kind: 'existing_files',
+                                          document_ids: [],
+                                        } satisfies ExistingFilesConfig),
                             }
                           : node,
                       )
@@ -998,7 +1171,10 @@ export function IngestionPipelineEditor({
                     <NativeSelectOption value="existing_files">Existing files</NativeSelectOption>
                     <NativeSelectOption value="website">Website</NativeSelectOption>
                     {connectionSettings?.enabled && (
-                      <NativeSelectOption value="s3">Amazon S3</NativeSelectOption>
+                      <>
+                        <NativeSelectOption value="s3">Amazon S3</NativeSelectOption>
+                        <NativeSelectOption value="notion">Notion</NativeSelectOption>
+                      </>
                     )}
                   </NativeSelect>
                 </Label>
@@ -1059,8 +1235,19 @@ export function IngestionPipelineEditor({
                       )
                     }
                   />
-                ) : (
+                ) : selected.config.kind === 's3' ? (
                   <S3Settings
+                    config={selected.config}
+                    connections={connections}
+                    projectId={projectId}
+                    update={(config) =>
+                      updateNode(selected.id, (node) =>
+                        node.type === 'source' ? { ...node, config } : node,
+                      )
+                    }
+                  />
+                ) : (
+                  <NotionSettings
                     config={selected.config}
                     connections={connections}
                     projectId={projectId}

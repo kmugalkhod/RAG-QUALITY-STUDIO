@@ -13,7 +13,27 @@ Recorded before implementation on 2026-09-13:
 - Deterministic provider doubles cover connection validation, cursor pagination, page/database filters, bounded nested blocks, rich-text extraction, first run, incremental refresh/removal, permission loss, cancellation, stale recovery, duplicate delivery, isolation and retrieval. A separate opt-in live check remains disabled unless a user-authorized workspace/page is explicitly configured.
 - Clean/upgrade migrations, full backend/frontend gates, isolated Chromium ingestion and answer regressions, desktop/mobile inspection and the required finish review pass before Phase 7B is marked complete and pushed.
 
-Status: in progress for ingestion-pipeline Phase 7B.
+Status: complete for ingestion-pipeline Phase 7B. Verified on 2026-09-13.
+
+Implemented:
+
+- Added the real Notion REST adapter using the explicit official `2026-03-11` contract through pinned `httpx==0.28.1`. Project-scoped AES-256-GCM connections are decrypted only inside connection-test, preview, and worker calls; request counts, timeouts, retries, rate-limit delays, and safe provider errors are bounded.
+- Strict source configuration supports shared-workspace, explicit page UUID, and data-source UUID selection plus page/API-request/block/depth/text/time limits. Discovery is cursor-paginated and stable, page UUID and last-edited revision identities are preserved, and trash/duplicate/failure outcomes remain inspectable.
+- Recursive block extraction converts supported rich text, headings, lists, tasks, quotes, equations, child titles, and table rows to inert text. Page/block/type/depth/section and official API-version provenance flows through immutable artifacts, revisions, chunks, run items, index membership, and retrieval evidence. A final page read rejects concurrent revision changes.
+- Migration `0015` adds Notion document/source kinds and refuses downgrade while Notion history exists. The fenced remote coordinator now shares safe S3/Notion mechanics: unchanged compatible pages avoid block fetch and embedding, refresh reports new/changed/unchanged/removed, and permission/extraction/embedding failure cannot advance the current-ready index.
+- The ingestion editor exposes Notion only with the encrypted local vault enabled, selects redacted connection IDs, edits discovery/budget settings, previews and runs real durable jobs, and displays exact refresh outcomes. The source and extraction nodes use connector-accurate labels, and resize-aware graph fitting keeps every node visible on mobile.
+- Added deterministic connector, persistence, incremental refresh, provenance, isolation, permission-loss, retrieval, and Chromium fixtures plus a disabled-by-default one-page authorized live check. Production code never imports the deterministic transport.
+
+Verification:
+
+- Backend Ruff lint/format passed. Fresh isolated PostgreSQL/pgvector migration and full suite: **232 passed, 3 skipped**; the authorized Notion, S3, and live-embedding checks remained skipped because no credentials were supplied. Focused Notion connector tests additionally cover cursor pagination, request and nesting bounds, safe errors, stable revisions, and unchanged fetch avoidance.
+- Frontend Prettier, structure/ESLint, strict TypeScript, **76 Vitest tests across 22 files**, and production build passed. The known non-blocking approximately 625 kB bundle advisory remains.
+- Isolated Chromium Notion preview, first publication, incremental new/unchanged/removed refresh, exact index selection, and grounded answer passed. Website, S3, Existing Files, pipeline-kind/version, and answer regressions also passed (**6 browser tests**), followed by a final rebuilt Notion pass with explicit source-label and mobile node-bound assertions.
+- Desktop/mobile captures were inspected. The required finish review found and then verified fixes for the incorrect source-node label and React Flow mobile recentering; final result: **PASS**. No live Notion or paid model call was made.
+
+Remaining limits: the connector extracts supported Notion block text but does not download file/image embeds or execute synced/external content. Workspace search is limited to pages visible to the integration; explicit inaccessible pages fail safely instead of being inferred as removed. `last_edited_time` is Notion's available provider revision, so the worker rechecks it after extraction but cannot request an immutable historical page version. Historical artifacts/revisions have no automatic retention deletion. Credentialed connections remain restricted to the unauthenticated loopback workspace until real user authentication and project authorization exist.
+
+Next actionable step: Phase 7C implements Confluence with the same complete connection, preview, bounded discovery/fetch, refresh/removal, provenance, and browser exit gate before it is exposed as available.
 
 ## Ingestion pipelines — Phase 7A acceptance criteria
 
