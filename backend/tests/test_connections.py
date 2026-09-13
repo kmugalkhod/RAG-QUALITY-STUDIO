@@ -48,6 +48,13 @@ def s3(name="Warehouse", secret="very-secret-value"):
     }
 
 
+def notion(name="Research notes"):
+    return {
+        "name": name,
+        "credentials": {"kind": "notion", "integration_token": "notion-secret"},
+    }
+
+
 def test_aes_gcm_round_trip_unique_nonce_aad_tamper_and_configuration():
     project_id, connection_id = uuid4(), uuid4()
     ring = ConnectionKeyring({"v1": KEY_1}, "v1")
@@ -218,19 +225,19 @@ def test_connection_test_rotation_rewrap_and_safe_events(connections_api, monkey
 def test_unavailable_and_exception_are_sanitized(connections_api, monkeypatch):
     client, _, project_id, _ = connections_api
     route = f"/api/projects/{project_id}/source-connections"
-    created = client.post(route, json=s3(secret="never-expose-this")).json()
+    created = client.post(route, json=notion()).json()
     unavailable = client.post(f"{route}/{created['id']}/test")
     assert unavailable.json()["status"] == "unavailable"
     assert "until this connector is installed" in unavailable.json()["last_error"]
 
     class Broken:
         def check(self, credentials):
-            raise RuntimeError(f"provider echoed {credentials['secret_access_key']}")
+            raise RuntimeError(f"provider echoed {credentials['integration_token']}")
 
     monkeypatch.setattr(connections, "tester_for", lambda kind: Broken())
     failed = client.post(f"{route}/{created['id']}/test")
     assert failed.status_code == 200 and failed.json()["status"] == "invalid"
-    assert "never-expose-this" not in failed.text
+    assert "notion-secret" not in failed.text
     assert failed.json()["last_error"].startswith("The connection check failed safely")
 
 

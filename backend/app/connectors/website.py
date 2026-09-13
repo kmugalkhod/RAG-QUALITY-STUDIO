@@ -25,6 +25,7 @@ class PreviewOutcome:
     size_bytes: int | None = None
     depth: int | None = None
     error_code: str | None = None
+    provider_revision: str | None = None
 
 
 @dataclass(frozen=True)

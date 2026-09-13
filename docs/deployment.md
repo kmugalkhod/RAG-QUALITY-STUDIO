@@ -19,6 +19,14 @@ To rotate the encryption key, add a newly generated version without removing the
 SELECT key_version, count(*) FROM source_connections GROUP BY key_version;
 ```
 
-Credential rotation is separate: **Rotate credentials** replaces the provider credential under the active encryption key and returns the connection to `untested`. Provider testing remains unavailable until that connector's real adapter is installed.
+Credential rotation is separate: **Rotate credentials** replaces the provider credential under the active encryption key and returns the connection to `untested`. S3 connection testing performs a bounded `ListBuckets` request; Notion and Confluence testing remains unavailable until those adapters are installed.
 
 The API enforces a local Host/Origin boundary and the supplied Compose file uses loopback port bindings. Those checks are defense in depth, not identity. A shared or public deployment must add authenticated users and server-side project authorization before connection routes can be enabled or the local boundary can be changed.
+
+## Amazon S3 source access
+
+Use a dedicated read-only IAM principal for each intended scope. Connection testing currently requires `s3:ListAllMyBuckets`. Preview and ingestion require `s3:ListBucket` on the bucket and `s3:GetObject`; versioned exact fetches additionally require `s3:GetObjectVersion` for the selected prefix. Do not grant write, delete, ACL or bucket-policy permissions. Where practical, constrain `s3:ListBucket` with an `s3:prefix` condition and constrain object actions to `arn:aws:s3:::BUCKET/PREFIX*`. Configure the expected 12-digit bucket-owner account in the source node to protect against an unintended same-name target.
+
+Enable bucket versioning when immutable provider revisions matter. Versioned objects are fetched by the discovered VersionId. Without versioning, ingestion relies on an ETag precondition plus size/last-modified verification; multipart ETags are treated only as opaque revision components, never as content hashes. Glacier and Deep Archive objects must be restored before they can be included.
+
+Every source sets explicit maximum objects, list pages, bytes per object, total bytes and request timeout. SDK retries are standard mode with at most three total attempts. Choose limits below worker time limits and AWS request budgets. A refresh retains raw immutable artifacts, extracted documents, chunks and older index versions, so storage grows with changed source content; include the document volume and PostgreSQL in backup/capacity planning. There is no automatic historical-revision deletion. Rotate AWS credentials independently from AES key re-encryption, test the replacement, and retain the prior ready index until a refresh completes.

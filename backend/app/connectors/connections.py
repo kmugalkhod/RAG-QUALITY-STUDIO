@@ -21,4 +21,8 @@ class UnavailableTester:
 
 def tester_for(kind: str) -> ConnectionTester:
     # Real provider checks are registered by each complete connector phase.
+    if kind == "s3":
+        from app.connectors.s3 import S3ConnectionTester
+
+        return S3ConnectionTester()
     return UnavailableTester()

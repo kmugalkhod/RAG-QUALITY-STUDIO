@@ -28,10 +28,25 @@ export type WebsiteConfig = {
   respect_robots?: boolean;
 };
 
+export type S3Config = {
+  kind: 's3';
+  connection_id: string;
+  region: string;
+  bucket: string;
+  prefix?: string;
+  expected_bucket_owner?: string | null;
+  allowed_file_types: ('txt' | 'pdf')[];
+  max_objects: number;
+  max_pages: number;
+  max_object_bytes: number;
+  max_total_bytes: number;
+  request_timeout_seconds: number;
+};
+
 type NodeBase = { id: string };
 
 export type IngestionNode =
-  | (NodeBase & { type: 'source'; config: ExistingFilesConfig | WebsiteConfig })
+  | (NodeBase & { type: 'source'; config: ExistingFilesConfig | WebsiteConfig | S3Config })
   | (NodeBase & {
       type: 'extract';
       strategy?: 'media_type_registry';
@@ -91,6 +106,7 @@ export type SourcePreviewItem = {
   external_id: string | null;
   display_name: string;
   canonical_location: string | null;
+  provider_revision: string | null;
   media_type: string | null;
   status: 'included' | 'excluded' | 'duplicate' | 'failed';
   reason: string;
@@ -181,7 +197,14 @@ export type WebsiteIngestionRunItem = {
   updated_at: string;
 };
 
-export type IngestionRunItem = ExistingIngestionRunItem | WebsiteIngestionRunItem;
+export type S3IngestionRunItem = Omit<WebsiteIngestionRunItem, 'source_kind'> & {
+  source_kind: 's3';
+};
+
+export type IngestionRunItem =
+  | ExistingIngestionRunItem
+  | WebsiteIngestionRunItem
+  | S3IngestionRunItem;
 
 export function canonicalIngestion(value: unknown): string {
   if (Array.isArray(value)) {

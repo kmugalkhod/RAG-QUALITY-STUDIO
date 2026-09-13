@@ -2,6 +2,7 @@ from fastapi import HTTPException
 from sqlalchemy import select, func
 from app.core.config import settings
 from app.models.document import Document
+from app.models.connection import SourceConnection
 from app.models.index import KnowledgeSet
 from app.models.pipeline import Pipeline, PipelineVersion
 from app.models.query import QueryRun
@@ -78,6 +79,27 @@ def validate_ingestion(session, project_id, execution: IngestionExecution):
         if found != document_ids:
             raise HTTPException(
                 404, "One or more source documents were not found in this project."
+            )
+    s3_connections = {
+        node.config.connection_id
+        for node in execution.nodes
+        if node.type == "source" and node.config.kind == "s3"
+    }
+    if s3_connections:
+        if not settings.source_connections_enabled:
+            raise HTTPException(503, "Source connection management is not enabled.")
+        found = set(
+            session.scalars(
+                select(SourceConnection.id).where(
+                    SourceConnection.project_id == project_id,
+                    SourceConnection.kind == "s3",
+                    SourceConnection.id.in_(s3_connections),
+                )
+            )
+        )
+        if found != s3_connections:
+            raise HTTPException(
+                404, "One or more S3 connections were not found in this project."
             )
     embed = next(node for node in execution.nodes if node.type == "embed")
     expected = (

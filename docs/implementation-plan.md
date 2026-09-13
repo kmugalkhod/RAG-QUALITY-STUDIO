@@ -1,5 +1,40 @@
 # Implementation plan
 
+## Ingestion pipelines — Phase 7A acceptance criteria
+
+Recorded before implementation on 2026-09-13:
+
+- Pin a compatible Boto3 release and construct S3 clients only from decrypted project-scoped S3 connections. Clients use explicit region, bounded connect/read timeouts, standard bounded retries and no ambient credential fallback. Connection checks perform a real bounded S3 operation and map authentication, authorization, throttling, timeout and provider failures to fixed safe application errors.
+- Add a strict S3 source-node configuration containing only an opaque connection ID, bucket, optional prefix, bounded object/page/byte limits, expected owner and an explicit TXT/PDF allowlist. Pipeline versions, preview/run snapshots, URLs, logs and responses never contain credentials; authoritative validation rejects missing, wrong-kind and cross-project connections.
+- Discovery uses bounded `ListObjectsV2` pagination, stable key ordering and hard page/object limits. It rejects folder markers, unsupported extensions, oversized or unavailable storage-class objects with inspectable reasons and records stable identity from bucket/key plus provider revision from VersionId when available or ETag/size/last-modified otherwise.
+- Fetch requests the exact discovered object revision where supported, streams no more than the configured per-object and total budgets, verifies provider metadata did not change between discovery and fetch, stores immutable artifacts under generated identities and carries bucket/key/version/ETag/size/last-modified provenance into source revisions, chunks and index membership.
+- Preview, ingestion and refresh use the existing durable fenced job paths. First ingestion extracts supported TXT/text PDFs, cleans/chunks/embeds and atomically publishes an exact immutable index. Refresh reuses unchanged compatible revisions/vectors, embeds only new/changed objects, reports keys absent from the new listing as removed, preserves prior indexes and leaves the current-ready pointer unchanged after any required failure or permission loss.
+- The ingestion editor exposes S3 only when connection management and the real adapter are enabled. Users select a redacted S3 connection, bucket, prefix, allowlist and bounds; run real async preview, inspect paginated inclusion/exclusion/provenance, save an immutable version, execute it and inspect new/changed/unchanged/removed/failed outcomes without secrets entering browser state.
+- Deterministic provider doubles cover connection validation, pagination, prefix/allowlist/budget handling, versioned and unversioned identity, first run, incremental new/change/unchanged/removal, exact-version fetch, permission loss, cancellation, stale recovery, duplicate delivery, project isolation and answer retrieval from preserved versions. The opt-in live check remains disabled unless a user-authorized bucket is explicitly configured.
+- Clean/upgrade migrations, full backend/frontend gates and isolated desktop/mobile Chromium journeys pass before Phase 7A is marked complete. Documentation records IAM permissions, bounds, versioning behavior, operational limits and exact verification performed.
+
+Status: complete for ingestion-pipeline Phase 7A. Verified on 2026-09-13.
+
+Implemented:
+
+- Pinned Boto3 1.43.93 and added a real S3 tester/connector built only from decrypted, project-scoped AES-256-GCM connection values. Explicit regions, bounded timeouts/retries, safe provider errors and loopback-only credentialed preview/run entry points preserve the Phase 6 boundary.
+- Added strict bucket/prefix/expected-owner/TXT-PDF/budget configuration, bounded paginated discovery, stable canonical keys, VersionId or ETag/size/modified revision mapping, exact conditional fetch and provider-change rejection. Preview items expose inclusion reasons and provider revisions.
+- Migration `0014` adds S3 source/document support and processing-configuration-aware immutable revisions. S3 TXT and text-based PDF artifacts use generated storage names, deterministic extraction/clean/chunk processing and complete source/chunk/index provenance. Downgrade refuses to discard existing S3 history.
+- Durable refresh classifies new, changed, unchanged and removed objects, reuses compatible revisions and vectors, avoids GET/embedding for unchanged content and atomically advances only a fully ready index. Permission loss, cancellation, stale recovery and duplicate delivery cannot replace the prior ready version.
+- The ingestion editor exposes S3 only with the local encrypted vault enabled, selects redacted connection IDs, configures every bound, runs real preview/execution and renders paginated locations, provider revisions and refresh outcomes on desktop/mobile. No credential enters graph JSON, API reads, DOM summaries, routes or browser storage.
+- Added a separately gated live S3 test that lists no more than five objects on one page and fetches one object up to 1 MB only when `RUN_LIVE_S3_AUTHORIZED=1` and an explicit authorized bucket/prefix credential set is provided.
+
+Verification:
+
+- Backend Ruff formatting/lint passed. Fresh isolated PostgreSQL/pgvector suite: **224 passed, 2 skipped**; the skips are the opt-in live embedding and authorized S3 checks. A final clean migration/schema/downgrade/upgrade pass after widening provider revisions added **19 passed**.
+- Frontend Prettier, structure/ESLint, strict TypeScript, **76 Vitest tests across 22 files** and production build passed. The known non-blocking approximately 622 kB bundle advisory remains.
+- Isolated deterministic Chromium S3 journey passed: encrypted connection reference, preview, first publication, incremental new/unchanged/removed refresh, exact version selection and grounded answer. Desktop/mobile screenshots were inspected with no page overflow. The finish review caught and resolved the saved-version select contrast issue; the rebuilt recapture passed.
+- Existing Website, pipeline and Playground regressions passed four parallel journeys. The Existing Files journey completed after the parallel run's 120-second polling timeout and passed alone; the application run itself was durable and succeeded. No real AWS or paid provider call was made.
+
+Remaining limits: only text-based PDFs are supported; scanned documents need OCR outside this phase. Glacier/Deep Archive objects require restoration. Unversioned buckets use an ETag precondition plus size/last-modified verification rather than immutable object versions. Historical artifacts/revisions have no automatic retention deletion. S3 credentials remain restricted to the unauthenticated loopback workspace until real user authentication and project authorization exist. The live S3 check was not run because no authorized bucket was supplied.
+
+Next actionable step: Phase 7B implements Notion with the same complete connection, preview, bounded fetch, refresh, removal, provenance and browser exit gate before it is exposed as available.
+
 ## Ingestion pipelines — Phase 6 acceptance criteria
 
 Recorded before implementation on 2026-09-13 after the user approved AES-256-GCM:

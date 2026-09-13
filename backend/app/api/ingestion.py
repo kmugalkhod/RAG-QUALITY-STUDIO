@@ -1,10 +1,12 @@
 from uuid import UUID
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 
+from app.api.connections import require_keyring
 from app.api.documents import Limit, Offset
 from app.api.routes import Database
 from app.schemas.ingestion import (
+    IngestionExecution,
     IngestionPreviewRequest,
     IngestionRunItemPage,
     IngestionRunPage,
@@ -13,14 +15,28 @@ from app.schemas.ingestion import (
     SourcePreviewRead,
 )
 from app.services import ingestion, previews
+from app.services import pipelines as pipeline_service
 
 
 router = APIRouter(prefix="/api/projects/{project_id}")
 
 
+def _protect_s3(request: Request, execution: IngestionExecution):
+    if any(
+        node.type == "source" and node.config.kind == "s3" for node in execution.nodes
+    ):
+        require_keyring(request)
+
+
 @router.post("/ingestion-previews", response_model=SourcePreviewRead, status_code=202)
-def preview(project_id: UUID, request: IngestionPreviewRequest, session: Database):
-    return previews.start(session, project_id, request.execution)
+def preview(
+    project_id: UUID,
+    data: IngestionPreviewRequest,
+    request: Request,
+    session: Database,
+):
+    _protect_s3(request, data.execution)
+    return previews.start(session, project_id, data.execution)
 
 
 @router.get("/source-previews/{preview_id}", response_model=SourcePreviewRead)
@@ -49,7 +65,15 @@ def cancel_preview(project_id: UUID, preview_id: UUID, session: Database):
     response_model=IngestionRunRead,
     status_code=202,
 )
-def start_run(project_id: UUID, pipeline_id: UUID, version_id: UUID, session: Database):
+def start_run(
+    project_id: UUID,
+    pipeline_id: UUID,
+    version_id: UUID,
+    request: Request,
+    session: Database,
+):
+    version = pipeline_service.get_version(session, project_id, pipeline_id, version_id)
+    _protect_s3(request, IngestionExecution.model_validate(version.execution))
     return ingestion.start_run(session, project_id, pipeline_id, version_id)
 
 

@@ -10,6 +10,8 @@ from sqlalchemy.orm import Session
 from app.db.session import engine
 from app.connectors.base import ConnectorFailure, ConnectorIssue
 from app.connectors.website import PriorWebsiteRevision, WebsiteConnector
+from app.connectors.s3 import S3Connector
+from app.core.connection_secrets import ConnectionKeyring
 from app.core.config import settings
 from app.models.document import ProcessingRun
 from app.models.index import IndexVersion
@@ -22,7 +24,7 @@ from app.models.source import (
 )
 from app.pipelines.parsing import ProcessingError
 from app.schemas.ingestion import IngestionExecution
-from app.services import indexes, website_ingestion
+from app.services import connections, indexes, s3_ingestion, website_ingestion
 from app.workers.celery_app import celery
 from app.workers.processing import now
 
@@ -83,6 +85,7 @@ def _website_priors(session, job):
         .where(
             IndexSourceRevision.index_id == UUID(index_id),
             IndexSourceRevision.project_id == job.project_id,
+            SourceItem.kind == "website",
         )
     ).all()
     revisions = {
@@ -123,6 +126,246 @@ def _discover_website(run_id, db_engine, connector_factory):
         outcomes, artifacts = connector.fetch_all(source.config, priors)
         results.append((source.id, outcomes, artifacts))
     return execution, revisions, results
+
+
+def _s3_priors(session, job):
+    index_id = job.snapshot.get("prior_ready_index_id")
+    if not index_id:
+        return {}
+    rows = session.execute(
+        select(IndexSourceRevision.source_node_id, SourceItem, SourceRevision)
+        .select_from(IndexSourceRevision)
+        .join(SourceItem, SourceItem.id == IndexSourceRevision.source_item_id)
+        .join(
+            SourceRevision, SourceRevision.id == IndexSourceRevision.source_revision_id
+        )
+        .where(
+            IndexSourceRevision.index_id == UUID(index_id),
+            IndexSourceRevision.project_id == job.project_id,
+            SourceItem.kind == "s3",
+        )
+    ).all()
+    return {
+        (source_node_id, item.canonical_location): (item, revision)
+        for source_node_id, item, revision in rows
+    }
+
+
+def _discover_s3(run_id, db_engine, connector_factory):
+    with Session(db_engine) as session:
+        job = session.get(IngestionRun, run_id)
+        execution = IngestionExecution.model_validate(job.snapshot["execution"])
+        priors = _s3_priors(session, job)
+        keyring = ConnectionKeyring.from_settings(settings)
+        chunk = next(node for node in execution.nodes if node.type == "chunk")
+        clean = next(node for node in execution.nodes if node.type == "clean")
+        _, processing_hash = s3_ingestion.processing_configuration(chunk, clean)
+        sources = [
+            (
+                source,
+                connections.credentials_for_use(
+                    session,
+                    job.project_id,
+                    source.config.connection_id,
+                    "s3",
+                    keyring,
+                ),
+            )
+            for source in execution.nodes
+            if source.type == "source"
+        ]
+
+    # Never hold a database transaction open during bounded provider calls.
+    results = []
+    for source, credentials in sources:
+        connector = (
+            connector_factory(credentials)
+            if connector_factory
+            else S3Connector(credentials)
+        )
+        source_priors = {
+            location: revision
+            for (node_id, location), (_, revision) in priors.items()
+            if node_id == source.id
+        }
+        outcomes, artifacts = connector.fetch_all(
+            source.config, source_priors, processing_hash
+        )
+        results.append((source.id, source.config.connection_id, outcomes, artifacts))
+    return execution, priors, results
+
+
+def _advance_s3(run_id, token, db_engine, connector_factory):
+    execution, prior_revisions, results = _discover_s3(
+        run_id, db_engine, connector_factory
+    )
+    chunk = next(node for node in execution.nodes if node.type == "chunk")
+    clean = next(node for node in execution.nodes if node.type == "clean")
+    with Session(db_engine) as session:
+        job = session.scalar(
+            select(IngestionRun).where(IngestionRun.id == run_id).with_for_update()
+        )
+        if job.status != "running" or job.execution_token != token:
+            return
+        if session.scalar(
+            select(WebsiteRunItem.run_id)
+            .where(WebsiteRunItem.run_id == run_id)
+            .limit(1)
+        ):
+            return
+        ordinal = 0
+        included = set()
+        memberships = []
+        seen_extracted = set()
+        failed = 0
+        for source_node_id, connection_id, outcomes, artifacts in results:
+            artifact_by_location = {
+                artifact.item.canonical_location: artifact for artifact in artifacts
+            }
+            for outcome in outcomes:
+                if outcome.status != "included":
+                    add_outcome = (
+                        "failed" if outcome.status == "failed" else outcome.status
+                    )
+                    website_ingestion.add_run_item(
+                        session,
+                        run=job,
+                        ordinal=ordinal,
+                        source_node_id=source_node_id,
+                        outcome=add_outcome,
+                        reason=outcome.reason,
+                        location=outcome.canonical_location,
+                        display_name=outcome.display_name,
+                        media_type=outcome.media_type,
+                        error=outcome.error_code,
+                    )
+                    failed += outcome.status == "failed"
+                    ordinal += 1
+                    continue
+                artifact = artifact_by_location[outcome.canonical_location]
+                prior_entry = prior_revisions.get(
+                    (source_node_id, artifact.item.canonical_location)
+                )
+                prior_item, prior = prior_entry if prior_entry else (None, None)
+                if artifact.unchanged:
+                    if prior is None or prior_item is None:
+                        raise ConnectorFailure(
+                            ConnectorIssue(
+                                code="prior_revision_unavailable",
+                                message="A prior S3 revision is unavailable for safe refresh.",
+                                retryable=True,
+                            )
+                        )
+                    source_item, revision = prior_item, prior
+                    classification = "unchanged"
+                    extracted_hash = revision.extracted_hash
+                else:
+                    (
+                        source_item,
+                        revision,
+                        classification,
+                        extracted_hash,
+                        _stored_path,
+                    ) = s3_ingestion.persist_artifact(
+                        session,
+                        job.project_id,
+                        connection_id,
+                        artifact,
+                        chunk,
+                        clean,
+                        prior,
+                    )
+                if (
+                    clean.exact_content_deduplication
+                    and extracted_hash in seen_extracted
+                ):
+                    classification = "excluded"
+                    reason = "Extracted text duplicates another included S3 object."
+                else:
+                    seen_extracted.add(extracted_hash)
+                    included.add((source_node_id, artifact.item.canonical_location))
+                    memberships.append((source_node_id, source_item, revision))
+                    reason = f"S3 object revision is {classification}."
+                website_ingestion.add_run_item(
+                    session,
+                    run=job,
+                    ordinal=ordinal,
+                    source_node_id=source_node_id,
+                    outcome=classification,
+                    reason=reason,
+                    location=artifact.item.canonical_location,
+                    display_name=artifact.item.display_name,
+                    media_type=artifact.item.media_type,
+                    source_item=source_item,
+                    revision=revision,
+                )
+                ordinal += 1
+        for key, (item, revision) in prior_revisions.items():
+            if key in included:
+                continue
+            source_node_id, location = key
+            website_ingestion.add_run_item(
+                session,
+                run=job,
+                ordinal=ordinal,
+                source_node_id=source_node_id,
+                outcome="removed",
+                reason="Previously indexed S3 object was not included by this refresh.",
+                location=location,
+                display_name=item.external_id,
+                source_item=item,
+                revision=revision,
+                media_type=revision.media_type,
+            )
+            ordinal += 1
+        job.discovered_count = ordinal
+        job.failed_count = failed
+        job.processed_count = ordinal - failed
+        if failed:
+            _fail(
+                session,
+                job,
+                "One or more required S3 objects failed. The previous ready index remains current.",
+            )
+            session.commit()
+            return
+        if not memberships:
+            raise HTTPException(
+                409, "S3 discovery found no indexable TXT or PDF objects."
+            )
+        processing_ids = list(
+            dict.fromkeys(revision.processing_run_id for _, _, revision in memberships)
+        )
+        index = indexes.create_index_from_processing_runs(
+            session,
+            job.project_id,
+            job.knowledge_set_id,
+            processing_ids,
+            ingestion_run_id=job.id,
+            commit=False,
+        )
+        session.execute(
+            insert(IndexSourceRevision),
+            [
+                {
+                    "index_id": index.id,
+                    "source_revision_id": revision.id,
+                    "source_item_id": item.id,
+                    "source_node_id": source_node_id,
+                    "project_id": job.project_id,
+                }
+                for source_node_id, item, revision in memberships
+            ],
+        )
+        job.stage = "indexing"
+        job.chunk_count = index.chunk_count
+        job.progress = 40
+        job.status = "queued"
+        job.execution_token = None
+        job.failures = 0
+        job.dispatched_at = None
+        job.updated_at = now()
+        session.commit()
 
 
 def _advance_website(run_id, token, db_engine, connector_factory):
@@ -274,7 +517,7 @@ def _advance_website(run_id, token, db_engine, connector_factory):
         session.commit()
 
 
-def _finish_website(session, job, index):
+def _finish_remote(session, job, index):
     items = session.scalars(
         select(WebsiteRunItem).where(WebsiteRunItem.run_id == job.id)
     ).all()
@@ -313,13 +556,16 @@ def process_ingestion(run_id: UUID, db_engine=engine, connector_factory=None):
         source_kind = job.snapshot.get("source_kind", "existing_files")
         session.commit()
     try:
-        if source_kind == "website":
+        if source_kind in ("website", "s3"):
             with Session(db_engine) as session:
                 index = session.scalar(
                     select(IndexVersion).where(IndexVersion.ingestion_run_id == run_id)
                 )
             if index is None:
-                _advance_website(run_id, token, db_engine, connector_factory)
+                if source_kind == "website":
+                    _advance_website(run_id, token, db_engine, connector_factory)
+                else:
+                    _advance_s3(run_id, token, db_engine, connector_factory)
                 return
             with Session(db_engine) as session:
                 job = session.scalar(
@@ -348,11 +594,11 @@ def process_ingestion(run_id: UUID, db_engine=engine, connector_factory=None):
                     _fail(
                         session,
                         job,
-                        index.error or "The website index could not publish.",
+                        index.error or "The source index could not publish.",
                     )
                     session.commit()
                     return
-                _finish_website(session, job, index)
+                _finish_remote(session, job, index)
                 session.commit()
                 return
         with Session(db_engine) as session:

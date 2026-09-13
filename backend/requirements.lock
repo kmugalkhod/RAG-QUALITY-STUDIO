@@ -30,6 +30,12 @@ attrs==26.1.0
     # via aiohttp
 billiard==4.2.4
     # via celery
+boto3==1.43.93
+    # via rag-quality-studio-api
+botocore==1.43.93
+    # via
+    #   boto3
+    #   s3transfer
 celery==5.6.3
     # via rag-quality-studio-api
 certifi==2026.7.22
@@ -142,6 +148,10 @@ jiter==0.14.0
     # via
     #   instructor
     #   openai
+jmespath==1.1.0
+    # via
+    #   boto3
+    #   botocore
 jsonpatch==1.33
     # via langchain-core
 jsonpointer==3.1.1
@@ -295,6 +305,7 @@ pypdf==6.18.0
 pytest==8.4.1
 python-dateutil==2.9.0.post0
     # via
+    #   botocore
     #   celery
     #   pandas
 python-dotenv==1.2.3
@@ -333,6 +344,8 @@ rich==14.3.4
     #   ragas
     #   typer
 ruff==0.12.11
+s3transfer==0.19.2
+    # via boto3
 scikit-network==0.33.5
     # via ragas
 scipy==1.18.1
@@ -411,6 +424,7 @@ tzlocal==5.4.4
     # via celery
 urllib3==2.7.0
     # via
+    #   botocore
     #   instructor
     #   requests
 uuid-utils==0.17.1

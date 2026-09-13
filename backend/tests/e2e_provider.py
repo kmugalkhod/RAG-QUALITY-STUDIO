@@ -7,10 +7,14 @@ import httpx
 from app.connectors.base import ConnectorFailure, ConnectorIssue
 from app.connectors.safe_http import SafeHttpClient
 from app.connectors.website import WebsiteConnector
+from app.connectors.s3 import S3ConnectionResult, S3Connector
+from app.connectors import s3 as s3_module
 from app.providers.openrouter import OpenRouterEmbeddings
 from app.providers import embeddings, generation
 from app.workers import ingestion as ingestion_worker, previews
 from app.main import app  # noqa: F401
+from datetime import UTC, datetime
+from pathlib import Path
 
 
 def respond(request):
@@ -129,6 +133,133 @@ def website_connector():
 
 previews.WebsiteConnector = website_connector
 ingestion_worker.WebsiteConnector = website_connector
+
+
+S3_STATE = Path("/data/documents/.s3-fixture-state")
+S3_NOW = datetime(2026, 9, 13, tzinfo=UTC)
+S3_OBJECTS = {
+    "first": {
+        "docs/orchard.txt": (
+            b"The controlled S3 orchard grows apples in carefully managed research rows. "
+            * 3,
+            "orchard-v1",
+            "version-orchard-1",
+        ),
+        "docs/old.txt": (
+            b"This controlled S3 object will be removed during the next refresh. " * 3,
+            "old-v1",
+            "version-old-1",
+        ),
+    },
+    "second": {
+        "docs/orchard.txt": (
+            b"The controlled S3 orchard grows apples in carefully managed research rows. "
+            * 3,
+            "orchard-v1",
+            "version-orchard-1",
+        ),
+        "docs/new.txt": (
+            b"The controlled S3 packing guide requires recycled paper boxes for apples. "
+            * 3,
+            "new-v1",
+            "version-new-1",
+        ),
+    },
+}
+
+
+class S3Body:
+    def __init__(self, content):
+        self.content = content
+
+    def read(self, limit):
+        return self.content[:limit]
+
+    def close(self):
+        pass
+
+
+class S3Transport:
+    def state(self):
+        try:
+            return S3_STATE.read_text().strip()
+        except OSError:
+            return "first"
+
+    def objects(self):
+        state = self.state()
+        if state == "denied":
+            from botocore.exceptions import ClientError
+
+            raise ClientError(
+                {
+                    "Error": {"Code": "AccessDenied", "Message": "fixture denied"},
+                    "ResponseMetadata": {"HTTPStatusCode": 403},
+                },
+                "ListObjectsV2",
+            )
+        return S3_OBJECTS[state]
+
+    def list_buckets(self, **kwargs):
+        return {"Buckets": []}
+
+    def list_objects_v2(self, **kwargs):
+        return {
+            "Contents": [
+                {
+                    "Key": key,
+                    "Size": len(value[0]),
+                    "ETag": f'"{value[1]}"',
+                    "LastModified": S3_NOW,
+                }
+                for key, value in sorted(self.objects().items())
+                if key.startswith(kwargs.get("Prefix", ""))
+            ],
+            "IsTruncated": False,
+        }
+
+    def head_object(self, **kwargs):
+        value = self.objects()[kwargs["Key"]]
+        return {
+            "ContentLength": len(value[0]),
+            "ETag": f'"{value[1]}"',
+            "LastModified": S3_NOW,
+            "VersionId": value[2],
+        }
+
+    def get_object(self, **kwargs):
+        value = self.objects()[kwargs["Key"]]
+        return {"Body": S3Body(value[0]), **self.head_object(**kwargs)}
+
+
+s3_transport = S3Transport()
+
+
+def s3_connector(credentials):
+    return S3Connector(
+        credentials,
+        client_factory=lambda credentials, region, timeout: s3_transport,
+    )
+
+
+class S3Tester:
+    def check(self, credentials):
+        return S3ConnectionResult("succeeded", "ok")
+
+
+s3_module.S3ConnectionTester = S3Tester
+previews.S3Connector = s3_connector
+ingestion_worker.S3Connector = s3_connector
+
+
+@app.post("/api/test/s3-state/{state}")
+def set_s3_state(state: str):
+    if state not in {"first", "second", "denied"}:
+        return {"updated": False}
+    S3_STATE.parent.mkdir(parents=True, exist_ok=True)
+    S3_STATE.write_text(state)
+    return {"updated": True}
+
 
 if __name__ == "__main__" and sys.argv[-1] == "worker":
     from app.workers.celery_app import celery

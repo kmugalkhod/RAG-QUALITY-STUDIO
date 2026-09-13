@@ -241,6 +241,22 @@ def _decrypt(connection: SourceConnection, keyring: ConnectionKeyring) -> dict:
     return _plain(credentials)
 
 
+def credentials_for_use(
+    session: Session,
+    project_id: UUID,
+    connection_id: UUID,
+    kind: str,
+    keyring: ConnectionKeyring | None = None,
+) -> dict:
+    """Decrypt a project-owned connection for a backend connector only."""
+    connection = get(session, project_id, connection_id)
+    if connection.kind != kind:
+        raise HTTPException(422, f"Select a {kind.upper()} source connection.")
+    if keyring is None:
+        keyring = ConnectionKeyring.from_settings(settings)
+    return _decrypt(connection, keyring)
+
+
 def rotate(
     session: Session,
     project_id: UUID,

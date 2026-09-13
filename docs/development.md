@@ -22,9 +22,29 @@ Save the validated graph before running it. The worker stores immutable raw revi
 
 Connection APIs are deliberately unavailable until `SOURCE_CONNECTIONS_ENABLED=true`, `SOURCE_CONNECTION_ACTIVE_KEY` names an entry in `SOURCE_CONNECTION_KEYS`, and that entry decodes to exactly 32 bytes. `SOURCE_CONNECTION_KEYS` is a JSON object of version names to base64 keys. The Settings screen sends credential fields only in create/rotate POST bodies and clears its secret controls after every attempt. Reads expose connection name, kind, status, dates, safe errors and deliberately masked hints; they never expose ciphertext, nonce, tag or key version.
 
-The API is restricted to loopback Host/Origin values and Compose publishes nginx, FastAPI and PostgreSQL only on `127.0.0.1`. This is a local deployment boundary, not user authentication. Do not remove it or publicly proxy these routes until authentication and server-side project authorization are implemented. Production tester registration remains unavailable until the matching S3, Notion or Confluence adapter is complete; deterministic test doubles exercise the boundary without manufacturing production success.
+The API is restricted to loopback Host/Origin values and Compose publishes nginx, FastAPI and PostgreSQL only on `127.0.0.1`. This is a local deployment boundary, not user authentication. Do not remove it or publicly proxy these routes until authentication and server-side project authorization are implemented. S3 now has a real bounded tester and ingestion adapter. Notion and Confluence remain unavailable; deterministic test doubles exercise their connection boundary without manufacturing production success.
 
 Credential replacement and master-key re-encryption are separate actions. Add a new key version while retaining the old entry, make it active, restart services, re-encrypt every connection, verify no rows still name the old version, and only then remove the old key. See [deployment guidance](deployment.md#source-connection-vault).
+
+## Amazon S3 ingestion
+
+Enable the local vault, create an S3 connection in Project Settings, then choose Amazon S3 in an ingestion pipeline. The saved source configuration contains only the connection UUID, region, bucket, optional prefix and expected 12-digit AWS account ID, TXT/PDF allowlist, and bounded object/page/byte/time limits. Credentials remain encrypted on the server and are decrypted only inside the connection test, preview, or ingestion worker call.
+
+Discovery uses `ListObjectsV2` with stable key ordering and a hard object/page ceiling. Included objects receive a metadata check. Folder markers, empty objects, non-allowlisted extensions, objects above the configured byte limit and Glacier/Deep Archive objects are reported as excluded. A VersionId is the preferred provider revision; an unversioned bucket uses ETag, size and last-modified together. Fetch requests that exact VersionId or sends `If-Match`, reads at most the configured object bound, and rejects metadata changes between discovery and fetch.
+
+Refresh compares the provider revision and the full extraction/clean/chunk configuration. Compatible unchanged revisions and vectors are reused; new or changed objects are parsed as text-based TXT/PDF, and keys absent from the bounded refresh become removed from only the new index. Historical revisions and prior ready indexes remain available. Any permission, fetch, parsing or embedding failure leaves the current-ready pointer unchanged.
+
+The separate live check is disabled by default. Run it only for a bucket and prefix the user explicitly authorized:
+
+```sh
+RUN_LIVE_S3_AUTHORIZED=1 \
+S3_LIVE_ACCESS_KEY_ID=... S3_LIVE_SECRET_ACCESS_KEY=... \
+S3_LIVE_REGION=us-east-1 S3_LIVE_BUCKET=... S3_LIVE_PREFIX=authorized/path/ \
+docker compose -f compose.test.yaml run --rm tests \
+python -m pytest -q tests/test_s3_live.py
+```
+
+It lists at most five objects on one page and fetches at most one 1 MB TXT/PDF object. Optional `S3_LIVE_SESSION_TOKEN` and `S3_LIVE_EXPECTED_BUCKET_OWNER` are supported. Do not use an empty or broad prefix. Default CI uses deterministic provider doubles and makes no AWS calls.
 
 ## Knowledge sets and explicit index snapshots
 

@@ -4,6 +4,7 @@ This module defines persisted configuration only. Execution, knowledge sets and
 connector transports are introduced by later ingestion phases.
 """
 
+import ipaddress
 from datetime import datetime
 from typing import Annotated, Literal
 from uuid import UUID
@@ -120,8 +121,61 @@ class WebsiteConfig(Strict):
         return self
 
 
+class S3Config(Strict):
+    kind: Literal["s3"]
+    connection_id: UUID
+    region: str = Field(min_length=3, max_length=32, pattern=r"^[a-z0-9-]+$")
+    bucket: str = Field(
+        min_length=3,
+        max_length=63,
+        pattern=r"^[a-z0-9][a-z0-9.-]*[a-z0-9]$",
+    )
+    prefix: str = Field(default="", max_length=1024)
+    expected_bucket_owner: str | None = Field(default=None, pattern=r"^[0-9]{12}$")
+    allowed_file_types: list[Literal["txt", "pdf"]] = Field(
+        default_factory=lambda: ["txt", "pdf"], min_length=1, max_length=2
+    )
+    max_objects: int = Field(default=1000, strict=True, ge=1, le=5000)
+    max_pages: int = Field(default=10, strict=True, ge=1, le=100)
+    max_object_bytes: int = Field(
+        default=20 * 1024 * 1024, strict=True, ge=1024, le=20 * 1024 * 1024
+    )
+    max_total_bytes: int = Field(
+        default=100 * 1024 * 1024,
+        strict=True,
+        ge=1024,
+        le=100 * 1024 * 1024,
+    )
+    request_timeout_seconds: float = Field(default=30, ge=1, le=60, allow_inf_nan=False)
+
+    @model_validator(mode="after")
+    def safe_selection(self):
+        if len(set(self.allowed_file_types)) != len(self.allowed_file_types):
+            raise ValueError("S3 allowed file types must be unique.")
+        if self.max_total_bytes < self.max_object_bytes:
+            raise ValueError(
+                "S3 total byte limit must be at least the per-object limit."
+            )
+        if "\x00" in self.prefix:
+            raise ValueError("S3 prefixes cannot contain null characters.")
+        try:
+            ipaddress.ip_address(self.bucket)
+        except ValueError:
+            pass
+        else:
+            raise ValueError("S3 bucket names cannot use an IP-address format.")
+        if ".-" in self.bucket or "-." in self.bucket:
+            raise ValueError("S3 bucket names contain an invalid label boundary.")
+        if (
+            self.bucket.startswith(("xn--", "sthree-", "amzn_s3_demo_"))
+            or ".." in self.bucket
+        ):
+            raise ValueError("S3 bucket name is reserved or malformed.")
+        return self
+
+
 SourceConfig = Annotated[
-    ExistingFilesConfig | WebsiteConfig, Field(discriminator="kind")
+    ExistingFilesConfig | WebsiteConfig | S3Config, Field(discriminator="kind")
 ]
 
 
@@ -318,6 +372,7 @@ class SourcePreviewItemRead(Strict):
     external_id: str | None
     display_name: str
     canonical_location: str | None
+    provider_revision: str | None
     media_type: str | None
     status: Literal["included", "excluded", "duplicate", "failed"]
     reason: str
@@ -405,8 +460,27 @@ class WebsiteIngestionRunItemRead(Strict):
     updated_at: datetime
 
 
+class S3IngestionRunItemRead(Strict):
+    source_kind: Literal["s3"] = "s3"
+    ordinal: int
+    source_node_id: str
+    source_item_id: UUID | None
+    source_revision_id: UUID | None
+    canonical_location: str | None
+    display_name: str
+    media_type: str | None
+    outcome: Literal[
+        "new", "changed", "unchanged", "removed", "excluded", "duplicate", "failed"
+    ]
+    status: Literal["ready", "succeeded", "failed", "cancelled"]
+    reason: str
+    chunk_count: int
+    error: str | None
+    updated_at: datetime
+
+
 IngestionRunItemRead = Annotated[
-    ExistingIngestionRunItemRead | WebsiteIngestionRunItemRead,
+    ExistingIngestionRunItemRead | WebsiteIngestionRunItemRead | S3IngestionRunItemRead,
     Field(discriminator="source_kind"),
 ]
 

@@ -29,7 +29,7 @@ class SourceItem(Base):
         UniqueConstraint(
             "project_id", "kind", "identity_hash", name="uq_source_item_identity"
         ),
-        CheckConstraint("kind = 'website'", name="ck_source_item_kind"),
+        CheckConstraint("kind IN ('website','s3')", name="ck_source_item_kind"),
         CheckConstraint("char_length(identity_hash) = 64", name="ck_source_item_hash"),
         Index("ix_source_items_project_kind", "project_id", "kind", "updated_at"),
     )
@@ -54,7 +54,10 @@ class SourceRevision(Base):
     __table_args__ = (
         UniqueConstraint("id", "project_id", name="uq_source_revision_project"),
         UniqueConstraint(
-            "source_item_id", "content_hash", name="uq_source_revision_content"
+            "source_item_id",
+            "content_hash",
+            "processing_config_hash",
+            name="uq_source_revision_content",
         ),
         UniqueConstraint("document_id", name="uq_source_revision_document"),
         UniqueConstraint("processing_run_id", name="uq_source_revision_processing"),
@@ -79,6 +82,10 @@ class SourceRevision(Base):
         CheckConstraint(
             "char_length(extracted_hash) = 64", name="ck_source_revision_extracted_hash"
         ),
+        CheckConstraint(
+            "char_length(processing_config_hash) = 64",
+            name="ck_source_revision_processing_hash",
+        ),
         CheckConstraint("size_bytes > 0", name="ck_source_revision_size"),
         Index("ix_source_revisions_item_fetched", "source_item_id", "fetched_at", "id"),
     )
@@ -89,12 +96,13 @@ class SourceRevision(Base):
     processing_run_id: Mapped[uuid.UUID]
     content_hash: Mapped[str] = mapped_column(String(64))
     extracted_hash: Mapped[str] = mapped_column(String(64))
+    processing_config_hash: Mapped[str] = mapped_column(String(64))
     media_type: Mapped[str] = mapped_column(String(200))
     size_bytes: Mapped[int] = mapped_column(BigInteger)
     artifact_storage_name: Mapped[str] = mapped_column(String(40), unique=True)
     etag: Mapped[str | None] = mapped_column(String(500))
     last_modified: Mapped[str | None] = mapped_column(String(200))
-    provider_revision: Mapped[str | None] = mapped_column(String(500))
+    provider_revision: Mapped[str | None] = mapped_column(String(1000))
     fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     extraction_config: Mapped[dict] = mapped_column(JSONB)
     provenance: Mapped[dict] = mapped_column(JSONB)

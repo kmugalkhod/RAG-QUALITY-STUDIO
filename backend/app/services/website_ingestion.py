@@ -2,17 +2,14 @@
 
 import hashlib
 import logging
-import os
 from pathlib import Path
 from urllib.parse import urlsplit
-from uuid import uuid4
 
 from fastapi import HTTPException
 from sqlalchemy import insert, select
 from sqlalchemy.orm import Session
 
 from app.connectors.website import WebsiteArtifact
-from app.core.config import settings
 from app.models.document import Chunk, Document, ProcessingRun
 from app.models.source import SourceItem, SourceRevision, WebsiteRunItem
 from app.pipelines.web_content import (
@@ -21,6 +18,7 @@ from app.pipelines.web_content import (
     chunk_sections,
     extract_sections,
 )
+from app.services.source_artifacts import config_hash, identity_hash, store
 from app.workers.processing import now
 
 
@@ -28,29 +26,6 @@ def _display_name(url: str) -> str:
     parts = urlsplit(url)
     tail = Path(parts.path).name or parts.hostname or "website"
     return tail[:255]
-
-
-def _store(content: bytes) -> tuple[str, Path]:
-    root = settings.storage_path
-    root.mkdir(parents=True, exist_ok=True)
-    name = uuid4().hex
-    temporary = root / f"{name}.part"
-    final = root / name
-    with temporary.open("xb") as output:
-        output.write(content)
-        output.flush()
-        os.fsync(output.fileno())
-    os.replace(temporary, final)
-    descriptor = os.open(root, os.O_RDONLY)
-    try:
-        os.fsync(descriptor)
-    finally:
-        os.close(descriptor)
-    return name, final
-
-
-def identity_hash(value: str) -> str:
-    return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
 def persist_artifact(
@@ -83,10 +58,18 @@ def persist_artifact(
         source_item.updated_at = now()
 
     content_hash = hashlib.sha256(artifact.content).hexdigest()
+    processing_config = {
+        "extractor": EXTRACTOR_VERSION,
+        "cleaner": CLEANER_VERSION,
+        "clean": clean.model_dump(mode="json"),
+        "chunk": chunk.model_dump(mode="json"),
+    }
+    processing_hash = config_hash(processing_config)
     revision = session.scalar(
         select(SourceRevision).where(
             SourceRevision.source_item_id == source_item.id,
             SourceRevision.content_hash == content_hash,
+            SourceRevision.processing_config_hash == processing_hash,
         )
     )
     if revision is not None:
@@ -105,7 +88,7 @@ def persist_artifact(
     storage_name = None
     stored_path = None
     try:
-        storage_name, stored_path = _store(artifact.content)
+        storage_name, stored_path = store(artifact.content)
         document = Document(
             project_id=project_id,
             filename=_display_name(artifact.canonical_location),
@@ -145,6 +128,7 @@ def persist_artifact(
             processing_run_id=processing.id,
             content_hash=content_hash,
             extracted_hash=extracted_hash,
+            processing_config_hash=processing_hash,
             media_type=artifact.media_type,
             size_bytes=len(artifact.content),
             artifact_storage_name=storage_name,
@@ -152,12 +136,7 @@ def persist_artifact(
             last_modified=artifact.last_modified,
             provider_revision=artifact.etag or artifact.last_modified,
             fetched_at=now(),
-            extraction_config={
-                "extractor": EXTRACTOR_VERSION,
-                "cleaner": CLEANER_VERSION,
-                "clean": clean.model_dump(mode="json"),
-                "chunk": chunk.model_dump(mode="json"),
-            },
+            extraction_config=processing_config,
             provenance={
                 "connector_kind": "website",
                 "connector_version": "1",

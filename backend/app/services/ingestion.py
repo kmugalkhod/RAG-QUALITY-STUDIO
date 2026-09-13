@@ -160,7 +160,10 @@ def start_run(
     pipelines.validate_ingestion(session, project_id, execution)
     embeddings.configured()
     sources = [node for node in execution.nodes if node.type == "source"]
-    if all(source.config.kind == "website" for source in sources):
+    remote_kind = sources[0].config.kind if sources else None
+    if remote_kind in ("website", "s3") and all(
+        source.config.kind == remote_kind for source in sources
+    ):
         publish = next(node for node in execution.nodes if node.type == "publish_index")
         knowledge_set = _knowledge_set(session, project_id, publish, create=True)
         session.execute(
@@ -185,7 +188,7 @@ def start_run(
             progress=0,
             discovered_count=0,
             snapshot={
-                "source_kind": "website",
+                "source_kind": remote_kind,
                 "pipeline_id": str(pipeline.id),
                 "pipeline_version_id": str(version.id),
                 "pipeline_version": version.version,
@@ -205,7 +208,7 @@ def start_run(
         session.refresh(run)
         return read_run(session, run)
     if any(source.config.kind != "existing_files" for source in sources):
-        raise HTTPException(409, "A run cannot mix Website and Existing Files sources.")
+        raise HTTPException(409, "An ingestion run cannot mix source connector kinds.")
     selected, chunk, publish = _document_selection(execution)
     knowledge_set = _knowledge_set(session, project_id, publish, create=True)
     session.execute(
@@ -394,7 +397,8 @@ def list_items(
     session: Session, project_id: UUID, run_id: UUID, limit: int, offset: int
 ):
     run = get_run(session, project_id, run_id)
-    if run.snapshot.get("source_kind") == "website":
+    source_kind = run.snapshot.get("source_kind")
+    if source_kind in ("website", "s3"):
         query = (
             select(WebsiteRunItem)
             .where(
@@ -408,7 +412,7 @@ def list_items(
         return dict(
             items=[
                 {
-                    "source_kind": "website",
+                    "source_kind": source_kind,
                     **{
                         column.name: getattr(item, column.name)
                         for column in WebsiteRunItem.__table__.columns

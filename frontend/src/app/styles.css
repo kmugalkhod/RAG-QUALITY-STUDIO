@@ -1275,7 +1275,7 @@ progress {
   padding: 10px;
   border: 1px solid var(--border);
   border-radius: 5px;
-  background: white;
+  background: var(--background);
   max-width: 100%;
   width: 100%;
   color: var(--foreground);
@@ -2325,6 +2325,28 @@ summary {
   grid-template-columns: auto 1fr;
   align-items: center;
   gap: 8px;
+}
+.app-shell .s3-file-types {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin: 0;
+  padding: 12px 0;
+  border: 0;
+  border-block: 1px solid var(--border);
+}
+.app-shell .s3-file-types legend {
+  width: 100%;
+  margin-bottom: 4px;
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--muted-foreground);
+}
+.app-shell .s3-file-types label {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
 }
 .app-shell .ingestion-document-option {
   display: flex;

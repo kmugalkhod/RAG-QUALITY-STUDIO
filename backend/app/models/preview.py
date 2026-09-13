@@ -111,6 +111,7 @@ class SourcePreviewItem(Base):
     external_id: Mapped[str | None] = mapped_column(String(4000))
     display_name: Mapped[str] = mapped_column(String(500))
     canonical_location: Mapped[str | None] = mapped_column(String(4000))
+    provider_revision: Mapped[str | None] = mapped_column(String(1000))
     media_type: Mapped[str | None] = mapped_column(String(200))
     status: Mapped[str] = mapped_column(String(16))
     reason: Mapped[str] = mapped_column(String(500))

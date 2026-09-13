@@ -25,6 +25,8 @@ import { allPages, type Page } from '../../lib/pagination';
 import { listDocuments } from '../documents/api';
 import { getEmbeddingSettings, listKnowledgeSets } from '../documents/indexApi';
 import type { Document, EmbeddingConfig, KnowledgeSet } from '../documents/model';
+import { getConnectionSettings, listConnections } from '../connections/api';
+import type { ConnectionSettings, SourceConnection } from '../connections/model';
 import * as api from './api';
 import {
   canonicalIngestion,
@@ -36,6 +38,7 @@ import {
   type IngestionRunItem,
   type SourcePreview,
   type SourcePreviewItem,
+  type S3Config,
   type WebsiteConfig,
 } from './model';
 
@@ -69,6 +72,29 @@ const defaultWebsite = (): WebsiteConfig => ({
   user_agent: 'RAGQualityStudio/1.0',
   respect_robots: true,
 });
+
+const defaultS3 = (connectionId = ''): S3Config => ({
+  kind: 's3',
+  connection_id: connectionId,
+  region: 'us-east-1',
+  bucket: '',
+  prefix: '',
+  expected_bucket_owner: null,
+  allowed_file_types: ['txt', 'pdf'],
+  max_objects: 1000,
+  max_pages: 10,
+  max_object_bytes: 20 * 1024 * 1024,
+  max_total_bytes: 100 * 1024 * 1024,
+  request_timeout_seconds: 30,
+});
+
+async function loadConnectionState(projectId: string) {
+  const settings = await getConnectionSettings(projectId);
+  const connections = settings.enabled
+    ? await allPages((offset) => listConnections(projectId, offset))
+    : [];
+  return { settings, connections };
+}
 
 const lines = (value: string) =>
   value
@@ -159,6 +185,9 @@ function detail(node: IngestionNode, documents: Document[]) {
             ? selection.start_url
             : selection.sitemap_url;
     return `Website · ${location}`;
+  }
+  if (node.type === 'source' && node.config.kind === 's3') {
+    return `S3 · ${node.config.bucket || 'Choose a bucket'}`;
   }
   if (node.type === 'chunk') {
     return `${node.size} characters · ${node.overlap} overlap`;
@@ -348,6 +377,133 @@ function WebsiteSettings({
   );
 }
 
+function S3Settings({
+  config,
+  connections,
+  projectId,
+  update,
+}: {
+  config: S3Config;
+  connections: SourceConnection[];
+  projectId: string;
+  update: (config: S3Config) => void;
+}) {
+  const s3Connections = connections.filter((connection) => connection.kind === 's3');
+  const numberField = (
+    key:
+      | 'max_objects'
+      | 'max_pages'
+      | 'max_object_bytes'
+      | 'max_total_bytes'
+      | 'request_timeout_seconds',
+    label: string,
+    min: number,
+  ) => (
+    <Label>
+      {label}
+      <Input
+        type="number"
+        min={min}
+        value={config[key]}
+        onChange={(event) => update({ ...config, [key]: Number(event.target.value) })}
+      />
+    </Label>
+  );
+  return (
+    <>
+      <div className="website-preview-notice">
+        <CircleAlert size={17} />
+        <p>
+          S3 reads only the selected bucket and prefix, accepts TXT/PDF, and publishes atomically
+          after every required object succeeds.
+        </p>
+      </div>
+      <Label>
+        S3 connection
+        <NativeSelect
+          value={config.connection_id}
+          onChange={(event) => update({ ...config, connection_id: event.target.value })}
+        >
+          <NativeSelectOption value="">Select an encrypted connection</NativeSelectOption>
+          {s3Connections.map((connection) => (
+            <NativeSelectOption key={connection.id} value={connection.id}>
+              {connection.name} · {connection.status}
+            </NativeSelectOption>
+          ))}
+        </NativeSelect>
+      </Label>
+      {s3Connections.length === 0 && (
+        <p className="field-hint">
+          No S3 connection is available.{' '}
+          <a href={`#/projects/${projectId}/settings`}>Add one in project settings</a>.
+        </p>
+      )}
+      <Label>
+        AWS region
+        <Input
+          value={config.region}
+          placeholder="us-east-1"
+          onChange={(event) => update({ ...config, region: event.target.value })}
+        />
+      </Label>
+      <Label>
+        Bucket
+        <Input
+          value={config.bucket}
+          placeholder="research-archive"
+          onChange={(event) => update({ ...config, bucket: event.target.value })}
+        />
+      </Label>
+      <Label>
+        Prefix (optional)
+        <Input
+          value={config.prefix ?? ''}
+          placeholder="documents/"
+          onChange={(event) => update({ ...config, prefix: event.target.value })}
+        />
+      </Label>
+      <Label>
+        Expected AWS account ID (optional)
+        <Input
+          inputMode="numeric"
+          value={config.expected_bucket_owner ?? ''}
+          placeholder="123456789012"
+          onChange={(event) =>
+            update({ ...config, expected_bucket_owner: event.target.value || null })
+          }
+        />
+      </Label>
+      <fieldset className="s3-file-types">
+        <legend>Allowed file types</legend>
+        {(['txt', 'pdf'] as const).map((kind) => (
+          <label key={kind}>
+            <input
+              type="checkbox"
+              checked={config.allowed_file_types.includes(kind)}
+              onChange={(event) =>
+                update({
+                  ...config,
+                  allowed_file_types: event.target.checked
+                    ? [...config.allowed_file_types, kind]
+                    : config.allowed_file_types.filter((value) => value !== kind),
+                })
+              }
+            />
+            {kind.toUpperCase()}
+          </label>
+        ))}
+      </fieldset>
+      <div className="website-limit-grid">
+        {numberField('max_objects', 'Maximum objects', 1)}
+        {numberField('max_pages', 'Maximum list pages', 1)}
+        {numberField('max_object_bytes', 'Bytes per object', 1024)}
+        {numberField('max_total_bytes', 'Total byte budget', 1024)}
+        {numberField('request_timeout_seconds', 'Request timeout (seconds)', 1)}
+      </div>
+    </>
+  );
+}
+
 export function IngestionPipelineEditor({
   projectId,
   pipelineId,
@@ -363,6 +519,8 @@ export function IngestionPipelineEditor({
   const [saved, setSaved] = useState<IngestionPipelineVersion>();
   const [documents, setDocuments] = useState<Document[]>([]);
   const [knowledgeSets, setKnowledgeSets] = useState<KnowledgeSet[]>([]);
+  const [connectionSettings, setConnectionSettings] = useState<ConnectionSettings>();
+  const [connections, setConnections] = useState<SourceConnection[]>([]);
   const [selectedNode, setSelectedNode] = useState('source');
   const [preview, setPreview] = useState<SourcePreview>();
   const [previewPage, setPreviewPage] = useState<Page<SourcePreviewItem>>({
@@ -409,16 +567,19 @@ export function IngestionPipelineEditor({
       allPages((offset) => listDocuments(projectId, offset)),
       allPages((offset) => listKnowledgeSets(projectId, offset)),
       getEmbeddingSettings(projectId),
+      loadConnectionState(projectId),
       pipelineId === 'new'
         ? Promise.resolve([] as IngestionPipelineVersion[])
         : allPages((offset) => api.listIngestionPipelineVersions(projectId, pipelineId, offset)),
     ])
-      .then(([docs, sets, embedding, savedVersions]) => {
+      .then(([docs, sets, embedding, connectionState, savedVersions]) => {
         if (disposed) {
           return;
         }
         setDocuments(docs);
         setKnowledgeSets(sets);
+        setConnectionSettings(connectionState.settings);
+        setConnections(connectionState.connections);
         setVersions(savedVersions);
         if (!embedding.configured || !embedding.config) {
           throw new Error(
@@ -460,7 +621,9 @@ export function IngestionPipelineEditor({
           node.type === 'source'
             ? node.config.kind === 'website'
               ? 'Website'
-              : 'Existing files'
+              : node.config.kind === 's3'
+                ? 'Amazon S3'
+                : 'Existing files'
             : labels[node.type],
         detail: detail(node, documents),
         first: index === 0,
@@ -563,6 +726,26 @@ export function IngestionPipelineEditor({
         reasons.push('Enter at least one allowed origin.');
       }
     }
+    if (source?.type === 'source' && source.config.kind === 's3') {
+      if (!connectionSettings?.enabled) {
+        reasons.push('Enable the local encrypted connection vault before using S3.');
+      }
+      if (!source.config.connection_id) {
+        reasons.push('Select an S3 connection.');
+      }
+      if (!source.config.region.trim()) {
+        reasons.push('Enter an AWS region.');
+      }
+      if (!source.config.bucket.trim()) {
+        reasons.push('Enter an S3 bucket.');
+      }
+      if (!source.config.allowed_file_types.length) {
+        reasons.push('Allow TXT or PDF objects.');
+      }
+      if (source.config.max_total_bytes < source.config.max_object_bytes) {
+        reasons.push('S3 total bytes must be at least the per-object limit.');
+      }
+    }
     const chunk = draft.execution.nodes.find((node) => node.type === 'chunk');
     if (
       chunk?.type === 'chunk' &&
@@ -571,7 +754,7 @@ export function IngestionPipelineEditor({
       reasons.push('Chunk size must be 100–10,000 and overlap must be smaller.');
     }
     return reasons;
-  }, [draft, source]);
+  }, [connectionSettings, draft, source]);
 
   function updateNode(id: string, update: (node: IngestionNode) => IngestionNode) {
     setDraft((current) =>
@@ -675,6 +858,7 @@ export function IngestionPipelineEditor({
   }
 
   const websiteSource = source?.type === 'source' && source.config.kind === 'website';
+  const s3Source = source?.type === 'source' && source.config.kind === 's3';
 
   if (loading || !draft) {
     return <p role="status">Loading ingestion pipeline…</p>;
@@ -687,7 +871,13 @@ export function IngestionPipelineEditor({
       </a>
       <div className="editor-title">
         <h1>Ingestion editor</h1>
-        <span>{websiteSource ? 'Website → ready index' : 'Existing files → ready index'}</span>
+        <span>
+          {websiteSource
+            ? 'Website → ready index'
+            : s3Source
+              ? 'Amazon S3 → ready index'
+              : 'Existing files → ready index'}
+        </span>
       </div>
       {error && (
         <p role="alert" className="error-message">
@@ -777,7 +967,7 @@ export function IngestionPipelineEditor({
           <aside id="node-settings" className="node-settings">
             <h2>
               {selected
-                ? `${selected.type === 'source' ? (selected.config.kind === 'website' ? 'Website' : 'Existing files') : labels[selected.type]} settings`
+                ? `${selected.type === 'source' ? (selected.config.kind === 'website' ? 'Website' : selected.config.kind === 's3' ? 'Amazon S3' : 'Existing files') : labels[selected.type]} settings`
                 : 'Node settings'}
             </h2>
             {selected?.type === 'source' && (
@@ -794,10 +984,12 @@ export function IngestionPipelineEditor({
                               config:
                                 event.target.value === 'website'
                                   ? defaultWebsite()
-                                  : ({
-                                      kind: 'existing_files',
-                                      document_ids: [],
-                                    } satisfies ExistingFilesConfig),
+                                  : event.target.value === 's3'
+                                    ? defaultS3(connections.find((item) => item.kind === 's3')?.id)
+                                    : ({
+                                        kind: 'existing_files',
+                                        document_ids: [],
+                                      } satisfies ExistingFilesConfig),
                             }
                           : node,
                       )
@@ -805,6 +997,9 @@ export function IngestionPipelineEditor({
                   >
                     <NativeSelectOption value="existing_files">Existing files</NativeSelectOption>
                     <NativeSelectOption value="website">Website</NativeSelectOption>
+                    {connectionSettings?.enabled && (
+                      <NativeSelectOption value="s3">Amazon S3</NativeSelectOption>
+                    )}
                   </NativeSelect>
                 </Label>
                 {selected.config.kind === 'existing_files' ? (
@@ -855,9 +1050,20 @@ export function IngestionPipelineEditor({
                       <p>No uploaded documents. Add and process files in Knowledge Base first.</p>
                     )}
                   </>
-                ) : (
+                ) : selected.config.kind === 'website' ? (
                   <WebsiteSettings
                     config={selected.config}
+                    update={(config) =>
+                      updateNode(selected.id, (node) =>
+                        node.type === 'source' ? { ...node, config } : node,
+                      )
+                    }
+                  />
+                ) : (
+                  <S3Settings
+                    config={selected.config}
+                    connections={connections}
+                    projectId={projectId}
                     update={(config) =>
                       updateNode(selected.id, (node) =>
                         node.type === 'source' ? { ...node, config } : node,
@@ -1000,6 +1206,9 @@ export function IngestionPipelineEditor({
                     {item.size_bytes !== null ? ` · ${item.size_bytes} bytes` : ''}
                   </p>
                   {item.canonical_location && <small>{item.canonical_location}</small>}
+                  {item.provider_revision && (
+                    <small>Provider revision: {item.provider_revision}</small>
+                  )}
                 </div>
               </li>
             ))}
@@ -1066,10 +1275,10 @@ export function IngestionPipelineEditor({
           )}
           <ul className="project-list">
             {items.map((item) => (
-              <li key={item.source_kind === 'website' ? item.ordinal : item.document_id}>
+              <li key={item.source_kind !== 'existing_files' ? item.ordinal : item.document_id}>
                 <FileText size={18} />
                 <div>
-                  {item.source_kind === 'website' ? (
+                  {item.source_kind !== 'existing_files' ? (
                     <>
                       <strong>{item.display_name}</strong>
                       <p>

@@ -8,10 +8,11 @@ from sqlalchemy.orm import Session
 
 from app.connectors.base import ConnectorFailure
 from app.connectors.website import WebsiteConnector
+from app.connectors.s3 import S3Connector
 from app.db.session import engine
 from app.models.preview import SourcePreview, SourcePreviewItem
 from app.schemas.ingestion import IngestionExecution
-from app.services import ingestion
+from app.services import connections, ingestion
 from app.workers.celery_app import celery
 from app.workers.processing import now
 
@@ -47,6 +48,7 @@ def _outcomes(db_session, project_id, execution):
                         external_id=str(item.document_id),
                         display_name=item.filename,
                         canonical_location=f"project-file:{item.document_id}",
+                        provider_revision=item.content_hash,
                         media_type=item.media_type,
                         status="included" if item.included else "excluded",
                         reason=item.reason,
@@ -55,8 +57,17 @@ def _outcomes(db_session, project_id, execution):
                         error_code=None,
                     )
                 )
-        else:
+        elif source.config.kind == "website":
             for item in WebsiteConnector().discover_all(source.config):
+                results.append(dict(source_node_id=source.id, **item.__dict__))
+        else:
+            credentials = connections.credentials_for_use(
+                db_session,
+                project_id,
+                source.config.connection_id,
+                "s3",
+            )
+            for item in S3Connector(credentials).discover_all(source.config):
                 results.append(dict(source_node_id=source.id, **item.__dict__))
     return results
 
