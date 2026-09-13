@@ -1,5 +1,20 @@
 # Implementation plan
 
+## Ingestion pipelines — Phase 7C acceptance criteria
+
+Recorded before implementation on 2026-09-13:
+
+- Implement the current official Confluence Cloud REST API v2 contract through the pinned HTTP client. Construct clients only from decrypted project-scoped connections, require canonical HTTPS `*.atlassian.net` sites, send preemptive email/API-token Basic authentication only to that origin, revalidate redirects/DNS, and enforce bounded requests, timeouts, retries, rate-limit delays, and fixed sanitized errors.
+- Add a strict Confluence source configuration containing only an opaque connection ID, explicit space/page selection, optional title/label filters, and page/request/body/time limits. Authoritative pipeline validation rejects missing, disabled, wrong-kind, and cross-project connections; credentials never enter graph JSON, snapshots, URLs, logs, responses, DOM, or browser storage.
+- Connection testing uses a bounded read-only API call. Cursor-paginated space/page discovery has stable ordering, exact inclusion/exclusion reasons, and hard limits. Page ID is the stable source identity; page version number/creation time are the provider revision, with space, parent, status, web location, and version metadata preserved.
+- Fetch requests one exact current page with an explicit body representation, rejects revision changes between discovery and fetch, converts Confluence storage content deterministically to inert text without executing macros/scripts/embeds, and retains page/section hierarchy through artifact, revision, chunk, index, and retrieval provenance.
+- Preview and durable fenced ingestion support first publication, compatible unchanged reuse without body fetch/embedding, new/changed/deleted-or-no-longer-visible classification, exact replacement membership, cancellation/stale/duplicate delivery, and permission-loss failure while preserving every earlier ready index and the current-ready pointer.
+- The ingestion editor exposes Confluence only when the encrypted local vault and real adapter are enabled. Users select a redacted connection, configure scope/filters/bounds, run real preview/execution, and inspect paginated provenance and refresh outcomes accessibly on desktop/mobile.
+- Deterministic doubles cover authentication, cursor pagination, filters, bounds, extraction, concurrent changes, first/refresh runs, removal, permission loss, isolation, retrieval, cancellation, stale recovery, and duplicate delivery. A separate opt-in bounded live check is disabled unless a user-authorized site/space or page is explicit.
+- Fresh migration/full backend and frontend gates, isolated Chromium ingestion/answer regressions, desktop/mobile inspection, and the required finish review must pass before Phase 7C is marked complete and pushed.
+
+Status: in progress for ingestion-pipeline Phase 7C.
+
 ## Ingestion pipelines — Phase 7B acceptance criteria
 
 Recorded before implementation on 2026-09-13:
