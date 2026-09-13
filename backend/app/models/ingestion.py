@@ -35,10 +35,25 @@ class IngestionRun(Base):
             ["knowledge_sets.id", "knowledge_sets.project_id"],
             name="fk_ingestion_run_knowledge_set_project",
         ),
+        ForeignKeyConstraint(
+            ["schedule_id", "project_id"],
+            ["ingestion_schedules.id", "ingestion_schedules.project_id"],
+            name="fk_ingestion_run_schedule_project",
+            use_alter=True,
+        ),
         UniqueConstraint("id", "project_id", name="uq_ingestion_run_project"),
         CheckConstraint(
             "status IN ('queued','running','succeeded','failed','cancelled')",
             name="ck_ingestion_run_status",
+        ),
+        CheckConstraint(
+            "trigger_kind IN ('manual','scheduled')",
+            name="ck_ingestion_run_trigger_kind",
+        ),
+        CheckConstraint(
+            "(trigger_kind = 'manual' AND schedule_id IS NULL) OR "
+            "(trigger_kind = 'scheduled' AND schedule_id IS NOT NULL)",
+            name="ck_ingestion_run_schedule_trigger",
         ),
         CheckConstraint(
             "stage IN ('discovering','processing','indexing','complete')",
@@ -83,6 +98,8 @@ class IngestionRun(Base):
     project_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("projects.id"))
     pipeline_version_id: Mapped[uuid.UUID]
     knowledge_set_id: Mapped[uuid.UUID]
+    schedule_id: Mapped[uuid.UUID | None]
+    trigger_kind: Mapped[str] = mapped_column(String(16), default="manual")
     status: Mapped[str] = mapped_column(String(16), default="queued")
     stage: Mapped[str] = mapped_column(String(24))
     progress: Mapped[int] = mapped_column(default=0)
@@ -106,6 +123,59 @@ class IngestionRun(Base):
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     dispatched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class IngestionSchedule(Base):
+    __tablename__ = "ingestion_schedules"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["pipeline_version_id", "project_id"],
+            ["pipeline_versions.id", "pipeline_versions.project_id"],
+            name="fk_ingestion_schedule_version_project",
+        ),
+        ForeignKeyConstraint(
+            ["last_run_id", "project_id"],
+            ["ingestion_runs.id", "ingestion_runs.project_id"],
+            name="fk_ingestion_schedule_last_run_project",
+            use_alter=True,
+        ),
+        UniqueConstraint("id", "project_id", name="uq_ingestion_schedule_project"),
+        UniqueConstraint("project_id", "name", name="uq_ingestion_schedule_name"),
+        CheckConstraint(
+            "status IN ('paused','enabled')", name="ck_ingestion_schedule_status"
+        ),
+        CheckConstraint(
+            "claim_token IS NULL OR claimed_at IS NOT NULL",
+            name="ck_ingestion_schedule_claim",
+        ),
+        Index("ix_ingestion_schedule_project_created", "project_id", "created_at"),
+        Index(
+            "ix_ingestion_schedule_due",
+            "next_run_at",
+            postgresql_where=text("status = 'enabled'"),
+        ),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE")
+    )
+    pipeline_version_id: Mapped[uuid.UUID]
+    name: Mapped[str] = mapped_column(String(120))
+    status: Mapped[str] = mapped_column(String(16), default="paused")
+    cadence: Mapped[dict] = mapped_column(JSONB)
+    next_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_run_id: Mapped[uuid.UUID | None]
+    last_triggered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_outcome: Mapped[str | None] = mapped_column(String(16))
+    last_error: Mapped[str | None] = mapped_column(Text)
+    claim_token: Mapped[uuid.UUID | None]
+    claimed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
 
 
 class IngestionRunItem(Base):

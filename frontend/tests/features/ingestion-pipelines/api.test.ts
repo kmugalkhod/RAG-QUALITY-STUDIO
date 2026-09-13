@@ -1,6 +1,7 @@
 import {
   cancelIngestionRun,
   cancelSourcePreview,
+  createIngestionSchedule,
   createIngestionPipeline,
   createIngestionPipelineVersion,
   getIngestionRun,
@@ -8,10 +9,16 @@ import {
   listIngestionPipelineVersions,
   listIngestionRunItems,
   listSourcePreviewItems,
+  listIngestionSchedules,
   previewIngestion,
   startIngestionRun,
+  runIngestionSchedule,
+  updateIngestionSchedule,
 } from '../../../src/features/ingestion-pipelines/api';
-import type { IngestionPipelineDraft } from '../../../src/features/ingestion-pipelines/model';
+import type {
+  IngestionPipelineDraft,
+  IngestionSchedule,
+} from '../../../src/features/ingestion-pipelines/model';
 
 const draft = {
   kind: 'ingestion',
@@ -66,6 +73,41 @@ test('keeps preview and durable run operations distinct', async () => {
   expect(fetch).toHaveBeenNthCalledWith(
     4,
     '/api/projects/project/source-previews/preview/cancel',
+    expect.objectContaining({ method: 'POST' }),
+  );
+});
+
+test('uses project-scoped schedule endpoints and paused-by-default payloads', async () => {
+  const schedule = {
+    id: 'schedule',
+    name: 'Daily',
+    cadence: { kind: 'interval', minutes: 60 },
+    status: 'paused',
+  } as IngestionSchedule;
+  await listIngestionSchedules('project', 20);
+  await createIngestionSchedule('project', {
+    name: 'Daily',
+    pipeline_id: 'pipeline',
+    pipeline_version_id: 'version',
+    cadence: { kind: 'interval', minutes: 60 },
+    enabled: false,
+  });
+  await updateIngestionSchedule('project', schedule, true);
+  await runIngestionSchedule('project', 'schedule');
+
+  expect(fetch).toHaveBeenNthCalledWith(
+    1,
+    '/api/projects/project/ingestion-schedules?offset=20',
+    expect.anything(),
+  );
+  expect(fetch).toHaveBeenNthCalledWith(
+    2,
+    '/api/projects/project/ingestion-schedules',
+    expect.objectContaining({ body: expect.stringContaining('"enabled":false') }),
+  );
+  expect(fetch).toHaveBeenNthCalledWith(
+    4,
+    '/api/projects/project/ingestion-schedules/schedule/run',
     expect.objectContaining({ method: 'POST' }),
   );
 });

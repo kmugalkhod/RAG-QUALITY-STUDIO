@@ -175,6 +175,8 @@ export type IngestionRun = {
   pipeline_version_id: string;
   knowledge_set_id: string;
   knowledge_set_name: string;
+  schedule_id: string | null;
+  trigger_kind: 'manual' | 'scheduled';
   status: 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled';
   stage: 'discovering' | 'processing' | 'indexing' | 'complete';
   progress: number;
@@ -250,6 +252,26 @@ export type IngestionRunItem =
   | S3IngestionRunItem
   | NotionIngestionRunItem
   | ConfluenceIngestionRunItem;
+
+export type IngestionSchedule = {
+  id: string;
+  project_id: string;
+  pipeline_id: string;
+  pipeline_version_id: string;
+  pipeline_version: number;
+  name: string;
+  status: 'paused' | 'enabled';
+  cadence:
+    | { kind: 'interval'; minutes: number }
+    | { kind: 'daily'; local_time: string; timezone: string };
+  next_run_at: string | null;
+  last_run_id: string | null;
+  last_triggered_at: string | null;
+  last_outcome: 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled' | 'skipped' | null;
+  last_error: string | null;
+  created_at: string;
+  updated_at: string;
+};
 
 export function canonicalIngestion(value: unknown): string {
   if (Array.isArray(value)) {

@@ -33,6 +33,9 @@ def ready(session: Database) -> dict[str, str]:
         text("SELECT stage, progress, snapshot FROM ingestion_runs LIMIT 0")
     )
     session.execute(
+        text("SELECT cadence, next_run_at, status FROM ingestion_schedules LIMIT 0")
+    )
+    session.execute(
         text("SELECT processing_run_id, status FROM ingestion_run_items LIMIT 0")
     )
     session.execute(text("SELECT execution, status FROM source_previews LIMIT 0"))

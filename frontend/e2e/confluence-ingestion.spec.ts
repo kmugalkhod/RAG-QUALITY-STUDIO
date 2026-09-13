@@ -41,7 +41,15 @@ test('Confluence preview publishes and incrementally refreshes an exact index', 
   await expect(page.getByText('confluence://controlled.atlassian.net/page/101')).toBeVisible();
 
   await page.getByRole('button', { name: 'Save version' }).click();
-  await page.getByRole('button', { name: 'Run saved version' }).click();
+  const schedules = page.getByRole('region', { name: 'Ingestion schedules' });
+  await expect(schedules.getByText('No schedules target this saved version.')).toBeVisible();
+  await schedules.getByLabel('Schedule name').fill('Every fifteen minutes');
+  await schedules.getByLabel('Interval (minutes)').fill('15');
+  await schedules.getByRole('button', { name: 'Create paused schedule' }).click();
+  await expect(schedules.getByText('paused · every 15 minutes')).toBeVisible();
+  await schedules.getByRole('button', { name: 'Enable' }).click();
+  await expect(schedules.getByText('enabled · every 15 minutes')).toBeVisible();
+  await schedules.getByRole('button', { name: 'Run now' }).click();
   await expect(page.getByRole('heading', { name: 'Ingested knowledge · succeeded' })).toBeVisible({
     timeout: 60000,
   });

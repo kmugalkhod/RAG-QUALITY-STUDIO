@@ -5,6 +5,7 @@ import type {
   IngestionPipelineVersion,
   IngestionRun,
   IngestionRunItem,
+  IngestionSchedule,
   SourcePreview,
   SourcePreviewItem,
 } from './model';
@@ -103,6 +104,49 @@ export function listIngestionRunItems(
 export function cancelIngestionRun(projectId: string, runId: string): Promise<IngestionRun> {
   return request<IngestionRun>(
     `/projects/${encodeURIComponent(projectId)}/ingestion-runs/${encodeURIComponent(runId)}/cancel`,
+    { method: 'POST' },
+  );
+}
+
+export function listIngestionSchedules(
+  projectId: string,
+  offset = 0,
+): Promise<Page<IngestionSchedule>> {
+  return request<Page<IngestionSchedule>>(
+    `/projects/${encodeURIComponent(projectId)}/ingestion-schedules?offset=${offset}`,
+  );
+}
+
+export function createIngestionSchedule(
+  projectId: string,
+  value: {
+    name: string;
+    pipeline_id: string;
+    pipeline_version_id: string;
+    cadence: { kind: 'interval'; minutes: number };
+    enabled: boolean;
+  },
+): Promise<IngestionSchedule> {
+  return postJson<IngestionSchedule>(
+    `/projects/${encodeURIComponent(projectId)}/ingestion-schedules`,
+    value,
+  );
+}
+
+export function updateIngestionSchedule(
+  projectId: string,
+  schedule: IngestionSchedule,
+  enabled: boolean,
+): Promise<IngestionSchedule> {
+  return postJson<IngestionSchedule>(
+    `/projects/${encodeURIComponent(projectId)}/ingestion-schedules/${encodeURIComponent(schedule.id)}`,
+    { name: schedule.name, cadence: schedule.cadence, enabled },
+  );
+}
+
+export function runIngestionSchedule(projectId: string, scheduleId: string): Promise<IngestionRun> {
+  return request<IngestionRun>(
+    `/projects/${encodeURIComponent(projectId)}/ingestion-schedules/${encodeURIComponent(scheduleId)}/run`,
     { method: 'POST' },
   );
 }

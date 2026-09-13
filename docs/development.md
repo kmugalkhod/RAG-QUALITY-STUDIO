@@ -84,6 +84,14 @@ python -m pytest -q tests/test_confluence_live.py
 
 It reads one configured page with at most four API calls, a 2 MiB response limit, a five-second timeout and 50,000 extracted characters. It performs no Confluence writes. Default tests use deterministic responses and make no Atlassian calls.
 
+## Ingestion schedules
+
+Schedules target one immutable ingestion pipeline version and start paused. The editor creates fixed-interval schedules from 15 minutes through seven days; the API also accepts one daily local time with an IANA timezone. Enabling or changing a schedule calculates a new future due time. Missed intervals are coalesced to one attempt rather than replayed. **Run now** uses the same exact saved version and destination lock as automatic execution without changing the next automatic due time.
+
+The dispatcher claims at most 20 due schedules with PostgreSQL `SKIP LOCKED`. Claims older than 60 seconds are recoverable after restart; an already-created scheduled run is adopted instead of duplicated. The existing partial unique destination constraint prevents overlap with manual or other scheduled work. An overlap is recorded as skipped and the following due time advances; it does not cancel the active run. Scheduled failures remain visible and do not disable the schedule or advance a partial index.
+
+Schedule APIs are project-scoped under `/api/projects/{project_id}/ingestion-schedules`. Create and update use POST, listing/read use GET, and `/{schedule_id}/run` triggers one immediate run. Credentialed versions retain the same loopback/keyring checks as manual execution.
+
 ## Knowledge sets and explicit index snapshots
 
 Every project has a stable **Uploaded documents** knowledge set. `POST /api/projects/{project_id}/indexes` without a body preserves the Knowledge Base workflow by resolving every currently successful document to its latest successful processing run. To snapshot a narrower selection, send `{"document_ids":["<document UUID>"]}`; callers may also specify a project-owned `knowledge_set_id`. The backend converts either request to exact processing-run/chunk membership before queueing. Missing, cross-project, unfinished, duplicate and empty selections are rejected.

@@ -19,7 +19,7 @@ To rotate the encryption key, add a newly generated version without removing the
 SELECT key_version, count(*) FROM source_connections GROUP BY key_version;
 ```
 
-Credential rotation is separate: **Rotate credentials** replaces the provider credential under the active encryption key and returns the connection to `untested`. S3 testing performs a bounded `ListBuckets` request and Notion testing retrieves the integration bot identity. Confluence testing remains unavailable until that adapter is installed.
+Credential rotation is separate: **Rotate credentials** replaces the provider credential under the active encryption key and returns the connection to `untested`. S3 testing performs a bounded `ListBuckets` request, Notion retrieves the integration bot identity, and Confluence lists at most one accessible space through REST API v2.
 
 For Notion, create an internal integration with read-content capability and explicitly share only the pages or data sources intended for ingestion. The integration can read shared descendants according to Notion's access rules; review those descendants before a run. Do not grant update or insert capabilities. Removing a page from the integration can surface as Notion's safe not-found response and fails a required explicit selection; a later complete workspace/data-source discovery records previously indexed absent pages as removed without deleting historical revisions. Rotate the Notion token separately from the AES key and retest it before refreshing an index.
 
@@ -32,3 +32,11 @@ Use a dedicated read-only IAM principal for each intended scope. Connection test
 Enable bucket versioning when immutable provider revisions matter. Versioned objects are fetched by the discovered VersionId. Without versioning, ingestion relies on an ETag precondition plus size/last-modified verification; multipart ETags are treated only as opaque revision components, never as content hashes. Glacier and Deep Archive objects must be restored before they can be included.
 
 Every source sets explicit maximum objects, list pages, bytes per object, total bytes and request timeout. SDK retries are standard mode with at most three total attempts. Choose limits below worker time limits and AWS request budgets. A refresh retains raw immutable artifacts, extracted documents, chunks and older index versions, so storage grows with changed source content; include the document volume and PostgreSQL in backup/capacity planning. There is no automatic historical-revision deletion. Rotate AWS credentials independently from AES key re-encryption, test the replacement, and retain the prior ready index until a refresh completes.
+
+## Scheduled ingestion operations
+
+Schedules are disabled until a user explicitly enables each one. Keep exactly one dispatcher service running in normal deployments; PostgreSQL claims and destination constraints tolerate duplicate dispatchers, but extra processes add needless polling. Provider limits still apply to scheduled work: stagger broad S3, Notion and Confluence schedules, choose conservative connector request/page bounds, and inspect throttled/failed outcomes before increasing frequency. The minimum interval is 15 minutes.
+
+Before maintenance, pause schedules in each pipeline and wait for queued/running ingestion jobs to finish or cancel them. Back up PostgreSQL and the document volume as one recovery point; the database holds schedule/run/index membership while the volume holds immutable source artifacts. Back up the AES-256-GCM keyring separately and retain every key version referenced by `source_connections`. Restore all three components, apply `alembic upgrade head`, then start the dispatcher; overdue schedules coalesce to one attempt.
+
+Storage grows for every changed source revision and published index. No automatic retention or deletion job exists, so monitor PostgreSQL, the document volume and provider costs. Pausing a schedule stops future automatic runs but does not delete its immutable versions, historical runs, artifacts or indexes. Never use `docker compose down -v` for routine maintenance or backup.

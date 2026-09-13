@@ -3,7 +3,9 @@
 import logging
 import time
 from datetime import timedelta
+from uuid import uuid4
 
+from fastapi import HTTPException
 from sqlalchemy import or_, select, update
 from sqlalchemy.orm import Session
 
@@ -249,11 +251,180 @@ def dispatch_previews_once(db_engine=engine, send=None):
         session.commit()
 
 
+def dispatch_schedules_once(db_engine=engine, current=None):
+    """Claim due schedules durably and coalesce each to one new run."""
+    from app.models.ingestion import IngestionRun, IngestionSchedule
+    from app.models.pipeline import PipelineVersion
+    from app.schemas.schedule import Cadence
+    from pydantic import TypeAdapter
+    from app.services import ingestion, schedules
+
+    current = current or now()
+    claimed = []
+    with Session(
+        db_engine.execution_options(isolation_level="READ COMMITTED")
+    ) as session:
+        tracked = session.scalars(
+            select(IngestionSchedule)
+            .where(
+                IngestionSchedule.last_run_id.is_not(None),
+                IngestionSchedule.last_outcome.in_(["queued", "running"]),
+            )
+            .order_by(IngestionSchedule.updated_at)
+            .limit(100)
+            .with_for_update(skip_locked=True)
+        ).all()
+        for row in tracked:
+            schedules.refresh_outcome(session, row)
+        stale = session.scalars(
+            select(IngestionSchedule)
+            .where(
+                IngestionSchedule.claim_token.is_not(None),
+                IngestionSchedule.claimed_at < current - timedelta(seconds=60),
+            )
+            .limit(20)
+            .with_for_update(skip_locked=True)
+        ).all()
+        for row in stale:
+            row.claim_token = row.claimed_at = None
+        session.flush()
+        due = session.scalars(
+            select(IngestionSchedule)
+            .where(
+                IngestionSchedule.status == "enabled",
+                IngestionSchedule.next_run_at <= current,
+                IngestionSchedule.claim_token.is_(None),
+            )
+            .order_by(IngestionSchedule.next_run_at, IngestionSchedule.id)
+            .limit(20)
+            .with_for_update(skip_locked=True)
+        ).all()
+        for row in due:
+            row.claim_token = uuid4()
+            row.claimed_at = current
+            row.updated_at = current
+            claimed.append((row.id, row.claim_token))
+        session.commit()
+
+    for schedule_id, token in claimed:
+        with Session(
+            db_engine.execution_options(isolation_level="READ COMMITTED")
+        ) as session:
+            row = session.scalar(
+                select(IngestionSchedule)
+                .where(IngestionSchedule.id == schedule_id)
+                .with_for_update()
+            )
+            if row is None or row.status != "enabled" or row.claim_token != token:
+                continue
+            due_at = row.next_run_at
+            try:
+                version = session.get(PipelineVersion, row.pipeline_version_id)
+                recovered = session.scalar(
+                    select(IngestionRun)
+                    .where(
+                        IngestionRun.schedule_id == row.id,
+                        IngestionRun.created_at >= row.next_run_at,
+                    )
+                    .order_by(IngestionRun.created_at.desc())
+                    .limit(1)
+                )
+                result = None
+                if recovered is None:
+                    result = ingestion.start_run(
+                        session,
+                        row.project_id,
+                        version.pipeline_id,
+                        version.id,
+                        trigger_kind="scheduled",
+                        schedule_id=row.id,
+                    )
+                run_id = recovered.id if recovered is not None else result["id"]
+                run_outcome = recovered.status if recovered is not None else "queued"
+            except Exception as exc:
+                session.rollback()
+                recovered = session.scalar(
+                    select(IngestionRun)
+                    .where(
+                        IngestionRun.schedule_id == schedule_id,
+                        IngestionRun.created_at >= due_at,
+                    )
+                    .order_by(IngestionRun.created_at.desc())
+                    .limit(1)
+                )
+                if recovered is not None:
+                    run_id = recovered.id
+                    run_outcome = recovered.status
+                else:
+                    row = session.scalar(
+                        select(IngestionSchedule)
+                        .where(IngestionSchedule.id == schedule_id)
+                        .with_for_update()
+                    )
+                    if row is None or row.claim_token != token:
+                        continue
+                    is_overlap = (
+                        isinstance(exc, HTTPException)
+                        and exc.status_code == 409
+                        and exc.detail
+                        == "This knowledge set already has an active ingestion run."
+                    )
+                    row.last_outcome = "skipped" if is_overlap else "failed"
+                    row.last_error = (
+                        "A destination run is already active."
+                        if is_overlap
+                        else "The scheduled run could not be created safely."
+                    )
+                    cadence = TypeAdapter(Cadence).validate_python(row.cadence)
+                    row.next_run_at = schedules.next_due(cadence, current)
+                    row.claim_token = row.claimed_at = None
+                    row.updated_at = current
+                    session.commit()
+                    if not isinstance(exc, HTTPException):
+                        logging.warning(
+                            "Scheduled ingestion creation failed for schedule %s.",
+                            schedule_id,
+                        )
+                    continue
+
+            row = session.scalar(
+                select(IngestionSchedule)
+                .where(IngestionSchedule.id == schedule_id)
+                .with_for_update()
+            )
+            if row is None:
+                continue
+            if row.claim_token != token:
+                if row.claim_token is None:
+                    row.last_run_id = run_id
+                    row.last_triggered_at = current
+                    row.last_outcome = run_outcome
+                    row.last_error = None
+                    row.updated_at = current
+                    session.commit()
+                continue
+            if row.status != "enabled":
+                row.claim_token = row.claimed_at = None
+                row.updated_at = current
+                session.commit()
+                continue
+            cadence = TypeAdapter(Cadence).validate_python(row.cadence)
+            row.last_run_id = run_id
+            row.last_triggered_at = current
+            row.last_outcome = run_outcome
+            row.last_error = None
+            row.next_run_at = schedules.next_due(cadence, current)
+            row.claim_token = row.claimed_at = None
+            row.updated_at = current
+            session.commit()
+
+
 def main():
     while True:
         try:
             dispatch_once()
             dispatch_indexes_once()
+            dispatch_schedules_once()
             dispatch_ingestion_once()
             dispatch_previews_once()
             from app.workers.experiments import dispatch_experiments_once

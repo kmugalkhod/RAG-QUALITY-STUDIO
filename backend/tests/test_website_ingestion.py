@@ -3,14 +3,14 @@ from uuid import UUID
 
 import pytest
 from pydantic import SecretStr
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.orm import Session
 
 from app.connectors.website import PreviewOutcome, WebsiteArtifact
 from app.core.config import settings
 from app.models.document import Chunk, Document, ProcessingRun
 from app.models.index import IndexChunk, IndexVersion, KnowledgeSet
-from app.models.ingestion import IngestionRun
+from app.models.ingestion import IngestionRun, IngestionSchedule
 from app.models.pipeline import Pipeline, PipelineVersion
 from app.models.source import (
     IndexSourceRevision,
@@ -92,7 +92,17 @@ def website_api(documents_api, monkeypatch):  # noqa: F811
         session.execute(delete(IndexChunk).where(IndexChunk.index_id.in_(indexes)))
         session.execute(delete(IndexVersion).where(IndexVersion.id.in_(indexes)))
         session.execute(delete(WebsiteRunItem).where(WebsiteRunItem.run_id.in_(runs)))
+        session.execute(
+            update(IngestionSchedule)
+            .where(IngestionSchedule.project_id == project_uuid)
+            .values(last_run_id=None)
+        )
         session.execute(delete(IngestionRun).where(IngestionRun.id.in_(runs)))
+        session.execute(
+            delete(IngestionSchedule).where(
+                IngestionSchedule.project_id == project_uuid
+            )
+        )
         session.execute(
             delete(SourceRevision).where(SourceRevision.project_id == project_uuid)
         )

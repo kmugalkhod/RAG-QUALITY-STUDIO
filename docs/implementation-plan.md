@@ -1,5 +1,18 @@
 # Implementation plan
 
+## Ingestion pipelines — Phase 9 acceptance criteria
+
+Recorded before implementation on 2026-09-14:
+
+- Verify a clean migration to head and the supported populated downgrade/upgrade paths without losing answer-pipeline, retrieval, ingestion, provenance, schedule or encrypted-connection state.
+- Run backend Ruff format/lint and the full isolated PostgreSQL/pgvector suite; run frontend Prettier, structure/ESLint, strict TypeScript, unit tests and production build.
+- Run the complete isolated Chromium suite, including existing-files and website ingestion plus every released S3, Notion and Confluence connector journey and answer/Playground/experiment regressions. Make no live provider or paid-model calls without explicit authorization.
+- Inspect representative desktop and mobile states once, correct verified regressions in one bounded pass, and confirm the corrected states once.
+- Reconcile README, architecture, development, deployment and implementation status with actual verification results, operational procedures and remaining limitations. Do not claim production readiness while shared-access authentication/authorization and live connector verification remain incomplete.
+- A final finish review must return PASS, all temporary Phase 8/9 Docker resources must be removed without touching the user's persistent application stack, and the completed phase must be committed and pushed to `main`.
+
+Status: in progress for ingestion-pipeline Phase 9.
+
 ## Ingestion pipelines — Phase 8 acceptance criteria
 
 Recorded before implementation on 2026-09-13:
@@ -10,7 +23,25 @@ Recorded before implementation on 2026-09-13:
 - Coalesce missed intervals, recover stale claims and prove overlap prevention, cancellation and failure recovery. Partial indexes never publish and failures never silently disable a schedule.
 - Document rate limits, storage growth, backup/restore, retention/deletion and AES-256-GCM rotation. Clean backend/frontend/browser gates and finish review must pass before completion.
 
-Status: in progress for ingestion-pipeline Phase 8.
+Status: complete for ingestion-pipeline Phase 8. Verified on 2026-09-14.
+
+Implemented:
+
+- Migration `0017` adds project-scoped schedules bound to one immutable ingestion version, interval or timezone-aware daily cadence, paused/enabled state, next/last execution metadata and composite project/run constraints. New schedules start paused.
+- The PostgreSQL dispatcher uses bounded `SKIP LOCKED` claims, stale-claim recovery and exact schedule/run identity. It coalesces missed time, adopts runs created before an interrupted checkpoint, prevents destination overlap, classifies safe failures, and preserves concurrent pause/cadence edits.
+- Project-scoped APIs and accessible editor controls create, edit, pause, enable and run schedules. Credentialed sources retain loopback/vault protection, manual ingestion remains unchanged, and run records identify manual versus scheduled triggers without exposing credentials.
+- Operations documentation covers provider-rate planning, process restart behavior, storage growth, coordinated PostgreSQL/artifact/keyring backups, AES-256-GCM key rotation, pause behavior and the absence of automatic historical deletion.
+
+Verification:
+
+- Fresh PostgreSQL/pgvector migration and Alembic model check passed. Backend Ruff/format passed; the full suite passed with **248 tests and 4 explicitly gated live-provider checks skipped**.
+- Frontend Prettier, structure/ESLint, strict TypeScript, **77 Vitest tests across 22 files**, and production build passed; the known non-blocking approximately 633 kB bundle advisory remains.
+- Isolated Chromium created a paused schedule, enabled it, ran its exact saved Confluence version, refreshed incrementally, published exact index v2 and answered from that index. Desktop/mobile inspection found no blocking overflow, accessibility or hierarchy regression.
+- Finish review found answer-version validation, non-HTTP failure recovery, post-commit adoption and concurrent edit races; regression-tested fixes were applied and repeated review returned **PASS**. No live provider or paid-model request was made.
+
+Remaining limits: the editor authors fixed-interval schedules; timezone-aware daily schedules are API-only. Schedules are retained with their immutable history and have no delete endpoint or automatic retention policy. Shared-access authorization remains a release prerequisite.
+
+Next actionable step: Phase 9 performs the final clean/upgrade-path, full browser, visual and documentation hardening pass without adding features.
 
 ## Ingestion pipelines — Phase 7C acceptance criteria
 

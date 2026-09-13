@@ -37,6 +37,7 @@ import {
   type IngestionPipelineVersion,
   type IngestionRun,
   type IngestionRunItem,
+  type IngestionSchedule,
   type NotionConfig,
   type SourcePreview,
   type SourcePreviewItem,
@@ -851,6 +852,9 @@ export function IngestionPipelineEditor({
   });
   const [run, setRun] = useState<IngestionRun>();
   const [items, setItems] = useState<IngestionRunItem[]>([]);
+  const [schedules, setSchedules] = useState<IngestionSchedule[]>([]);
+  const [scheduleName, setScheduleName] = useState('Regular refresh');
+  const [scheduleMinutes, setScheduleMinutes] = useState(1440);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -928,6 +932,24 @@ export function IngestionPipelineEditor({
   }, [projectId, pipelineId, versionId, open]);
 
   useEffect(() => {
+    let disposed = false;
+    if (!saved) {
+      setSchedules([]);
+      return;
+    }
+    void allPages((offset) => api.listIngestionSchedules(projectId, offset))
+      .then((values) => {
+        if (!disposed) {
+          setSchedules(values.filter((value) => value.pipeline_version_id === saved.id));
+        }
+      })
+      .catch((cause) => !disposed && setError(message(cause)));
+    return () => {
+      disposed = true;
+    };
+  }, [projectId, saved]);
+
+  useEffect(() => {
     if (!draft) {
       return;
     }
@@ -970,12 +992,18 @@ export function IngestionPipelineEditor({
             setItems(
               await allPages((offset) => api.listIngestionRunItems(projectId, next.id, offset)),
             );
+            if (saved) {
+              const refreshed = await allPages((offset) =>
+                api.listIngestionSchedules(projectId, offset),
+              );
+              setSchedules(refreshed.filter((value) => value.pipeline_version_id === saved.id));
+            }
           }
         })
         .catch((cause) => setError(message(cause)));
     }, 1200);
     return () => window.clearTimeout(pollRef.current);
-  }, [projectId, run]);
+  }, [projectId, run, saved]);
 
   useEffect(() => {
     if (!preview || terminal.has(preview.status)) {
@@ -1210,6 +1238,48 @@ export function IngestionPipelineEditor({
       setItems([]);
       setRun(await api.startIngestionRun(projectId, saved.pipeline_id, saved.id));
     });
+  }
+
+  function createSchedule() {
+    if (!saved) {
+      return;
+    }
+    void perform(async () => {
+      const created = await api.createIngestionSchedule(projectId, {
+        name: scheduleName,
+        pipeline_id: saved.pipeline_id,
+        pipeline_version_id: saved.id,
+        cadence: { kind: 'interval', minutes: scheduleMinutes },
+        enabled: false,
+      });
+      setSchedules((values) => [created, ...values]);
+    });
+  }
+
+  function toggleSchedule(schedule: IngestionSchedule) {
+    void perform(async () => {
+      const changed = await api.updateIngestionSchedule(
+        projectId,
+        schedule,
+        schedule.status !== 'enabled',
+      );
+      setSchedules((values) => values.map((value) => (value.id === changed.id ? changed : value)));
+    });
+  }
+
+  function saveSchedule(schedule: IngestionSchedule) {
+    void perform(async () => {
+      const changed = await api.updateIngestionSchedule(
+        projectId,
+        schedule,
+        schedule.status === 'enabled',
+      );
+      setSchedules((values) => values.map((value) => (value.id === changed.id ? changed : value)));
+    });
+  }
+
+  function runSchedule(schedule: IngestionSchedule) {
+    void perform(async () => setRun(await api.runIngestionSchedule(projectId, schedule.id)));
   }
 
   const websiteSource = source?.type === 'source' && source.config.kind === 'website';
@@ -1558,6 +1628,129 @@ export function IngestionPipelineEditor({
           </aside>
         </div>
       </fieldset>
+      {saved && (
+        <section className="surface-section ingestion-results" aria-labelledby="schedule-heading">
+          <div className="section-heading">
+            <div>
+              <p className="eyebrow">Automation</p>
+              <h2 id="schedule-heading">Ingestion schedules</h2>
+              <p>Schedules start paused and always run this exact immutable version.</p>
+            </div>
+          </div>
+          <div className="pipeline-toolbar flex flex-wrap gap-2.5 items-end">
+            <Label>
+              Schedule name
+              <Input
+                value={scheduleName}
+                onChange={(event) => setScheduleName(event.target.value)}
+              />
+            </Label>
+            <Label>
+              Interval (minutes)
+              <Input
+                type="number"
+                min={15}
+                max={10080}
+                value={scheduleMinutes}
+                onChange={(event) => setScheduleMinutes(Number(event.target.value))}
+              />
+            </Label>
+            <Button
+              variant="outline"
+              onClick={createSchedule}
+              disabled={!scheduleName.trim() || scheduleMinutes < 15 || scheduleMinutes > 10080}
+            >
+              Create paused schedule
+            </Button>
+          </div>
+          {schedules.length === 0 ? (
+            <p>No schedules target this saved version.</p>
+          ) : (
+            <ul className="project-list" aria-label="Ingestion schedules">
+              {schedules.map((schedule) => (
+                <li key={schedule.id}>
+                  <div>
+                    <Label>
+                      Schedule name
+                      <Input
+                        value={schedule.name}
+                        onChange={(event) =>
+                          setSchedules((values) =>
+                            values.map((value) =>
+                              value.id === schedule.id
+                                ? { ...value, name: event.target.value }
+                                : value,
+                            ),
+                          )
+                        }
+                      />
+                    </Label>
+                    {schedule.cadence.kind === 'interval' && (
+                      <Label>
+                        Interval for {schedule.name} (minutes)
+                        <Input
+                          type="number"
+                          min={15}
+                          max={10080}
+                          value={schedule.cadence.minutes}
+                          onChange={(event) =>
+                            setSchedules((values) =>
+                              values.map((value) =>
+                                value.id === schedule.id
+                                  ? {
+                                      ...value,
+                                      cadence: {
+                                        kind: 'interval',
+                                        minutes: Number(event.target.value),
+                                      },
+                                    }
+                                  : value,
+                              ),
+                            )
+                          }
+                        />
+                      </Label>
+                    )}
+                    <p>
+                      {schedule.status} ·{' '}
+                      {schedule.cadence.kind === 'interval'
+                        ? `every ${schedule.cadence.minutes} minutes`
+                        : `daily at ${schedule.cadence.local_time} ${schedule.cadence.timezone}`}
+                    </p>
+                    <small>
+                      Next:{' '}
+                      {schedule.next_run_at
+                        ? new Date(schedule.next_run_at).toLocaleString()
+                        : 'paused'}{' '}
+                      · Last: {schedule.last_outcome ?? 'never run'}
+                    </small>
+                    {schedule.last_error && <small>{schedule.last_error}</small>}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => saveSchedule(schedule)}
+                      disabled={
+                        !schedule.name.trim() ||
+                        (schedule.cadence.kind === 'interval' &&
+                          (schedule.cadence.minutes < 15 || schedule.cadence.minutes > 10080))
+                      }
+                    >
+                      Save schedule
+                    </Button>
+                    <Button variant="outline" onClick={() => toggleSchedule(schedule)}>
+                      {schedule.status === 'enabled' ? 'Pause' : 'Enable'}
+                    </Button>
+                    <Button variant="outline" onClick={() => runSchedule(schedule)}>
+                      Run now
+                    </Button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
       {preview && (
         <section className="surface-section ingestion-results" aria-live="polite">
           <div className="section-heading">

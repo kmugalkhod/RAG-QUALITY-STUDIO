@@ -149,6 +149,9 @@ def start_run(
     project_id: UUID,
     pipeline_id: UUID,
     version_id: UUID,
+    *,
+    trigger_kind: str = "manual",
+    schedule_id: UUID | None = None,
 ):
     pipeline = pipelines.get_pipeline(session, project_id, pipeline_id)
     if pipeline.kind != "ingestion":
@@ -184,6 +187,8 @@ def start_run(
             project_id=project_id,
             pipeline_version_id=version.id,
             knowledge_set_id=knowledge_set.id,
+            schedule_id=schedule_id,
+            trigger_kind=trigger_kind,
             stage="discovering",
             progress=0,
             discovered_count=0,
@@ -299,6 +304,8 @@ def start_run(
         project_id=project_id,
         pipeline_version_id=version.id,
         knowledge_set_id=knowledge_set.id,
+        schedule_id=schedule_id,
+        trigger_kind=trigger_kind,
         stage="processing" if len(ready) != len(item_values) else "indexing",
         progress=int(40 * len(ready) / len(item_values)),
         discovered_count=len(item_values),

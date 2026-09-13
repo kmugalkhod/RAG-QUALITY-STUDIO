@@ -4,6 +4,7 @@ from app.api.pipelines import router as pipeline_router
 from app.api.queries import router as query_router
 from app.api.indexes import router as index_router
 from app.api.ingestion import router as ingestion_router
+from app.api.schedules import router as schedule_router
 from app.providers.embeddings import EmbeddingError
 from app.api.documents import router as document_router
 from app.core.upload_limit import UploadLimitMiddleware
@@ -29,6 +30,7 @@ app.include_router(experiment_router)
 app.include_router(document_router)
 app.include_router(index_router)
 app.include_router(ingestion_router)
+app.include_router(schedule_router)
 app.include_router(query_router)
 app.include_router(pipeline_router)
 app.add_middleware(UploadLimitMiddleware)
