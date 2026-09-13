@@ -1,5 +1,20 @@
 # Implementation plan
 
+## Ingestion pipelines — Phase 7B acceptance criteria
+
+Recorded before implementation on 2026-09-13:
+
+- Pin a compatible official Notion client/API contract and construct provider clients only from decrypted project-scoped Notion connections. Requests use an explicit Notion version, bounded timeouts/retries and fixed safe authentication, permission, throttling, timeout and provider error mappings.
+- Add a strict Notion source configuration containing only an opaque connection ID, bounded page/database selection filters and page/request/block/text limits. Saved versions, previews, runs, responses, logs, routes and browser storage never contain the integration token; authoritative validation rejects missing, wrong-kind and cross-project connections.
+- Paginated discovery supports explicitly shared pages and selected databases/data sources with stable ordering, bounded cursors and inspectable inclusion/exclusion. Stable identity uses the Notion page ID; provider revision uses the page's last-edited time plus available immutable identifiers.
+- Fetch traverses page block children with bounded pagination and depth, converts supported rich-text blocks deterministically without executing embeds or instructions, records page/database/block hierarchy provenance and rejects content that changes outside the discovered revision contract.
+- Preview and durable ingestion use the existing fenced job paths. First ingestion publishes an exact immutable index; refresh embeds only new/changed pages, reuses compatible unchanged revisions/vectors, reports archived, deleted or no-longer-shared pages as removed, and leaves the prior current-ready index unchanged after required failures or permission loss.
+- The ingestion editor exposes Notion only when the encrypted connection vault and real adapter are enabled. Users select a redacted connection, configure explicit selection and bounds, run real async preview/execution, and inspect paginated provenance and new/changed/unchanged/removed/failed outcomes on desktop/mobile.
+- Deterministic provider doubles cover connection validation, cursor pagination, page/database filters, bounded nested blocks, rich-text extraction, first run, incremental refresh/removal, permission loss, cancellation, stale recovery, duplicate delivery, isolation and retrieval. A separate opt-in live check remains disabled unless a user-authorized workspace/page is explicitly configured.
+- Clean/upgrade migrations, full backend/frontend gates, isolated Chromium ingestion and answer regressions, desktop/mobile inspection and the required finish review pass before Phase 7B is marked complete and pushed.
+
+Status: in progress for ingestion-pipeline Phase 7B.
+
 ## Ingestion pipelines — Phase 7A acceptance criteria
 
 Recorded before implementation on 2026-09-13:
