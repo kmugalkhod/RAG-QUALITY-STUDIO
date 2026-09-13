@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, HttpUrl, SecretStr
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl, SecretStr, model_validator
 
 
 class _Strict(BaseModel):
@@ -26,6 +26,25 @@ class ConfluenceCredentials(_Strict):
     site_url: HttpUrl
     email: SecretStr = Field(min_length=3, max_length=320)
     api_token: SecretStr = Field(min_length=1, max_length=4096)
+
+    @model_validator(mode="after")
+    def cloud_site_only(self):
+        host = (self.site_url.host or "").lower().rstrip(".")
+        if (
+            self.site_url.scheme != "https"
+            or not host.endswith(".atlassian.net")
+            or host == "atlassian.net"
+            or self.site_url.port not in (None, 443)
+            or self.site_url.path not in (None, "/")
+            or self.site_url.query is not None
+            or self.site_url.fragment is not None
+            or self.site_url.username is not None
+            or self.site_url.password is not None
+        ):
+            raise ValueError(
+                "Confluence site URL must be a root HTTPS *.atlassian.net Cloud URL."
+            )
+        return self
 
 
 Credentials = Annotated[

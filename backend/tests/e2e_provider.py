@@ -12,6 +12,8 @@ from app.connectors import s3 as s3_module
 from app.connectors.connections import ConnectionCheck as StoredConnectionCheck
 from app.connectors.notion import NotionConnector
 from app.connectors import notion as notion_module
+from app.connectors.confluence import ConfluenceConnector
+from app.connectors import confluence as confluence_module
 from app.providers.openrouter import OpenRouterEmbeddings
 from app.providers import embeddings, generation
 from app.workers import ingestion as ingestion_worker, previews
@@ -398,6 +400,132 @@ def set_notion_state(state: str):
         return {"updated": False}
     NOTION_STATE.parent.mkdir(parents=True, exist_ok=True)
     NOTION_STATE.write_text(state)
+    return {"updated": True}
+
+
+CONFLUENCE_STATE = Path("/data/documents/.confluence-fixture-state")
+CONFLUENCE_PAGES = {
+    "first": {
+        "101": (
+            "Controlled orchard",
+            1,
+            "The controlled Confluence orchard grows apples in carefully managed rows. "
+            * 3,
+        ),
+        "102": (
+            "Old notes",
+            1,
+            "These notes will be removed from the next site refresh. " * 3,
+        ),
+    },
+    "second": {
+        "101": (
+            "Controlled orchard",
+            1,
+            "The controlled Confluence orchard grows apples in carefully managed rows. "
+            * 3,
+        ),
+        "103": (
+            "Packing guide",
+            2,
+            "The controlled Confluence packing guide requires recycled paper boxes. "
+            * 3,
+        ),
+    },
+}
+
+
+class ConfluenceResponse:
+    def __init__(self, status_code, value):
+        self.status_code = status_code
+        self.headers = {}
+        self.content = json.dumps(value).encode()
+
+
+class ConfluenceTransport:
+    def close(self):
+        pass
+
+    @staticmethod
+    def state():
+        try:
+            return CONFLUENCE_STATE.read_text().strip()
+        except OSError:
+            return "first"
+
+    @staticmethod
+    def page(page_id, value, body=False):
+        title, version, text = value
+        page = {
+            "id": page_id,
+            "status": "current",
+            "title": title,
+            "spaceId": "77",
+            "version": {
+                "number": version,
+                "createdAt": f"2026-09-{10 + version:02d}T10:00:00Z",
+            },
+            "_links": {"webui": f"/spaces/ENG/pages/{page_id}"},
+        }
+        if body:
+            page["body"] = {"storage": {"value": f"<h1>{title}</h1><p>{text}</p>"}}
+        return page
+
+    def request(self, method, path, params=None):
+        state = self.state()
+        if state == "denied":
+            return ConfluenceResponse(403, {"message": "fixture denied"})
+        pages = CONFLUENCE_PAGES[state]
+        if path == "/spaces":
+            return ConfluenceResponse(
+                200, {"results": [{"id": "77", "name": "Engineering"}], "_links": {}}
+            )
+        if path == "/pages":
+            return ConfluenceResponse(
+                200,
+                {
+                    "results": [self.page(key, value) for key, value in pages.items()],
+                    "_links": {},
+                },
+            )
+        if path.startswith("/pages/"):
+            page_id = path.rsplit("/", 1)[1]
+            return ConfluenceResponse(
+                200,
+                self.page(
+                    page_id,
+                    pages[page_id],
+                    body=(params or {}).get("body-format") == "storage",
+                ),
+            )
+        raise AssertionError(path)
+
+
+def confluence_connector(credentials):
+    return ConfluenceConnector(
+        credentials,
+        client_factory=lambda credentials, timeout: ConfluenceTransport(),
+        resolver=lambda *args, **kwargs: [(2, 1, 6, "", ("104.192.142.10", 443))],
+        sleeper=lambda _: None,
+    )
+
+
+class ConfluenceTester:
+    def check(self, credentials):
+        return StoredConnectionCheck("succeeded", "ok")
+
+
+confluence_module.ConfluenceConnectionTester = ConfluenceTester
+previews.ConfluenceConnector = confluence_connector
+ingestion_worker.ConfluenceConnector = confluence_connector
+
+
+@app.post("/api/test/confluence-state/{state}")
+def set_confluence_state(state: str):
+    if state not in {"first", "second", "denied"}:
+        return {"updated": False}
+    CONFLUENCE_STATE.parent.mkdir(parents=True, exist_ok=True)
+    CONFLUENCE_STATE.write_text(state)
     return {"updated": True}
 
 

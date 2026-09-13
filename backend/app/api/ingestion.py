@@ -23,7 +23,7 @@ router = APIRouter(prefix="/api/projects/{project_id}")
 
 def _protect_credentialed_source(request: Request, execution: IngestionExecution):
     if any(
-        node.type == "source" and node.config.kind in ("s3", "notion")
+        node.type == "source" and node.config.kind in ("s3", "notion", "confluence")
         for node in execution.nodes
     ):
         require_keyring(request)

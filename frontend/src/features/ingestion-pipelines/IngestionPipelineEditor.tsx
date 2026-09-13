@@ -30,6 +30,7 @@ import type { ConnectionSettings, SourceConnection } from '../connections/model'
 import * as api from './api';
 import {
   canonicalIngestion,
+  type ConfluenceConfig,
   type ExistingFilesConfig,
   type IngestionNode,
   type IngestionPipelineDraft,
@@ -97,6 +98,20 @@ const defaultNotion = (connectionId = ''): NotionConfig => ({
   max_api_pages: 50,
   max_blocks_per_page: 5000,
   max_block_depth: 8,
+  max_text_chars: 2_000_000,
+  request_timeout_seconds: 30,
+});
+
+const defaultConfluence = (connectionId = ''): ConfluenceConfig => ({
+  kind: 'confluence',
+  connection_id: connectionId,
+  selection: { mode: 'site' },
+  title_prefixes: [],
+  exclude_title_prefixes: [],
+  label_ids: [],
+  max_pages: 500,
+  max_api_pages: 100,
+  max_response_bytes: 2 * 1024 * 1024,
   max_text_chars: 2_000_000,
   request_timeout_seconds: 30,
 });
@@ -211,6 +226,16 @@ function detail(node: IngestionNode, documents: Document[]) {
           ? `${selection.page_ids.length} pages`
           : `${selection.data_source_ids.length} data sources`;
     return `Notion · ${scope}`;
+  }
+  if (node.type === 'source' && node.config.kind === 'confluence') {
+    const selection = node.config.selection;
+    const scope =
+      selection.mode === 'site'
+        ? 'accessible site'
+        : selection.mode === 'spaces'
+          ? `${selection.space_ids.length} spaces`
+          : `${selection.page_ids.length} pages`;
+    return `Confluence · ${scope}`;
   }
   if (node.type === 'chunk') {
     return `${node.size} characters · ${node.overlap} overlap`;
@@ -652,6 +677,153 @@ function NotionSettings({
   );
 }
 
+function ConfluenceSettings({
+  config,
+  connections,
+  projectId,
+  update,
+}: {
+  config: ConfluenceConfig;
+  connections: SourceConnection[];
+  projectId: string;
+  update: (config: ConfluenceConfig) => void;
+}) {
+  const available = connections.filter((connection) => connection.kind === 'confluence');
+  const selectedIds =
+    config.selection.mode === 'spaces'
+      ? config.selection.space_ids.join('\n')
+      : config.selection.mode === 'pages'
+        ? config.selection.page_ids.join('\n')
+        : '';
+  const numberField = (
+    key:
+      | 'max_pages'
+      | 'max_api_pages'
+      | 'max_response_bytes'
+      | 'max_text_chars'
+      | 'request_timeout_seconds',
+    label: string,
+    min: number,
+  ) => (
+    <Label>
+      {label}
+      <Input
+        type="number"
+        min={min}
+        value={config[key]}
+        onChange={(event) => update({ ...config, [key]: Number(event.target.value) })}
+      />
+    </Label>
+  );
+  return (
+    <>
+      <div className="website-preview-notice">
+        <CircleAlert size={17} />
+        <p>
+          Confluence reads only pages visible to the selected account. Credentials stay in the
+          encrypted server vault, and a new index is published only after every included page
+          succeeds.
+        </p>
+      </div>
+      <Label>
+        Confluence connection
+        <NativeSelect
+          value={config.connection_id}
+          onChange={(event) => update({ ...config, connection_id: event.target.value })}
+        >
+          <NativeSelectOption value="">Select an encrypted connection</NativeSelectOption>
+          {available.map((connection) => (
+            <NativeSelectOption key={connection.id} value={connection.id}>
+              {connection.name} · {connection.status}
+            </NativeSelectOption>
+          ))}
+        </NativeSelect>
+      </Label>
+      {available.length === 0 && (
+        <p className="field-hint">
+          No Confluence connection is available.{' '}
+          <a href={`#/projects/${projectId}/settings`}>Add one in project settings</a>.
+        </p>
+      )}
+      <Label>
+        Discovery scope
+        <NativeSelect
+          value={config.selection.mode}
+          onChange={(event) =>
+            update({
+              ...config,
+              selection:
+                event.target.value === 'spaces'
+                  ? { mode: 'spaces', space_ids: [] }
+                  : event.target.value === 'pages'
+                    ? { mode: 'pages', page_ids: [] }
+                    : { mode: 'site' },
+            })
+          }
+        >
+          <NativeSelectOption value="site">All accessible current pages</NativeSelectOption>
+          <NativeSelectOption value="spaces">Explicit space IDs</NativeSelectOption>
+          <NativeSelectOption value="pages">Explicit page IDs</NativeSelectOption>
+        </NativeSelect>
+      </Label>
+      {config.selection.mode !== 'site' && (
+        <Label>
+          {config.selection.mode === 'spaces'
+            ? 'Space IDs (one numeric ID per line)'
+            : 'Page IDs (one numeric ID per line)'}
+          <Textarea
+            rows={4}
+            value={selectedIds}
+            onChange={(event) => {
+              const ids = lines(event.target.value);
+              update({
+                ...config,
+                selection:
+                  config.selection.mode === 'spaces'
+                    ? { mode: 'spaces', space_ids: ids }
+                    : { mode: 'pages', page_ids: ids },
+              });
+            }}
+          />
+        </Label>
+      )}
+      <Label>
+        Included title prefixes (optional, one per line)
+        <Textarea
+          rows={3}
+          value={config.title_prefixes.join('\n')}
+          onChange={(event) => update({ ...config, title_prefixes: lines(event.target.value) })}
+        />
+      </Label>
+      <Label>
+        Excluded title prefixes (optional, one per line)
+        <Textarea
+          rows={3}
+          value={config.exclude_title_prefixes.join('\n')}
+          onChange={(event) =>
+            update({ ...config, exclude_title_prefixes: lines(event.target.value) })
+          }
+        />
+      </Label>
+      <Label>
+        Required label IDs (optional, one numeric ID per line)
+        <Textarea
+          rows={3}
+          value={config.label_ids.join('\n')}
+          onChange={(event) => update({ ...config, label_ids: lines(event.target.value) })}
+        />
+      </Label>
+      <div className="website-limit-grid">
+        {numberField('max_pages', 'Maximum pages', 1)}
+        {numberField('max_api_pages', 'Maximum API requests', 1)}
+        {numberField('max_response_bytes', 'Bytes per API response', 1024)}
+        {numberField('max_text_chars', 'Text characters per page', 100)}
+        {numberField('request_timeout_seconds', 'Request timeout (seconds)', 1)}
+      </div>
+    </>
+  );
+}
+
 export function IngestionPipelineEditor({
   projectId,
   pipelineId,
@@ -773,7 +945,9 @@ export function IngestionPipelineEditor({
                 ? 'Amazon S3'
                 : node.config.kind === 'notion'
                   ? 'Notion'
-                  : 'Existing files'
+                  : node.config.kind === 'confluence'
+                    ? 'Confluence'
+                    : 'Existing files'
             : labels[node.type],
         detail: detail(node, documents),
         first: index === 0,
@@ -912,6 +1086,21 @@ export function IngestionPipelineEditor({
         reasons.push('Enter at least one Notion page or data source ID.');
       }
     }
+    if (source?.type === 'source' && source.config.kind === 'confluence') {
+      if (!connectionSettings?.enabled) {
+        reasons.push('Enable the local encrypted connection vault before using Confluence.');
+      }
+      if (!source.config.connection_id) {
+        reasons.push('Select a Confluence connection.');
+      }
+      if (
+        (source.config.selection.mode === 'spaces' &&
+          source.config.selection.space_ids.length === 0) ||
+        (source.config.selection.mode === 'pages' && source.config.selection.page_ids.length === 0)
+      ) {
+        reasons.push('Enter at least one Confluence space or page ID.');
+      }
+    }
     const chunk = draft.execution.nodes.find((node) => node.type === 'chunk');
     if (
       chunk?.type === 'chunk' &&
@@ -1026,6 +1215,7 @@ export function IngestionPipelineEditor({
   const websiteSource = source?.type === 'source' && source.config.kind === 'website';
   const s3Source = source?.type === 'source' && source.config.kind === 's3';
   const notionSource = source?.type === 'source' && source.config.kind === 'notion';
+  const confluenceSource = source?.type === 'source' && source.config.kind === 'confluence';
 
   if (loading || !draft) {
     return <p role="status">Loading ingestion pipeline…</p>;
@@ -1045,7 +1235,9 @@ export function IngestionPipelineEditor({
               ? 'Amazon S3 → ready index'
               : notionSource
                 ? 'Notion → ready index'
-                : 'Existing files → ready index'}
+                : confluenceSource
+                  ? 'Confluence → ready index'
+                  : 'Existing files → ready index'}
         </span>
       </div>
       {error && (
@@ -1136,7 +1328,7 @@ export function IngestionPipelineEditor({
           <aside id="node-settings" className="node-settings">
             <h2>
               {selected
-                ? `${selected.type === 'source' ? (selected.config.kind === 'website' ? 'Website' : selected.config.kind === 's3' ? 'Amazon S3' : selected.config.kind === 'notion' ? 'Notion' : 'Existing files') : labels[selected.type]} settings`
+                ? `${selected.type === 'source' ? (selected.config.kind === 'website' ? 'Website' : selected.config.kind === 's3' ? 'Amazon S3' : selected.config.kind === 'notion' ? 'Notion' : selected.config.kind === 'confluence' ? 'Confluence' : 'Existing files') : labels[selected.type]} settings`
                 : 'Node settings'}
             </h2>
             {selected?.type === 'source' && (
@@ -1159,10 +1351,15 @@ export function IngestionPipelineEditor({
                                       ? defaultNotion(
                                           connections.find((item) => item.kind === 'notion')?.id,
                                         )
-                                      : ({
-                                          kind: 'existing_files',
-                                          document_ids: [],
-                                        } satisfies ExistingFilesConfig),
+                                      : event.target.value === 'confluence'
+                                        ? defaultConfluence(
+                                            connections.find((item) => item.kind === 'confluence')
+                                              ?.id,
+                                          )
+                                        : ({
+                                            kind: 'existing_files',
+                                            document_ids: [],
+                                          } satisfies ExistingFilesConfig),
                             }
                           : node,
                       )
@@ -1174,6 +1371,7 @@ export function IngestionPipelineEditor({
                       <>
                         <NativeSelectOption value="s3">Amazon S3</NativeSelectOption>
                         <NativeSelectOption value="notion">Notion</NativeSelectOption>
+                        <NativeSelectOption value="confluence">Confluence</NativeSelectOption>
                       </>
                     )}
                   </NativeSelect>
@@ -1246,8 +1444,19 @@ export function IngestionPipelineEditor({
                       )
                     }
                   />
-                ) : (
+                ) : selected.config.kind === 'notion' ? (
                   <NotionSettings
+                    config={selected.config}
+                    connections={connections}
+                    projectId={projectId}
+                    update={(config) =>
+                      updateNode(selected.id, (node) =>
+                        node.type === 'source' ? { ...node, config } : node,
+                      )
+                    }
+                  />
+                ) : (
+                  <ConfluenceSettings
                     config={selected.config}
                     connections={connections}
                     projectId={projectId}

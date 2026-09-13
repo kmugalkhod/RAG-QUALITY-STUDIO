@@ -39,9 +39,7 @@ test('local vault redacts, tests, rotates and re-encrypts a source connection', 
   ).not.toContain(firstSecret);
 
   await page.getByRole('button', { name: 'Test connection' }).click();
-  await expect(
-    page.getByText(/testing is unavailable until this connector is installed/),
-  ).toBeVisible();
+  await expect(page.getByRole('button', { name: /Research archive/ })).toContainText('valid');
   await page.getByRole('button', { name: 'Rotate credentials' }).click();
   await page.getByLabel('Access key ID').fill(rotatedAccess);
   await page.getByLabel('Secret access key').fill(rotatedSecret);

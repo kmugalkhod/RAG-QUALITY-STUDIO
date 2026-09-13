@@ -29,4 +29,8 @@ def tester_for(kind: str) -> ConnectionTester:
         from app.connectors.notion import NotionConnectionTester
 
         return NotionConnectionTester()
+    if kind == "confluence":
+        from app.connectors.confluence import ConfluenceConnectionTester
+
+        return ConfluenceConnectionTester()
     return UnavailableTester()

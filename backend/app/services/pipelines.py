@@ -122,6 +122,28 @@ def validate_ingestion(session, project_id, execution: IngestionExecution):
             raise HTTPException(
                 404, "One or more Notion connections were not found in this project."
             )
+    confluence_connections = {
+        node.config.connection_id
+        for node in execution.nodes
+        if node.type == "source" and node.config.kind == "confluence"
+    }
+    if confluence_connections:
+        if not settings.source_connections_enabled:
+            raise HTTPException(503, "Source connection management is not enabled.")
+        found = set(
+            session.scalars(
+                select(SourceConnection.id).where(
+                    SourceConnection.project_id == project_id,
+                    SourceConnection.kind == "confluence",
+                    SourceConnection.id.in_(confluence_connections),
+                )
+            )
+        )
+        if found != confluence_connections:
+            raise HTTPException(
+                404,
+                "One or more Confluence connections were not found in this project.",
+            )
     embed = next(node for node in execution.nodes if node.type == "embed")
     expected = (
         settings.embedding_provider,

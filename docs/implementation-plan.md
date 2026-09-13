@@ -1,5 +1,17 @@
 # Implementation plan
 
+## Ingestion pipelines — Phase 8 acceptance criteria
+
+Recorded before implementation on 2026-09-13:
+
+- Add disabled-by-default, project-scoped persisted schedules that reference one immutable ingestion pipeline version and expose timezone-aware cadence, enabled/paused state, next due time, last run/outcome and safe operational error metadata.
+- Schedule dispatch is durable across restarts and duplicate delivery. PostgreSQL locking/fencing advances due time transactionally and creates at most one active run per destination; due schedules never overlap queued/running manual or scheduled destination runs.
+- Preserve manual runs. Users can create, edit, pause/resume and trigger schedules through authoritative APIs and accessible frontend controls; reject invalid, cross-project, answer-pipeline, deleted-version and unsafe cadence requests.
+- Coalesce missed intervals, recover stale claims and prove overlap prevention, cancellation and failure recovery. Partial indexes never publish and failures never silently disable a schedule.
+- Document rate limits, storage growth, backup/restore, retention/deletion and AES-256-GCM rotation. Clean backend/frontend/browser gates and finish review must pass before completion.
+
+Status: in progress for ingestion-pipeline Phase 8.
+
 ## Ingestion pipelines — Phase 7C acceptance criteria
 
 Recorded before implementation on 2026-09-13:
@@ -13,7 +25,25 @@ Recorded before implementation on 2026-09-13:
 - Deterministic doubles cover authentication, cursor pagination, filters, bounds, extraction, concurrent changes, first/refresh runs, removal, permission loss, isolation, retrieval, cancellation, stale recovery, and duplicate delivery. A separate opt-in bounded live check is disabled unless a user-authorized site/space or page is explicit.
 - Fresh migration/full backend and frontend gates, isolated Chromium ingestion/answer regressions, desktop/mobile inspection, and the required finish review must pass before Phase 7C is marked complete and pushed.
 
-Status: in progress for ingestion-pipeline Phase 7C.
+Status: complete for ingestion-pipeline Phase 7C. Verified on 2026-09-13.
+
+Implemented:
+
+- Added a real read-only Confluence Cloud REST API v2 adapter through pinned `httpx==0.28.1`. Root HTTPS `*.atlassian.net` validation, public-DNS checks, disabled redirects, single-origin Basic email/API-token authentication, streamed response bounds, shared request budgets, bounded retries and sanitized errors protect decrypted AES-256-GCM values.
+- Strict configuration supports site, numeric space or numeric page selection, title-prefix and label filters, and explicit limits. Page ID plus version number/timestamp provide stable identity/revision semantics; deterministic storage-body extraction retains page/space/parent/status/version, element ordinal and heading provenance without executing markup.
+- Migration `0016` adds Confluence source/document kinds and refuses unsafe downgrade. Preview and fenced ingestion resolve only project-owned connection IDs, check cancellation before every provider request, avoid unchanged body/embedding work, report exact refresh outcomes and preserve prior ready indexes after failure.
+- The editor provides accessible Confluence connection, scope, filter and bound settings, real preview/run inspectors and responsive desktop/mobile layouts. A bounded one-page live check remains disabled without explicit authorization.
+
+Verification:
+
+- Backend Ruff passed. Fresh PostgreSQL/pgvector migrations and full suite: **240 passed, 4 skipped**; only explicitly gated live Confluence, Notion, S3 and embedding checks skipped.
+- Frontend Prettier, structure/ESLint, strict TypeScript, **76 Vitest tests across 22 files**, and production build passed; the known non-blocking approximately 629 kB bundle advisory remains.
+- Isolated Chromium Confluence first/refresh publication, exact-index answering and responsive checks passed, as did nine connector/ingestion/pipeline/Playground/experiment regressions after one stale pre-S3 assertion was corrected.
+- Finish review found request-budget, early-page-bound and cancellation gaps; these were fixed with regression tests and repeated review returned **PASS**. No live Atlassian or paid-model request was made.
+
+Remaining limits: only Confluence Cloud `*.atlassian.net` REST v2 is supported; attachments, comments, whiteboards and rendered macro/embed expansion are not fetched. Basic API-token authentication remains loopback-only; OAuth and authenticated multi-user authorization remain future work. Historical artifacts have no automatic retention deletion.
+
+Next actionable step: Phase 8 adds disabled-by-default durable schedules and operational controls without changing manual refresh or atomic publication behavior.
 
 ## Ingestion pipelines — Phase 7B acceptance criteria
 

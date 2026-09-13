@@ -12,6 +12,7 @@ from app.connectors.base import ConnectorFailure, ConnectorIssue
 from app.connectors.website import PriorWebsiteRevision, WebsiteConnector
 from app.connectors.s3 import S3Connector
 from app.connectors.notion import NotionConnector
+from app.connectors.confluence import ConfluenceConnector
 from app.core.connection_secrets import ConnectionKeyring
 from app.core.config import settings
 from app.models.document import ProcessingRun
@@ -27,6 +28,7 @@ from app.pipelines.parsing import ProcessingError
 from app.schemas.ingestion import IngestionExecution
 from app.services import (
     connections,
+    confluence_ingestion,
     indexes,
     notion_ingestion,
     s3_ingestion,
@@ -160,6 +162,7 @@ def _credentialed_priors(session, job, kind):
 
 def _discover_credentialed(
     run_id,
+    token,
     db_engine,
     connector_factory,
     *,
@@ -198,6 +201,18 @@ def _discover_credentialed(
             if connector_factory
             else connector_type(credentials)
         )
+        if kind == "confluence":
+
+            def cancelled():
+                with Session(db_engine) as cancellation_session:
+                    current = cancellation_session.get(IngestionRun, run_id)
+                    return (
+                        current is None
+                        or current.status != "running"
+                        or current.execution_token != token
+                    )
+
+            connector.cancellation_check = cancelled
         source_priors = {
             location: revision
             for (node_id, location), (_, revision) in priors.items()
@@ -223,6 +238,7 @@ def _advance_credentialed(
 ):
     execution, prior_revisions, results = _discover_credentialed(
         run_id,
+        token,
         db_engine,
         connector_factory,
         kind=kind,
@@ -424,6 +440,19 @@ def _advance_notion(run_id, token, db_engine, connector_factory):
     )
 
 
+def _advance_confluence(run_id, token, db_engine, connector_factory):
+    return _advance_credentialed(
+        run_id,
+        token,
+        db_engine,
+        connector_factory,
+        kind="confluence",
+        label="Confluence page",
+        connector_type=ConfluenceConnector,
+        persistence=confluence_ingestion,
+    )
+
+
 def _advance_website(run_id, token, db_engine, connector_factory):
     execution, prior_revisions, results = _discover_website(
         run_id, db_engine, connector_factory
@@ -612,7 +641,7 @@ def process_ingestion(run_id: UUID, db_engine=engine, connector_factory=None):
         source_kind = job.snapshot.get("source_kind", "existing_files")
         session.commit()
     try:
-        if source_kind in ("website", "s3", "notion"):
+        if source_kind in ("website", "s3", "notion", "confluence"):
             with Session(db_engine) as session:
                 index = session.scalar(
                     select(IndexVersion).where(IndexVersion.ingestion_run_id == run_id)
@@ -622,8 +651,10 @@ def process_ingestion(run_id: UUID, db_engine=engine, connector_factory=None):
                     _advance_website(run_id, token, db_engine, connector_factory)
                 elif source_kind == "s3":
                     _advance_s3(run_id, token, db_engine, connector_factory)
-                else:
+                elif source_kind == "notion":
                     _advance_notion(run_id, token, db_engine, connector_factory)
+                else:
+                    _advance_confluence(run_id, token, db_engine, connector_factory)
                 return
             with Session(db_engine) as session:
                 job = session.scalar(

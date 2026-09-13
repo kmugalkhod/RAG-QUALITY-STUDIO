@@ -227,8 +227,80 @@ class NotionConfig(Strict):
         return self
 
 
+class ConfluenceSiteSelection(Strict):
+    mode: Literal["site"]
+
+
+class ConfluenceSpaceSelection(Strict):
+    mode: Literal["spaces"]
+    space_ids: list[str] = Field(min_length=1, max_length=100)
+
+    @model_validator(mode="after")
+    def unique_spaces(self):
+        if len(set(self.space_ids)) != len(self.space_ids):
+            raise ValueError("Confluence space IDs must be unique.")
+        if any(not value.isdigit() or len(value) > 40 for value in self.space_ids):
+            raise ValueError("Confluence space IDs must be numeric provider IDs.")
+        return self
+
+
+class ConfluencePageSelection(Strict):
+    mode: Literal["pages"]
+    page_ids: list[str] = Field(min_length=1, max_length=1000)
+
+    @model_validator(mode="after")
+    def unique_pages(self):
+        if len(set(self.page_ids)) != len(self.page_ids):
+            raise ValueError("Confluence page IDs must be unique.")
+        if any(not value.isdigit() or len(value) > 40 for value in self.page_ids):
+            raise ValueError("Confluence page IDs must be numeric provider IDs.")
+        return self
+
+
+ConfluenceSelection = Annotated[
+    ConfluenceSiteSelection | ConfluenceSpaceSelection | ConfluencePageSelection,
+    Field(discriminator="mode"),
+]
+
+
+class ConfluenceConfig(Strict):
+    kind: Literal["confluence"]
+    connection_id: UUID
+    selection: ConfluenceSelection
+    title_prefixes: list[str] = Field(default_factory=list, max_length=50)
+    exclude_title_prefixes: list[str] = Field(default_factory=list, max_length=50)
+    label_ids: list[str] = Field(default_factory=list, max_length=50)
+    max_pages: int = Field(default=500, strict=True, ge=1, le=5000)
+    max_api_pages: int = Field(default=100, strict=True, ge=1, le=500)
+    max_response_bytes: int = Field(
+        default=2 * 1024 * 1024, strict=True, ge=1024, le=10 * 1024 * 1024
+    )
+    max_text_chars: int = Field(default=2_000_000, strict=True, ge=100, le=2_000_000)
+    request_timeout_seconds: float = Field(default=30, ge=1, le=60, allow_inf_nan=False)
+
+    @model_validator(mode="after")
+    def bounded_selection(self):
+        values = self.title_prefixes + self.exclude_title_prefixes
+        if any(not value.strip() or len(value) > 200 for value in values):
+            raise ValueError(
+                "Confluence title prefixes must contain 1 to 200 characters."
+            )
+        if len(set(self.label_ids)) != len(self.label_ids) or any(
+            not value.isdigit() or len(value) > 40 for value in self.label_ids
+        ):
+            raise ValueError(
+                "Confluence label IDs must be unique numeric provider IDs."
+            )
+        if (
+            self.selection.mode == "pages"
+            and len(self.selection.page_ids) > self.max_pages
+        ):
+            raise ValueError("Confluence page selection cannot exceed the page limit.")
+        return self
+
+
 SourceConfig = Annotated[
-    ExistingFilesConfig | WebsiteConfig | S3Config | NotionConfig,
+    ExistingFilesConfig | WebsiteConfig | S3Config | NotionConfig | ConfluenceConfig,
     Field(discriminator="kind"),
 ]
 
@@ -537,11 +609,16 @@ class NotionIngestionRunItemRead(S3IngestionRunItemRead):
     source_kind: Literal["notion"] = "notion"
 
 
+class ConfluenceIngestionRunItemRead(S3IngestionRunItemRead):
+    source_kind: Literal["confluence"] = "confluence"
+
+
 IngestionRunItemRead = Annotated[
     ExistingIngestionRunItemRead
     | WebsiteIngestionRunItemRead
     | S3IngestionRunItemRead
-    | NotionIngestionRunItemRead,
+    | NotionIngestionRunItemRead
+    | ConfluenceIngestionRunItemRead,
     Field(discriminator="source_kind"),
 ]
 

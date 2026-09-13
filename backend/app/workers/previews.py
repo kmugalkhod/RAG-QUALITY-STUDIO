@@ -10,6 +10,7 @@ from app.connectors.base import ConnectorFailure
 from app.connectors.website import WebsiteConnector
 from app.connectors.s3 import S3Connector
 from app.connectors.notion import NotionConnector
+from app.connectors.confluence import ConfluenceConnector
 from app.db.session import engine
 from app.models.preview import SourcePreview, SourcePreviewItem
 from app.schemas.ingestion import IngestionExecution
@@ -70,7 +71,7 @@ def _outcomes(db_session, project_id, execution):
             )
             for item in S3Connector(credentials).discover_all(source.config):
                 results.append(dict(source_node_id=source.id, **item.__dict__))
-        else:
+        elif source.config.kind == "notion":
             credentials = connections.credentials_for_use(
                 db_session,
                 project_id,
@@ -78,6 +79,12 @@ def _outcomes(db_session, project_id, execution):
                 "notion",
             )
             for item in NotionConnector(credentials).discover_all(source.config):
+                results.append(dict(source_node_id=source.id, **item.__dict__))
+        else:
+            credentials = connections.credentials_for_use(
+                db_session, project_id, source.config.connection_id, "confluence"
+            )
+            for item in ConfluenceConnector(credentials).discover_all(source.config):
                 results.append(dict(source_node_id=source.id, **item.__dict__))
     return results
 

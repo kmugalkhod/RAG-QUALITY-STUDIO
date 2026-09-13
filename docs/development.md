@@ -22,7 +22,7 @@ Save the validated graph before running it. The worker stores immutable raw revi
 
 Connection APIs are deliberately unavailable until `SOURCE_CONNECTIONS_ENABLED=true`, `SOURCE_CONNECTION_ACTIVE_KEY` names an entry in `SOURCE_CONNECTION_KEYS`, and that entry decodes to exactly 32 bytes. `SOURCE_CONNECTION_KEYS` is a JSON object of version names to base64 keys. The Settings screen sends credential fields only in create/rotate POST bodies and clears its secret controls after every attempt. Reads expose connection name, kind, status, dates, safe errors and deliberately masked hints; they never expose ciphertext, nonce, tag or key version.
 
-The API is restricted to loopback Host/Origin values and Compose publishes nginx, FastAPI and PostgreSQL only on `127.0.0.1`. This is a local deployment boundary, not user authentication. Do not remove it or publicly proxy these routes until authentication and server-side project authorization are implemented. S3 and Notion have real bounded testers and ingestion adapters. Confluence remains unavailable; deterministic test doubles exercise its connection boundary without manufacturing production success.
+The API is restricted to loopback Host/Origin values and Compose publishes nginx, FastAPI and PostgreSQL only on `127.0.0.1`. This is a local deployment boundary, not user authentication. Do not remove it or publicly proxy these routes until authentication and server-side project authorization are implemented. S3, Notion and Confluence have real bounded testers and ingestion adapters.
 
 Credential replacement and master-key re-encryption are separate actions. Add a new key version while retaining the old entry, make it active, restart services, re-encrypt every connection, verify no rows still name the old version, and only then remove the old key. See [deployment guidance](deployment.md#source-connection-vault).
 
@@ -64,6 +64,25 @@ python -m pytest -q tests/test_notion_live.py
 ```
 
 It discovers exactly one configured page, permits at most 20 API requests, 100 blocks, depth 4 and 50,000 text characters, and performs no writes to Notion. Default tests use deterministic transports and make no Notion calls.
+
+## Confluence ingestion
+
+Store a Confluence Cloud site root (`https://workspace.atlassian.net`), account email and API token in Project Settings. The AES-256-GCM vault exposes only a redacted connection UUID to pipeline versions. The connector uses read-only REST API v2 calls with Basic email/token authentication, disables redirects, resolves the configured Atlassian hostname before every request and streams each response under its byte limit. Authentication, permission, missing-page, throttling and provider failures become fixed safe application errors.
+
+Discovery can cover all accessible current pages, explicit numeric space IDs or explicit numeric page IDs. Optional included/excluded title prefixes and required numeric label IDs narrow the result. Page ID is the stable source identity; version number plus creation timestamp is the provider revision. Fetch requests the `storage` body, rechecks that revision, converts markup to inert deterministic text, drops script/style content and preserves element ordinal and heading path in each chunk. Compatible unchanged pages avoid body fetch and embedding; pages absent from a complete refresh become removed only from the replacement index.
+
+The opt-in live check is disabled by default. Run it only against one page the user explicitly authorized:
+
+```sh
+RUN_LIVE_CONFLUENCE_AUTHORIZED=1 \
+CONFLUENCE_LIVE_SITE_URL=https://workspace.atlassian.net \
+CONFLUENCE_LIVE_EMAIL=... CONFLUENCE_LIVE_API_TOKEN=... \
+CONFLUENCE_LIVE_PAGE_ID=... \
+docker compose -f compose.test.yaml run --rm tests \
+python -m pytest -q tests/test_confluence_live.py
+```
+
+It reads one configured page with at most four API calls, a 2 MiB response limit, a five-second timeout and 50,000 extracted characters. It performs no Confluence writes. Default tests use deterministic responses and make no Atlassian calls.
 
 ## Knowledge sets and explicit index snapshots
 

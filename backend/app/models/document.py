@@ -25,7 +25,7 @@ class Document(Base):
         UniqueConstraint("id", "project_id", name="uq_document_project"),
         CheckConstraint("size_bytes > 0", name="ck_document_size"),
         CheckConstraint(
-            "origin_kind IN ('upload','website','s3','notion')",
+            "origin_kind IN ('upload','website','s3','notion','confluence')",
             name="ck_document_origin_kind",
         ),
         Index("ix_documents_project_created", "project_id", "created_at", "id"),

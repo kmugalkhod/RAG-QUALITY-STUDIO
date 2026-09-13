@@ -107,13 +107,13 @@ def test_aes_gcm_round_trip_unique_nonce_aad_tamper_and_configuration():
                 "name": "Engineering wiki",
                 "credentials": {
                     "kind": "confluence",
-                    "site_url": "https://docs.example.com",
+                    "site_url": "https://docs.atlassian.net",
                     "email": "reader@example.com",
                     "api_token": "confluence-private",
                 },
             },
             ["reader@example.com", "confluence-private"],
-            "docs.example.com",
+            "docs.atlassian.net",
         ),
     ],
 )
@@ -231,15 +231,21 @@ def test_unavailable_and_exception_are_sanitized(connections_api, monkeypatch):
             "name": "Unreleased wiki",
             "credentials": {
                 "kind": "confluence",
-                "site_url": "https://docs.example.com",
+                "site_url": "https://docs.atlassian.net",
                 "email": "reader@example.com",
                 "api_token": "confluence-secret",
             },
         },
     ).json()
+
+    class Unavailable:
+        def check(self, credentials):
+            return ConnectionCheck("unavailable", "endpoint_unreachable")
+
+    monkeypatch.setattr(connections, "tester_for", lambda kind: Unavailable())
     unavailable = client.post(f"{route}/{created['id']}/test")
     assert unavailable.json()["status"] == "unavailable"
-    assert "until this connector is installed" in unavailable.json()["last_error"]
+    assert "could not be reached" in unavailable.json()["last_error"]
 
     class Broken:
         def check(self, credentials):
