@@ -36,6 +36,7 @@ export function Comparison({
       } catch (cause) {
         if (!disposed) {
           setError((cause as Error).message);
+          timer = setTimeout(() => void poll(), 2000);
         }
       }
     }

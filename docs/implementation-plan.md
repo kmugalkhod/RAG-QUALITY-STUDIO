@@ -4,14 +4,33 @@
 
 Recorded before implementation on 2026-09-14:
 
-- Verify a clean migration to head and the supported populated downgrade/upgrade paths without losing answer-pipeline, retrieval, ingestion, provenance, schedule or encrypted-connection state.
+- Verify a clean migration to head, model/schema drift, the supported populated lexical downgrade/upgrade path, and forward upgrade from the pre-schedule schema with existing application rows. Confirm guarded connector downgrade boundaries rather than deleting immutable evidence.
 - Run backend Ruff format/lint and the full isolated PostgreSQL/pgvector suite; run frontend Prettier, structure/ESLint, strict TypeScript, unit tests and production build.
 - Run the complete isolated Chromium suite, including existing-files and website ingestion plus every released S3, Notion and Confluence connector journey and answer/Playground/experiment regressions. Make no live provider or paid-model calls without explicit authorization.
 - Inspect representative desktop and mobile states once, correct verified regressions in one bounded pass, and confirm the corrected states once.
 - Reconcile README, architecture, development, deployment and implementation status with actual verification results, operational procedures and remaining limitations. Do not claim production readiness while shared-access authentication/authorization and live connector verification remain incomplete.
 - A final finish review must return PASS, all temporary Phase 8/9 Docker resources must be removed without touching the user's persistent application stack, and the completed phase must be committed and pushed to `main`.
 
-Status: in progress for ingestion-pipeline Phase 9.
+Status: complete for ingestion-pipeline Phase 9. Verified on 2026-09-14.
+
+Implemented and hardened:
+
+- Reconciled the public documentation with the released Existing Files, Website, S3, Notion, Confluence, encrypted connection-vault and scheduling behavior. The local-only security boundary, immutable history, backup/keyring requirements and unsupported shared deployment remain explicit.
+- Replaced ingestion-run polling with a run-ID-scoped sequential loop. A prior request cannot overwrite a newer manual or scheduled run, transient read failures retry, and terminal item/schedule refreshes ignore results after navigation.
+- Experiment comparison polling now also recovers after transient HTTP failures instead of leaving a completed PostgreSQL job displayed as queued. Browser isolation pauses its created schedule, and the pipeline journey verifies dirty/discard behavior without timing-sensitive pointer dragging.
+
+Verification:
+
+- A fresh PostgreSQL/pgvector database migrated to head with no model drift. The populated lexical downgrade/upgrade path passed, and upgrading from pre-schedule revision `0016` retained an existing answer project, pipeline and immutable version before `alembic check` reported no operations. Connector migrations continue to refuse destructive downgrades when immutable connector evidence exists.
+- Backend Ruff lint/format and compile checks passed. The full isolated suite passed **248 tests**, with **4 opt-in live-provider checks skipped** because no live source or paid-call authorization was supplied.
+- Frontend Prettier, structure/ESLint, strict TypeScript, **78 Vitest tests across 23 files**, and the production build passed. The build retains the known non-blocking approximately 633 kB minified chunk advisory.
+- The clean deterministic-provider Chromium stack passed **16 journeys with 1 credential-free scenario intentionally skipped**, and the full two-version experiment journey passed separately in **2.2 minutes**. A separate credential-free stack passed the missing-embedding-credentials journey. Together these cover all 18 browser journeys without live-provider traffic.
+- Desktop/mobile Knowledge Base, connection-vault, Confluence schedule/refresh and experiment comparison/evidence states were inspected. The final captures had no blocking overflow, hierarchy, accessibility or inert-control finding.
+- Final finish review returned **PASS** after the polling and test-isolation corrections. Temporary Phase 8/9 Docker resources were removed without touching the persistent local application stack.
+
+Remaining limitations: this is a loopback-only unauthenticated workspace, not a shared/public deployment. S3, Notion and Confluence have deterministic complete integration coverage but no user-authorized live verification in this phase. Daily schedules are API-only; schedules and immutable history have no delete endpoint or automatic retention. Browser-test provider doubles do not establish real-provider availability or answer quality.
+
+Next actionable step: add authentication and server-side project authorization before any shared deployment, then perform individually authorized bounded live connector checks where required. The ingestion plan itself has no remaining phase.
 
 ## Ingestion pipelines — Phase 8 acceptance criteria
 
@@ -731,6 +750,6 @@ The component pass now uses shadcn Table, Badge, Tabs, Separator, Alert, Skeleto
 
 Final verification: Prettier check, structure/ESLint, strict TypeScript, all 66 Vitest tests across 18 files and the production build passed. A fresh isolated Compose stack passed 10 applicable Chromium journeys in 2.2 minutes; the credential-free scenario was skipped because this run intentionally enabled the local embedding-provider fixture. Visual confirmation covered Projects, Overview, Knowledge Base, Playground, Pipelines and Experiments at desktop size plus responsive project and experiment layouts. No live provider execution was used. The build reports a 586 kB minified JavaScript chunk warning; route-level code splitting remains a separate performance change. See [frontend restructuring plan](frontend-restructure-plan.md#implementation-result-2026-09-12) for concrete before/after examples and boundary decisions.
 
-## Ingestion pipeline expansion — in progress
+## Ingestion pipeline expansion — complete
 
-Phases 1–3 established separate versioned ingestion graphs, stable knowledge sets, explicit immutable index membership and the complete Existing Files editor/preview/durable-run/publication path while preserving answer-pipeline behavior. Phase 4—bounded public Website discovery and preview—is next. The phase table, exit gates and copy-paste prompt for every phase are in [ingestion-pipeline-plan.md](ingestion-pipeline-plan.md).
+Phases 1–9 delivered separate versioned ingestion graphs, stable knowledge sets, explicit immutable index membership, complete Existing Files and bounded Website ingestion, the AES-256-GCM connection vault, S3/Notion/Confluence adapters, durable schedules and final cross-feature hardening while preserving answer-pipeline behavior. Verification and remaining deployment limits are recorded in the Phase 9 result above; the complete phase table and exit gates remain in [ingestion-pipeline-plan.md](ingestion-pipeline-plan.md).

@@ -64,6 +64,8 @@ test('Confluence preview publishes and incrementally refreshes an exact index', 
     timeout: 60000,
   });
   await expect(page.getByRole('link', { name: 'Inspect published index v2' })).toBeVisible();
+  await schedules.getByRole('button', { name: 'Pause', exact: true }).click();
+  await expect(schedules.getByText('paused · every 15 minutes')).toBeVisible();
 
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.screenshot({ path: 'test-results/confluence-ingestion-desktop.png', fullPage: true });

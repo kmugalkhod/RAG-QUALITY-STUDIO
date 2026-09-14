@@ -858,7 +858,7 @@ export function IngestionPipelineEditor({
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const pollRef = useRef<number | undefined>(undefined);
+  const [pollError, setPollError] = useState('');
   const canvasRef = useRef<HTMLDivElement>(null);
   const [flow, setFlow] = useState<ReactFlowInstance<FlowNode, Edge>>();
   const [flowNodes, setFlowNodes, onFlowNodesChange] = useNodesState<FlowNode>([]);
@@ -979,31 +979,61 @@ export function IngestionPipelineEditor({
     setFlowNodes(nodes);
   }, [draft, documents, selectedNode, setFlowNodes]);
 
+  const activeRunId = run?.id;
+  const savedVersionId = saved?.id;
+
   useEffect(() => {
-    if (!run || terminal.has(run.status)) {
+    if (!activeRunId) {
+      setPollError('');
       return;
     }
-    pollRef.current = window.setTimeout(() => {
-      void api
-        .getIngestionRun(projectId, run.id)
-        .then(async (next) => {
-          setRun(next);
-          if (terminal.has(next.status)) {
-            setItems(
-              await allPages((offset) => api.listIngestionRunItems(projectId, next.id, offset)),
-            );
-            if (saved) {
-              const refreshed = await allPages((offset) =>
-                api.listIngestionSchedules(projectId, offset),
-              );
-              setSchedules(refreshed.filter((value) => value.pipeline_version_id === saved.id));
-            }
+
+    let disposed = false;
+    let timer: number | undefined;
+
+    const poll = async () => {
+      try {
+        const next = await api.getIngestionRun(projectId, activeRunId);
+        if (disposed) {
+          return;
+        }
+        setRun((current) => (current?.id === activeRunId ? next : current));
+        if (terminal.has(next.status)) {
+          const nextItems = await allPages((offset) =>
+            api.listIngestionRunItems(projectId, next.id, offset),
+          );
+          if (disposed) {
+            return;
           }
-        })
-        .catch((cause) => setError(message(cause)));
-    }, 1200);
-    return () => window.clearTimeout(pollRef.current);
-  }, [projectId, run, saved]);
+          setItems(nextItems);
+          if (savedVersionId) {
+            const refreshed = await allPages((offset) =>
+              api.listIngestionSchedules(projectId, offset),
+            );
+            if (disposed) {
+              return;
+            }
+            setSchedules(refreshed.filter((value) => value.pipeline_version_id === savedVersionId));
+          }
+          setPollError('');
+          return;
+        }
+        setPollError('');
+        timer = window.setTimeout(() => void poll(), 1200);
+      } catch (cause) {
+        if (!disposed) {
+          setPollError(message(cause));
+          timer = window.setTimeout(() => void poll(), 1200);
+        }
+      }
+    };
+
+    timer = window.setTimeout(() => void poll(), 1200);
+    return () => {
+      disposed = true;
+      window.clearTimeout(timer);
+    };
+  }, [activeRunId, projectId, savedVersionId]);
 
   useEffect(() => {
     if (!preview || terminal.has(preview.status)) {
@@ -1310,9 +1340,9 @@ export function IngestionPipelineEditor({
                   : 'Existing files → ready index'}
         </span>
       </div>
-      {error && (
+      {(error || pollError) && (
         <p role="alert" className="error-message">
-          {error}
+          {error || pollError}
         </p>
       )}
       <fieldset className="pipeline-fields" disabled={busy}>

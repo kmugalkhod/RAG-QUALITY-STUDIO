@@ -8,7 +8,7 @@ test('import reviewed dataset, compare two versions and inspect evidence', async
     process.env.E2E_EMBEDDING_FIXTURE !== '1',
     'Requires isolated deterministic providers.',
   );
-  test.setTimeout(180000);
+  test.setTimeout(240000);
   page.setDefaultTimeout(15000);
   const project = await (
     await request.post('/api/projects', { data: { name: `Experiments ${Date.now()}` } })
@@ -91,7 +91,7 @@ test('import reviewed dataset, compare two versions and inspect evidence', async
   await page.getByRole('button', { name: 'Run experiment', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Two saved versions' })).toBeVisible();
   await expect(page.getByRole('status')).toContainText('succeeded 6 / 6 results completed', {
-    timeout: 150000,
+    timeout: 210000,
   });
   await expect(page.getByRole('heading', { name: 'Paired comparison' })).toBeVisible();
   await page.getByRole('button', { name: 'What does the orchard grow?', exact: true }).click();

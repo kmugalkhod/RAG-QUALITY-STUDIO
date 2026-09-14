@@ -1,6 +1,6 @@
 # RAG Quality Studio
 
-Milestone 5 adds immutable evaluation datasets and background RAGAS experiments to the existing React Flow pipeline editor, Knowledge Base and RAG playground. Upload/process/index PDF or UTF-8 TXT documents, ask questions using OpenRouter, then inspect answers, citation references and the exact evidence sent. React/TypeScript, FastAPI, PostgreSQL/pgvector, Celery and Redis retain persistent state. Configure retrieval, prompts and server-approved chat models, execute saved pipelines and inspect persisted results. Compare saved pipeline versions using reviewed questions, inspect per-question evidence and export results.
+RAG Quality Studio is a local full-stack workspace for versioned retrieval-augmented generation. Upload PDF/TXT files or ingest bounded Website, Amazon S3, Notion and Confluence sources; preview provenance, publish immutable pgvector indexes, configure answer pipelines, inspect cited evidence and compare saved versions with background RAGAS experiments. PostgreSQL, Celery and Redis retain durable jobs and exact snapshots, while React Flow edits only validated application-owned pipeline templates.
 
 ## Start with Docker Compose
 
@@ -74,7 +74,7 @@ cd ..
 docker compose -p rag-studio-e2e -f compose.e2e.yaml down
 ```
 
-These journeys create unique test projects/documents and cover TXT/PDF processing, validation, parsing failure/retry, versioned chunk pagination, reload and mobile overflow. Test records remain in `rag-studio-e2e` volumes for inspection and restart verification. Never point browser tests at a shared or valuable dataset. The default Playwright target is the isolated stack on port 5174.
+These journeys create unique test projects/documents and cover TXT/PDF processing, validation, parsing failure/retry, versioned chunk pagination, reload and mobile overflow. The deterministic provider override documented below additionally covers answer, experiment, retrieval, Existing Files, Website, S3, Notion, Confluence and schedule workflows without live-provider traffic. Test records remain in isolated volumes for inspection and restart verification. Never point browser tests at a shared or valuable dataset.
 
 ## Local development
 
@@ -190,6 +190,8 @@ Index APIs under `/api/projects/{project_id}`:
 - `POST /indexes`: returns 202 and the index UUID (also its durable job ID). An optional body accepts `knowledge_set_id` and one or more explicit `document_ids`; omitting the body preserves the default Knowledge Base action.
 - `GET /indexes?limit=20&offset=0` and `GET /indexes/{index_id}`: history/progress with knowledge-set identity and exact processing-run count.
 - `GET /knowledge-sets?limit=20&offset=0` and `GET /knowledge-sets/{knowledge_set_id}/indexes`: project-scoped knowledge sets and their immutable versions.
+- `POST /indexes/{index_id}/cancel`: cancel queued/running indexing.
+- `POST /retrieval`: `{ "index_id": "<ready UUID>", "query": "question", "top_k": 5 }`.
 
 Existing Files ingestion is available under **Pipelines → Ingestion pipelines**. Select already processed project files, preview whether their processing versions will be reused, save the immutable graph, then run it. The durable run coordinates any required reprocessing and publishes one new ready index to the chosen knowledge set only after all embeddings succeed. Its per-file inspector retains content hashes, processing versions and chunk counts; the published link opens the exact immutable index that an answer pipeline can select.
 
@@ -198,8 +200,8 @@ The corresponding project-scoped API operations are `POST /ingestion-previews`, 
 Website sources support both preview and execution. Single URLs, explicit URL lists, bounded same-origin crawls and XML sitemaps use origin/path rules, robots.txt, canonical duplicate detection and hard page/depth/byte/time/rate/redirect limits. The backend revalidates DNS and redirects against non-public destinations and never renders or executes fetched HTML. A saved run stores immutable HTML revisions, extracts deterministic main content with section provenance, reports new/changed/unchanged/removed URLs and atomically publishes an exact index while preserving older ready versions.
 
 Project Settings provides the local source-connection vault. S3, Notion and Confluence credentials are stored using AES-256-GCM, read only as redacted metadata, replaced, tested through connector-owned boundaries and re-encrypted under the active key. Amazon S3 supports bounded bucket/prefix discovery and exact TXT/PDF refreshes. Notion supports bounded shared-page/data-source discovery and deterministic block extraction. Confluence supports bounded REST v2 site/space/page discovery and deterministic storage-body extraction. All three publish immutable incremental index versions. See the [S3](docs/development.md#amazon-s3-ingestion), [Notion](docs/development.md#notion-ingestion), and [Confluence](docs/development.md#confluence-ingestion) guidance.
-- `POST /indexes/{index_id}/cancel`: cancel queued/running indexing.
-- `POST /retrieval`: `{ "index_id": "<ready UUID>", "query": "question", "top_k": 5 }`.
+
+Saved ingestion versions can have paused-by-default schedules. The editor supports fixed intervals from 15 minutes through seven days; the API also accepts a daily local time with an IANA timezone. PostgreSQL claims survive dispatcher restarts, missed occurrences coalesce, and the destination lock prevents manual or scheduled overlap. The editor shows next/last outcome and supports pause, enable, edit and immediate execution. See [schedule development behavior](docs/development.md#ingestion-schedules) and [operations](docs/deployment.md#scheduled-ingestion-operations).
 
 Each worker delivery processes at most 16 chunks (a 24,000 character batch target), with validated embeddings committed as a checkpoint. Incomplete indexes are never searchable. Transient failures retry after at least 30 seconds, with three consecutive failed attempts per batch; successful batches reset that counter. A stopped worker is recovered after 180 seconds. Cancellation invalidates its execution token: in-flight provider requests may still incur charges, but cannot publish. A user retry creates a new version; compatible, exact-text vectors can be reused only within the same project. There are no deletion endpoints or automatic vector cleanup.
 

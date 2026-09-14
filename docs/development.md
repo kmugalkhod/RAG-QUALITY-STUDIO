@@ -140,3 +140,5 @@ Migration `0007` creates a GIN expression index over immutable chunk text. It co
 ## Frontend maintenance
 
 See [frontend standards](frontend-standards.md) for component boundaries, CSS ownership, and the separate `frontend/tests/` layout. From `frontend/`, run `npm run format` to format and `npm run format:check` to check formatting alongside lint, typecheck, tests, and build.
+
+For a complete browser pass, create a fresh isolated Compose project with `compose.e2e.yaml` plus `compose.index-e2e.yaml`, set `E2E_EMBEDDING_FIXTURE=1`, and run Chromium against that stack. Use a different project name and ports from development. The deterministic override covers embedding, generation, evaluator and released connector transports without reading live credentials. Run the credential-missing index journey separately without that override. Tear the test project down with its own volumes/images afterward; never target the normal development Compose project. Browser journeys that enable a schedule must pause it before finishing so a reusable test stack cannot accumulate background runs.

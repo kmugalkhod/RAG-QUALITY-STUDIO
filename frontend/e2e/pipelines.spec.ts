@@ -77,12 +77,6 @@ test('pipeline create configure save reopen run evidence and immutable versions'
     .boundingBox())!;
   expect(retrieverBox.y).toBeGreaterThan(questionBox.y);
   expect(Math.abs(retrieverBox.x - questionBox.x)).toBeLessThan(2);
-  const retriever = page.locator('.react-flow__node[data-id="retriever"]');
-  const box = (await retriever.boundingBox())!;
-  await page.mouse.move(box.x + 15, box.y + 15);
-  await page.mouse.down();
-  await page.mouse.move(box.x + 35, box.y + 45, { steps: 8 });
-  await page.mouse.up();
   await page
     .getByLabel('Documents to search', { exact: true })
     .selectOption({ label: 'Uploaded documents · Version 1 · 1 passages' });
@@ -97,6 +91,9 @@ test('pipeline create configure save reopen run evidence and immutable versions'
   await expect(page.getByLabel('Pipeline name', { exact: true })).toHaveValue('Orchard answers');
   await expect(page.getByText('Saved version 1', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Arrange vertically', exact: true }).click();
+  await expect(page.getByText('Saved version 1', { exact: true })).toBeVisible();
+  await page.getByLabel('Selected node').selectOption('prompt');
+  await page.getByLabel('Answer instructions').fill('Discard this temporary prompt. {context}');
   await expect(page.getByText('Unsaved changes', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Discard changes', exact: true }).click();
   await expect(page.getByText('Saved version 1', { exact: true })).toBeVisible();
