@@ -1,5 +1,63 @@
 # Implementation plan
 
+## Desktop canvas position correction — 2026-09-22
+
+This supersedes the natural-document-scroll desktop design described below. Reproduced an 87px canvas jump when switching from a deeply scrolled Website inspector to Extract: the shorter document clamped window scroll even though graph dimensions and zoom were unchanged.
+
+The desktop editor now occupies a stable viewport-height workspace with a compact heading, anchored stage navigation and an independently scrolling right inspector. Selecting a node resets inspector scroll, not document scroll. Schedules stay beneath settings in that inspector; validation also stays inside settings so changing source type cannot resize the canvas. Tablet/mobile retain stacked document scrolling.
+
+Verification: Agent Browser clicked all six nodes on the user's saved version at 1440×900. Canvas bounds remained x232/y294/848×605, document height 900 and graph transform identical across all stages, including after inspector scrolling. Eight isolated browser tests pass, now explicitly checking screen position and document scroll as well as dimensions/zoom. Frontend lint, TypeScript and production build pass; the existing bundle-size advisory remains. No live ingestion, saved configuration or schedule was changed.
+
+## Ingestion schedule placement — 2026-09-22
+
+Moved saved-version schedules from the full-width footer into the right-hand inspector immediately below stage settings. Both sections share aligned padding; schedule inputs and the create action stack to the panel width. Existing schedule rows wrap their actions within the inspector. The mobile layout keeps the same settings-then-schedules reading order and normal page scrolling.
+
+Verification: Agent Browser checked the user's saved Website pipeline at 1920×1080 and 390×844; schedule and inspector edges align, and mobile has no horizontal overflow. TypeScript, lint and all eight ingestion browser regression tests passed, including a new desktop placement/mobile overflow assertion. No schedule was created or enabled during the live visual check.
+
+## Ingestion UI follow-up after user rejection — 2026-09-22
+
+The earlier nested-inspector implementation and its narrow verification were insufficient. This follow-up supersedes that scrolling design.
+
+- The ingestion editor now uses normal document scrolling for all settings. The desktop canvas has an explicit viewport-based height independent of form content and stays beside the form while scrolling. Tablet layouts (up to 1100px) stack instead of squeezing a graph beside a 360px inspector.
+- Selecting a stage brings its heading into view, including after scrolling to the bottom of expanded source settings. Mobile stage selection goes directly to the settings. Graph geometry remains independent of source form variants and stage content.
+- Removed the unconditional delayed observer refit; initial fitting belongs to React Flow, and subsequent fitting only responds to an actual canvas dimension change. Tests wait for explicit Fit View completion before checking preservation of the user's view.
+- Added field-level chunk bounds/accessibility hints, automatic navigation to newly started preview/run feedback, and focus on actionable request failures.
+- Agent Browser walkthrough used the exact user-provided saved version (`fde11169-cc8f-427c-b717-3b86848e09e9`): expanded source settings, wheel scrolling to the last field, stage changes after deep scrolling, zoom, panning, invalid chunk editing/discard, saved-version switching, desktop/tablet/mobile inspection. No saved project data or paid execution was changed by this walkthrough.
+- Eight isolated browser tests cover real wheel scrolling, stage heading visibility, node clicks, graph geometry/view preservation, all website discovery modes, empty existing-file selection, tablet/mobile layout, edits/discard, preview cancellation/error feedback and initial configuration failure. API fixtures are isolated from developer data and providers.
+
+Verification and runtime handoff: frontend formatting, lint, TypeScript, 78 Vitest tests and production build passed. All eight browser tests also passed against the rebuilt frontend on port 5173. Agent Browser confirmed the exact saved URL loads bundle `index-C5YvKYUw.js`, the expanded source form scrolls normally (document scroll 1147px, no inspector clipping), and the graph stays 588px tall at 1366×768. Follow-up screenshots are in `test-results/ingestion-ui-followup/`. The existing bundle-size advisory remains; these UI checks do not certify live provider behavior or shared deployment security.
+
+## Ingestion editor layout and scrolling — 2026-09-21
+
+Acceptance criteria: stage selection must preserve canvas size and user zoom; long source forms and below-canvas schedules must remain scrollable; every stage must be keyboard-selectable; desktop/mobile layouts must avoid overlap and horizontal overflow; saved versions, validation and execution actions must retain their existing API behavior.
+
+Status: complete for the requested ingestion UI improvement.
+
+- Bounded the canvas independently of inspector content, replacing content-driven resizing (Website previously expanded the graph to 1,400px). Wheel scrolling over the graph now scrolls the page; explicit zoom controls and pinch zoom remain available.
+- Added an accessible six-stage navigator, persistent inspector heading and independently scrolling desktop fields. Mobile uses a stacked canvas/settings layout and normal page scrolling. Removed the inherited mobile canvas margin responsible for overlapping settings.
+- Grouped pipeline identity/version separately from actions, retained the charcoal/lavender design system, added explicit discard for saved drafts, and grouped website scope/fetch limits in an expandable section. Extract, Clean and Embed now expose actual recorded configuration rather than a generic placeholder.
+- Corrected failed initial loading so missing embedding configuration displays the actionable error and retry control.
+- Applied stable desktop canvas sizing and non-overlapping mobile stacking to the answer editor as well. Its existing explicit node-centering behavior is preserved; all five stages measured 660px high at 1440×900. Wheel scrolling over either editor no longer traps page scrolling.
+- Verification: lint, strict TypeScript, 78 Vitest tests, production build and four isolated Playwright UI regression tests passed. Browser fixtures intercept API requests and do not write developer data or execute providers. Agent Browser verified the live saved pipeline at desktop/mobile sizes; all six stages retained the same 539px canvas and identical viewport transform at 1440×900. Checked 390px, 768px and 1280px widths for horizontal overflow and confirmed mobile canvas/settings boundaries no longer overlap. Captures are in `test-results/ingestion-ui/`.
+- Remaining limitations: the existing large-bundle build advisory remains. This UI verification does not certify shared deployment security or live connector/provider reliability. No source fetch, embedding run or schedule was started during the browser review.
+
+Next step: use the rebuilt local frontend at http://localhost:5173 and review the existing ingestion pipeline with the new stage navigation.
+
+## Knowledge Base and RAG configuration correction — 2026-09-14
+
+Status: complete.
+
+- Replaced the flat index-history page with a responsive knowledge-set catalog and adjacent index inspector. The selected immutable version exposes real paginated pgvector records, passage text, source provenance, vector dimensions/norm and a bounded value preview, followed by a retrieval-only check.
+- Diagnosed the manual acceptance pipeline's incorrect answers: saved version 1 targeted an obsolete one-passage index while the current website ingestion index contained 2,987 passages. The editor and Playground now warn on this exact mismatch and can move a draft to the current index; new pipelines preselect the newest current-ready index.
+- Website source entry now begins empty and infers allowed origins from valid entered URLs, avoiding the prior `example.com` scope mismatch. Chunk settings add explicit recall/noise/cost guidance and editable precise, balanced and broad-context presets.
+- Added a distinct **Reprocess stored pages** action for Website pipelines. After saving changed chunk settings, it uses the current index's stored immutable page artifacts without constructing the Website connector or making another network scrape, then publishes a new versioned index. A normal **Refresh website & run** remains separate. Re-embedding the new chunks can still incur provider cost.
+- Corrected the website chunker itself: adjacent HTML elements are now joined before character-window chunking, rather than embedding fragments such as “Create agents” independently. Heading provenance and deterministic offsets remain inspectable. Playground results now surface index version, supplied-passage count, citation-link count and stage-aware failure guidance.
+- Created `Manual orchard answers` version 2 against `Ingested knowledge` version 3 and verified a grounded answer with a real local configured provider call and cited evidence.
+
+Live correction follow-up: saved Website ingestion version 2 at `1000` characters / `120` overlap and reprocessed all 43 stored pages without a network refresh. `Ingested knowledge` version 4 published successfully with 284/284 meaningful passages, replacing the prior current version's 2,987 mostly element-sized fragments. Saved answer pipeline version 3 against index version 4 with Top k 10. Live Playground checks answered both “How do I create an agent?” and “Give me a template of an agent.”; the latter returned a structured template with evidence links S1, S3 and S4. Transient OpenRouter retrieval/generation timeouts were retained as explicit failed runs and succeeded on manual retry.
+
+Verification: backend Ruff, focused offline-reprocessing checks and the complete isolated PostgreSQL/pgvector suite passed (**250 passed, 4 opt-in live checks skipped**). Frontend formatting, lint, strict TypeScript, **78 Vitest tests** and production build passed. Agent Browser verified the real index catalog/vector inspector, stale-index correction, stored-page reprocessing, meaningful version-4 retrieval, saved answer pipeline version 3, cited agent instructions/template, the inline quality check and responsive layouts. The existing Vite bundle-size advisory remains.
+
 ## Ingestion pipelines — Phase 9 acceptance criteria
 
 Recorded before implementation on 2026-09-14:

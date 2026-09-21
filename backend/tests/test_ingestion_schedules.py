@@ -92,7 +92,7 @@ def test_dispatch_due_coalesces_overlap_and_recovers_stale_claim(website_api):  
     version = save_website(client, project_id, embedding)
     route = f"/api/projects/{project_id}/ingestion-schedules"
     schedule = client.post(route, json=payload(version, enabled=True)).json()
-    current = datetime(2026, 9, 14, 12, tzinfo=UTC)
+    current = datetime.now(UTC)
     with Session(engine) as session:
         row = session.get(IngestionSchedule, UUID(schedule["id"]))
         row.next_run_at = current - timedelta(minutes=1)
@@ -117,12 +117,14 @@ def test_dispatch_due_coalesces_overlap_and_recovers_stale_claim(website_api):  
             == 1
         )
         run = session.get(IngestionRun, row.last_run_id)
+        next_due_at = run.created_at + timedelta(microseconds=1)
+        next_current = max(datetime.now(UTC), next_due_at + timedelta(seconds=1))
         run.status = "cancelled"
-        run.finished_at = current
-        row.next_run_at = current - timedelta(seconds=1)
+        run.finished_at = next_current
+        row.next_run_at = next_due_at
         session.commit()
 
-    dispatch_schedules_once(engine, current)
+    dispatch_schedules_once(engine, next_current)
     with Session(engine) as session:
         row = session.get(IngestionSchedule, UUID(schedule["id"]))
         assert (

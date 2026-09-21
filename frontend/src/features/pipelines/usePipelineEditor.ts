@@ -134,10 +134,22 @@ export function usePipelineEditor(projectId: string, pipelineId: string, version
           return;
         }
         setOptions(serverOptions);
-        setIndexes(indexVersions.filter((index) => index.status === 'succeeded'));
+        const readyIndexes = indexVersions
+          .filter((index) => index.status === 'succeeded')
+          .sort(
+            (a, b) =>
+              Number(b.is_current) - Number(a.is_current) ||
+              Date.parse(b.created_at) - Date.parse(a.created_at),
+          );
+        setIndexes(readyIndexes);
         setError('');
         if (pipelineId === 'new') {
-          const template = createPipelineDraft(serverOptions, 'Untitled pipeline');
+          const defaultIndex = readyIndexes.find((index) => index.is_current) ?? readyIndexes[0];
+          const template = createPipelineDraft(
+            serverOptions,
+            'Untitled answer pipeline',
+            defaultIndex?.id,
+          );
           setNodes(
             template.execution.nodes.map((node) =>
               flowNode(node, template.layout.positions[node.id]),

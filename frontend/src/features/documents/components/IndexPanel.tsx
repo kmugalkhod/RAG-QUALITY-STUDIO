@@ -1,20 +1,22 @@
+import { useEffect, useState, type FormEvent } from 'react';
+import { Box, Database, Plus, Search } from 'lucide-react';
+
+import { Button } from '../../../components/ui/button';
+import { StatusBadge } from '../../../components/StatusBadge';
 import {
   createDefaultRetrievalSettings,
   validateRetrievalSettings,
   type RetrievalSettings,
 } from '../../../lib/retrieval';
-import { useEffect, useState, type FormEvent } from 'react';
 import * as api from '../indexApi';
-import {
-  type EmbeddingSettings,
-  type IndexPage,
-  type IndexVersion,
-  type Retrieval,
-} from '../model';
+import type { EmbeddingSettings, IndexPage, IndexVersion, Retrieval } from '../model';
 import { IndexList } from './IndexList';
+import { IndexRecords } from './IndexRecords';
 import { IndexSearch } from './IndexSearch';
-const message = (e: unknown) =>
-  e instanceof Error ? e.message : 'Request failed. Please try again.';
+
+const message = (cause: unknown) =>
+  cause instanceof Error ? cause.message : 'Request failed. Please try again.';
+
 export function IndexPanel({ projectId }: { projectId: string }) {
   const [page, setPage] = useState<IndexPage>();
   const [settings, setSettings] = useState<EmbeddingSettings>();
@@ -30,6 +32,7 @@ export function IndexPanel({ projectId }: { projectId: string }) {
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState('');
   const [result, setResult] = useState<Retrieval>();
+
   useEffect(() => {
     let disposed = false;
     let timer: ReturnType<typeof setTimeout>;
@@ -43,10 +46,19 @@ export function IndexPanel({ projectId }: { projectId: string }) {
           setPage(indexes);
           setSettings(config);
           setLoadError('');
+          const linkedId = new URLSearchParams(window.location.hash.split('?')[1]).get('index');
+          if (!selected && !linkedId) {
+            const current = indexes.items
+              .filter((index) => index.is_current && index.status === 'succeeded')
+              .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))[0];
+            if (current) {
+              setSelected(current);
+            }
+          }
         }
-      } catch (e) {
+      } catch (cause) {
         if (!disposed) {
-          setLoadError(message(e));
+          setLoadError(message(cause));
         }
       }
       if (!disposed) {
@@ -58,37 +70,32 @@ export function IndexPanel({ projectId }: { projectId: string }) {
       disposed = true;
       clearTimeout(timer);
     };
-  }, [projectId, offset, revision]);
+  }, [projectId, offset, revision, selected]);
+
   useEffect(() => {
     let disposed = false;
     let request = 0;
     const restore = () => {
       const seq = ++request;
       const id = new URLSearchParams(window.location.hash.split('?')[1]).get('index');
-      setSelected(undefined);
       setResult(undefined);
       setSearchError('');
-      if (id) {
-        void api
-          .getIndex(projectId, id)
-          .then((index) => {
-            if (disposed || seq !== request) {
-              return;
-            }
-            if (index.status === 'succeeded') {
-              setSelected(index);
-            } else {
-              setSearchError(
-                'These documents are still being prepared. Choose a version marked Ready for questions.',
-              );
-            }
-          })
-          .catch((e) => {
-            if (!disposed && seq === request) {
-              setSearchError(message(e));
-            }
-          });
+      if (!id) {
+        return;
       }
+      void api
+        .getIndex(projectId, id)
+        .then((index) => {
+          if (disposed || seq !== request) {
+            return;
+          }
+          if (index.status === 'succeeded') {
+            setSelected(index);
+          } else {
+            setSearchError('This index is not ready. Choose a version marked Ready.');
+          }
+        })
+        .catch((cause) => !disposed && seq === request && setSearchError(message(cause)));
     };
     restore();
     window.addEventListener('hashchange', restore);
@@ -97,6 +104,7 @@ export function IndexPanel({ projectId }: { projectId: string }) {
       window.removeEventListener('hashchange', restore);
     };
   }, [projectId]);
+
   function selectIndex(index: IndexVersion) {
     setSelected(index);
     setResult(undefined);
@@ -105,8 +113,13 @@ export function IndexPanel({ projectId }: { projectId: string }) {
     const params = new URLSearchParams(search);
     params.set('view', 'indexes');
     params.set('index', index.id);
-    window.location.hash = `${path || `#/projects/${projectId}/knowledge-base`}?${params}`;
+    window.history.replaceState(
+      null,
+      '',
+      `#${path || `/projects/${projectId}/knowledge-base`}?${params}`,
+    );
   }
+
   async function create() {
     setBusy(true);
     setError('');
@@ -114,33 +127,31 @@ export function IndexPanel({ projectId }: { projectId: string }) {
     try {
       const index = await api.createIndex(projectId);
       setNotice(
-        `Document set version ${index.version} created with ${index.chunk_count} passages. Follow its status below.`,
+        `Document set version ${index.version} created with ${index.chunk_count} passages. Preparation has started.`,
       );
       setOffset(0);
-      setRevision((n) => n + 1);
-    } catch (e) {
-      setError(message(e));
+      setRevision((value) => value + 1);
+    } catch (cause) {
+      setError(message(cause));
     } finally {
       setBusy(false);
     }
   }
+
   async function cancel(index: IndexVersion) {
     setBusy(true);
     setError('');
     try {
       const value = await api.cancelIndex(projectId, index.id);
-      setNotice(
-        value.status === 'cancelled'
-          ? `Document set version ${index.version} cancelled. In-flight requests may finish, but cannot publish.`
-          : `Document set version ${index.version} is already ${value.status}.`,
-      );
-      setRevision((n) => n + 1);
-    } catch (e) {
-      setError(message(e));
+      setNotice(`Document set version ${index.version} ${value.status}.`);
+      setRevision((current) => current + 1);
+    } catch (cause) {
+      setError(message(cause));
     } finally {
       setBusy(false);
     }
   }
+
   async function search(event: FormEvent) {
     event.preventDefault();
     setSearchError('');
@@ -151,55 +162,153 @@ export function IndexPanel({ projectId }: { projectId: string }) {
       query.trim().length > 8000 ||
       validateRetrievalSettings(retrieval).length > 0
     ) {
-      setSearchError(
-        'Choose a prepared document set, enter a query of 1–8,000 characters, and set results to an integer from 1 to 50.',
-      );
+      setSearchError('Choose an index, enter a query, and correct the retrieval settings.');
       return;
     }
     setSearching(true);
     try {
       setResult(await api.retrieve(projectId, selected.id, query.trim(), retrieval));
-    } catch (e) {
-      setSearchError(message(e));
+    } catch (cause) {
+      setSearchError(message(cause));
     } finally {
       setSearching(false);
     }
   }
+
+  const hasActive = page?.items.some((index) => ['queued', 'running'].includes(index.status));
+
   return (
-    <section className="inspector" aria-labelledby="index-title">
-      <IndexList
-        page={page}
-        settings={settings}
-        offset={offset}
-        selectedId={selected?.id}
-        busy={busy}
-        searching={searching}
-        loadError={loadError}
-        error={error}
-        notice={notice}
-        onCreate={() => void create()}
-        onRefresh={() => setRevision((value) => value + 1)}
-        onPage={setOffset}
-        onCancel={(index) => void cancel(index)}
-        onSelect={selectIndex}
-      />
-      <IndexSearch
-        selected={selected}
-        query={query}
-        settings={retrieval}
-        searching={searching}
-        error={searchError}
-        result={result}
-        onQueryChange={(value) => {
-          setQuery(value);
-          setResult(undefined);
-        }}
-        onSettingsChange={(value) => {
-          setRetrieval(value);
-          setResult(undefined);
-        }}
-        onSubmit={search}
-      />
+    <section className="index-workspace" aria-labelledby="index-title">
+      <header className="index-workspace-header">
+        <div>
+          <h2 id="index-title">Searchable knowledge</h2>
+          <p>Build, inspect, and test the exact data your answer pipelines use.</p>
+        </div>
+        <Button onClick={() => void create()} disabled={busy || hasActive || !settings?.configured}>
+          <Plus /> Prepare document set
+        </Button>
+      </header>
+      {settings?.config && (
+        <div className="embedding-summary" aria-label="Embedding configuration">
+          <Database />
+          <div>
+            <span>Provider</span>
+            <strong>{settings.config.provider}</strong>
+          </div>
+          <div>
+            <span>Model</span>
+            <strong>{settings.config.model}</strong>
+          </div>
+          <div>
+            <span>Dimensions</span>
+            <strong>{settings.config.dimensions.toLocaleString()}</strong>
+          </div>
+          <div>
+            <span>Revision</span>
+            <strong>{settings.config.revision}</strong>
+          </div>
+        </div>
+      )}
+      {settings && !settings.configured && <p className="error-message">{settings.error}</p>}
+      {error && (
+        <p role="alert" className="error-message">
+          {error}
+        </p>
+      )}
+      {notice && (
+        <p role="status" className="success-message">
+          {notice}
+        </p>
+      )}
+      <div className="index-browser-layout">
+        <IndexList
+          page={page}
+          offset={offset}
+          selectedId={selected?.id}
+          busy={busy}
+          loadError={loadError}
+          onRefresh={() => setRevision((value) => value + 1)}
+          onPage={setOffset}
+          onCancel={(index) => void cancel(index)}
+          onSelect={selectIndex}
+        />
+        <section className="index-detail" aria-label="Selected index details">
+          {!selected ? (
+            <div className="index-detail-empty">
+              <Box />
+              <h2>Select an index version</h2>
+              <p>
+                Inspect stored vector records and run a retrieval test without generating an answer.
+              </p>
+              <IndexSearch
+                selected={selected}
+                query={query}
+                settings={retrieval}
+                searching={searching}
+                error={searchError}
+                result={result}
+                onQueryChange={setQuery}
+                onSettingsChange={setRetrieval}
+                onSubmit={search}
+              />
+            </div>
+          ) : (
+            <>
+              <header className="index-detail-header">
+                <div>
+                  <p>{selected.knowledge_set_name}</p>
+                  <h2>Version {selected.version}</h2>
+                </div>
+                <StatusBadge status={selected.status}>
+                  {selected.is_current ? 'Current index' : 'Historical index'}
+                </StatusBadge>
+              </header>
+              <dl className="index-detail-stats">
+                <div>
+                  <dt>Stored passages</dt>
+                  <dd>{selected.embedded_count.toLocaleString()}</dd>
+                </div>
+                <div>
+                  <dt>Source revisions</dt>
+                  <dd>{selected.processing_run_count.toLocaleString()}</dd>
+                </div>
+                <div>
+                  <dt>Vector dimensions</dt>
+                  <dd>{selected.embedding_config.dimensions.toLocaleString()}</dd>
+                </div>
+              </dl>
+              <IndexRecords projectId={projectId} index={selected} />
+              <div className="retrieval-check-heading">
+                <Search />
+                <div>
+                  <h3>Retrieval check</h3>
+                  <p>
+                    Confirm which passages a question will retrieve before using this index in a
+                    pipeline.
+                  </p>
+                </div>
+              </div>
+              <IndexSearch
+                selected={selected}
+                query={query}
+                settings={retrieval}
+                searching={searching}
+                error={searchError}
+                result={result}
+                onQueryChange={(value) => {
+                  setQuery(value);
+                  setResult(undefined);
+                }}
+                onSettingsChange={(value) => {
+                  setRetrieval(value);
+                  setResult(undefined);
+                }}
+                onSubmit={search}
+              />
+            </>
+          )}
+        </section>
+      </div>
     </section>
   );
 }

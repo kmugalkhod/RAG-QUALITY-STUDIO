@@ -105,7 +105,9 @@ def upgrade():
 
 def downgrade():
     op.drop_constraint(
-        "fk_ingestion_schedule_last_run_project", "ingestion_schedules", type_="foreignkey"
+        "fk_ingestion_schedule_last_run_project",
+        "ingestion_schedules",
+        type_="foreignkey",
     )
     op.drop_constraint(
         "ck_ingestion_run_schedule_trigger", "ingestion_runs", type_="check"

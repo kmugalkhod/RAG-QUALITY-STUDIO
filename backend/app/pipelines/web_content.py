@@ -1,4 +1,4 @@
-"""Deterministic, non-executing HTML extraction and section-local chunking."""
+"""Deterministic, non-executing HTML extraction and page-window chunking."""
 
 import re
 from dataclasses import dataclass
@@ -7,7 +7,7 @@ from html.parser import HTMLParser
 from app.pipelines.parsing import MAX_CHUNKS, ProcessingError, windows
 
 
-EXTRACTOR_VERSION = "html-main-v1"
+EXTRACTOR_VERSION = "html-main-v2"
 CLEANER_VERSION = "whitespace-boilerplate-v1"
 _SPACE = re.compile(r"\s+")
 _IGNORED = {
@@ -122,25 +122,51 @@ def extract_sections(content: bytes, clean) -> list[Section]:
 
 
 def chunk_sections(sections: list[Section], size: int, overlap: int):
-    chunks = []
+    """Chunk one cleaned page while retaining the shared heading provenance.
+
+    HTML elements are extraction boundaries, not semantic chunk boundaries. Joining
+    adjacent elements before windowing prevents headings, list items and short
+    paragraphs from becoming useless one-line vectors.
+    """
+    combined = "\n\n".join(section.text for section in sections)
+    spans = []
     cursor = 0
     for section in sections:
-        for start, end, text in windows(section.text, size, overlap):
-            if len(chunks) >= MAX_CHUNKS:
-                raise ProcessingError(
-                    "Website page exceeds the 50,000 chunk limit. Increase chunk size."
-                )
-            chunks.append(
-                {
-                    "ordinal": len(chunks),
-                    "page_number": None,
-                    "start_char": cursor + start,
-                    "end_char": cursor + end,
-                    "text": text,
-                    "provenance": {"section_path": list(section.path)},
-                }
+        end = cursor + len(section.text)
+        spans.append((cursor, end, section.path))
+        cursor = end + 2
+
+    def shared_path(start: int, end: int) -> list[str]:
+        paths = [path for left, right, path in spans if left < end and right > start]
+        if not paths:
+            return []
+        prefix = list(paths[0])
+        for path in paths[1:]:
+            prefix = [
+                value
+                for index, value in enumerate(prefix)
+                if index < len(path) and path[index] == value
+            ]
+            if not prefix:
+                break
+        return prefix
+
+    chunks = []
+    for start, end, text in windows(combined, size, overlap):
+        if len(chunks) >= MAX_CHUNKS:
+            raise ProcessingError(
+                "Website page exceeds the 50,000 chunk limit. Increase chunk size."
             )
-        cursor += len(section.text) + 2
+        chunks.append(
+            {
+                "ordinal": len(chunks),
+                "page_number": None,
+                "start_char": start,
+                "end_char": end,
+                "text": text,
+                "provenance": {"section_path": shared_path(start, end)},
+            }
+        )
     if not chunks:
         raise ProcessingError("Website page contains no chunkable text.")
     return chunks

@@ -28,12 +28,11 @@ export function IndexSearch({
   onSubmit: (event: FormEvent) => void;
 }) {
   return (
-    <details className="chunk-inspector" open={!!selected}>
-      <summary>Search documents only</summary>
-      <p>
+    <section className="index-search">
+      <p className="index-search-context">
         {selected
           ? `Searching document set · Version ${selected.version}`
-          : 'Choose a ready document set above.'}
+          : 'Choose a ready document set to search.'}
       </p>
       <form onSubmit={onSubmit} noValidate aria-busy={searching}>
         <Label htmlFor="retrieval-query">Search query</Label>
@@ -86,6 +85,6 @@ export function IndexSearch({
           </ol>
         </section>
       )}
-    </details>
+    </section>
   );
 }

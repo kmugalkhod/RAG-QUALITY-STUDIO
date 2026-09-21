@@ -137,13 +137,67 @@ def save_website(client, project_id, config):
     return saved.json()
 
 
-def start_run(client, project_id, version):
+def start_run(client, project_id, version, *, reuse_stored=False):
     response = client.post(
         f"/api/projects/{project_id}/pipelines/{version['pipeline_id']}"
-        f"/versions/{version['id']}/ingestion-runs"
+        f"/versions/{version['id']}/ingestion-runs",
+        json={"reuse_stored": reuse_stored},
     )
     assert response.status_code == 202, response.text
     return response.json()
+
+
+def test_rechunks_stored_website_artifacts_without_connector_calls(website_api):
+    client, engine, project_id, _, config, _provider = website_api
+    version = save_website(client, project_id, config)
+    first = start_run(client, project_id, version)
+    first_index = publish(
+        engine,
+        first["id"],
+        lambda: WebsiteDouble(
+            [
+                page(
+                    "https://example.com/",
+                    b"<main><h1>Guide</h1><p>"
+                    + b"Stored content. " * 80
+                    + b"</p></main>",
+                    etag='"stored-v1"',
+                )
+            ],
+            [],
+        ),
+    )
+    changed = {
+        "kind": "ingestion",
+        "name": version["name"],
+        "execution": version["execution"],
+        "layout": version["layout"],
+    }
+    chunk = next(
+        node for node in changed["execution"]["nodes"] if node["type"] == "chunk"
+    )
+    chunk.update(size=240, overlap=40)
+    saved = client.post(
+        f"/api/projects/{project_id}/pipelines/{version['pipeline_id']}/versions",
+        json=changed,
+    )
+    assert saved.status_code == 201, saved.text
+    reprocessed = start_run(client, project_id, saved.json(), reuse_stored=True)
+
+    def unexpected_connector():
+        raise AssertionError(
+            "Offline reprocessing must not create a Website connector."
+        )
+
+    second_index = publish(engine, reprocessed["id"], unexpected_connector)
+    result = client.get(
+        f"/api/projects/{project_id}/ingestion-runs/{reprocessed['id']}"
+    ).json()
+    assert result["status"] == "succeeded"
+    assert result["changed_count"] == 1
+    assert result["published_index_id"] == str(second_index)
+    assert str(second_index) != str(first_index)
+    assert result["chunk_count"] > 1
 
 
 def publish(engine, run_id, factory):
@@ -176,7 +230,23 @@ def test_html_extraction_prefers_main_and_keeps_heading_provenance():
     assert sections[0].path == ("Guide",)
     assert sections[1].path == ("Guide", "Details")
     chunks = chunk_sections(sections, 100, 10)
-    assert chunks[1]["provenance"]["section_path"] == ["Guide", "Details"]
+    assert len(chunks) == 1
+    assert chunks[0]["text"] == "Useful text\n\nMore text"
+    assert chunks[0]["provenance"]["section_path"] == ["Guide"]
+
+
+def test_html_chunking_combines_adjacent_short_elements():
+    clean = CleanNode(id="clean", type="clean")
+    sections = extract_sections(
+        b"<main><h1>Agents</h1><p>Create agents</p>"
+        b"<p>Use create_agent with a model and tools.</p></main>",
+        clean,
+    )
+    chunks = chunk_sections(sections, 600, 80)
+    assert [chunk["text"] for chunk in chunks] == [
+        "Create agents\n\nUse create_agent with a model and tools."
+    ]
+    assert chunks[0]["provenance"]["section_path"] == ["Agents"]
 
 
 def test_first_crawl_incremental_refresh_and_preserved_indexes(website_api):

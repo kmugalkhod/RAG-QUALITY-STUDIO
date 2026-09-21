@@ -300,6 +300,54 @@ def list_knowledge_sets(session, project_id, limit, offset):
     )
 
 
+def list_index_records(session, project_id, index_id, limit, offset):
+    index = get_index(session, project_id, index_id)
+    total = session.scalar(
+        select(func.count())
+        .select_from(IndexChunk)
+        .where(IndexChunk.index_id == index.id)
+    )
+    rows = session.execute(
+        select(IndexChunk, Chunk, ProcessingRun, Document)
+        .join(
+            Chunk,
+            (Chunk.run_id == IndexChunk.run_id) & (Chunk.ordinal == IndexChunk.ordinal),
+        )
+        .join(ProcessingRun, ProcessingRun.id == Chunk.run_id)
+        .join(Document, Document.id == ProcessingRun.document_id)
+        .where(IndexChunk.index_id == index.id, Document.project_id == project_id)
+        .order_by(Document.filename, IndexChunk.run_id, IndexChunk.ordinal)
+        .limit(limit)
+        .offset(offset)
+    ).all()
+    items = []
+    for member, chunk, run, document in rows:
+        embedding = member.embedding.tolist() if member.embedding is not None else []
+        provenance = chunk.provenance or {}
+        items.append(
+            dict(
+                run_id=member.run_id,
+                ordinal=member.ordinal,
+                document_id=document.id,
+                filename=document.filename,
+                processing_version=run.version,
+                page_number=chunk.page_number,
+                start_char=chunk.start_char,
+                end_char=chunk.end_char,
+                text=chunk.text,
+                source_url=provenance.get("canonical_url"),
+                section_path=provenance.get("section_path") or [],
+                dimensions=member.dimensions,
+                embedded=bool(embedding),
+                embedding_norm=(sum(value * value for value in embedding) ** 0.5)
+                if embedding
+                else None,
+                embedding_preview=embedding[:8],
+            )
+        )
+    return dict(items=items, total=total, limit=limit, offset=offset)
+
+
 def cancel_index(session, project_id, index_id):
     result = get_index(session, project_id, index_id)
     session.execute(

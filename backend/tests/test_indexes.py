@@ -105,6 +105,14 @@ def test_snapshot_retrieval_provenance_scope_and_reuse(index_api):
         and ready["attempts"] == 1
     )
     assert ready["is_current"] is True
+    records = client.get(route + "/records?limit=2").json()
+    assert records["total"] == 3 and len(records["items"]) == 2
+    assert records["items"][0]["filename"] == doc["filename"]
+    assert records["items"][0]["embedded"] is True
+    assert records["items"][0]["dimensions"] == 3
+    assert records["items"][0]["embedding_norm"] == pytest.approx(1)
+    assert records["items"][0]["embedding_preview"] == [1, 0, 0]
+    assert client.get((route + "/records").replace(p, q)).status_code == 404
     sets = client.get(f"/api/projects/{p}/knowledge-sets").json()
     assert sets["total"] == 1
     assert sets["items"][0]["current_ready_index_id"] == index["id"]

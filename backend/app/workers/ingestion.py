@@ -9,7 +9,12 @@ from sqlalchemy.orm import Session
 
 from app.db.session import engine
 from app.connectors.base import ConnectorFailure, ConnectorIssue
-from app.connectors.website import PriorWebsiteRevision, WebsiteConnector
+from app.connectors.website import (
+    PreviewOutcome,
+    PriorWebsiteRevision,
+    WebsiteArtifact,
+    WebsiteConnector,
+)
 from app.connectors.s3 import S3Connector
 from app.connectors.notion import NotionConnector
 from app.connectors.confluence import ConfluenceConnector
@@ -129,6 +134,41 @@ def _discover_website(run_id, db_engine, connector_factory):
         job = session.get(IngestionRun, run_id)
         execution = IngestionExecution.model_validate(job.snapshot["execution"])
         priors, revisions = _website_priors(session, job)
+    if job.snapshot.get("reuse_stored"):
+        results = []
+        for source in [node for node in execution.nodes if node.type == "source"]:
+            outcomes = []
+            artifacts = []
+            for location, (revision, source_node_id) in revisions.items():
+                if source_node_id != source.id:
+                    continue
+                prior = priors[location]
+                outcomes.append(
+                    PreviewOutcome(
+                        external_id=location,
+                        display_name=location,
+                        canonical_location=location,
+                        media_type=revision.media_type,
+                        status="included",
+                        reason="Stored page selected for offline reprocessing.",
+                        size_bytes=revision.size_bytes,
+                        depth=(revision.provenance or {}).get("depth"),
+                        provider_revision=revision.provider_revision,
+                    )
+                )
+                artifacts.append(
+                    WebsiteArtifact(
+                        canonical_location=location,
+                        content=prior.content,
+                        media_type=prior.media_type,
+                        etag=prior.etag,
+                        last_modified=prior.last_modified,
+                        validator_unchanged=True,
+                        depth=(revision.provenance or {}).get("depth") or 0,
+                    )
+                )
+            results.append((source.id, outcomes, artifacts))
+        return execution, revisions, results
     results = []
     for source in [node for node in execution.nodes if node.type == "source"]:
         connector = connector_factory() if connector_factory else WebsiteConnector()

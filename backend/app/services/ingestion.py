@@ -152,6 +152,7 @@ def start_run(
     *,
     trigger_kind: str = "manual",
     schedule_id: UUID | None = None,
+    reuse_stored: bool = False,
 ):
     pipeline = pipelines.get_pipeline(session, project_id, pipeline_id)
     if pipeline.kind != "ingestion":
@@ -164,6 +165,11 @@ def start_run(
     embeddings.configured()
     sources = [node for node in execution.nodes if node.type == "source"]
     remote_kind = sources[0].config.kind if sources else None
+    if reuse_stored and remote_kind != "website":
+        raise HTTPException(
+            422,
+            "Stored-artifact reprocessing is currently supported for Website sources only.",
+        )
     if remote_kind in ("website", "s3", "notion", "confluence") and all(
         source.config.kind == remote_kind for source in sources
     ):
@@ -183,6 +189,41 @@ def start_run(
             raise HTTPException(
                 409, "This knowledge set already has an active ingestion run."
             )
+        if reuse_stored and knowledge_set.current_ready_index_id is None:
+            raise HTTPException(
+                409,
+                "Run this Website pipeline once before reprocessing stored pages.",
+            )
+        if reuse_stored:
+            prior_index = session.get(
+                IndexVersion, knowledge_set.current_ready_index_id
+            )
+            prior_run = (
+                session.get(IngestionRun, prior_index.ingestion_run_id)
+                if prior_index is not None and prior_index.ingestion_run_id is not None
+                else None
+            )
+            if prior_run is None or prior_run.snapshot.get("source_kind") != "website":
+                raise HTTPException(
+                    409,
+                    "The current index does not contain reusable Website artifacts.",
+                )
+            prior_execution = IngestionExecution.model_validate(
+                prior_run.snapshot["execution"]
+            )
+            prior_sources = {
+                source.id: source.config.model_dump(mode="json")
+                for source in prior_execution.nodes
+                if source.type == "source"
+            }
+            current_sources = {
+                source.id: source.config.model_dump(mode="json") for source in sources
+            }
+            if current_sources != prior_sources:
+                raise HTTPException(
+                    409,
+                    "Website source settings changed. Refresh the website before reprocessing stored pages.",
+                )
         run = IngestionRun(
             project_id=project_id,
             pipeline_version_id=version.id,
@@ -205,6 +246,7 @@ def start_run(
                     if knowledge_set.current_ready_index_id
                     else None
                 ),
+                "reuse_stored": reuse_stored,
                 "embedding": embeddings.configured().model_dump(mode="json"),
             },
         )

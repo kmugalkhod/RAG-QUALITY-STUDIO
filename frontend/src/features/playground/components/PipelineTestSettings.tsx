@@ -5,6 +5,7 @@ import { Label } from '../../../components/ui/label';
 import { RetrievalSettingsForm } from '../../../components/RetrievalSettingsForm';
 import { getNodeRetrievalSettings } from '../../../lib/retrieval';
 import { Button } from '../../../components/ui/button';
+import { CircleAlert } from 'lucide-react';
 
 import { formatIndexOption, type IndexVersion } from '../../documents/model';
 import type {
@@ -37,6 +38,15 @@ export function PipelineTestSettings(props: Props) {
   const retriever = draft?.execution.nodes.find((n) => n.type === 'retriever');
   const prompt = draft?.execution.nodes.find((n) => n.type === 'prompt');
   const llm = draft?.execution.nodes.find((n) => n.type === 'llm');
+  const selectedIndex = props.indexes.find((index) => index.id === retriever?.index_id);
+  const currentIndex = selectedIndex
+    ? props.indexes.find(
+        (index) =>
+          index.knowledge_set_id === selectedIndex.knowledge_set_id &&
+          index.is_current &&
+          index.id !== selectedIndex.id,
+      )
+    : undefined;
   function update(kind: PipelineNodeKind, patch: Partial<PipelineNodeConfig>) {
     if (!draft) {
       return;
@@ -112,6 +122,32 @@ export function PipelineTestSettings(props: Props) {
                   ))}
                 </NativeSelect>
               </Label>
+              {currentIndex && selectedIndex && (
+                <div className="stale-index-warning" role="status">
+                  <CircleAlert />
+                  <div>
+                    <strong>Your pipeline is searching old data</strong>
+                    <p>
+                      Saved version {selectedIndex.version} has{' '}
+                      {selectedIndex.chunk_count.toLocaleString()} passages; current version{' '}
+                      {currentIndex.version} has {currentIndex.chunk_count.toLocaleString()}.
+                    </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => update('retriever', { index_id: currentIndex.id })}
+                    >
+                      Test with current version {currentIndex.version}
+                    </Button>
+                  </div>
+                </div>
+              )}
+              {selectedIndex && !currentIndex && (
+                <p className="current-index-confirmation">
+                  Current index · {selectedIndex.chunk_count.toLocaleString()} passages
+                </p>
+              )}
               <RetrievalSettingsForm
                 value={getNodeRetrievalSettings(retriever)}
                 onChange={(retrieval) => update('retriever', { retrieval })}

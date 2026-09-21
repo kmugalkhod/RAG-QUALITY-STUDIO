@@ -2,6 +2,7 @@ import { formatRetrievalScores } from '../../../lib/retrieval';
 import { useEffect } from 'react';
 import { Sparkles } from 'lucide-react';
 import { AnswerText } from '../../../components/AnswerText';
+import { Badge } from '../../../components/ui/badge';
 import { type QueryRun } from '../model';
 export function RunResult({
   run,
@@ -11,6 +12,17 @@ export function RunResult({
   onCitation?: (label: string) => void;
 }) {
   const s = run.snapshot;
+  const citationCount = s.citations?.valid.length ?? 0;
+  const qualityMessage =
+    run.status === 'failed'
+      ? s.evidence.length
+        ? 'Retrieval completed; answer generation failed.'
+        : 'The run failed before usable evidence was available.'
+      : run.status === 'insufficient_evidence'
+        ? 'The model correctly stopped because the passages were insufficient.'
+        : s.citations?.missing || s.citations?.invalid.length
+          ? 'Review citation coverage before trusting this answer.'
+          : 'The answer includes links to the supplied evidence.';
   return (
     <section className="query-result border-border" aria-label="Query result">
       <div className="chat-question">
@@ -35,6 +47,31 @@ export function RunResult({
         </p>
       )}
       {run.status === 'running' && <p role="status">Generating the answer…</p>}
+      {run.status !== 'running' && (
+        <aside
+          className="my-4 rounded-lg border border-border bg-secondary/55 p-3"
+          aria-label="RAG quality check"
+        >
+          <div className="mb-2 flex flex-wrap gap-2">
+            <Badge variant="outline">Index version {run.index_version}</Badge>
+            <Badge variant="outline">
+              {s.evidence.length} {s.evidence.length === 1 ? 'passage' : 'passages'} supplied
+            </Badge>
+            {run.answer && (
+              <Badge variant="outline">
+                {citationCount} citation {citationCount === 1 ? 'link' : 'links'}
+              </Badge>
+            )}
+          </div>
+          <p className="m-0 text-xs text-muted-foreground">{qualityMessage}</p>
+          {run.answer && (
+            <p className="mb-0 mt-1 text-xs text-muted-foreground">
+              Citation links verify source membership, not factual correctness. Review Sources &amp;
+              details for support.
+            </p>
+          )}
+        </aside>
+      )}
       {run.answer && (
         <div className="rag-answer text-[17px]">
           <AnswerText text={run.answer} citations={s.citations?.valid} onCitation={onCitation} />

@@ -78,10 +78,11 @@ export function startIngestionRun(
   projectId: string,
   pipelineId: string,
   versionId: string,
+  reuseStored = false,
 ): Promise<IngestionRun> {
-  return request<IngestionRun>(
+  return postJson<IngestionRun>(
     `${pipelinesPath(projectId)}/${encodeURIComponent(pipelineId)}/versions/${encodeURIComponent(versionId)}/ingestion-runs`,
-    { method: 'POST' },
+    { reuse_stored: reuseStored },
   );
 }
 

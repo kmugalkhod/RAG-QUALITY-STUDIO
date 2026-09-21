@@ -8,6 +8,7 @@ from app.schemas.index import (
     IndexCreate,
     IndexRead,
     IndexPage,
+    IndexRecordPage,
     KnowledgeSetPage,
     RetrievalRequest,
     RetrievalRead,
@@ -73,6 +74,17 @@ def list_knowledge_set_indexes(
 @router.get("/indexes/{index_id}", response_model=IndexRead)
 def get_index(project_id: UUID, index_id: UUID, session: Database):
     return indexes.read_index(session, indexes.get_index(session, project_id, index_id))
+
+
+@router.get("/indexes/{index_id}/records", response_model=IndexRecordPage)
+def list_index_records(
+    project_id: UUID,
+    index_id: UUID,
+    session: Database,
+    limit: Limit = 20,
+    offset: Offset = 0,
+):
+    return indexes.list_index_records(session, project_id, index_id, limit, offset)
 
 
 @router.post("/indexes/{index_id}/cancel", response_model=IndexRead)

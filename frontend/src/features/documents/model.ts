@@ -101,3 +101,23 @@ export interface Retrieval {
   retrieval?: RetrievalSettings;
   diagnostics?: Record<string, unknown>;
 }
+
+export interface IndexRecord {
+  run_id: string;
+  ordinal: number;
+  document_id: string;
+  filename: string;
+  processing_version: number;
+  page_number: number | null;
+  start_char: number;
+  end_char: number;
+  text: string;
+  source_url: string | null;
+  section_path: string[];
+  dimensions: number;
+  embedded: boolean;
+  embedding_norm: number | null;
+  embedding_preview: number[];
+}
+
+export type IndexRecordPage = Page<IndexRecord>;

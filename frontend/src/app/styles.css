@@ -1146,6 +1146,523 @@ footer {
     transition: none !important;
   }
 }
+
+/* Knowledge indexes use a dense master-detail workspace so large datasets remain inspectable. */
+.app-shell .index-workspace {
+  padding: 24px 28px 40px;
+}
+
+.app-shell .index-workspace-header,
+.app-shell .index-catalog-heading,
+.app-shell .index-detail-header,
+.app-shell .vector-browser-heading,
+.app-shell .retrieval-check-heading,
+.app-shell .vector-record-main,
+.app-shell .index-version-title,
+.app-shell .index-progress {
+  display: flex;
+  align-items: center;
+}
+
+.app-shell .index-workspace-header {
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 18px;
+}
+
+.app-shell .index-workspace-header h2,
+.app-shell .index-workspace-header p,
+.app-shell .index-catalog-heading :is(h2, p),
+.app-shell .index-detail-header :is(h2, p),
+.app-shell .vector-browser-heading :is(h3, p),
+.app-shell .retrieval-check-heading :is(h3, p) {
+  margin: 0;
+}
+
+.app-shell .index-workspace-header h2 {
+  font-size: 18px;
+}
+
+.app-shell .index-workspace-header p,
+.app-shell .index-catalog-heading p,
+.app-shell .vector-browser-heading p,
+.app-shell .retrieval-check-heading p {
+  margin-top: 4px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.app-shell .embedding-summary {
+  display: grid;
+  grid-template-columns: auto repeat(4, minmax(100px, 1fr));
+  align-items: center;
+  gap: 18px;
+  margin-bottom: 20px;
+  padding: 13px 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--secondary);
+}
+
+.app-shell .embedding-summary > svg {
+  color: var(--primary);
+}
+
+.app-shell .embedding-summary div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.app-shell .embedding-summary span,
+.app-shell .index-detail-stats dt {
+  color: var(--muted-foreground);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.app-shell .embedding-summary strong {
+  overflow: hidden;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-shell .index-browser-layout {
+  display: grid;
+  grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
+  min-height: 640px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--background);
+}
+
+.app-shell .index-catalog {
+  min-width: 0;
+  border-right: 1px solid var(--border);
+  background: var(--secondary);
+}
+
+.app-shell .index-catalog-heading {
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px;
+  border-bottom: 1px solid var(--border);
+}
+
+.app-shell .index-catalog-heading h2,
+.app-shell .index-detail-header h2 {
+  font-size: 15px;
+}
+
+.app-shell .index-loading,
+.app-shell .index-empty {
+  padding: 28px 18px;
+  color: var(--muted-foreground);
+  font-size: 13px;
+}
+
+.app-shell .index-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.app-shell .index-empty {
+  text-align: center;
+}
+
+.app-shell .index-empty svg {
+  margin-bottom: 12px;
+}
+
+.app-shell .index-empty :is(h3, p) {
+  margin: 0;
+}
+
+.app-shell .index-empty p {
+  margin-top: 6px;
+  line-height: 1.6;
+}
+
+.app-shell .index-groups > section + section {
+  border-top: 1px solid var(--border);
+}
+
+.app-shell .index-group-heading {
+  padding: 14px 18px 8px;
+}
+
+.app-shell .index-group-heading h3 {
+  font-size: 12px;
+}
+
+.app-shell .index-group-heading span {
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+
+.app-shell .index-groups ul,
+.app-shell .vector-record-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.app-shell .index-groups li {
+  position: relative;
+  margin: 4px 8px;
+  border-radius: 10px;
+}
+
+.app-shell .index-groups li[data-state='selected'] {
+  background: var(--sidebar-accent);
+}
+
+.app-shell .index-version-select {
+  display: grid;
+  width: 100%;
+  gap: 6px;
+  padding: 11px 12px;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  color: var(--foreground);
+  font: inherit;
+  text-align: left;
+}
+
+.app-shell .index-version-select:hover:not(:disabled) {
+  background: var(--muted);
+}
+
+.app-shell .index-version-select:disabled {
+  opacity: 0.72;
+}
+
+.app-shell .index-version-title {
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.app-shell .index-version-title strong {
+  margin-right: auto;
+  font-size: 12px;
+}
+
+.app-shell .index-version-meta,
+.app-shell .index-version-select time {
+  color: var(--muted-foreground);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.app-shell .index-progress {
+  gap: 8px;
+  padding: 0 12px 10px;
+}
+
+.app-shell .index-detail {
+  min-width: 0;
+  padding: 22px 24px 30px;
+}
+
+.app-shell .index-detail-empty {
+  display: grid;
+  place-items: center;
+  min-height: 480px;
+  color: var(--muted-foreground);
+  text-align: center;
+}
+
+.app-shell .index-detail-empty :is(h2, p) {
+  margin: 8px 0 0;
+  max-width: 420px;
+}
+
+.app-shell .index-detail-header {
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.app-shell .index-detail-header p {
+  margin-bottom: 3px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+
+.app-shell .index-detail-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  margin: 18px 0 24px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--border);
+}
+
+.app-shell .index-detail-stats div {
+  display: grid;
+  gap: 3px;
+  padding: 12px 14px;
+  background: var(--secondary);
+}
+
+.app-shell .index-detail-stats dd {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.app-shell .vector-browser {
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+
+.app-shell .vector-browser-heading {
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 12px;
+}
+
+.app-shell .vector-browser-heading h3,
+.app-shell .retrieval-check-heading h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.app-shell .vector-browser-heading svg,
+.app-shell .retrieval-check-heading > svg {
+  color: var(--primary);
+}
+
+.app-shell .vector-record-list > li {
+  padding: 14px 0;
+  border-top: 1px solid var(--border);
+}
+
+.app-shell .vector-record-list {
+  max-height: 580px;
+  padding-right: 6px;
+  overflow-y: auto;
+  scrollbar-color: var(--border) transparent;
+  scrollbar-width: thin;
+}
+
+.app-shell .vector-record-main {
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.app-shell .vector-record-main > svg {
+  width: 16px;
+  flex: 0 0 16px;
+  margin-top: 2px;
+  color: var(--muted-foreground);
+}
+
+.app-shell .vector-record-main > div {
+  min-width: 0;
+  flex: 1;
+}
+
+.app-shell .vector-record-main strong {
+  display: block;
+  overflow: hidden;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-shell .vector-record-main p,
+.app-shell .vector-record-text {
+  margin: 3px 0 0;
+  color: var(--muted-foreground);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.app-shell .vector-record-text {
+  display: -webkit-box;
+  margin: 9px 0 0 26px;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  color: var(--foreground);
+  font-size: 12px;
+}
+
+.app-shell .vector-record-technical {
+  margin: 10px 0 0 26px;
+}
+
+.app-shell .vector-record-technical summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.app-shell .vector-record-technical summary svg {
+  width: 14px;
+}
+
+.app-shell .vector-record-technical dl {
+  display: grid;
+  gap: 9px;
+  margin: 12px 0 0;
+  padding: 12px;
+  border-radius: 9px;
+  background: var(--secondary);
+}
+
+.app-shell .vector-record-technical dl div {
+  display: grid;
+  grid-template-columns: 130px minmax(0, 1fr);
+  gap: 12px;
+}
+
+.app-shell .vector-record-technical :is(dt, dd) {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: 11px;
+}
+
+.app-shell .vector-record-technical dt {
+  color: var(--muted-foreground);
+}
+
+.app-shell .retrieval-check-heading {
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 28px;
+  padding-top: 22px;
+  border-top: 1px solid var(--border);
+}
+
+.app-shell .index-search form {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.app-shell .index-search .chunk-list > li {
+  padding: 16px 0;
+}
+
+.app-shell .inline-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.app-shell .stale-index-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 12px 0;
+  padding: 12px;
+  border: 1px solid color-mix(in srgb, var(--warning) 46%, var(--border));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--warning) 9%, var(--background));
+}
+
+.app-shell .stale-index-warning > svg {
+  width: 17px;
+  flex: 0 0 17px;
+  color: var(--warning);
+}
+
+.app-shell .stale-index-warning :is(strong, p) {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.app-shell .stale-index-warning p {
+  margin: 3px 0 10px;
+  color: var(--muted-foreground);
+}
+
+.app-shell .current-index-confirmation {
+  margin: 8px 0 12px;
+  color: var(--success);
+  font-size: 11px;
+}
+
+.app-shell .chunk-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+@media (max-width: 980px) {
+  .app-shell .index-browser-layout {
+    grid-template-columns: minmax(240px, 300px) minmax(0, 1fr);
+  }
+
+  .app-shell .embedding-summary {
+    grid-template-columns: auto repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .app-shell .index-workspace {
+    padding: 18px 16px 32px;
+  }
+
+  .app-shell .index-workspace-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .app-shell .embedding-summary {
+    grid-template-columns: auto 1fr;
+  }
+
+  .app-shell .index-browser-layout {
+    display: block;
+    overflow: visible;
+  }
+
+  .app-shell .index-catalog {
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .app-shell .index-detail {
+    padding: 20px 16px 26px;
+  }
+
+  .app-shell .index-detail-stats {
+    grid-template-columns: 1fr;
+  }
+
+  .app-shell .vector-record-main {
+    flex-wrap: wrap;
+  }
+
+  .app-shell .vector-record-main [data-slot='badge'] {
+    margin-left: 26px;
+  }
+
+  .app-shell .vector-record-technical dl div {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+}
 .project-link,
 .back-link {
   display: inline-flex;
@@ -1925,11 +2442,13 @@ summary {
   flex: 1;
 }
 .app-shell .editor-workspace > .back-link {
-  position: absolute;
-  top: 15px;
-  left: 20px;
-  margin: 0;
+  position: static;
+  width: fit-content;
+  margin: 10px 20px 0;
   font-size: 11px;
+}
+.app-shell .editor-title {
+  padding: 4px 20px 0;
 }
 .app-shell .editor-title h1 {
   font-size: 14px;
@@ -2112,6 +2631,14 @@ summary {
 }
 
 /* Editor: vertical, readable nodes with configuration beside the canvas. */
+.app-shell .editor-workspace:not(.ingestion-editor) .pipeline-editor {
+  height: clamp(480px, calc(100dvh - 240px), 900px);
+  grid-template-rows: minmax(0, 1fr);
+}
+.app-shell .editor-workspace:not(.ingestion-editor) .pipeline-config {
+  min-height: 0;
+  scrollbar-gutter: stable;
+}
 .app-shell .pipeline-editor.inspector-open {
   grid-template-columns: minmax(0, 1fr) 320px;
 }
@@ -2230,6 +2757,15 @@ summary {
   .app-shell .pipeline-editor.inspector-open {
     grid-template-columns: minmax(0, 1fr);
   }
+  .app-shell .editor-workspace:not(.ingestion-editor) .pipeline-editor {
+    height: auto;
+    grid-template-rows: 480px auto;
+  }
+  .app-shell .editor-workspace:not(.ingestion-editor) .pipeline-canvas {
+    height: 480px;
+    min-height: 0;
+    margin: 0;
+  }
   .app-shell .pipeline-toolbar {
     padding: 12px 16px;
   }
@@ -2261,30 +2797,188 @@ summary {
   gap: 10px;
 }
 
-/* Existing-files ingestion extends the established editor without sharing answer-node state. */
-.app-shell .ingestion-editor-grid {
-  grid-template-columns: minmax(0, 1fr) 330px;
-  min-height: 560px;
+/* Ingestion keeps graph geometry independent of the selected stage's content. */
+.app-shell .ingestion-editor {
+  min-width: 0;
+  padding-bottom: 0;
 }
-.app-shell .ingestion-editor > .back-link {
+.ingestion-editor-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  height: 48px;
+  padding: 0 24px;
+  border-bottom: 1px solid var(--border);
+}
+.app-shell .ingestion-editor-heading .back-link {
   position: static;
-  margin: 12px 20px 0;
-  width: fit-content;
+  margin: 0;
+  font-size: 12px;
+}
+.app-shell .ingestion-editor-heading .editor-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0;
+}
+.app-shell .ingestion-editor .pipeline-fields {
+  display: flex;
+  flex-direction: column;
+  height: calc(100dvh - 96px);
+  min-height: 520px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.app-shell .ingestion-toolbar {
+  flex-shrink: 0;
+  display: grid;
+  gap: 16px;
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--border);
+}
+.ingestion-toolbar-identity,
+.ingestion-toolbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.app-shell .ingestion-toolbar-identity > label:first-child {
+  flex: 1 1 260px;
+}
+.app-shell .ingestion-toolbar-identity > label:nth-child(2) {
+  flex: 0 1 140px;
+  max-width: 140px;
+}
+.app-shell .ingestion-toolbar-identity > .draft-status {
+  font-size: 12px;
+  align-self: flex-end;
+  padding-bottom: 8px;
+}
+.ingestion-stage-nav {
+  flex-shrink: 0;
+  position: relative;
+  z-index: 5;
+  background: var(--background);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--border);
+}
+.ingestion-stage-nav [aria-pressed='true'] {
+  color: var(--primary);
+  background: var(--sidebar-accent);
+}
+.ingestion-stage-number {
+  color: var(--muted-foreground);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.app-shell .ingestion-editor-grid {
+  grid-template-columns: minmax(0, 1fr) 360px;
+  grid-template-rows: minmax(0, 1fr);
+  align-items: stretch;
+  height: auto;
+  min-height: 0;
+  border-bottom: 1px solid var(--border);
 }
 .app-shell .ingestion-editor-grid .pipeline-canvas {
-  min-height: 560px;
+  position: relative;
+  margin: 0;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
 }
 .app-shell .ingestion-editor-grid .node-settings {
   min-width: 0;
-  overflow: auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: var(--muted-foreground) var(--background);
   border-left: 1px solid var(--border);
   background: var(--background);
-  padding: 28px 24px;
+  padding: 0;
+}
+.ingestion-settings-header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--background);
+  flex-shrink: 0;
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.ingestion-settings-header p {
+  margin: 6px 0 0;
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+.ingestion-settings-body {
+  flex-shrink: 0;
+  min-height: 0;
+  padding: 20px 24px 28px;
+  overflow: visible;
+}
+.ingestion-settings-body:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+.app-shell .ingestion-schedules {
+  flex-shrink: 0;
+  padding: 24px;
+  border-top: 1px solid var(--border);
+  min-width: 0;
+}
+.app-shell .ingestion-schedules .section-heading {
+  margin: 0;
+  padding: 0;
+}
+.app-shell .ingestion-schedules p {
+  margin: 8px 0 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--muted-foreground);
+}
+.app-shell .ingestion-schedules .project-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.app-shell .ingestion-schedules .project-list > li {
+  display: grid;
+  gap: 12px;
+  padding: 16px 0;
+}
+.app-shell .ingestion-schedules .project-list > li > div {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.ingestion-stage-facts {
+  margin: 0;
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+}
+.ingestion-stage-facts dt {
+  color: var(--muted-foreground);
+}
+.ingestion-stage-facts dd {
+  margin: 0 0 12px;
+  overflow-wrap: anywhere;
 }
 .app-shell .ingestion-editor-grid .node-settings h2 {
-  font-size: 20px;
+  font-size: 17px;
   font-weight: 550;
-  margin-bottom: 22px;
+  margin: 0;
 }
 .app-shell .ingestion-editor-grid .field-stack {
   display: grid;
@@ -2294,6 +2988,39 @@ summary {
   display: grid;
   gap: 7px;
   font-size: 12px;
+}
+.app-shell .ingestion-editor-grid .field-stack > .ingestion-document-option {
+  display: flex;
+  align-items: flex-start;
+}
+.ingestion-document-option input {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+}
+.app-shell .ingestion-settings-body .field-hint {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--muted-foreground);
+  margin: 0;
+}
+.ingestion-advanced {
+  border-top: 1px solid var(--border);
+  padding-top: 16px;
+}
+.ingestion-advanced summary {
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  padding-block: 8px;
+}
+.ingestion-advanced[open] summary {
+  margin-bottom: 12px;
+}
+.ingestion-advanced summary:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 4px;
 }
 .app-shell .website-preview-notice {
   display: flex;
@@ -2367,7 +3094,10 @@ summary {
   color: var(--muted-foreground);
 }
 .app-shell .ingestion-results {
-  margin-top: 24px;
+  scroll-margin-top: 72px;
+  margin: 24px;
+  padding: 24px 0 0;
+  border-top: 1px solid var(--border);
 }
 .app-shell .ingestion-results .project-list {
   list-style: none;
@@ -2383,13 +3113,82 @@ summary {
   margin: 5px 0 0;
   overflow-wrap: anywhere;
 }
-@media (max-width: 760px) {
+@media (max-width: 1100px) {
+  .app-shell .ingestion-editor .pipeline-fields {
+    height: auto;
+    min-height: 0;
+  }
+  .ingestion-stage-nav {
+    position: sticky;
+    top: 0;
+  }
+  .ingestion-settings-header {
+    position: static;
+  }
   .app-shell .ingestion-editor-grid {
     grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: 440px auto;
+  }
+  .app-shell .ingestion-editor-grid .pipeline-canvas {
+    position: relative;
+    top: auto;
+    height: 440px;
   }
   .app-shell .ingestion-editor-grid .node-settings {
+    overflow: visible;
+    scrollbar-gutter: auto;
+    min-height: 0;
     border-left: 0;
     border-top: 1px solid var(--border);
+    scroll-margin-top: 72px;
+  }
+}
+@media (max-width: 760px) {
+  .ingestion-editor-heading {
+    padding-inline: 16px;
+  }
+  .app-shell .ingestion-editor-heading .editor-title h1 {
+    font-size: 12px;
+  }
+  .app-shell .ingestion-toolbar {
+    padding: 16px;
+  }
+  .ingestion-toolbar-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .app-shell .ingestion-toolbar [data-slot='button'],
+  .ingestion-stage-nav [data-slot='button'] {
+    min-height: 44px;
+    height: auto;
+    white-space: normal;
+  }
+  .ingestion-stage-nav {
+    top: 69px;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    padding: 12px;
+  }
+  .ingestion-stage-nav [data-slot='button'] {
+    padding-inline: 6px;
+    gap: 6px;
+    font-size: 12px;
+  }
+  .ingestion-stage-nav svg {
+    display: none;
+  }
+  .app-shell .ingestion-editor-grid .node-settings {
+    scroll-margin-top: 200px;
+  }
+  .app-shell .ingestion-results {
+    scroll-margin-top: 200px;
+  }
+  .ingestion-settings-body {
+    padding: 20px;
+  }
+  .app-shell .ingestion-schedules {
+    padding: 20px;
   }
   .app-shell .website-limit-grid {
     grid-template-columns: 1fr;

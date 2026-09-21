@@ -11,6 +11,7 @@ from app.schemas.ingestion import (
     IngestionRunItemPage,
     IngestionRunPage,
     IngestionRunRead,
+    IngestionRunStart,
     SourcePreviewItemPage,
     SourcePreviewRead,
 )
@@ -72,12 +73,19 @@ def start_run(
     version_id: UUID,
     request: Request,
     session: Database,
+    data: IngestionRunStart | None = None,
 ):
     version = pipeline_service.get_version(session, project_id, pipeline_id, version_id)
     _protect_credentialed_source(
         request, IngestionExecution.model_validate(version.execution)
     )
-    return ingestion.start_run(session, project_id, pipeline_id, version_id)
+    return ingestion.start_run(
+        session,
+        project_id,
+        pipeline_id,
+        version_id,
+        reuse_stored=(data or IngestionRunStart()).reuse_stored,
+    )
 
 
 @router.get("/ingestion-runs", response_model=IngestionRunPage)

@@ -1,5 +1,17 @@
 # Application architecture
 
+## Index inspection and current-version guidance (2026-09-14)
+
+The Knowledge Base exposes paginated, project-scoped index records by joining immutable index membership to the exact chunk, processing run and document. Reads include passage text, offsets, source provenance, vector presence, dimensions, norm and only the first eight vector values; the full embedding is deliberately not transferred to the browser. This makes stored pgvector data verifiable without turning a 1,536-dimensional record list into an unbounded response.
+
+Saved answer-pipeline versions continue to reference an exact immutable index for reproducibility. The editor and Playground now compare that selection with the knowledge set's current-ready index, show passage-count drift, and offer an explicit upgrade that becomes a new pipeline version. New answer pipelines begin with the newest current-ready index. The application never silently retargets a saved pipeline after ingestion publishes new data.
+
+Website ingestion has two explicit execution modes. **Refresh website & run** performs the bounded connector fetch and publishes from the refreshed membership. **Reprocess stored pages** requires an existing current-ready Website index and unchanged source-node settings, reads its immutable website artifacts from application storage, skips connector construction and network discovery, then applies the newly saved extraction, cleaning and character-chunk configuration before building another immutable index. A source URL or crawl-bound change is rejected and must use refresh so old pages cannot be mistaken for the new selection. Historical revisions and indexes remain available; the reprocessing run snapshots its prior index and exact configuration. It avoids another scrape, but changed chunks still require new embeddings and their associated provider cost. This offline path is deliberately limited to Website sources until other connectors have equivalent stored-artifact semantics.
+
+Website extractor `html-main-v2` treats HTML elements as extraction boundaries rather than chunk boundaries. It joins adjacent cleaned paragraphs, list items and labels with stable separators, applies overlap across the complete page text, and records the common heading ancestry of every resulting window. This prevents short UI labels such as “Create agents” from becoming isolated vectors while keeping character offsets and section provenance deterministic. The extractor-version change participates in the processing hash, so stored pages are reprocessed instead of incorrectly reusing `html-main-v1` revisions.
+
+Playground answer results include a compact RAG quality check with the exact index version, number of passages supplied and citation-link count. Its copy deliberately states that citation membership is not factual validation. Failed runs distinguish retrieval that completed before a generation-provider failure from runs with no usable evidence; the existing Sources & details inspector remains the authoritative evidence review.
+
 ## Retrieval settings extension (2026-09-12)
 
 Retrieval uses a shared discriminated settings contract for vector, PostgreSQL keyword and weighted hybrid search. Query/source binding is separated from search tuning in the interface. The existing five-node graph remains supported; no filters, source/filter nodes or reranker were added.

@@ -5,6 +5,7 @@ import { Label } from '../../../components/ui/label';
 import { Button } from '../../../components/ui/button';
 import { RetrievalSettingsForm } from '../../../components/RetrievalSettingsForm';
 import { getNodeRetrievalSettings } from '../../../lib/retrieval';
+import { CircleAlert } from 'lucide-react';
 
 import { formatIndexOption, type IndexVersion } from '../../documents/model';
 import type { PipelineNodeConfig, PipelineOptions } from '../model';
@@ -32,6 +33,18 @@ export function NodeSettings({
   onUpdate,
   onDelete,
 }: Props) {
+  const selectedIndex =
+    config?.type === 'retriever'
+      ? indexes.find((index) => index.id === config.index_id)
+      : undefined;
+  const currentIndex = selectedIndex
+    ? indexes.find(
+        (index) =>
+          index.knowledge_set_id === selectedIndex.knowledge_set_id &&
+          index.is_current &&
+          index.id !== selectedIndex.id,
+      )
+    : undefined;
   return (
     <aside
       id="node-settings"
@@ -72,6 +85,33 @@ export function NodeSettings({
               ))}
             </NativeSelect>
           </Label>
+          {currentIndex && selectedIndex && (
+            <div className="stale-index-warning" role="status">
+              <CircleAlert />
+              <div>
+                <strong>This pipeline uses an older index</strong>
+                <p>
+                  Version {selectedIndex.version} has {selectedIndex.chunk_count.toLocaleString()}{' '}
+                  passages. Current version {currentIndex.version} has{' '}
+                  {currentIndex.chunk_count.toLocaleString()} passages.
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onUpdate({ index_id: currentIndex.id })}
+                >
+                  Use current version {currentIndex.version}
+                </Button>
+              </div>
+            </div>
+          )}
+          {selectedIndex && !currentIndex && (
+            <p className="current-index-confirmation">
+              Using {selectedIndex.knowledge_set_name} version {selectedIndex.version} ·{' '}
+              {selectedIndex.chunk_count.toLocaleString()} passages
+            </p>
+          )}
           {!indexes.length && (
             <p>Prepare a document set in the Knowledge Base to start asking questions.</p>
           )}

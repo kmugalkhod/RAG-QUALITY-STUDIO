@@ -55,6 +55,31 @@ class IndexPage(BaseModel):
     offset: int
 
 
+class IndexRecordRead(BaseModel):
+    run_id: UUID
+    ordinal: int
+    document_id: UUID
+    filename: str
+    processing_version: int
+    page_number: int | None
+    start_char: int
+    end_char: int
+    text: str
+    source_url: str | None = None
+    section_path: list[str] = Field(default_factory=list)
+    dimensions: int
+    embedded: bool
+    embedding_norm: float | None
+    embedding_preview: list[float] = Field(default_factory=list)
+
+
+class IndexRecordPage(BaseModel):
+    items: list[IndexRecordRead]
+    total: int
+    limit: int
+    offset: int
+
+
 class RetrievalRequest(RetrievalInput):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
     index_id: UUID

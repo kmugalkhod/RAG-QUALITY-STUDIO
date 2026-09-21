@@ -60,6 +60,12 @@ describe('query result', () => {
     expect(screen.getByRole('button', { name: '[S1]' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '[S99]' })).not.toBeInTheDocument();
     expect(screen.getByRole('alert')).toHaveTextContent('Invalid citation references: S99');
+    expect(screen.getByLabelText('RAG quality check')).toHaveTextContent('Index version 2');
+    expect(screen.getByLabelText('RAG quality check')).toHaveTextContent('1 passage supplied');
+    expect(screen.getByLabelText('RAG quality check')).toHaveTextContent('1 citation link');
+    expect(screen.getByLabelText('RAG quality check')).toHaveTextContent(
+      'Review citation coverage before trusting this answer.',
+    );
     expect(screen.queryByText('Source text')).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: '[S1]' }));
     expect(inspect).toHaveBeenCalledWith('S1');
@@ -75,6 +81,9 @@ describe('query result', () => {
     );
     expect(screen.getByRole('heading', { name: 'Answer failed' })).toBeInTheDocument();
     expect(screen.getByText('OpenRouter timed out.')).toBeInTheDocument();
+    expect(screen.getByLabelText('RAG quality check')).toHaveTextContent(
+      'Retrieval completed; answer generation failed.',
+    );
     expect(screen.getByText('Source text')).toBeInTheDocument();
   });
   it('focuses the selected source and preserves provenance', () => {

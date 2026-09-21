@@ -12,7 +12,21 @@ import {
   type ReactFlowInstance,
   type Edge,
 } from '@xyflow/react';
-import { Check, CircleAlert, FileText, Play, Save, Square, X } from 'lucide-react';
+import {
+  Check,
+  CircleAlert,
+  Database,
+  FileText,
+  Play,
+  Save,
+  Square,
+  X,
+  Globe,
+  Scissors,
+  Sparkles,
+  ScanText,
+  ArrowUpToLine,
+} from 'lucide-react';
 
 import { useUnsavedChanges } from '../../app/navigation';
 import { Pagination } from '../../components/Pagination';
@@ -45,7 +59,13 @@ import {
   type WebsiteConfig,
 } from './model';
 
-type FlowData = { label: string; detail: string; first: boolean; last: boolean };
+type FlowData = {
+  label: string;
+  detail: string;
+  first: boolean;
+  last: boolean;
+  stage: IngestionNode['type'];
+};
 type FlowNode = Node<FlowData, 'ingestion'>;
 const terminal = new Set(['succeeded', 'failed', 'cancelled']);
 const labels: Record<IngestionNode['type'], string> = {
@@ -56,11 +76,19 @@ const labels: Record<IngestionNode['type'], string> = {
   embed: 'Embed',
   publish_index: 'Publish index',
 };
+const stageIcons = {
+  source: Globe,
+  extract: ScanText,
+  clean: Sparkles,
+  chunk: Scissors,
+  embed: Database,
+  publish_index: ArrowUpToLine,
+};
 
 const defaultWebsite = (): WebsiteConfig => ({
   kind: 'website',
-  selection: { mode: 'crawl', start_url: 'https://example.com/' },
-  allowed_origins: ['https://example.com'],
+  selection: { mode: 'crawl', start_url: '' },
+  allowed_origins: [],
   include_path_prefixes: ['/'],
   exclude_path_prefixes: [],
   max_pages: 50,
@@ -132,12 +160,13 @@ const lines = (value: string) =>
     .filter(Boolean);
 
 function IngestionFlowNode({ data, selected }: NodeProps<FlowNode>) {
+  const Icon = stageIcons[data.stage];
   return (
     <div
       className={`workflow-node vertical-node w-80 border border-border rounded-[10px] bg-background text-foreground h-21 flex items-center gap-4 shadow-none py-4.5 px-5.5 ${selected ? 'workflow-selected border-primary outline-2 -outline-offset-1 outline-primary' : ''}`}
     >
       {!data.first && <Handle type="target" position={Position.Top} />}
-      <FileText className="node-symbol shrink-0 text-muted-foreground" size={20} />
+      <Icon className="node-symbol shrink-0 text-muted-foreground" size={20} />
       <div className="node-copy min-w-0">
         <strong>{data.label}</strong>
         <div className="workflow-node-content p-0 text-xs wrap-anywhere mt-1 text-muted-foreground whitespace-nowrap overflow-hidden text-ellipsis">
@@ -291,7 +320,27 @@ function WebsiteSettings({
           : config.selection.mode === 'crawl'
             ? ({ mode: 'crawl', start_url: value } as const)
             : ({ mode: 'sitemap', sitemap_url: value } as const);
-    update({ ...config, selection });
+    const selectedUrls = config.selection.mode === 'url_list' ? lines(value) : [value];
+    const inferredOrigins = Array.from(
+      new Set(
+        selectedUrls.flatMap((url) => {
+          try {
+            return [new URL(url).origin];
+          } catch {
+            return [];
+          }
+        }),
+      ),
+    );
+    const stillDefault =
+      config.allowed_origins.length === 0 ||
+      (config.allowed_origins.length === 1 && config.allowed_origins[0] === 'https://example.com');
+    update({
+      ...config,
+      selection,
+      allowed_origins:
+        stillDefault && inferredOrigins.length ? inferredOrigins : config.allowed_origins,
+    });
   };
   const numberField = (
     key:
@@ -320,13 +369,10 @@ function WebsiteSettings({
 
   return (
     <>
-      <div className="website-preview-notice">
-        <CircleAlert size={17} />
-        <p>
-          Website runs fetch bounded HTML, preserve immutable revisions, and publish only after
-          every required page succeeds. Preview the exact scope before saving.
-        </p>
-      </div>
+      <p className="field-hint">
+        Choose the pages to ingest. Preview checks the scope; a run publishes an index after all
+        required pages succeed.
+      </p>
       <Label>
         Discovery mode
         <NativeSelect
@@ -376,52 +422,57 @@ function WebsiteSettings({
           onChange={(event) => update({ ...config, allowed_origins: lines(event.target.value) })}
         />
       </Label>
-      <Label>
-        Include path prefixes (one per line)
-        <Textarea
-          value={(config.include_path_prefixes ?? []).join('\n')}
-          rows={3}
-          onChange={(event) =>
-            update({ ...config, include_path_prefixes: lines(event.target.value) })
-          }
-        />
-      </Label>
-      <Label>
-        Exclude path prefixes (one per line)
-        <Textarea
-          value={(config.exclude_path_prefixes ?? []).join('\n')}
-          rows={3}
-          onChange={(event) =>
-            update({ ...config, exclude_path_prefixes: lines(event.target.value) })
-          }
-        />
-      </Label>
-      <div className="website-limit-grid">
-        {numberField('max_pages', 'Maximum pages', 1)}
-        {numberField('max_depth', 'Maximum crawl depth', 0)}
-        {numberField('max_response_bytes', 'Bytes per response', 1)}
-        {numberField('max_total_bytes', 'Total byte budget', 1)}
-        {numberField('request_timeout_seconds', 'Request timeout (seconds)', 1)}
-        {numberField('deadline_seconds', 'Preview deadline (seconds)', 1)}
-        {numberField('concurrency', 'Concurrency', 1)}
-        {numberField('requests_per_second', 'Requests per second', 0.1)}
-        {numberField('redirect_limit', 'Redirect limit', 0)}
-      </div>
-      <Label>
-        User agent
-        <Input
-          value={config.user_agent}
-          onChange={(event) => update({ ...config, user_agent: event.target.value })}
-        />
-      </Label>
-      <label className="website-checkbox">
-        <input
-          type="checkbox"
-          checked={config.respect_robots ?? true}
-          onChange={(event) => update({ ...config, respect_robots: event.target.checked })}
-        />
-        Respect robots.txt
-      </label>
+      <details className="ingestion-advanced">
+        <summary>Scope & fetch limits · up to {config.max_pages} pages</summary>
+        <div className="field-stack">
+          <Label>
+            Include path prefixes (one per line)
+            <Textarea
+              value={(config.include_path_prefixes ?? []).join('\n')}
+              rows={3}
+              onChange={(event) =>
+                update({ ...config, include_path_prefixes: lines(event.target.value) })
+              }
+            />
+          </Label>
+          <Label>
+            Exclude path prefixes (one per line)
+            <Textarea
+              value={(config.exclude_path_prefixes ?? []).join('\n')}
+              rows={3}
+              onChange={(event) =>
+                update({ ...config, exclude_path_prefixes: lines(event.target.value) })
+              }
+            />
+          </Label>
+          <div className="website-limit-grid">
+            {numberField('max_pages', 'Maximum pages', 1)}
+            {numberField('max_depth', 'Maximum crawl depth', 0)}
+            {numberField('max_response_bytes', 'Bytes per response', 1)}
+            {numberField('max_total_bytes', 'Total byte budget', 1)}
+            {numberField('request_timeout_seconds', 'Request timeout (seconds)', 1)}
+            {numberField('deadline_seconds', 'Preview deadline (seconds)', 1)}
+            {numberField('concurrency', 'Concurrency', 1)}
+            {numberField('requests_per_second', 'Requests per second', 0.1)}
+            {numberField('redirect_limit', 'Redirect limit', 0)}
+          </div>
+          <Label>
+            User agent
+            <Input
+              value={config.user_agent}
+              onChange={(event) => update({ ...config, user_agent: event.target.value })}
+            />
+          </Label>
+          <label className="website-checkbox">
+            <input
+              type="checkbox"
+              checked={config.respect_robots ?? true}
+              onChange={(event) => update({ ...config, respect_robots: event.target.checked })}
+            />
+            Respect robots.txt
+          </label>
+        </div>
+      </details>
     </>
   );
 }
@@ -959,6 +1010,7 @@ export function IngestionPipelineEditor({
       position: draft.layout.positions[node.id],
       selected: node.id === selectedNode,
       data: {
+        stage: node.type,
         label:
           node.type === 'source'
             ? node.config.kind === 'website'
@@ -981,6 +1033,25 @@ export function IngestionPipelineEditor({
 
   const activeRunId = run?.id;
   const savedVersionId = saved?.id;
+  const previewId = preview?.id;
+
+  useEffect(() => {
+    if (previewId) {
+      document.getElementById('ingestion-preview')?.scrollIntoView({ block: 'start' });
+    }
+  }, [previewId]);
+
+  useEffect(() => {
+    if (activeRunId) {
+      document.getElementById('ingestion-run')?.scrollIntoView({ block: 'start' });
+    }
+  }, [activeRunId]);
+
+  useEffect(() => {
+    if (error) {
+      document.getElementById('ingestion-error')?.focus();
+    }
+  }, [error]);
 
   useEffect(() => {
     if (!activeRunId) {
@@ -1058,21 +1129,39 @@ export function IngestionPipelineEditor({
     if (!canvas || !flow) {
       return;
     }
-    let timer = 0;
+    // React Flow handles the initial fit. A delayed fit on every observer delivery
+    // can overwrite a user's zoom or a node selection after layout has settled.
+    let width = canvas.clientWidth;
+    let height = canvas.clientHeight;
     const observer = new ResizeObserver(() => {
-      window.clearTimeout(timer);
-      timer = window.setTimeout(() => {
-        void flow.fitView({ padding: 0.14, maxZoom: 1 });
-      }, 80);
+      const nextWidth = canvas.clientWidth;
+      const nextHeight = canvas.clientHeight;
+      if (nextWidth === width && nextHeight === height) {
+        return;
+      }
+      width = nextWidth;
+      height = nextHeight;
+      void flow.fitView({ padding: 0.12, maxZoom: 1 });
     });
     observer.observe(canvas);
     return () => {
       observer.disconnect();
-      window.clearTimeout(timer);
     };
   }, [flow]);
 
   const selected = draft?.execution.nodes.find((node) => node.id === selectedNode);
+  useEffect(() => {
+    const settings = document.getElementById('node-settings');
+    const navigation = document.querySelector('.ingestion-stage-nav');
+    if (!settings || !navigation) {
+      return;
+    }
+    if (window.matchMedia('(max-width: 1100px)').matches) {
+      settings.scrollIntoView({ block: 'start' });
+    } else {
+      settings.scrollTop = 0;
+    }
+  }, [selectedNode]);
   const source = draft?.execution.nodes.find((node) => node.type === 'source');
   const validation = useMemo(() => {
     if (!draft) {
@@ -1260,13 +1349,13 @@ export function IngestionPipelineEditor({
     );
   }
 
-  function startRun() {
+  function startRun(reuseStored = false) {
     if (!saved || dirty) {
       return;
     }
     void perform(async () => {
       setItems([]);
-      setRun(await api.startIngestionRun(projectId, saved.pipeline_id, saved.id));
+      setRun(await api.startIngestionRun(projectId, saved.pipeline_id, saved.id, reuseStored));
     });
   }
 
@@ -1317,93 +1406,139 @@ export function IngestionPipelineEditor({
   const notionSource = source?.type === 'source' && source.config.kind === 'notion';
   const confluenceSource = source?.type === 'source' && source.config.kind === 'confluence';
 
-  if (loading || !draft) {
+  if (loading) {
     return <p role="status">Loading ingestion pipeline…</p>;
+  }
+  if (!draft) {
+    return (
+      <section className="p-6">
+        <h1>Ingestion editor unavailable</h1>
+        <p role="alert" className="error-message">
+          {error || 'The pipeline configuration could not be loaded.'}
+        </p>
+        <Button variant="outline" onClick={() => window.location.reload()}>
+          Retry loading pipeline
+        </Button>
+        <Button asChild variant="ghost">
+          <a href={`#/projects/${projectId}/pipelines?kind=ingestion`}>All ingestion pipelines</a>
+        </Button>
+      </section>
+    );
   }
 
   return (
     <div className="editor-workspace ingestion-editor">
-      <a className="back-link" href={`#/projects/${projectId}/pipelines?kind=ingestion`}>
-        All ingestion pipelines
-      </a>
-      <div className="editor-title">
-        <h1>Ingestion editor</h1>
-        <span>
-          {websiteSource
-            ? 'Website → ready index'
-            : s3Source
-              ? 'Amazon S3 → ready index'
-              : notionSource
-                ? 'Notion → ready index'
-                : confluenceSource
-                  ? 'Confluence → ready index'
-                  : 'Existing files → ready index'}
-        </span>
+      <div className="ingestion-editor-heading">
+        <a className="back-link" href={`#/projects/${projectId}/pipelines?kind=ingestion`}>
+          All ingestion pipelines
+        </a>
+        <div className="editor-title">
+          <h1>Ingestion editor</h1>
+          <span>
+            {websiteSource
+              ? 'Website → ready index'
+              : s3Source
+                ? 'Amazon S3 → ready index'
+                : notionSource
+                  ? 'Notion → ready index'
+                  : confluenceSource
+                    ? 'Confluence → ready index'
+                    : 'Existing files → ready index'}
+          </span>
+        </div>
       </div>
       {(error || pollError) && (
-        <p role="alert" className="error-message">
+        <p id="ingestion-error" tabIndex={-1} role="alert" className="error-message">
           {error || pollError}
         </p>
       )}
       <fieldset className="pipeline-fields" disabled={busy}>
-        <div className="pipeline-toolbar flex flex-wrap m-0 gap-2.5 items-end border-b border-border py-3.5 px-5.5">
-          <Label>
-            Pipeline name
-            <Input
-              value={draft.name}
-              maxLength={120}
-              onChange={(event) => setDraft({ ...draft, name: event.target.value })}
-            />
-          </Label>
-          <Label>
-            Saved version
-            <NativeSelect
-              aria-label="Saved ingestion version"
-              value={saved?.id ?? ''}
-              disabled={dirty}
-              onChange={(event) => {
-                const version = versions.find((item) => item.id === event.target.value);
-                if (version) {
-                  open(version);
-                }
-              }}
-            >
-              <NativeSelectOption value="">Not saved</NativeSelectOption>
-              {versions.map((version) => (
-                <NativeSelectOption key={version.id} value={version.id}>
-                  Version {version.version}
-                </NativeSelectOption>
-              ))}
-            </NativeSelect>
-          </Label>
-          <span className={`draft-status ${dirty ? 'is-dirty' : ''}`} role="status">
-            {dirty ? 'Unsaved changes' : saved ? `Saved version ${saved.version}` : 'Not saved'}
-          </span>
-          <Button onClick={save} disabled={validation.length > 0 || !dirty}>
-            <Save size={15} />
-            Save version
-          </Button>
-          <Button variant="outline" onClick={runPreview} disabled={validation.length > 0}>
-            Preview source
-          </Button>
-          <Button onClick={startRun} disabled={!saved || dirty}>
-            <Play size={15} />
-            Run saved version
-          </Button>
-        </div>
-        {validation.length > 0 && (
-          <div
-            className="pipeline-validation border-b border-border bg-background py-2 px-5"
-            role="status"
-          >
-            <strong>Complete the configuration</strong>
-            <ul>
-              {validation.map((reason) => (
-                <li key={reason}>{reason}</li>
-              ))}
-            </ul>
+        <div className="pipeline-toolbar ingestion-toolbar">
+          <div className="ingestion-toolbar-identity">
+            <Label>
+              Pipeline name
+              <Input
+                value={draft.name}
+                maxLength={120}
+                onChange={(event) => setDraft({ ...draft, name: event.target.value })}
+              />
+            </Label>
+            <Label>
+              Saved version
+              <NativeSelect
+                aria-label="Saved ingestion version"
+                value={saved?.id ?? ''}
+                disabled={dirty}
+                onChange={(event) => {
+                  const version = versions.find((item) => item.id === event.target.value);
+                  if (version) {
+                    open(version);
+                  }
+                }}
+              >
+                <NativeSelectOption value="">Not saved</NativeSelectOption>
+                {versions.map((version) => (
+                  <NativeSelectOption key={version.id} value={version.id}>
+                    Version {version.version}
+                  </NativeSelectOption>
+                ))}
+              </NativeSelect>
+            </Label>
+            <span className={`draft-status ${dirty ? 'is-dirty' : ''}`} role="status">
+              {dirty ? 'Unsaved changes' : saved ? `Saved version ${saved.version}` : 'Not saved'}
+            </span>
           </div>
-        )}
+          <div className="ingestion-toolbar-actions">
+            <Button
+              variant={dirty ? 'default' : 'outline'}
+              onClick={save}
+              disabled={validation.length > 0 || !dirty}
+            >
+              <Save size={15} />
+              Save version
+            </Button>
+            {saved && dirty && (
+              <Button variant="ghost" onClick={() => open(saved)}>
+                Discard changes
+              </Button>
+            )}
+            <Button variant="outline" onClick={runPreview} disabled={validation.length > 0}>
+              Preview source
+            </Button>
+            {websiteSource && (
+              <Button variant="outline" onClick={() => startRun(true)} disabled={!saved || dirty}>
+                <Database size={15} />
+                Reprocess stored pages
+              </Button>
+            )}
+            <Button
+              variant={dirty ? 'outline' : 'default'}
+              onClick={() => startRun(false)}
+              disabled={!saved || dirty}
+            >
+              <Play size={15} />
+              {websiteSource ? 'Refresh website & run' : 'Run saved version'}
+            </Button>
+          </div>
+        </div>
+        <nav className="ingestion-stage-nav" aria-label="Ingestion stages">
+          {draft.execution.nodes.map((node, index) => {
+            const Icon = stageIcons[node.type];
+            return (
+              <Button
+                key={node.id}
+                variant="ghost"
+                aria-pressed={selectedNode === node.id}
+                aria-controls="node-settings"
+                onClick={() => setSelectedNode(node.id)}
+              >
+                <span className="ingestion-stage-number">{index + 1}</span>
+                <Icon size={15} aria-hidden="true" />
+                {labels[node.type]}
+              </Button>
+            );
+          })}
+        </nav>
         <div className="pipeline-editor ingestion-editor-grid">
           <div ref={canvasRef} className="pipeline-canvas" aria-label="Ingestion pipeline canvas">
             <ReactFlow<FlowNode, Edge>
@@ -1417,372 +1552,530 @@ export function IngestionPipelineEditor({
               onNodesChange={changeFlowNodes}
               onNodeClick={(_, node) => setSelectedNode(node.id)}
               nodesConnectable={false}
+              zoomOnScroll={false}
+              preventScrolling={false}
               deleteKeyCode={null}
               fitView
               fitViewOptions={{ padding: 0.12, maxZoom: 1 }}
             >
               <Background gap={22} size={1.2} />
-              <Controls />
+              <Controls showInteractive={false} />
             </ReactFlow>
           </div>
-          <aside id="node-settings" className="node-settings">
-            <h2>
-              {selected
-                ? `${selected.type === 'source' ? (selected.config.kind === 'website' ? 'Website' : selected.config.kind === 's3' ? 'Amazon S3' : selected.config.kind === 'notion' ? 'Notion' : selected.config.kind === 'confluence' ? 'Confluence' : 'Existing files') : labels[selected.type]} settings`
-                : 'Node settings'}
-            </h2>
-            {selected?.type === 'source' && (
-              <div className="field-stack">
-                <Label>
-                  Source type
-                  <NativeSelect
-                    value={selected.config.kind}
-                    onChange={(event) =>
-                      updateNode(selected.id, (node) =>
-                        node.type === 'source'
-                          ? {
-                              ...node,
-                              config:
-                                event.target.value === 'website'
-                                  ? defaultWebsite()
-                                  : event.target.value === 's3'
-                                    ? defaultS3(connections.find((item) => item.kind === 's3')?.id)
-                                    : event.target.value === 'notion'
-                                      ? defaultNotion(
-                                          connections.find((item) => item.kind === 'notion')?.id,
-                                        )
-                                      : event.target.value === 'confluence'
-                                        ? defaultConfluence(
-                                            connections.find((item) => item.kind === 'confluence')
-                                              ?.id,
-                                          )
-                                        : ({
-                                            kind: 'existing_files',
-                                            document_ids: [],
-                                          } satisfies ExistingFilesConfig),
-                            }
-                          : node,
-                      )
-                    }
-                  >
-                    <NativeSelectOption value="existing_files">Existing files</NativeSelectOption>
-                    <NativeSelectOption value="website">Website</NativeSelectOption>
-                    {connectionSettings?.enabled && (
-                      <>
-                        <NativeSelectOption value="s3">Amazon S3</NativeSelectOption>
-                        <NativeSelectOption value="notion">Notion</NativeSelectOption>
-                        <NativeSelectOption value="confluence">Confluence</NativeSelectOption>
-                      </>
-                    )}
-                  </NativeSelect>
-                </Label>
-                {selected.config.kind === 'existing_files' ? (
-                  <>
-                    <p className="field-hint">
-                      Choose explicit project files. Only successfully processed files can run.
-                    </p>
-                    {documents.map((document) => {
-                      const sourceConfig = selected.config as ExistingFilesConfig;
-                      const checked = sourceConfig.document_ids.includes(document.id);
-                      const disabled = document.latest_run?.status !== 'succeeded';
-                      return (
-                        <label className="ingestion-document-option" key={document.id}>
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            disabled={disabled}
-                            onChange={(event) =>
-                              updateNode(selected.id, (node) =>
-                                node.type === 'source' && node.config.kind === 'existing_files'
-                                  ? {
-                                      ...node,
-                                      config: {
-                                        ...node.config,
-                                        document_ids: event.target.checked
-                                          ? [...node.config.document_ids, document.id]
-                                          : node.config.document_ids.filter(
-                                              (id: string) => id !== document.id,
-                                            ),
-                                      },
-                                    }
-                                  : node,
-                              )
-                            }
-                          />
-                          <span>
-                            <strong>{document.filename}</strong>
-                            <small>
-                              {disabled
-                                ? `Processing ${document.latest_run?.status ?? 'required'}`
-                                : `${document.latest_run?.chunk_count ?? 0} chunks ready`}
-                            </small>
-                          </span>
-                        </label>
-                      );
-                    })}
-                    {documents.length === 0 && (
-                      <p>No uploaded documents. Add and process files in Knowledge Base first.</p>
-                    )}
-                  </>
-                ) : selected.config.kind === 'website' ? (
-                  <WebsiteSettings
-                    config={selected.config}
-                    update={(config) =>
-                      updateNode(selected.id, (node) =>
-                        node.type === 'source' ? { ...node, config } : node,
-                      )
-                    }
-                  />
-                ) : selected.config.kind === 's3' ? (
-                  <S3Settings
-                    config={selected.config}
-                    connections={connections}
-                    projectId={projectId}
-                    update={(config) =>
-                      updateNode(selected.id, (node) =>
-                        node.type === 'source' ? { ...node, config } : node,
-                      )
-                    }
-                  />
-                ) : selected.config.kind === 'notion' ? (
-                  <NotionSettings
-                    config={selected.config}
-                    connections={connections}
-                    projectId={projectId}
-                    update={(config) =>
-                      updateNode(selected.id, (node) =>
-                        node.type === 'source' ? { ...node, config } : node,
-                      )
-                    }
-                  />
-                ) : (
-                  <ConfluenceSettings
-                    config={selected.config}
-                    connections={connections}
-                    projectId={projectId}
-                    update={(config) =>
-                      updateNode(selected.id, (node) =>
-                        node.type === 'source' ? { ...node, config } : node,
-                      )
-                    }
-                  />
-                )}
-              </div>
-            )}
-            {selected?.type === 'chunk' && (
-              <div className="field-stack">
-                <Label>
-                  Chunk size (characters)
-                  <Input
-                    type="number"
-                    min={100}
-                    max={10000}
-                    value={selected.size}
-                    onChange={(event) =>
-                      updateNode(selected.id, (node) =>
-                        node.type === 'chunk'
-                          ? { ...node, size: Number(event.target.value) }
-                          : node,
-                      )
-                    }
-                  />
-                </Label>
-                <Label>
-                  Overlap (characters)
-                  <Input
-                    type="number"
-                    min={0}
-                    value={selected.overlap}
-                    onChange={(event) =>
-                      updateNode(selected.id, (node) =>
-                        node.type === 'chunk'
-                          ? { ...node, overlap: Number(event.target.value) }
-                          : node,
-                      )
-                    }
-                  />
-                </Label>
-              </div>
-            )}
-            {selected?.type === 'publish_index' && (
-              <div className="field-stack">
-                <Label>
-                  Destination
-                  <NativeSelect
-                    value={selected.knowledge_set_id ?? ''}
-                    onChange={(event) => {
-                      const set = knowledgeSets.find((item) => item.id === event.target.value);
-                      updateNode(selected.id, (node) =>
-                        node.type === 'publish_index'
-                          ? {
-                              ...node,
-                              knowledge_set_id: set?.id ?? null,
-                              knowledge_set_name: set?.name ?? node.knowledge_set_name,
-                            }
-                          : node,
-                      );
-                    }}
-                  >
-                    <NativeSelectOption value="">Create a new knowledge set</NativeSelectOption>
-                    {knowledgeSets.map((set) => (
-                      <NativeSelectOption key={set.id} value={set.id}>
-                        {set.name}
-                      </NativeSelectOption>
+          <aside
+            id="node-settings"
+            className="node-settings"
+            aria-labelledby="ingestion-settings-heading"
+          >
+            <div className="ingestion-settings-header">
+              <h2 id="ingestion-settings-heading">
+                {selected
+                  ? `${selected.type === 'source' ? (selected.config.kind === 'website' ? 'Website' : selected.config.kind === 's3' ? 'Amazon S3' : selected.config.kind === 'notion' ? 'Notion' : selected.config.kind === 'confluence' ? 'Confluence' : 'Existing files') : labels[selected.type]} settings`
+                  : 'Node settings'}
+              </h2>
+              <p>
+                Stage {draft.execution.nodes.findIndex((node) => node.id === selectedNode) + 1} of{' '}
+                {draft.execution.nodes.length} ·{' '}
+                {dirty
+                  ? 'Draft configuration'
+                  : saved
+                    ? `Version ${saved.version}`
+                    : 'Draft configuration'}
+              </p>
+            </div>
+            <div
+              id="ingestion-settings-body"
+              className="ingestion-settings-body"
+              tabIndex={0}
+              role="region"
+              aria-label="Stage settings"
+            >
+              {validation.length > 0 && (
+                <div className="pipeline-validation" role="status">
+                  <strong>Complete the configuration</strong>
+                  <ul>
+                    {validation.map((reason) => (
+                      <li key={reason}>{reason}</li>
                     ))}
-                  </NativeSelect>
-                </Label>
-                {!selected.knowledge_set_id && (
+                  </ul>
+                </div>
+              )}
+              {selected?.type === 'source' && (
+                <div className="field-stack">
                   <Label>
-                    New knowledge set name
-                    <Input
-                      value={selected.knowledge_set_name}
-                      maxLength={120}
+                    Source type
+                    <NativeSelect
+                      value={selected.config.kind}
                       onChange={(event) =>
                         updateNode(selected.id, (node) =>
-                          node.type === 'publish_index'
-                            ? { ...node, knowledge_set_name: event.target.value }
+                          node.type === 'source'
+                            ? {
+                                ...node,
+                                config:
+                                  event.target.value === 'website'
+                                    ? defaultWebsite()
+                                    : event.target.value === 's3'
+                                      ? defaultS3(
+                                          connections.find((item) => item.kind === 's3')?.id,
+                                        )
+                                      : event.target.value === 'notion'
+                                        ? defaultNotion(
+                                            connections.find((item) => item.kind === 'notion')?.id,
+                                          )
+                                        : event.target.value === 'confluence'
+                                          ? defaultConfluence(
+                                              connections.find((item) => item.kind === 'confluence')
+                                                ?.id,
+                                            )
+                                          : ({
+                                              kind: 'existing_files',
+                                              document_ids: [],
+                                            } satisfies ExistingFilesConfig),
+                              }
+                            : node,
+                        )
+                      }
+                    >
+                      <NativeSelectOption value="existing_files">Existing files</NativeSelectOption>
+                      <NativeSelectOption value="website">Website</NativeSelectOption>
+                      <NativeSelectOption value="s3">
+                        Amazon S3{connectionSettings?.enabled ? '' : ' · setup required'}
+                      </NativeSelectOption>
+                      <NativeSelectOption value="notion">
+                        Notion{connectionSettings?.enabled ? '' : ' · setup required'}
+                      </NativeSelectOption>
+                      <NativeSelectOption value="confluence">
+                        Confluence{connectionSettings?.enabled ? '' : ' · setup required'}
+                      </NativeSelectOption>
+                    </NativeSelect>
+                  </Label>
+                  {!connectionSettings?.enabled && (
+                    <div className="website-preview-notice" role="note">
+                      <CircleAlert size={17} aria-hidden="true" />
+                      <p>
+                        Amazon S3, Notion, and Confluence need the local encrypted connection vault.{' '}
+                        <a href={`#/projects/${projectId}/settings`}>Review setup in project settings</a>.
+                      </p>
+                    </div>
+                  )}
+                  {selected.config.kind === 'existing_files' ? (
+                    <>
+                      <p className="field-hint">
+                        Choose explicit project files. Only successfully processed files can run.
+                      </p>
+                      {documents.map((document) => {
+                        const sourceConfig = selected.config as ExistingFilesConfig;
+                        const checked = sourceConfig.document_ids.includes(document.id);
+                        const disabled = document.latest_run?.status !== 'succeeded';
+                        return (
+                          <label className="ingestion-document-option" key={document.id}>
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              disabled={disabled}
+                              onChange={(event) =>
+                                updateNode(selected.id, (node) =>
+                                  node.type === 'source' && node.config.kind === 'existing_files'
+                                    ? {
+                                        ...node,
+                                        config: {
+                                          ...node.config,
+                                          document_ids: event.target.checked
+                                            ? [...node.config.document_ids, document.id]
+                                            : node.config.document_ids.filter(
+                                                (id: string) => id !== document.id,
+                                              ),
+                                        },
+                                      }
+                                    : node,
+                                )
+                              }
+                            />
+                            <span>
+                              <strong>{document.filename}</strong>
+                              <small>
+                                {disabled
+                                  ? `Processing ${document.latest_run?.status ?? 'required'}`
+                                  : `${document.latest_run?.chunk_count ?? 0} chunks ready`}
+                              </small>
+                            </span>
+                          </label>
+                        );
+                      })}
+                      {documents.length === 0 && (
+                        <p>No uploaded documents. Add and process files in Knowledge Base first.</p>
+                      )}
+                    </>
+                  ) : selected.config.kind === 'website' ? (
+                    <WebsiteSettings
+                      config={selected.config}
+                      update={(config) =>
+                        updateNode(selected.id, (node) =>
+                          node.type === 'source' ? { ...node, config } : node,
+                        )
+                      }
+                    />
+                  ) : selected.config.kind === 's3' ? (
+                    <S3Settings
+                      config={selected.config}
+                      connections={connections}
+                      projectId={projectId}
+                      update={(config) =>
+                        updateNode(selected.id, (node) =>
+                          node.type === 'source' ? { ...node, config } : node,
+                        )
+                      }
+                    />
+                  ) : selected.config.kind === 'notion' ? (
+                    <NotionSettings
+                      config={selected.config}
+                      connections={connections}
+                      projectId={projectId}
+                      update={(config) =>
+                        updateNode(selected.id, (node) =>
+                          node.type === 'source' ? { ...node, config } : node,
+                        )
+                      }
+                    />
+                  ) : (
+                    <ConfluenceSettings
+                      config={selected.config}
+                      connections={connections}
+                      projectId={projectId}
+                      update={(config) =>
+                        updateNode(selected.id, (node) =>
+                          node.type === 'source' ? { ...node, config } : node,
+                        )
+                      }
+                    />
+                  )}
+                </div>
+              )}
+              {selected?.type === 'chunk' && (
+                <div className="field-stack">
+                  <p className="field-hint">
+                    Character windows preserve neighboring context. More overlap can improve recall,
+                    but creates more vectors and increases retrieval noise and cost.
+                  </p>
+                  {websiteSource && (
+                    <div className="website-preview-notice">
+                      <Database size={17} />
+                      <p>
+                        To try new chunk settings without scraping again: choose a preset or edit
+                        the values, save a new version, then select{' '}
+                        <strong>Reprocess stored pages</strong>.
+                      </p>
+                    </div>
+                  )}
+                  <div className="chunk-presets" aria-label="Chunking presets">
+                    {(
+                      [
+                        ['Precise', 600, 80],
+                        ['Balanced', 1000, 120],
+                        ['Broad context', 1600, 200],
+                      ] as const
+                    ).map(([label, size, overlap]) => (
+                      <Button
+                        key={label}
+                        type="button"
+                        size="sm"
+                        variant={
+                          selected.size === size && selected.overlap === overlap
+                            ? 'default'
+                            : 'outline'
+                        }
+                        onClick={() =>
+                          updateNode(selected.id, (node) =>
+                            node.type === 'chunk'
+                              ? { ...node, size: Number(size), overlap: Number(overlap) }
+                              : node,
+                          )
+                        }
+                      >
+                        {label}
+                      </Button>
+                    ))}
+                  </div>
+                  <Label>
+                    Chunk size (characters)
+                    <Input
+                      type="number"
+                      min={100}
+                      max={10000}
+                      value={selected.size}
+                      aria-invalid={selected.size < 100 || selected.size > 10000}
+                      aria-describedby="chunk-size-help"
+                      onChange={(event) =>
+                        updateNode(selected.id, (node) =>
+                          node.type === 'chunk'
+                            ? { ...node, size: Number(event.target.value) }
                             : node,
                         )
                       }
                     />
                   </Label>
-                )}
-              </div>
-            )}
-            {selected && !['source', 'chunk', 'publish_index'].includes(selected.type) && (
-              <p className="field-hint">
-                This deterministic stage uses the configured application implementation. Its exact
-                settings are saved in the immutable version.
-              </p>
-            )}
-          </aside>
-        </div>
-      </fieldset>
-      {saved && (
-        <section className="surface-section ingestion-results" aria-labelledby="schedule-heading">
-          <div className="section-heading">
-            <div>
-              <p className="eyebrow">Automation</p>
-              <h2 id="schedule-heading">Ingestion schedules</h2>
-              <p>Schedules start paused and always run this exact immutable version.</p>
-            </div>
-          </div>
-          <div className="pipeline-toolbar flex flex-wrap gap-2.5 items-end">
-            <Label>
-              Schedule name
-              <Input
-                value={scheduleName}
-                onChange={(event) => setScheduleName(event.target.value)}
-              />
-            </Label>
-            <Label>
-              Interval (minutes)
-              <Input
-                type="number"
-                min={15}
-                max={10080}
-                value={scheduleMinutes}
-                onChange={(event) => setScheduleMinutes(Number(event.target.value))}
-              />
-            </Label>
-            <Button
-              variant="outline"
-              onClick={createSchedule}
-              disabled={!scheduleName.trim() || scheduleMinutes < 15 || scheduleMinutes > 10080}
-            >
-              Create paused schedule
-            </Button>
-          </div>
-          {schedules.length === 0 ? (
-            <p>No schedules target this saved version.</p>
-          ) : (
-            <ul className="project-list" aria-label="Ingestion schedules">
-              {schedules.map((schedule) => (
-                <li key={schedule.id}>
-                  <div>
+                  <p id="chunk-size-help" className="field-hint">
+                    Enter 100–10,000 characters per chunk.
+                  </p>
+                  <Label>
+                    Overlap (characters)
+                    <Input
+                      type="number"
+                      min={0}
+                      value={selected.overlap}
+                      aria-invalid={selected.overlap < 0 || selected.overlap >= selected.size}
+                      aria-describedby="chunk-overlap-help"
+                      onChange={(event) =>
+                        updateNode(selected.id, (node) =>
+                          node.type === 'chunk'
+                            ? { ...node, overlap: Number(event.target.value) }
+                            : node,
+                        )
+                      }
+                    />
+                  </Label>
+                  <p id="chunk-overlap-help" className="field-hint">
+                    Overlap must be at least 0 and smaller than the chunk size.
+                  </p>
+                </div>
+              )}
+              {selected?.type === 'publish_index' && (
+                <div className="field-stack">
+                  <Label>
+                    Destination
+                    <NativeSelect
+                      value={selected.knowledge_set_id ?? ''}
+                      onChange={(event) => {
+                        const set = knowledgeSets.find((item) => item.id === event.target.value);
+                        updateNode(selected.id, (node) =>
+                          node.type === 'publish_index'
+                            ? {
+                                ...node,
+                                knowledge_set_id: set?.id ?? null,
+                                knowledge_set_name: set?.name ?? node.knowledge_set_name,
+                              }
+                            : node,
+                        );
+                      }}
+                    >
+                      <NativeSelectOption value="">Create a new knowledge set</NativeSelectOption>
+                      {knowledgeSets.map((set) => (
+                        <NativeSelectOption key={set.id} value={set.id}>
+                          {set.name}
+                        </NativeSelectOption>
+                      ))}
+                    </NativeSelect>
+                  </Label>
+                  {!selected.knowledge_set_id && (
                     <Label>
-                      Schedule name
+                      New knowledge set name
                       <Input
-                        value={schedule.name}
+                        value={selected.knowledge_set_name}
+                        maxLength={120}
                         onChange={(event) =>
-                          setSchedules((values) =>
-                            values.map((value) =>
-                              value.id === schedule.id
-                                ? { ...value, name: event.target.value }
-                                : value,
-                            ),
+                          updateNode(selected.id, (node) =>
+                            node.type === 'publish_index'
+                              ? { ...node, knowledge_set_name: event.target.value }
+                              : node,
                           )
                         }
                       />
                     </Label>
-                    {schedule.cadence.kind === 'interval' && (
-                      <Label>
-                        Interval for {schedule.name} (minutes)
-                        <Input
-                          type="number"
-                          min={15}
-                          max={10080}
-                          value={schedule.cadence.minutes}
-                          onChange={(event) =>
-                            setSchedules((values) =>
-                              values.map((value) =>
-                                value.id === schedule.id
-                                  ? {
-                                      ...value,
-                                      cadence: {
-                                        kind: 'interval',
-                                        minutes: Number(event.target.value),
-                                      },
-                                    }
-                                  : value,
-                              ),
-                            )
-                          }
-                        />
-                      </Label>
-                    )}
-                    <p>
-                      {schedule.status} ·{' '}
-                      {schedule.cadence.kind === 'interval'
-                        ? `every ${schedule.cadence.minutes} minutes`
-                        : `daily at ${schedule.cadence.local_time} ${schedule.cadence.timezone}`}
-                    </p>
-                    <small>
-                      Next:{' '}
-                      {schedule.next_run_at
-                        ? new Date(schedule.next_run_at).toLocaleString()
-                        : 'paused'}{' '}
-                      · Last: {schedule.last_outcome ?? 'never run'}
-                    </small>
-                    {schedule.last_error && <small>{schedule.last_error}</small>}
+                  )}
+                </div>
+              )}
+              {selected?.type === 'extract' && (
+                <div className="field-stack">
+                  <p className="field-hint">
+                    Extract readable text using the parser matched to each source’s media type.
+                    Source provenance stays attached to the extracted content.
+                  </p>
+                  <dl className="ingestion-stage-facts">
+                    <dt>Strategy</dt>
+                    <dd>{selected.strategy ?? 'media_type_registry'}</dd>
+                    <dt>Configuration version</dt>
+                    <dd>{selected.config_version ?? '1'}</dd>
+                  </dl>
+                </div>
+              )}
+              {selected?.type === 'clean' && (
+                <div className="field-stack">
+                  <p className="field-hint">
+                    Prepare extracted text before splitting it into searchable passages. These
+                    settings are recorded with the saved version.
+                  </p>
+                  <dl className="ingestion-stage-facts">
+                    <dt>Normalize whitespace</dt>
+                    <dd>{selected.normalize_whitespace === false ? 'Off' : 'On'}</dd>
+                    <dt>Exact-content deduplication</dt>
+                    <dd>{selected.exact_content_deduplication === false ? 'Off' : 'On'}</dd>
+                    <dt>Minimum text length</dt>
+                    <dd>{selected.minimum_text_chars ?? 1} characters</dd>
+                    <dt>Maximum text length</dt>
+                    <dd>
+                      {(selected.maximum_text_chars ?? 2_000_000).toLocaleString()} characters
+                    </dd>
+                    <dt>Boilerplate rules</dt>
+                    <dd>{selected.repeated_boilerplate?.length ?? 0}</dd>
+                  </dl>
+                </div>
+              )}
+              {selected?.type === 'embed' && (
+                <div className="field-stack">
+                  <p className="field-hint">
+                    Convert each passage into a vector for retrieval. The embedding model and
+                    dimensions must match the destination index.
+                  </p>
+                  <dl className="ingestion-stage-facts">
+                    <dt>Provider</dt>
+                    <dd>{selected.provider}</dd>
+                    <dt>Model</dt>
+                    <dd>{selected.model}</dd>
+                    <dt>Dimensions</dt>
+                    <dd>{selected.dimensions}</dd>
+                    <dt>Configuration version</dt>
+                    <dd>{selected.config_version}</dd>
+                  </dl>
+                  <p className="field-hint">
+                    Model configuration is managed by the backend and saved with this pipeline
+                    version.
+                  </p>
+                </div>
+              )}
+            </div>
+            {saved && (
+              <section className="ingestion-schedules" aria-labelledby="schedule-heading">
+                <div className="section-heading">
+                  <div>
+                    <h2 id="schedule-heading">Ingestion schedules</h2>
+                    <p>Schedules start paused and always run this exact immutable version.</p>
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      variant="outline"
-                      onClick={() => saveSchedule(schedule)}
-                      disabled={
-                        !schedule.name.trim() ||
-                        (schedule.cadence.kind === 'interval' &&
-                          (schedule.cadence.minutes < 15 || schedule.cadence.minutes > 10080))
-                      }
-                    >
-                      Save schedule
-                    </Button>
-                    <Button variant="outline" onClick={() => toggleSchedule(schedule)}>
-                      {schedule.status === 'enabled' ? 'Pause' : 'Enable'}
-                    </Button>
-                    <Button variant="outline" onClick={() => runSchedule(schedule)}>
-                      Run now
-                    </Button>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-      )}
+                </div>
+                <div className="grid gap-3 py-4">
+                  <Label>
+                    Schedule name
+                    <Input
+                      value={scheduleName}
+                      onChange={(event) => setScheduleName(event.target.value)}
+                    />
+                  </Label>
+                  <Label>
+                    Interval (minutes)
+                    <Input
+                      type="number"
+                      min={15}
+                      max={10080}
+                      value={scheduleMinutes}
+                      onChange={(event) => setScheduleMinutes(Number(event.target.value))}
+                    />
+                  </Label>
+                  <Button
+                    variant="outline"
+                    onClick={createSchedule}
+                    disabled={
+                      !scheduleName.trim() || scheduleMinutes < 15 || scheduleMinutes > 10080
+                    }
+                  >
+                    Create paused schedule
+                  </Button>
+                </div>
+                {schedules.length === 0 ? (
+                  <p>No schedules target this saved version.</p>
+                ) : (
+                  <ul className="project-list" aria-label="Ingestion schedules">
+                    {schedules.map((schedule) => (
+                      <li key={schedule.id}>
+                        <div>
+                          <Label>
+                            Schedule name
+                            <Input
+                              value={schedule.name}
+                              onChange={(event) =>
+                                setSchedules((values) =>
+                                  values.map((value) =>
+                                    value.id === schedule.id
+                                      ? { ...value, name: event.target.value }
+                                      : value,
+                                  ),
+                                )
+                              }
+                            />
+                          </Label>
+                          {schedule.cadence.kind === 'interval' && (
+                            <Label>
+                              Interval for {schedule.name} (minutes)
+                              <Input
+                                type="number"
+                                min={15}
+                                max={10080}
+                                value={schedule.cadence.minutes}
+                                onChange={(event) =>
+                                  setSchedules((values) =>
+                                    values.map((value) =>
+                                      value.id === schedule.id
+                                        ? {
+                                            ...value,
+                                            cadence: {
+                                              kind: 'interval',
+                                              minutes: Number(event.target.value),
+                                            },
+                                          }
+                                        : value,
+                                    ),
+                                  )
+                                }
+                              />
+                            </Label>
+                          )}
+                          <p>
+                            {schedule.status} ·{' '}
+                            {schedule.cadence.kind === 'interval'
+                              ? `every ${schedule.cadence.minutes} minutes`
+                              : `daily at ${schedule.cadence.local_time} ${schedule.cadence.timezone}`}
+                          </p>
+                          <small>
+                            Next:{' '}
+                            {schedule.next_run_at
+                              ? new Date(schedule.next_run_at).toLocaleString()
+                              : 'paused'}{' '}
+                            · Last: {schedule.last_outcome ?? 'never run'}
+                          </small>
+                          {schedule.last_error && <small>{schedule.last_error}</small>}
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            variant="outline"
+                            onClick={() => saveSchedule(schedule)}
+                            disabled={
+                              !schedule.name.trim() ||
+                              (schedule.cadence.kind === 'interval' &&
+                                (schedule.cadence.minutes < 15 || schedule.cadence.minutes > 10080))
+                            }
+                          >
+                            Save schedule
+                          </Button>
+                          <Button variant="outline" onClick={() => toggleSchedule(schedule)}>
+                            {schedule.status === 'enabled' ? 'Pause' : 'Enable'}
+                          </Button>
+                          <Button variant="outline" onClick={() => runSchedule(schedule)}>
+                            Run now
+                          </Button>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+            )}
+          </aside>
+        </div>
+      </fieldset>
       {preview && (
-        <section className="surface-section ingestion-results" aria-live="polite">
+        <section
+          id="ingestion-preview"
+          className="surface-section ingestion-results"
+          aria-live="polite"
+        >
           <div className="section-heading">
             <div>
               <p className="eyebrow">Source preview</p>
@@ -1846,7 +2139,11 @@ export function IngestionPipelineEditor({
         </section>
       )}
       {run && (
-        <section className="surface-section ingestion-results" aria-live="polite">
+        <section
+          id="ingestion-run"
+          className="surface-section ingestion-results"
+          aria-live="polite"
+        >
           <div className="section-heading">
             <div>
               <p className="eyebrow">Ingestion run</p>

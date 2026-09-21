@@ -153,6 +153,8 @@ export function PipelineCanvas({
           minZoom={0.15}
           nodesDraggable={!busy}
           nodesConnectable={!busy}
+          zoomOnScroll={false}
+          preventScrolling={false}
           deleteKeyCode={busy ? null : ['Backspace', 'Delete']}
         >
           <Background gap={22} size={1.2} />

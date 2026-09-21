@@ -546,6 +546,10 @@ class IngestionRunRead(Strict):
     finished_at: datetime | None
 
 
+class IngestionRunStart(Strict):
+    reuse_stored: bool = False
+
+
 class IngestionRunPage(Strict):
     items: list[IngestionRunRead]
     total: int
