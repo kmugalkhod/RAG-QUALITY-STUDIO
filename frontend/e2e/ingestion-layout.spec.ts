@@ -62,8 +62,9 @@ test('credentialed source types stay discoverable while vault setup is required'
 
   await sourceType.selectOption('s3');
   await expect(page.getByRole('heading', { name: 'Amazon S3 settings' })).toBeVisible();
-  await expect(page.getByText('Enable the local encrypted connection vault before using S3.'))
-    .toBeVisible();
+  await expect(
+    page.getByText('Enable the local encrypted connection vault before using S3.'),
+  ).toBeVisible();
   await expect(page.getByRole('button', { name: 'Save version', exact: true })).toBeDisabled();
 });
 
@@ -211,23 +212,55 @@ test('saving records the draft and discard restores the saved stage settings', a
   await page.getByRole('button', { name: 'Discard changes' }).click();
   await expect(page.getByLabel('Chunk size (characters)')).toHaveValue('1000');
   await expect(page.getByText('Saved version 1', { exact: true })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Ingestion schedules' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Automatic sync' })).not.toBeVisible();
+  await page.getByRole('button', { name: 'Automatic sync' }).click();
+  await expect(page.getByRole('heading', { name: 'Automatic sync' })).toBeVisible();
   await page.setViewportSize({ width: 1440, height: 900 });
   const canvas = (await page.locator('.pipeline-canvas').boundingBox())!;
-  const schedules = (await page
-    .getByRole('region', { name: 'Ingestion schedules', exact: true })
-    .boundingBox())!;
+  const syncPanel = (await page.locator('#automatic-sync-panel').boundingBox())!;
   const inspector = (await page.locator('#node-settings').boundingBox())!;
-  expect(schedules.x).toBeGreaterThanOrEqual(canvas.x + canvas.width);
-  expect(Math.abs(schedules.x - inspector.x)).toBeLessThanOrEqual(1);
-  expect(schedules.width).toBeLessThanOrEqual(inspector.width);
+  expect(Math.abs(syncPanel.x - canvas.x)).toBeLessThanOrEqual(1);
+  expect(syncPanel.width).toBeGreaterThanOrEqual(canvas.width + inspector.width - 1);
+  await page.getByRole('button', { name: '5 Embed', exact: true }).click();
+  await expect(page.locator('#automatic-sync-panel')).toHaveCount(1);
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.getByRole('heading', { name: 'Ingestion schedules' }).scrollIntoViewIfNeeded();
-  await expect(page.getByRole('button', { name: 'Create paused schedule' })).toBeVisible();
-  const heading = (await page.locator('#schedule-heading').boundingBox())!;
+  await page.getByRole('heading', { name: 'Automatic sync' }).scrollIntoViewIfNeeded();
+  await expect(page.getByRole('button', { name: 'Start automatic sync' })).toBeVisible();
+  const heading = (await page.locator('#automatic-sync-heading').boundingBox())!;
   const name = (await page.getByLabel('Schedule name', { exact: true }).boundingBox())!;
   expect(heading.x).toBe(name.x);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
+
+  await page.route('**/api/projects/*/ingestion-schedules', async (route) => {
+    if (route.request().method() !== 'POST') {
+      await route.fallback();
+      return;
+    }
+    const request = route.request().postDataJSON();
+    expect(request.enabled).toBe(true);
+    expect(request.cadence).toEqual({ kind: 'interval', minutes: 1440 });
+    await route.fulfill({
+      json: {
+        id: 'schedule-1',
+        project_id: '11111111-1111-4111-8111-111111111111',
+        pipeline_id: 'pipeline-1',
+        pipeline_version_id: 'version-1',
+        pipeline_version: 1,
+        name: request.name,
+        status: 'enabled',
+        cadence: request.cadence,
+        next_run_at: '2026-09-22T00:00:00Z',
+        last_run_id: null,
+        last_triggered_at: null,
+        last_outcome: null,
+        last_error: null,
+        created_at: '2026-09-21T00:00:00Z',
+        updated_at: '2026-09-21T00:00:00Z',
+      },
+    });
+  });
+  await page.getByRole('button', { name: 'Start automatic sync' }).click();
+  await expect(page.getByText('Active', { exact: true })).toBeVisible();
 });
 
 test('unavailable embedding configuration shows an actionable error instead of endless loading', async ({

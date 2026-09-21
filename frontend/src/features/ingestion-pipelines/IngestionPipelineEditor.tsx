@@ -14,6 +14,8 @@ import {
 } from '@xyflow/react';
 import {
   Check,
+  ChevronDown,
+  Clock3,
   CircleAlert,
   Database,
   FileText,
@@ -84,6 +86,24 @@ const stageIcons = {
   embed: Database,
   publish_index: ArrowUpToLine,
 };
+
+function describeCadence(schedule: IngestionSchedule) {
+  if (schedule.cadence.kind === 'daily') {
+    return `Daily at ${schedule.cadence.local_time} ${schedule.cadence.timezone}`;
+  }
+  const minutes = schedule.cadence.minutes;
+  if (minutes === 10080) {
+    return 'Every week';
+  }
+  if (minutes === 1440) {
+    return 'Every day';
+  }
+  if (minutes % 60 === 0) {
+    const hours = minutes / 60;
+    return `Every ${hours} ${hours === 1 ? 'hour' : 'hours'}`;
+  }
+  return `Every ${minutes} minutes`;
+}
 
 const defaultWebsite = (): WebsiteConfig => ({
   kind: 'website',
@@ -904,7 +924,8 @@ export function IngestionPipelineEditor({
   const [run, setRun] = useState<IngestionRun>();
   const [items, setItems] = useState<IngestionRunItem[]>([]);
   const [schedules, setSchedules] = useState<IngestionSchedule[]>([]);
-  const [scheduleName, setScheduleName] = useState('Regular refresh');
+  const [automaticSyncOpen, setAutomaticSyncOpen] = useState(false);
+  const [scheduleName, setScheduleName] = useState('Daily sync');
   const [scheduleMinutes, setScheduleMinutes] = useState(1440);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -1369,9 +1390,10 @@ export function IngestionPipelineEditor({
         pipeline_id: saved.pipeline_id,
         pipeline_version_id: saved.id,
         cadence: { kind: 'interval', minutes: scheduleMinutes },
-        enabled: false,
+        enabled: true,
       });
       setSchedules((values) => [created, ...values]);
+      setScheduleName('Daily sync');
     });
   }
 
@@ -1519,8 +1541,180 @@ export function IngestionPipelineEditor({
               <Play size={15} />
               {websiteSource ? 'Refresh website & run' : 'Run saved version'}
             </Button>
+            {saved && (
+              <Button
+                variant="outline"
+                aria-expanded={automaticSyncOpen}
+                aria-controls="automatic-sync-panel"
+                onClick={() => setAutomaticSyncOpen((open) => !open)}
+              >
+                <Clock3 size={15} aria-hidden="true" />
+                Automatic sync
+                <ChevronDown
+                  className={automaticSyncOpen ? 'is-open' : ''}
+                  size={15}
+                  aria-hidden="true"
+                />
+              </Button>
+            )}
           </div>
         </div>
+        {saved && automaticSyncOpen && (
+          <section
+            id="automatic-sync-panel"
+            className="automatic-sync-panel"
+            aria-labelledby="automatic-sync-heading"
+          >
+            <div className="automatic-sync-intro">
+              <div>
+                <h2 id="automatic-sync-heading">Automatic sync</h2>
+                <p>
+                  Keep the published index up to date by running saved version {saved.version} on a
+                  schedule. Unsaved changes are not included.
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label="Close automatic sync settings"
+                onClick={() => setAutomaticSyncOpen(false)}
+              >
+                <X size={16} aria-hidden="true" />
+              </Button>
+            </div>
+
+            <div className="automatic-sync-create">
+              <div>
+                <h3>Add a schedule</h3>
+                <p>
+                  The first sync starts after the selected interval. You can run it now or pause it
+                  anytime.
+                </p>
+              </div>
+              <div className="automatic-sync-form">
+                <Label>
+                  Schedule name
+                  <Input
+                    value={scheduleName}
+                    maxLength={120}
+                    onChange={(event) => setScheduleName(event.target.value)}
+                  />
+                </Label>
+                <Label>
+                  Sync frequency
+                  <NativeSelect
+                    value={scheduleMinutes}
+                    onChange={(event) => setScheduleMinutes(Number(event.target.value))}
+                  >
+                    <NativeSelectOption value={15}>Every 15 minutes</NativeSelectOption>
+                    <NativeSelectOption value={60}>Every hour</NativeSelectOption>
+                    <NativeSelectOption value={360}>Every 6 hours</NativeSelectOption>
+                    <NativeSelectOption value={720}>Every 12 hours</NativeSelectOption>
+                    <NativeSelectOption value={1440}>Every day</NativeSelectOption>
+                    <NativeSelectOption value={10080}>Every week</NativeSelectOption>
+                  </NativeSelect>
+                </Label>
+                <Button onClick={createSchedule} disabled={!scheduleName.trim()}>
+                  Start automatic sync
+                </Button>
+              </div>
+            </div>
+
+            {schedules.length > 0 && (
+              <div className="automatic-sync-saved">
+                <h3>Saved schedules</h3>
+                <ul aria-label="Automatic sync schedules">
+                  {schedules.map((schedule) => (
+                    <li key={schedule.id}>
+                      <div className="automatic-sync-summary">
+                        <div>
+                          <strong>{schedule.name}</strong>
+                          <span>{describeCadence(schedule)}</span>
+                        </div>
+                        <span className={`sync-status is-${schedule.status}`}>
+                          {schedule.status === 'enabled' ? 'Active' : 'Paused'}
+                        </span>
+                      </div>
+                      <div className="automatic-sync-form is-saved">
+                        <Label>
+                          Schedule name
+                          <Input
+                            value={schedule.name}
+                            onChange={(event) =>
+                              setSchedules((values) =>
+                                values.map((value) =>
+                                  value.id === schedule.id
+                                    ? { ...value, name: event.target.value }
+                                    : value,
+                                ),
+                              )
+                            }
+                          />
+                        </Label>
+                        {schedule.cadence.kind === 'interval' && (
+                          <Label>
+                            Interval (minutes)
+                            <Input
+                              type="number"
+                              min={15}
+                              max={10080}
+                              value={schedule.cadence.minutes}
+                              onChange={(event) =>
+                                setSchedules((values) =>
+                                  values.map((value) =>
+                                    value.id === schedule.id
+                                      ? {
+                                          ...value,
+                                          cadence: {
+                                            kind: 'interval',
+                                            minutes: Number(event.target.value),
+                                          },
+                                        }
+                                      : value,
+                                  ),
+                                )
+                              }
+                            />
+                          </Label>
+                        )}
+                      </div>
+                      <p className="automatic-sync-timing">
+                        {schedule.next_run_at
+                          ? `Next sync ${new Date(schedule.next_run_at).toLocaleString()}`
+                          : 'No automatic runs while paused'}
+                        {' · '}
+                        Last result: {schedule.last_outcome ?? 'Not run yet'}
+                      </p>
+                      {schedule.last_error && (
+                        <p className="automatic-sync-error">{schedule.last_error}</p>
+                      )}
+                      <div className="automatic-sync-actions">
+                        <Button
+                          variant="outline"
+                          onClick={() => saveSchedule(schedule)}
+                          disabled={
+                            !schedule.name.trim() ||
+                            (schedule.cadence.kind === 'interval' &&
+                              (schedule.cadence.minutes < 15 || schedule.cadence.minutes > 10080))
+                          }
+                        >
+                          Save changes
+                        </Button>
+                        <Button variant="outline" onClick={() => toggleSchedule(schedule)}>
+                          {schedule.status === 'enabled' ? 'Pause sync' : 'Resume sync'}
+                        </Button>
+                        <Button variant="outline" onClick={() => runSchedule(schedule)}>
+                          Run now
+                        </Button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </section>
+        )}
         <nav className="ingestion-stage-nav" aria-label="Ingestion stages">
           {draft.execution.nodes.map((node, index) => {
             const Icon = stageIcons[node.type];
@@ -1654,7 +1848,10 @@ export function IngestionPipelineEditor({
                       <CircleAlert size={17} aria-hidden="true" />
                       <p>
                         Amazon S3, Notion, and Confluence need the local encrypted connection vault.{' '}
-                        <a href={`#/projects/${projectId}/settings`}>Review setup in project settings</a>.
+                        <a href={`#/projects/${projectId}/settings`}>
+                          Review setup in project settings
+                        </a>
+                        .
                       </p>
                     </div>
                   )}
@@ -1943,130 +2140,6 @@ export function IngestionPipelineEditor({
                 </div>
               )}
             </div>
-            {saved && (
-              <section className="ingestion-schedules" aria-labelledby="schedule-heading">
-                <div className="section-heading">
-                  <div>
-                    <h2 id="schedule-heading">Ingestion schedules</h2>
-                    <p>Schedules start paused and always run this exact immutable version.</p>
-                  </div>
-                </div>
-                <div className="grid gap-3 py-4">
-                  <Label>
-                    Schedule name
-                    <Input
-                      value={scheduleName}
-                      onChange={(event) => setScheduleName(event.target.value)}
-                    />
-                  </Label>
-                  <Label>
-                    Interval (minutes)
-                    <Input
-                      type="number"
-                      min={15}
-                      max={10080}
-                      value={scheduleMinutes}
-                      onChange={(event) => setScheduleMinutes(Number(event.target.value))}
-                    />
-                  </Label>
-                  <Button
-                    variant="outline"
-                    onClick={createSchedule}
-                    disabled={
-                      !scheduleName.trim() || scheduleMinutes < 15 || scheduleMinutes > 10080
-                    }
-                  >
-                    Create paused schedule
-                  </Button>
-                </div>
-                {schedules.length === 0 ? (
-                  <p>No schedules target this saved version.</p>
-                ) : (
-                  <ul className="project-list" aria-label="Ingestion schedules">
-                    {schedules.map((schedule) => (
-                      <li key={schedule.id}>
-                        <div>
-                          <Label>
-                            Schedule name
-                            <Input
-                              value={schedule.name}
-                              onChange={(event) =>
-                                setSchedules((values) =>
-                                  values.map((value) =>
-                                    value.id === schedule.id
-                                      ? { ...value, name: event.target.value }
-                                      : value,
-                                  ),
-                                )
-                              }
-                            />
-                          </Label>
-                          {schedule.cadence.kind === 'interval' && (
-                            <Label>
-                              Interval for {schedule.name} (minutes)
-                              <Input
-                                type="number"
-                                min={15}
-                                max={10080}
-                                value={schedule.cadence.minutes}
-                                onChange={(event) =>
-                                  setSchedules((values) =>
-                                    values.map((value) =>
-                                      value.id === schedule.id
-                                        ? {
-                                            ...value,
-                                            cadence: {
-                                              kind: 'interval',
-                                              minutes: Number(event.target.value),
-                                            },
-                                          }
-                                        : value,
-                                    ),
-                                  )
-                                }
-                              />
-                            </Label>
-                          )}
-                          <p>
-                            {schedule.status} ·{' '}
-                            {schedule.cadence.kind === 'interval'
-                              ? `every ${schedule.cadence.minutes} minutes`
-                              : `daily at ${schedule.cadence.local_time} ${schedule.cadence.timezone}`}
-                          </p>
-                          <small>
-                            Next:{' '}
-                            {schedule.next_run_at
-                              ? new Date(schedule.next_run_at).toLocaleString()
-                              : 'paused'}{' '}
-                            · Last: {schedule.last_outcome ?? 'never run'}
-                          </small>
-                          {schedule.last_error && <small>{schedule.last_error}</small>}
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          <Button
-                            variant="outline"
-                            onClick={() => saveSchedule(schedule)}
-                            disabled={
-                              !schedule.name.trim() ||
-                              (schedule.cadence.kind === 'interval' &&
-                                (schedule.cadence.minutes < 15 || schedule.cadence.minutes > 10080))
-                            }
-                          >
-                            Save schedule
-                          </Button>
-                          <Button variant="outline" onClick={() => toggleSchedule(schedule)}>
-                            {schedule.status === 'enabled' ? 'Pause' : 'Enable'}
-                          </Button>
-                          <Button variant="outline" onClick={() => runSchedule(schedule)}>
-                            Run now
-                          </Button>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </section>
-            )}
           </aside>
         </div>
       </fieldset>

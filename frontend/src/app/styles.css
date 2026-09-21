@@ -2847,6 +2847,131 @@ summary {
   gap: 12px;
   min-width: 0;
 }
+.ingestion-toolbar-actions [aria-controls='automatic-sync-panel'] svg:last-child {
+  transition: transform 160ms ease-out;
+}
+.ingestion-toolbar-actions [aria-controls='automatic-sync-panel'] svg:last-child.is-open {
+  transform: rotate(180deg);
+}
+.automatic-sync-panel {
+  flex-shrink: 0;
+  max-height: min(560px, 58dvh);
+  overflow-y: auto;
+  padding: 20px 24px 24px;
+  border-bottom: 1px solid var(--border);
+  background: var(--card);
+}
+.automatic-sync-intro,
+.automatic-sync-summary,
+.automatic-sync-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.automatic-sync-intro {
+  align-items: flex-start;
+}
+.automatic-sync-panel :is(h2, h3, p) {
+  margin: 0;
+}
+.automatic-sync-panel h2 {
+  font-size: 17px;
+  font-weight: 600;
+}
+.automatic-sync-panel h3 {
+  font-size: 13px;
+  font-weight: 600;
+}
+.automatic-sync-panel p,
+.automatic-sync-summary span {
+  color: var(--muted-foreground);
+  font-size: 13px;
+}
+.automatic-sync-intro p {
+  max-width: 70ch;
+  margin-top: 4px;
+}
+.automatic-sync-create {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.55fr) minmax(0, 1.45fr);
+  gap: 24px;
+  align-items: end;
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+.automatic-sync-create > div:first-child p {
+  max-width: 42ch;
+  margin-top: 5px;
+}
+.automatic-sync-form {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(160px, 0.7fr) auto;
+  gap: 12px;
+  align-items: end;
+  min-width: 0;
+}
+.automatic-sync-form label {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+  font-size: 12px;
+}
+.automatic-sync-saved {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+.automatic-sync-saved > ul {
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.automatic-sync-saved > ul > li {
+  padding: 16px 0;
+  border-top: 1px solid var(--border);
+}
+.automatic-sync-summary > div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.automatic-sync-summary strong {
+  overflow-wrap: anywhere;
+  font-size: 14px;
+}
+.sync-status {
+  flex: 0 0 auto;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+.sync-status.is-enabled {
+  color: var(--success);
+}
+.sync-status.is-paused {
+  color: var(--warning);
+}
+.automatic-sync-form.is-saved {
+  grid-template-columns: minmax(200px, 1fr) minmax(160px, 0.6fr);
+  max-width: 640px;
+  margin-top: 14px;
+}
+.automatic-sync-timing {
+  margin-top: 10px !important;
+}
+.automatic-sync-error {
+  margin-top: 8px !important;
+  color: var(--destructive) !important;
+}
+.automatic-sync-actions {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
 .app-shell .ingestion-toolbar-identity > label:first-child {
   flex: 1 1 260px;
 }
@@ -2931,36 +3056,6 @@ summary {
 .ingestion-settings-body:focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: -2px;
-}
-.app-shell .ingestion-schedules {
-  flex-shrink: 0;
-  padding: 24px;
-  border-top: 1px solid var(--border);
-  min-width: 0;
-}
-.app-shell .ingestion-schedules .section-heading {
-  margin: 0;
-  padding: 0;
-}
-.app-shell .ingestion-schedules p {
-  margin: 8px 0 0;
-  font-size: 13px;
-  line-height: 1.6;
-  color: var(--muted-foreground);
-}
-.app-shell .ingestion-schedules .project-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-.app-shell .ingestion-schedules .project-list > li {
-  display: grid;
-  gap: 12px;
-  padding: 16px 0;
-}
-.app-shell .ingestion-schedules .project-list > li > div {
-  min-width: 0;
-  overflow-wrap: anywhere;
 }
 .ingestion-stage-facts {
   margin: 0;
@@ -3187,8 +3282,20 @@ summary {
   .ingestion-settings-body {
     padding: 20px;
   }
-  .app-shell .ingestion-schedules {
-    padding: 20px;
+  .automatic-sync-panel {
+    max-height: none;
+    padding: 20px 16px 24px;
+  }
+  .automatic-sync-create {
+    grid-template-columns: 1fr;
+  }
+  .automatic-sync-form,
+  .automatic-sync-form.is-saved {
+    grid-template-columns: 1fr;
+    max-width: none;
+  }
+  .automatic-sync-form > [data-slot='button'] {
+    min-height: 44px;
   }
   .app-shell .website-limit-grid {
     grid-template-columns: 1fr;

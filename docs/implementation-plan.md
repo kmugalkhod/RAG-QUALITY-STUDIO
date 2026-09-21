@@ -1,5 +1,13 @@
 # Implementation plan
 
+## Source snapshots and reusable index variants — proposed 2026-09-22
+
+Status: planned, not implemented.
+
+The next scoped ingestion improvement is documented in [Source snapshots and reusable index variants](source-snapshot-index-variants-plan.md). It covers one Website collection producing an immutable source snapshot, multiple independently named index families built from that snapshot, clear Knowledge Base lineage, exact-index answer-pipeline handoff, and same-snapshot experiment comparison.
+
+This plan does not authorize implementation by itself. It explicitly excludes new connectors, arbitrary graph branching, per-pipeline embedding-provider selection, automatic configuration search, new evaluation metrics, schedule redesign, and snapshot deletion/retention UI.
+
 ## Desktop canvas position correction — 2026-09-22
 
 This supersedes the natural-document-scroll desktop design described below. Reproduced an 87px canvas jump when switching from a deeply scrolled Website inspector to Extract: the shorter document clamped window scroll even though graph dimensions and zoom were unchanged.
