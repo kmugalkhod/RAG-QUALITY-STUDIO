@@ -188,6 +188,25 @@ def get(session: Session, project_id: UUID, snapshot_id: UUID) -> SourceSnapshot
     return snapshot
 
 
+def require_compatible(
+    session: Session,
+    project_id: UUID,
+    snapshot_id: UUID,
+    execution: IngestionExecution,
+) -> SourceSnapshot:
+    snapshot = get(session, project_id, snapshot_id)
+    if snapshot.status != "ready":
+        raise HTTPException(409, "Only a ready source snapshot can build an index.")
+    configuration = _source_configuration(execution)
+    if _configuration_hash(configuration) != snapshot.source_config_hash:
+        raise HTTPException(
+            409,
+            "This snapshot was collected with different Website source settings. "
+            "Choose a compatible snapshot or collect the source again.",
+        )
+    return snapshot
+
+
 def _snapshot_rows(session: Session, statement):
     index_count = (
         select(func.count())

@@ -85,12 +85,15 @@ def start_run(
     _protect_credentialed_source(
         request, IngestionExecution.model_validate(version.execution)
     )
+    start = data or IngestionRunStart()
     return ingestion.start_run(
         session,
         project_id,
         pipeline_id,
         version_id,
-        reuse_stored=(data or IngestionRunStart()).reuse_stored,
+        source_input=start.source_input,
+        destination=start.destination,
+        reuse_stored=start.reuse_stored,
     )
 
 

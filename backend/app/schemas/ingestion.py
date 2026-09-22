@@ -547,8 +547,48 @@ class IngestionRunRead(Strict):
     finished_at: datetime | None
 
 
+class RefreshSourceInput(Strict):
+    kind: Literal["refresh"]
+
+
+class SnapshotSourceInput(Strict):
+    kind: Literal["snapshot"]
+    source_snapshot_id: UUID
+
+
+IngestionSourceInput = Annotated[
+    RefreshSourceInput | SnapshotSourceInput,
+    Field(discriminator="kind"),
+]
+
+
+class ExistingIndexDestination(Strict):
+    kind: Literal["existing"]
+    knowledge_set_id: UUID
+
+
+class NewIndexDestination(Strict):
+    kind: Literal["new"]
+    name: str = Field(min_length=1, max_length=120)
+
+
+IngestionDestination = Annotated[
+    ExistingIndexDestination | NewIndexDestination,
+    Field(discriminator="kind"),
+]
+
+
 class IngestionRunStart(Strict):
-    reuse_stored: bool = False
+    source_input: IngestionSourceInput | None = None
+    destination: IngestionDestination | None = None
+    # Temporary compatibility adapter for the pre-snapshot frontend.
+    reuse_stored: bool | None = None
+
+    @model_validator(mode="after")
+    def compatible_source_input(self):
+        if self.source_input is not None and self.reuse_stored is not None:
+            raise ValueError("Use source_input or reuse_stored, not both.")
+        return self
 
 
 class IngestionRunPage(Strict):
