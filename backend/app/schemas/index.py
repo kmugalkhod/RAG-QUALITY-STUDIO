@@ -29,6 +29,28 @@ class IndexCreate(BaseModel):
     document_ids: list[UUID] | None = Field(default=None, min_length=1, max_length=1000)
 
 
+class SourceSnapshotLineage(BaseModel):
+    id: UUID
+    snapshot_number: int
+    status: Literal["collecting", "ready", "failed", "cancelled"]
+    source_kind: Literal["website"]
+    included_count: int
+    collected_at: datetime | None
+
+
+class IngestionPipelineLineage(BaseModel):
+    id: UUID
+    name: str
+    version: int
+
+
+class IndexProcessingSummary(BaseModel):
+    unit: str
+    size: int
+    overlap: int
+    config_version: str | None = None
+
+
 class IndexRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: UUID
@@ -44,6 +66,10 @@ class IndexRead(BaseModel):
     failures: int
     processing_run_count: int
     is_current: bool
+    source_kind: str | None = None
+    source_snapshot: SourceSnapshotLineage | None = None
+    ingestion_pipeline: IngestionPipelineLineage | None = None
+    processing_summary: IndexProcessingSummary | None = None
     error: str | None
     created_at: datetime
 

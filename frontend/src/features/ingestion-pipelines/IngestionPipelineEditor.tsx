@@ -2253,12 +2253,18 @@ export function IngestionPipelineEditor({
               {run.error}
             </p>
           )}
-          {run.status === 'succeeded' && run.published_index_id && (
+          {run.status === 'succeeded' && (run.source_snapshot_id || run.published_index_id) && (
             <Button asChild variant="outline">
               <a
-                href={`#/projects/${projectId}/knowledge-base?view=indexes&index=${run.published_index_id}`}
+                href={
+                  run.source_snapshot_id
+                    ? `#/projects/${projectId}/knowledge-base?view=indexes&mode=snapshots&snapshot=${run.source_snapshot_id}`
+                    : `#/projects/${projectId}/knowledge-base?view=indexes&mode=indexes&index=${run.published_index_id}`
+                }
               >
-                Inspect published index v{run.published_index_version}
+                {run.source_snapshot_id
+                  ? 'Inspect reusable source snapshot'
+                  : `Inspect published index v${run.published_index_version}`}
               </a>
             </Button>
           )}

@@ -39,18 +39,13 @@ export function IndexList({
   );
 
   return (
-    <section className="index-catalog" aria-labelledby="knowledge-sets-title">
+    <section className="index-catalog" aria-labelledby="indexes-title">
       <div className="index-catalog-heading">
         <div>
-          <h2 id="knowledge-sets-title">Knowledge sets</h2>
+          <h2 id="indexes-title">Indexes</h2>
           <p>Choose an immutable version to inspect or test.</p>
         </div>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          onClick={onRefresh}
-          aria-label="Refresh document sets"
-        >
+        <Button variant="ghost" size="icon-sm" onClick={onRefresh} aria-label="Refresh indexes">
           <RotateCw />
         </Button>
       </div>
@@ -67,8 +62,8 @@ export function IndexList({
       {page?.total === 0 && (
         <div className="index-empty">
           <Database />
-          <h3>No knowledge sets yet</h3>
-          <p>Process a document or run an ingestion pipeline, then prepare an index.</p>
+          <h3>No indexes yet</h3>
+          <p>Process uploaded documents or collect a Website source to build an index.</p>
         </div>
       )}
       <div className="index-groups">
@@ -86,11 +81,8 @@ export function IndexList({
                   <button
                     type="button"
                     className="index-version-select"
-                    disabled={index.status !== 'succeeded'}
                     aria-pressed={selectedId === index.id}
-                    aria-label={
-                      index.status === 'succeeded' ? `Use document set ${index.version}` : undefined
-                    }
+                    aria-label={`Inspect ${index.knowledge_set_name} version ${index.version}`}
                     onClick={() => onSelect(index)}
                   >
                     <span className="index-version-title">
@@ -106,8 +98,20 @@ export function IndexList({
                     </span>
                     <span className="index-version-meta">
                       {index.embedded_count.toLocaleString()} / {index.chunk_count.toLocaleString()}{' '}
-                      passages prepared from {index.processing_run_count} processing{' '}
-                      {index.processing_run_count === 1 ? 'run' : 'runs'}
+                      passages ·{' '}
+                      {index.source_snapshot
+                        ? `Snapshot ${index.source_snapshot.snapshot_number}`
+                        : index.source_kind === 'website'
+                          ? 'Legacy snapshot unavailable'
+                          : `${index.processing_run_count} processing ${index.processing_run_count === 1 ? 'run' : 'runs'}`}
+                    </span>
+                    <span className="index-version-meta">
+                      {index.ingestion_pipeline
+                        ? `${index.ingestion_pipeline.name} · Version ${index.ingestion_pipeline.version}`
+                        : 'Uploaded-document index'}
+                      {index.processing_summary
+                        ? ` · ${index.processing_summary.size.toLocaleString()} / ${index.processing_summary.overlap.toLocaleString()} overlap`
+                        : ''}
                     </span>
                     <time dateTime={index.created_at}>
                       {new Intl.DateTimeFormat(undefined, {
@@ -129,7 +133,7 @@ export function IndexList({
                         size="sm"
                         disabled={busy}
                         onClick={() => onCancel(index)}
-                        aria-label={`Cancel document set ${index.version}`}
+                        aria-label={`Cancel index version ${index.version}`}
                       >
                         Cancel
                       </Button>
@@ -148,7 +152,7 @@ export function IndexList({
           total={page.total}
           pageSize={page.limit}
           onChange={onPage}
-          label="Knowledge set pages"
+          label="Index pages"
         />
       )}
     </section>

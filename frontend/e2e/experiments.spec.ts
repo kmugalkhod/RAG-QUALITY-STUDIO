@@ -25,9 +25,11 @@ test('import reviewed dataset, compare two versions and inspect evidence', async
   await expect(page.getByRole('button', { name: 'Inspect 1 chunks' })).toBeVisible({
     timeout: 30000,
   });
-  await page.getByRole('tab', { name: 'Document sets', exact: true }).click();
-  await page.getByRole('button', { name: 'Prepare document set' }).click();
-  await expect(page.getByRole('button', { name: 'Use document set 1' })).toBeVisible({
+  await page.getByRole('tab', { name: 'Indexes', exact: true }).click();
+  await page.getByRole('button', { name: 'Prepare uploaded documents' }).click();
+  await expect(
+    page.getByRole('button', { name: 'Inspect Uploaded documents version 1' }),
+  ).toBeVisible({
     timeout: 30000,
   });
   const index = (await (await request.get(`/api/projects/${project.id}/indexes`)).json()).items[0];

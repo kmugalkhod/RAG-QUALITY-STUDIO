@@ -9,12 +9,14 @@ export function PipelineEditor({
   projectId,
   pipelineId,
   versionId = '',
+  readyIndexId = '',
 }: {
   projectId: string;
   pipelineId: string;
   versionId?: string;
+  readyIndexId?: string;
 }) {
-  const editor = usePipelineEditor(projectId, pipelineId, versionId);
+  const editor = usePipelineEditor(projectId, pipelineId, versionId, readyIndexId);
   return (
     <div className="editor-workspace">
       <a className="back-link" href={`#/projects/${projectId}/pipelines`}>

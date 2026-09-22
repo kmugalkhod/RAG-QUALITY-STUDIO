@@ -5,6 +5,13 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 
 
+class SourceSnapshotPipelineRead(BaseModel):
+    id: UUID
+    version_id: UUID
+    name: str
+    version: int
+
+
 class SourceSnapshotRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -27,6 +34,7 @@ class SourceSnapshotRead(BaseModel):
     removed_count: int
     total_bytes: int
     creating_ingestion_run_id: UUID
+    collection_pipeline: SourceSnapshotPipelineRead
     downstream_index_count: int = 0
     error: str | None
     created_at: datetime
@@ -73,6 +81,8 @@ class SourceSnapshotIndexRead(BaseModel):
     ingestion_pipeline_id: UUID | None
     ingestion_pipeline_name: str | None
     ingestion_pipeline_version: int | None
+    embedding_config: dict
+    processing_summary: dict | None
     created_at: datetime
 
 

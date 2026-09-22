@@ -12,9 +12,9 @@ test('reports missing embedding credentials without breaking document management
     await request.post('/api/projects', { data: { name: `Index settings ${Date.now()}` } })
   ).json()) as { id: string };
   await page.goto(`/#/projects/${project.id}`);
-  await page.getByRole('tab', { name: 'Document sets', exact: true }).click();
+  await page.getByRole('tab', { name: 'Indexes', exact: true }).click();
   await expect(page.getByText(/Set OPENROUTER_API_KEY/)).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Prepare document set' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Prepare uploaded documents' })).toBeDisabled();
   await page.getByRole('button', { name: 'Add document', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Upload document', exact: true })).toBeEnabled();
 });
@@ -42,20 +42,22 @@ test('indexes and retrieves persisted source evidence using the isolated provide
   await expect(page.getByRole('button', { name: 'Inspect 1 chunks' })).toBeVisible({
     timeout: 30000,
   });
-  await page.getByRole('tab', { name: 'Document sets', exact: true }).click();
-  await page.getByRole('button', { name: 'Prepare document set' }).click();
-  await expect(page.getByRole('button', { name: 'Use document set 1' })).toBeVisible({
+  await page.getByRole('tab', { name: 'Indexes', exact: true }).click();
+  await page.getByRole('button', { name: 'Prepare uploaded documents' }).click();
+  await expect(
+    page.getByRole('button', { name: 'Inspect Uploaded documents version 1' }),
+  ).toBeVisible({
     timeout: 30000,
   });
   await expect(page.getByRole('heading', { name: 'Uploaded documents' })).toBeVisible();
-  await expect(page.getByText('Current', { exact: true })).toBeVisible();
-  await expect(page.getByText(/prepared from 1 processing run/)).toBeVisible();
+  await expect(page.getByText('Current index', { exact: true })).toBeVisible();
+  await expect(page.getByText(/1 processing run/)).toBeVisible();
   await page.reload();
-  await expect(page.getByRole('tab', { name: 'Document sets', exact: true })).toHaveAttribute(
+  await expect(page.getByRole('tab', { name: 'Indexes', exact: true })).toHaveAttribute(
     'data-state',
     'active',
   );
-  await page.getByRole('button', { name: 'Use document set 1' }).click();
+  await page.getByRole('button', { name: 'Inspect Uploaded documents version 1' }).click();
   await page.getByLabel('Search query').fill('What does the orchard grow?');
   await page.getByRole('button', { name: 'Search documents only', exact: true }).click();
   const results = page.getByRole('region', { name: 'Retrieval results' });

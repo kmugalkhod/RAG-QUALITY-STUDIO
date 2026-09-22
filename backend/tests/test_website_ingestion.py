@@ -611,6 +611,26 @@ def test_ready_snapshot_has_exact_paginated_project_scoped_membership(website_ap
         "origins": ["https://example.com"],
         "selection_modes": ["single_url"],
     }
+    assert detail.json()["collection_pipeline"] == {
+        "id": version["pipeline_id"],
+        "version_id": version["id"],
+        "name": version["name"],
+        "version": version["version"],
+    }
+    index_detail = client.get(f"/api/projects/{project_id}/indexes/{index_id}").json()
+    assert index_detail["source_snapshot"]["id"] == snapshot_id
+    assert index_detail["source_snapshot"]["included_count"] == 2
+    assert index_detail["ingestion_pipeline"] == {
+        "id": version["pipeline_id"],
+        "name": version["name"],
+        "version": version["version"],
+    }
+    assert index_detail["processing_summary"] == {
+        "unit": "characters",
+        "size": 100,
+        "overlap": 10,
+        "config_version": "1",
+    }
 
     first_page = client.get(
         f"/api/projects/{project_id}/source-snapshots/{snapshot_id}/items",

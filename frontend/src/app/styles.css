@@ -1179,6 +1179,302 @@ footer {
   margin: 0;
 }
 
+.app-shell .index-mode-tabs {
+  width: 100%;
+  justify-content: flex-start;
+  margin-bottom: 18px;
+  border-bottom: 1px solid var(--border);
+}
+
+.app-shell .snapshot-browser {
+  display: grid;
+  grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
+  min-height: 640px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+
+.app-shell .snapshot-catalog {
+  min-width: 0;
+  border-right: 1px solid var(--border);
+  background: var(--secondary);
+}
+
+.app-shell .snapshot-groups > section + section {
+  border-top: 1px solid var(--border);
+}
+
+.app-shell .snapshot-groups > section > h3 {
+  margin: 0;
+  padding: 14px 18px 7px;
+  overflow-wrap: anywhere;
+  color: var(--muted-foreground);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.app-shell .snapshot-groups ul,
+.app-shell .snapshot-item-list,
+.app-shell .snapshot-downstream-list,
+.app-shell .index-lineage ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.app-shell .snapshot-groups li {
+  margin: 4px 8px;
+  border-radius: 10px;
+}
+
+.app-shell .snapshot-groups li[data-state='selected'] {
+  background: var(--sidebar-accent);
+}
+
+.app-shell .snapshot-groups button {
+  display: grid;
+  width: 100%;
+  min-height: 72px;
+  gap: 5px;
+  padding: 11px 12px;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  color: var(--foreground);
+  font: inherit;
+  text-align: left;
+}
+
+.app-shell .snapshot-groups button:hover {
+  background: var(--muted);
+}
+
+.app-shell .snapshot-groups button > span:not(.index-version-title) {
+  color: var(--muted-foreground);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.app-shell .snapshot-detail-header,
+.app-shell .snapshot-actions,
+.app-shell .index-detail-actions,
+.app-shell .snapshot-section .section-heading,
+.app-shell .snapshot-downstream-list li,
+.app-shell .snapshot-item-list li {
+  display: flex;
+  align-items: flex-start;
+}
+
+.app-shell .snapshot-detail-header {
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.app-shell .snapshot-detail-header :is(h2, p, span) {
+  margin: 0;
+}
+
+.app-shell .snapshot-detail-header p,
+.app-shell .snapshot-detail-header span {
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+
+.app-shell .snapshot-detail-header h2 {
+  margin: 3px 0;
+  font-size: 17px;
+}
+
+.app-shell .snapshot-actions,
+.app-shell .index-detail-actions {
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.app-shell .snapshot-build-form {
+  display: grid;
+  gap: 15px;
+  max-width: 680px;
+  margin-top: 16px;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--secondary);
+}
+
+.app-shell .snapshot-build-form :is(h3, p) {
+  margin: 0;
+}
+
+.app-shell .snapshot-build-form > p {
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.app-shell .snapshot-build-summary,
+.app-shell .snapshot-counts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--border);
+}
+
+.app-shell .snapshot-counts {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-top: 20px;
+}
+
+.app-shell .snapshot-build-summary div,
+.app-shell .snapshot-counts div {
+  display: grid;
+  gap: 3px;
+  padding: 10px 12px;
+  background: var(--background);
+}
+
+.app-shell .snapshot-build-summary :is(dt, dd),
+.app-shell .snapshot-counts :is(dt, dd),
+.app-shell .snapshot-item-list dl :is(dt, dd) {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: 11px;
+}
+
+.app-shell .snapshot-build-summary dt,
+.app-shell .snapshot-counts dt,
+.app-shell .snapshot-item-list dt {
+  color: var(--muted-foreground);
+}
+
+.app-shell .snapshot-run-progress {
+  display: grid;
+  gap: 8px;
+  margin-top: 16px;
+  padding: 13px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--secondary);
+  font-size: 12px;
+}
+
+.app-shell .snapshot-section,
+.app-shell .index-lineage {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+
+.app-shell .snapshot-section .section-heading {
+  justify-content: space-between;
+  gap: 14px;
+  padding: 0 0 10px;
+}
+
+.app-shell .snapshot-section .section-heading span {
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+
+.app-shell .snapshot-item-list li,
+.app-shell .snapshot-downstream-list li {
+  gap: 10px;
+  padding: 13px 0;
+  border-top: 1px solid var(--border);
+}
+
+.app-shell .snapshot-item-list li > svg,
+.app-shell .snapshot-downstream-list li > svg {
+  width: 16px;
+  flex: 0 0 16px;
+  margin-top: 2px;
+  color: var(--muted-foreground);
+}
+
+.app-shell .snapshot-item-list li > div,
+.app-shell .snapshot-downstream-list li > div {
+  min-width: 0;
+  flex: 1;
+}
+
+.app-shell .snapshot-item-list strong,
+.app-shell .snapshot-downstream-list strong {
+  display: block;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+
+.app-shell .snapshot-item-list dl {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px 16px;
+  margin: 7px 0 0;
+}
+
+.app-shell .snapshot-downstream-list span {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted-foreground);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.app-shell .index-lineage .retrieval-check-heading {
+  margin: 0 0 14px;
+  padding: 0;
+  border: 0;
+}
+
+.app-shell .index-lineage ol {
+  display: grid;
+  gap: 0;
+}
+
+.app-shell .index-lineage li {
+  position: relative;
+  display: grid;
+  gap: 3px;
+  padding: 10px 12px 10px 36px;
+  border-left: 1px solid var(--border);
+}
+
+.app-shell .index-lineage li::before {
+  position: absolute;
+  top: 15px;
+  left: -4px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--primary);
+  content: '';
+}
+
+.app-shell .index-lineage li :is(strong, span) {
+  font-size: 12px;
+}
+
+.app-shell .index-lineage li span,
+.app-shell .legacy-lineage-warning {
+  color: var(--muted-foreground);
+  line-height: 1.5;
+}
+
+.app-shell .legacy-lineage-warning {
+  margin: 0;
+  font-size: 12px;
+}
+
+.app-shell .mobile-detail-back {
+  display: none;
+  margin-bottom: 14px;
+}
+
 .app-shell .index-workspace-header h2 {
   font-size: 18px;
 }
@@ -1613,6 +1909,10 @@ footer {
     grid-template-columns: minmax(240px, 300px) minmax(0, 1fr);
   }
 
+  .app-shell .snapshot-browser {
+    grid-template-columns: minmax(240px, 300px) minmax(0, 1fr);
+  }
+
   .app-shell .embedding-summary {
     grid-template-columns: auto repeat(2, minmax(0, 1fr));
   }
@@ -1637,6 +1937,29 @@ footer {
     overflow: visible;
   }
 
+  .app-shell .snapshot-browser {
+    display: block;
+    overflow: visible;
+  }
+
+  .app-shell .snapshot-catalog {
+    border-right: 0;
+  }
+
+  .app-shell .snapshot-browser[data-detail-open='true'] .snapshot-catalog,
+  .app-shell .index-browser-layout[data-detail-open='true'] .index-catalog {
+    display: none;
+  }
+
+  .app-shell .snapshot-browser[data-detail-open='false'] .snapshot-detail,
+  .app-shell .index-browser-layout[data-detail-open='false'] .index-detail {
+    display: none;
+  }
+
+  .app-shell .mobile-detail-back {
+    display: inline-flex;
+  }
+
   .app-shell .index-catalog {
     border-right: 0;
     border-bottom: 1px solid var(--border);
@@ -1648,6 +1971,23 @@ footer {
 
   .app-shell .index-detail-stats {
     grid-template-columns: 1fr;
+  }
+
+  .app-shell .snapshot-counts,
+  .app-shell .snapshot-build-summary,
+  .app-shell .snapshot-item-list dl {
+    grid-template-columns: 1fr;
+  }
+
+  .app-shell .snapshot-actions,
+  .app-shell .index-detail-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .app-shell .snapshot-actions > *,
+  .app-shell .index-detail-actions > * {
+    width: 100%;
   }
 
   .app-shell .vector-record-main {

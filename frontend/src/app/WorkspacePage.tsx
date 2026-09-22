@@ -49,6 +49,7 @@ export function WorkspacePage({ route, onProjectCreated }: WorkspacePageProps) {
             projectId={projectId}
             pipelineId={detail}
             versionId={query.get('version') || ''}
+            readyIndexId={query.get('index') || ''}
           />
         )
       ) : (

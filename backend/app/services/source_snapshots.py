@@ -215,7 +215,20 @@ def _snapshot_rows(session: Session, statement):
         .correlate(SourceSnapshot)
         .scalar_subquery()
     )
-    rows = session.execute(statement.add_columns(index_count)).all()
+    rows = session.execute(
+        statement.add_columns(
+            index_count,
+            IngestionRun,
+            PipelineVersion,
+            Pipeline,
+        )
+        .join(
+            IngestionRun,
+            IngestionRun.id == SourceSnapshot.creating_ingestion_run_id,
+        )
+        .join(PipelineVersion, PipelineVersion.id == IngestionRun.pipeline_version_id)
+        .join(Pipeline, Pipeline.id == PipelineVersion.pipeline_id)
+    ).all()
     return [
         {
             **{
@@ -223,8 +236,14 @@ def _snapshot_rows(session: Session, statement):
                 for column in SourceSnapshot.__table__.columns
             },
             "downstream_index_count": downstream_count,
+            "collection_pipeline": {
+                "id": pipeline.id,
+                "version_id": version.id,
+                "name": pipeline.name,
+                "version": version.version,
+            },
         }
-        for snapshot, downstream_count in rows
+        for snapshot, downstream_count, _run, version, pipeline in rows
     ]
 
 
@@ -320,8 +339,18 @@ def list_indexes(
         .limit(limit)
         .offset(offset)
     ).all()
-    return {
-        "items": [
+    items = []
+    for index, knowledge_set, run, version, pipeline in rows:
+        execution = (run.snapshot or {}).get("execution", {}) if run else {}
+        chunk = next(
+            (
+                node
+                for node in execution.get("nodes", [])
+                if node.get("type") == "chunk"
+            ),
+            None,
+        )
+        items.append(
             {
                 "id": index.id,
                 "knowledge_set_id": knowledge_set.id,
@@ -334,10 +363,20 @@ def list_indexes(
                 "ingestion_pipeline_id": pipeline.id if pipeline else None,
                 "ingestion_pipeline_name": pipeline.name if pipeline else None,
                 "ingestion_pipeline_version": version.version if version else None,
+                "embedding_config": index.embedding_config,
+                "processing_summary": {
+                    "unit": chunk.get("unit", "characters"),
+                    "size": chunk["size"],
+                    "overlap": chunk["overlap"],
+                    "config_version": chunk.get("config_version"),
+                }
+                if chunk
+                else None,
                 "created_at": index.created_at,
             }
-            for index, knowledge_set, _run, version, pipeline in rows
-        ],
+        )
+    return {
+        "items": items,
         "total": total,
         "limit": limit,
         "offset": offset,

@@ -46,7 +46,12 @@ function flowNode(
   };
 }
 
-export function usePipelineEditor(projectId: string, pipelineId: string, versionId: string) {
+export function usePipelineEditor(
+  projectId: string,
+  pipelineId: string,
+  versionId: string,
+  readyIndexId = '',
+) {
   const [nodes, setNodes, onNodesChange] = useNodesState<FlowNode>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [flow, setFlow] = useState<ReactFlowInstance<FlowNode>>();
@@ -144,7 +149,14 @@ export function usePipelineEditor(projectId: string, pipelineId: string, version
         setIndexes(readyIndexes);
         setError('');
         if (pipelineId === 'new') {
-          const defaultIndex = readyIndexes.find((index) => index.is_current) ?? readyIndexes[0];
+          const linkedIndex = readyIndexId
+            ? readyIndexes.find((index) => index.id === readyIndexId)
+            : undefined;
+          if (readyIndexId && !linkedIndex) {
+            throw new Error('The linked index is unavailable or is not ready in this project.');
+          }
+          const defaultIndex =
+            linkedIndex ?? readyIndexes.find((index) => index.is_current) ?? readyIndexes[0];
           const template = createPipelineDraft(
             serverOptions,
             'Untitled answer pipeline',
@@ -192,7 +204,7 @@ export function usePipelineEditor(projectId: string, pipelineId: string, version
     return () => {
       disposed = true;
     };
-  }, [projectId, pipelineId, versionId, refresh, open, setNodes, setEdges]);
+  }, [projectId, pipelineId, versionId, readyIndexId, refresh, open, setNodes, setEdges]);
 
   async function action(work: () => Promise<void>) {
     setBusy(true);

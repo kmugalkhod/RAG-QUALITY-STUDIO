@@ -29,8 +29,14 @@ export function KnowledgeBase({
     const query = new URLSearchParams(search);
     if (value === 'indexes') {
       query.set('view', value);
+      if (!query.get('mode')) {
+        query.set('mode', 'indexes');
+      }
     } else {
       query.delete('view');
+      query.delete('mode');
+      query.delete('index');
+      query.delete('snapshot');
     }
     window.location.hash = `${path || `/projects/${projectId}/knowledge-base`}${query.size ? `?${query}` : ''}`;
   }
@@ -171,7 +177,7 @@ export function KnowledgeBase({
           </TabsTrigger>
           <TabsTrigger value="indexes">
             <Database />
-            Document sets
+            Indexes
           </TabsTrigger>
         </TabsList>
         {showUpload && (

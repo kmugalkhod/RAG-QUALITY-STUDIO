@@ -26,6 +26,10 @@ const index: apiModel.IndexVersion = {
   failures: 0,
   processing_run_count: 1,
   is_current: true,
+  source_kind: null,
+  source_snapshot: null,
+  ingestion_pipeline: null,
+  processing_summary: null,
   error: null,
   created_at: '2026-09-09T00:00:00Z',
 };
@@ -51,7 +55,7 @@ test('shows missing server configuration and keeps paid action disabled', async 
   });
   render(<IndexPanel projectId="p1" />);
   expect(await screen.findByText(/Set OPENROUTER_API_KEY/)).toBeVisible();
-  expect(screen.getByRole('button', { name: 'Prepare document set' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Prepare uploaded documents' })).toBeDisabled();
   expect(screen.getByRole('button', { name: 'Search documents only' })).toBeDisabled();
 });
 
@@ -64,18 +68,18 @@ test('creates an index, shows progress and cancels', async () => {
   vi.mocked(api.cancelIndex).mockResolvedValue({ ...queued, status: 'cancelled' });
   render(<IndexPanel projectId="p1" />);
   await waitFor(() =>
-    expect(screen.getByRole('button', { name: 'Prepare document set' })).toBeEnabled(),
+    expect(screen.getByRole('button', { name: 'Prepare uploaded documents' })).toBeEnabled(),
   );
-  await userEvent.click(screen.getByRole('button', { name: 'Prepare document set' }));
-  expect(await screen.findByText(/Document set version 1 created with 3 passages/)).toBeVisible();
+  await userEvent.click(screen.getByRole('button', { name: 'Prepare uploaded documents' }));
+  expect(await screen.findByText(/index version 1 created with 3 passages/i)).toBeVisible();
   expect(await screen.findByRole('progressbar')).toHaveAttribute(
     'aria-valuenow',
     '33.33333333333333',
   );
-  expect(screen.getByRole('button', { name: 'Prepare document set' })).toBeDisabled();
-  await userEvent.click(screen.getByRole('button', { name: 'Cancel document set 1' }));
+  expect(screen.getByRole('button', { name: 'Prepare uploaded documents' })).toBeDisabled();
+  await userEvent.click(screen.getByRole('button', { name: 'Cancel index version 1' }));
   expect(api.cancelIndex).toHaveBeenCalledWith('p1', 'i1');
-  expect(await screen.findByText(/Document set version 1 cancelled/)).toBeVisible();
+  expect(await screen.findByText(/Index version 1 cancelled/)).toBeVisible();
 });
 
 test('retrieves from explicit version and exposes source evidence and distance', async () => {
@@ -103,10 +107,12 @@ test('retrieves from explicit version and exposes source evidence and distance',
     ],
   });
   render(<IndexPanel projectId="p1" />);
-  await userEvent.click(await screen.findByRole('button', { name: 'Use document set 1' }));
+  await userEvent.click(
+    await screen.findByRole('button', { name: 'Inspect Uploaded documents version 1' }),
+  );
   expect(screen.getByRole('heading', { name: 'Uploaded documents' })).toBeVisible();
-  expect(screen.getByText('Current')).toBeVisible();
-  expect(screen.getByText(/prepared from 1 processing run/)).toBeVisible();
+  expect(screen.getByText('Current index')).toBeVisible();
+  expect(screen.getByText(/1 processing run/)).toBeVisible();
   await userEvent.type(screen.getByLabelText('Search query'), 'Where is the evidence?');
   await userEvent.click(screen.getByRole('button', { name: 'Search documents only' }));
   expect(api.retrieve).toHaveBeenCalledWith('p1', 'i1', 'Where is the evidence?', {
@@ -131,7 +137,9 @@ test('validates queries and top k; retry preserves error until a new action', as
       score_semantics: '',
     });
   render(<IndexPanel projectId="p1" />);
-  await userEvent.click(await screen.findByRole('button', { name: 'Use document set 1' }));
+  await userEvent.click(
+    await screen.findByRole('button', { name: 'Inspect Uploaded documents version 1' }),
+  );
   await userEvent.click(screen.getByRole('button', { name: 'Search documents only' }));
   expect(await screen.findByRole('alert')).toHaveTextContent('enter a query');
   expect(api.retrieve).not.toHaveBeenCalled();
@@ -144,7 +152,7 @@ test('validates queries and top k; retry preserves error until a new action', as
   await userEvent.type(screen.getByLabelText('Top k'), '5');
   await userEvent.click(screen.getByRole('button', { name: 'Search documents only' }));
   expect(await screen.findByRole('alert')).toHaveTextContent('Provider unavailable');
-  await userEvent.click(screen.getByRole('button', { name: 'Refresh document sets' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Refresh indexes' }));
   expect(screen.getByRole('alert')).toHaveTextContent('Provider unavailable');
   await userEvent.click(screen.getByRole('button', { name: 'Search documents only' }));
   expect(await screen.findByText('No matching passages in this document set.')).toBeVisible();
@@ -156,9 +164,12 @@ test('loading errors can be retried; index failures are visible', async () => {
     .mockResolvedValue(page([{ ...index, status: 'failed', error: 'Invalid vector dimensions.' }]));
   render(<IndexPanel projectId="p1" />);
   expect(await screen.findByRole('alert')).toHaveTextContent('Indexes unavailable');
-  await userEvent.click(screen.getByRole('button', { name: 'Refresh document sets' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Refresh indexes' }));
   expect(await screen.findByText('Invalid vector dimensions.')).toBeVisible();
-  expect(screen.queryByRole('button', { name: 'Use document set 1' })).toBeNull();
+  await userEvent.click(
+    screen.getByRole('button', { name: 'Inspect Uploaded documents version 1' }),
+  );
+  expect(screen.getByText('Index failed')).toBeVisible();
 });
 
 test('restores an explicitly selected ready index from a direct link', async () => {
@@ -167,8 +178,7 @@ test('restores an explicitly selected ready index from a direct link', async () 
   render(<IndexPanel projectId="p1" />);
   expect(await screen.findByText(/Searching document set · Version 1/)).toBeVisible();
   expect(api.getIndex).toHaveBeenCalledWith('p1', 'i1');
-  expect(screen.getByRole('button', { name: 'Use document set 1' })).toHaveAttribute(
-    'aria-pressed',
-    'true',
-  );
+  expect(
+    screen.getByRole('button', { name: 'Inspect Uploaded documents version 1' }),
+  ).toHaveAttribute('aria-pressed', 'true');
 });

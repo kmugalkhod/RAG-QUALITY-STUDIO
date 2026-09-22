@@ -176,6 +176,7 @@ export type IngestionRun = {
   knowledge_set_id: string;
   knowledge_set_name: string;
   schedule_id: string | null;
+  source_snapshot_id: string | null;
   trigger_kind: 'manual' | 'scheduled';
   status: 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled';
   stage: 'discovering' | 'processing' | 'indexing' | 'complete';

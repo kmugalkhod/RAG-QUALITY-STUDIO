@@ -6,7 +6,10 @@ from sqlalchemy.orm import Session
 
 from app.models.document import Chunk, Document, ProcessingRun
 from app.models.index import IndexChunk, IndexVersion, KnowledgeSet
+from app.models.ingestion import IngestionRun
+from app.models.pipeline import Pipeline, PipelineVersion
 from app.models.project import Project
+from app.models.source import SourceSnapshot
 from app.providers import embeddings
 from app.schemas.index import IndexCreate, RetrievalRequest
 from app.services.documents import paginate, project
@@ -215,8 +218,6 @@ def create_index(session: Session, project_id: UUID, data: IndexCreate):
         if data.knowledge_set_id
         else default_knowledge_set(session, project_id)
     )
-    from app.models.ingestion import IngestionRun
-
     if session.scalar(
         select(IngestionRun.id).where(
             IngestionRun.knowledge_set_id == knowledge_set.id,
@@ -241,21 +242,84 @@ def _index_rows(session, statement):
     )
     rows = session.execute(
         statement.add_columns(
-            KnowledgeSet.name, KnowledgeSet.current_ready_index_id, run_count
-        ).join(KnowledgeSet, KnowledgeSet.id == IndexVersion.knowledge_set_id)
+            KnowledgeSet.name,
+            KnowledgeSet.current_ready_index_id,
+            run_count,
+            IngestionRun,
+            SourceSnapshot,
+            PipelineVersion,
+            Pipeline,
+        )
+        .join(KnowledgeSet, KnowledgeSet.id == IndexVersion.knowledge_set_id)
+        .outerjoin(IngestionRun, IngestionRun.id == IndexVersion.ingestion_run_id)
+        .outerjoin(SourceSnapshot, SourceSnapshot.id == IndexVersion.source_snapshot_id)
+        .outerjoin(
+            PipelineVersion, PipelineVersion.id == IngestionRun.pipeline_version_id
+        )
+        .outerjoin(Pipeline, Pipeline.id == PipelineVersion.pipeline_id)
     ).all()
-    return [
-        {
-            **{
-                column.name: getattr(index, column.name)
-                for column in IndexVersion.__table__.columns
-            },
-            "knowledge_set_name": knowledge_set_name,
-            "processing_run_count": processing_run_count,
-            "is_current": current_ready_index_id == index.id,
-        }
-        for index, knowledge_set_name, current_ready_index_id, processing_run_count in rows
-    ]
+    results = []
+    for (
+        index,
+        knowledge_set_name,
+        current_ready_index_id,
+        processing_run_count,
+        ingestion_run,
+        source_snapshot,
+        pipeline_version,
+        pipeline,
+    ) in rows:
+        execution = (
+            (ingestion_run.snapshot or {}).get("execution", {}) if ingestion_run else {}
+        )
+        chunk = next(
+            (
+                node
+                for node in execution.get("nodes", [])
+                if node.get("type") == "chunk"
+            ),
+            None,
+        )
+        results.append(
+            {
+                **{
+                    column.name: getattr(index, column.name)
+                    for column in IndexVersion.__table__.columns
+                },
+                "knowledge_set_name": knowledge_set_name,
+                "processing_run_count": processing_run_count,
+                "is_current": current_ready_index_id == index.id,
+                "source_kind": (ingestion_run.snapshot or {}).get("source_kind")
+                if ingestion_run
+                else None,
+                "source_snapshot": {
+                    "id": source_snapshot.id,
+                    "snapshot_number": source_snapshot.snapshot_number,
+                    "status": source_snapshot.status,
+                    "source_kind": source_snapshot.source_kind,
+                    "included_count": source_snapshot.included_count,
+                    "collected_at": source_snapshot.collected_at,
+                }
+                if source_snapshot
+                else None,
+                "ingestion_pipeline": {
+                    "id": pipeline.id,
+                    "name": pipeline.name,
+                    "version": pipeline_version.version,
+                }
+                if pipeline and pipeline_version
+                else None,
+                "processing_summary": {
+                    "unit": chunk.get("unit", "characters"),
+                    "size": chunk["size"],
+                    "overlap": chunk["overlap"],
+                    "config_version": chunk.get("config_version"),
+                }
+                if chunk
+                else None,
+            }
+        )
+    return results
 
 
 def read_index(session: Session, index: IndexVersion):

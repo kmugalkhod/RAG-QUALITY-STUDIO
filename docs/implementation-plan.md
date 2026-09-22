@@ -2,7 +2,7 @@
 
 ## Source snapshots and reusable index variants — implementation started 2026-09-22
 
-Status: Slices 1–2 of 5 complete and verified; later slices remain pending.
+Status: Slices 1–3 of 5 complete and verified; Slices 4–5 remain pending.
 
 - Slice 1 adds migration `0018`, immutable project-scoped Website source snapshots,
   exact source-item/revision membership, collecting/ready/failed/cancelled states,
@@ -28,8 +28,22 @@ Status: Slices 1–2 of 5 complete and verified; later slices remain pending.
   vector reuse, a connector factory that fails if called, ready/config/project and
   destination validation, legacy request compatibility, cancellation and existing
   ingestion regressions. Backend Ruff format/lint and whitespace checks also pass.
-- The snapshot-build API is complete, but the Knowledge Base does not expose its
-  user workflow yet. That is the Slice 3 boundary.
+- Slice 3 separates Source snapshots and Indexes in Knowledge Base. Snapshot
+  catalog/detail views restore from URLs, group Website collections by safe origin,
+  paginate exact revision membership, show terminal and collecting states, expose
+  downstream indexes, and start named new/existing index builds from a ready
+  snapshot with explicit no-refetch and possible-embedding-cost copy. Index detail
+  now shows snapshot, saved ingestion version, chunk settings, passage counts and
+  conservative legacy-lineage messaging. Successful Website collection opens its
+  snapshot; ready indexes hand their exact ID to a new answer pipeline.
+- Verified with 77 isolated PostgreSQL/pgvector index, pipeline and Website tests;
+  80 frontend tests across 24 files; frontend formatting, structure/ESLint, strict
+  TypeScript and production build; backend Ruff format/lint; and whitespace checks.
+  Focused UI coverage includes snapshot deep-link restoration, exact membership,
+  no-refetch build submission, lineage/status states and exact-index selection. The
+  established self-hosted Inter font produced the detector's two known generic-font
+  warnings; no new visual anti-pattern finding was introduced. The existing Vite
+  bundle-size advisory and Starlette/AnyIO deprecation warning remain.
 
 The next scoped ingestion improvement is documented in [Source snapshots and reusable index variants](source-snapshot-index-variants-plan.md). It covers one Website collection producing an immutable source snapshot, multiple independently named index families built from that snapshot, clear Knowledge Base lineage, exact-index answer-pipeline handoff, and same-snapshot experiment comparison.
 
