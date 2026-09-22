@@ -78,11 +78,18 @@ export function startIngestionRun(
   projectId: string,
   pipelineId: string,
   versionId: string,
-  reuseStored = false,
+  input:
+    | boolean
+    | {
+        source_input: { kind: 'refresh' } | { kind: 'snapshot'; source_snapshot_id: string };
+        destination?:
+          | { kind: 'new'; name: string }
+          | { kind: 'existing'; knowledge_set_id: string };
+      } = false,
 ): Promise<IngestionRun> {
   return postJson<IngestionRun>(
     `${pipelinesPath(projectId)}/${encodeURIComponent(pipelineId)}/versions/${encodeURIComponent(versionId)}/ingestion-runs`,
-    { reuse_stored: reuseStored },
+    typeof input === 'boolean' ? { reuse_stored: input } : input,
   );
 }
 

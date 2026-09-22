@@ -7,6 +7,9 @@ import type {
   IndexVersion,
   KnowledgeSet,
   Retrieval,
+  SourceSnapshot,
+  SourceSnapshotIndex,
+  SourceSnapshotMember,
 } from './model';
 import type { Page } from '../../lib/pagination';
 
@@ -20,6 +23,38 @@ export function getEmbeddingSettings(projectId: string): Promise<EmbeddingSettin
 
 export function listIndexes(projectId: string, offset = 0): Promise<IndexPage> {
   return request<IndexPage>(`${projectPath(projectId)}/indexes?offset=${offset}`);
+}
+
+export function listSourceSnapshots(projectId: string, offset = 0): Promise<Page<SourceSnapshot>> {
+  return request<Page<SourceSnapshot>>(
+    `${projectPath(projectId)}/source-snapshots?offset=${offset}`,
+  );
+}
+
+export function getSourceSnapshot(projectId: string, id: string): Promise<SourceSnapshot> {
+  return request<SourceSnapshot>(
+    `${projectPath(projectId)}/source-snapshots/${encodeURIComponent(id)}`,
+  );
+}
+
+export function listSourceSnapshotItems(
+  projectId: string,
+  id: string,
+  offset = 0,
+): Promise<Page<SourceSnapshotMember>> {
+  return request<Page<SourceSnapshotMember>>(
+    `${projectPath(projectId)}/source-snapshots/${encodeURIComponent(id)}/items?offset=${offset}`,
+  );
+}
+
+export function listSourceSnapshotIndexes(
+  projectId: string,
+  id: string,
+  offset = 0,
+): Promise<Page<SourceSnapshotIndex>> {
+  return request<Page<SourceSnapshotIndex>>(
+    `${projectPath(projectId)}/source-snapshots/${encodeURIComponent(id)}/indexes?offset=${offset}`,
+  );
 }
 
 export function listKnowledgeSets(projectId: string, offset = 0): Promise<Page<KnowledgeSet>> {

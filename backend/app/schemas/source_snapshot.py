@@ -71,6 +71,7 @@ class SourceSnapshotIndexRead(BaseModel):
     embedded_count: int
     is_current: bool
     ingestion_pipeline_id: UUID | None
+    ingestion_pipeline_version_id: UUID | None
     ingestion_pipeline_name: str | None
     ingestion_pipeline_version: int | None
     created_at: datetime

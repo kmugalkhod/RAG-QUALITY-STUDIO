@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { Box, Database, Plus, Search } from 'lucide-react';
+import { ArrowLeft, Box, Database, Plus, Search } from 'lucide-react';
 
 import { Button } from '../../../components/ui/button';
 import { StatusBadge } from '../../../components/StatusBadge';
@@ -89,11 +89,9 @@ export function IndexPanel({ projectId }: { projectId: string }) {
           if (disposed || seq !== request) {
             return;
           }
-          if (index.status === 'succeeded') {
-            setSelected(index);
-          } else {
-            setSearchError('This index is not ready. Choose a version marked Ready.');
-          }
+          setSelected(index);
+          if (index.status !== 'succeeded')
+            {setSearchError('This index is not ready for retrieval.');}
         })
         .catch((cause) => !disposed && seq === request && setSearchError(message(cause)));
     };
@@ -112,6 +110,7 @@ export function IndexPanel({ projectId }: { projectId: string }) {
     const [path, search] = window.location.hash.split('?');
     const params = new URLSearchParams(search);
     params.set('view', 'indexes');
+    params.set('mode', 'indexes');
     params.set('index', index.id);
     window.history.replaceState(
       null,
@@ -220,7 +219,7 @@ export function IndexPanel({ projectId }: { projectId: string }) {
           {notice}
         </p>
       )}
-      <div className="index-browser-layout">
+      <div className={`index-browser-layout ${selected ? 'has-selection' : ''}`}>
         <IndexList
           page={page}
           offset={offset}
@@ -254,6 +253,13 @@ export function IndexPanel({ projectId }: { projectId: string }) {
             </div>
           ) : (
             <>
+              <Button
+                className="snapshot-back"
+                variant="ghost"
+                onClick={() => setSelected(undefined)}
+              >
+                <ArrowLeft /> Back to indexes
+              </Button>
               <header className="index-detail-header">
                 <div>
                   <p>{selected.knowledge_set_name}</p>
@@ -263,6 +269,58 @@ export function IndexPanel({ projectId }: { projectId: string }) {
                   {selected.is_current ? 'Current index' : 'Historical index'}
                 </StatusBadge>
               </header>
+              <div className="index-lineage">
+                <h3>Lineage</h3>
+                {selected.source_snapshot_id ? (
+                  <>
+                    <p>
+                      <strong>Source snapshot</strong>{' '}
+                      <a
+                        href={`#/projects/${projectId}/knowledge-base?view=indexes&mode=snapshots&snapshot=${selected.source_snapshot_id}`}
+                      >
+                        Snapshot {selected.source_snapshot_number ?? '—'}
+                      </a>
+                      {selected.source_snapshot_collected_at
+                        ? ` · ${new Date(selected.source_snapshot_collected_at).toLocaleString()}`
+                        : ''}
+                    </p>
+                    <p>
+                      <strong>Ingestion pipeline</strong>{' '}
+                      {selected.ingestion_pipeline_name ?? 'Unavailable'}
+                      {selected.ingestion_pipeline_version
+                        ? ` · v${selected.ingestion_pipeline_version}`
+                        : ''}
+                    </p>
+                    <p>
+                      <strong>Processing</strong> chunk size {selected.chunk_size ?? '—'}, overlap{' '}
+                      {selected.chunk_overlap ?? '—'} · {selected.embedding_config.provider}/
+                      {selected.embedding_config.model} ({selected.embedding_config.dimensions}{' '}
+                      dimensions)
+                    </p>
+                    <div className="index-lineage-actions">
+                      <Button asChild variant="outline">
+                        <a
+                          href={`#/projects/${projectId}/knowledge-base?view=indexes&mode=snapshots&snapshot=${selected.source_snapshot_id}`}
+                        >
+                          Build another variant
+                        </a>
+                      </Button>
+                      {selected.status === 'succeeded' && (
+                        <Button asChild>
+                          <a href={`#/projects/${projectId}/pipelines/new?index=${selected.id}`}>
+                            Use in answer pipeline
+                          </a>
+                        </Button>
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  <p>
+                    This older index predates source snapshot lineage. Its stored records remain
+                    available, but the original Website collection cannot be proven.
+                  </p>
+                )}
+              </div>
               <dl className="index-detail-stats">
                 <div>
                   <dt>Stored passages</dt>
@@ -277,7 +335,9 @@ export function IndexPanel({ projectId }: { projectId: string }) {
                   <dd>{selected.embedding_config.dimensions.toLocaleString()}</dd>
                 </div>
               </dl>
-              <IndexRecords projectId={projectId} index={selected} />
+              {selected.status === 'succeeded' && (
+                <IndexRecords projectId={projectId} index={selected} />
+              )}
               <div className="retrieval-check-heading">
                 <Search />
                 <div>
@@ -288,23 +348,25 @@ export function IndexPanel({ projectId }: { projectId: string }) {
                   </p>
                 </div>
               </div>
-              <IndexSearch
-                selected={selected}
-                query={query}
-                settings={retrieval}
-                searching={searching}
-                error={searchError}
-                result={result}
-                onQueryChange={(value) => {
-                  setQuery(value);
-                  setResult(undefined);
-                }}
-                onSettingsChange={(value) => {
-                  setRetrieval(value);
-                  setResult(undefined);
-                }}
-                onSubmit={search}
-              />
+              {selected.status === 'succeeded' && (
+                <IndexSearch
+                  selected={selected}
+                  query={query}
+                  settings={retrieval}
+                  searching={searching}
+                  error={searchError}
+                  result={result}
+                  onQueryChange={(value) => {
+                    setQuery(value);
+                    setResult(undefined);
+                  }}
+                  onSettingsChange={(value) => {
+                    setRetrieval(value);
+                    setResult(undefined);
+                  }}
+                  onSubmit={search}
+                />
+              )}
             </>
           )}
         </section>

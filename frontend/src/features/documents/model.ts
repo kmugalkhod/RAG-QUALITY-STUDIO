@@ -57,6 +57,14 @@ export interface IndexVersion {
   failures: number;
   processing_run_count: number;
   is_current: boolean;
+  source_snapshot_id?: string | null;
+  source_snapshot_number?: number | null;
+  source_snapshot_collected_at?: string | null;
+  ingestion_pipeline_id?: string | null;
+  ingestion_pipeline_name?: string | null;
+  ingestion_pipeline_version?: number | null;
+  chunk_size?: number | null;
+  chunk_overlap?: number | null;
   error: string | null;
   created_at: string;
 }
@@ -121,3 +129,50 @@ export interface IndexRecord {
 }
 
 export type IndexRecordPage = Page<IndexRecord>;
+
+export interface SourceSnapshot {
+  id: string;
+  project_id: string;
+  source_kind: 'website';
+  source_identity: { origins?: string[]; mode?: string };
+  snapshot_number: number;
+  status: 'collecting' | 'ready' | 'failed' | 'cancelled';
+  discovered_count: number;
+  included_count: number;
+  excluded_count: number;
+  duplicate_count: number;
+  failed_count: number;
+  new_count: number;
+  changed_count: number;
+  unchanged_count: number;
+  removed_count: number;
+  total_bytes: number;
+  creating_ingestion_run_id: string;
+  downstream_index_count: number;
+  error: string | null;
+  created_at: string;
+  collected_at: string | null;
+}
+export interface SourceSnapshotMember {
+  ordinal: number;
+  canonical_location: string;
+  media_type: string;
+  size_bytes: number;
+  fetched_at: string;
+  provider_revision: string | null;
+}
+export interface SourceSnapshotIndex {
+  id: string;
+  knowledge_set_id: string;
+  knowledge_set_name: string;
+  version: number;
+  status: Run['status'];
+  chunk_count: number;
+  embedded_count: number;
+  is_current: boolean;
+  ingestion_pipeline_id: string | null;
+  ingestion_pipeline_version_id: string | null;
+  ingestion_pipeline_name: string | null;
+  ingestion_pipeline_version: number | null;
+  created_at: string;
+}

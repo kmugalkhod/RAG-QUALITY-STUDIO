@@ -3414,3 +3414,148 @@ summary {
     font-size: 0.875rem;
   }
 }
+
+.app-shell .index-mode-tabs {
+  margin: 18px 28px 0;
+  width: fit-content;
+}
+.app-shell .snapshot-browser-layout {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.75fr) minmax(0, 1.6fr);
+  border-top: 1px solid var(--border);
+  min-height: 620px;
+}
+.app-shell .snapshot-catalog,
+.app-shell .snapshot-detail {
+  padding: 22px;
+  min-width: 0;
+}
+.app-shell .snapshot-catalog {
+  border-right: 1px solid var(--border);
+}
+.app-shell .snapshot-row {
+  width: 100%;
+  min-height: 76px;
+  padding: 12px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  text-align: left;
+}
+.app-shell .snapshot-row.is-selected {
+  background: var(--accent);
+}
+.app-shell .snapshot-row span {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.app-shell .snapshot-row span:last-child {
+  justify-items: end;
+  flex: none;
+}
+.app-shell .snapshot-row small,
+.app-shell .snapshot-items small,
+.app-shell .snapshot-indexes small,
+.app-shell .muted {
+  color: var(--muted-foreground);
+}
+.app-shell .snapshot-build-form,
+.app-shell .index-lineage {
+  margin: 20px 0;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  display: grid;
+  gap: 12px;
+}
+.app-shell .snapshot-build-form label {
+  display: grid;
+  gap: 6px;
+}
+.app-shell .snapshot-build-form fieldset {
+  display: flex;
+  gap: 18px;
+  border: 0;
+  padding: 0;
+}
+.app-shell .snapshot-build-form fieldset label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.app-shell .snapshot-build-form select {
+  width: 100%;
+  min-height: 38px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0 10px;
+  background: var(--background);
+}
+.app-shell .snapshot-section-heading,
+.app-shell .index-lineage-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.app-shell .snapshot-items,
+.app-shell .snapshot-indexes {
+  display: grid;
+  gap: 8px;
+  margin: 10px 0 24px;
+}
+.app-shell .snapshot-items > div,
+.app-shell .snapshot-indexes > a {
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  overflow-wrap: anywhere;
+}
+.app-shell .snapshot-indexes > a {
+  align-items: center;
+  color: inherit;
+  text-decoration: none;
+}
+.app-shell .snapshot-indexes span {
+  display: grid;
+  gap: 3px;
+}
+.app-shell .snapshot-back {
+  display: none;
+}
+.app-shell .index-lineage p {
+  margin: 0;
+}
+.app-shell .index-lineage strong {
+  margin-right: 6px;
+}
+@media (max-width: 760px) {
+  .app-shell .snapshot-browser-layout {
+    display: block;
+  }
+  .app-shell .snapshot-catalog {
+    border-right: 0;
+  }
+  .app-shell .snapshot-workspace.has-selection .snapshot-catalog,
+  .app-shell .index-browser-layout.has-selection > :first-child {
+    display: none;
+  }
+  .app-shell .snapshot-workspace:not(.has-selection) .snapshot-detail,
+  .app-shell .index-browser-layout:not(.has-selection) .index-detail {
+    display: none;
+  }
+  .app-shell .snapshot-back {
+    display: inline-flex;
+    margin-bottom: 10px;
+  }
+  .app-shell .index-mode-tabs {
+    margin-inline: 18px;
+  }
+}

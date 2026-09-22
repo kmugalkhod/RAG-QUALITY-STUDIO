@@ -3,7 +3,7 @@ import { DocumentInspector } from './components/DocumentInspector';
 import { DocumentTable } from './components/DocumentTable';
 import { DocumentUpload } from './components/DocumentUpload';
 import { message } from './documentPresentation';
-import { IndexPanel } from './components/IndexPanel';
+import { IndexesWorkspace } from './components/IndexesWorkspace';
 import { useEffect, useState } from 'react';
 import { FileText, Plus, X, Files, Database } from 'lucide-react';
 import { Button } from '../../components/ui/button';
@@ -171,7 +171,7 @@ export function KnowledgeBase({
           </TabsTrigger>
           <TabsTrigger value="indexes">
             <Database />
-            Document sets
+            Indexes
           </TabsTrigger>
         </TabsList>
         {showUpload && (
@@ -210,7 +210,7 @@ export function KnowledgeBase({
               />
             </TabsContent>
             <TabsContent value="indexes">
-              <IndexPanel key={projectId} projectId={projectId} />
+              <IndexesWorkspace key={projectId} projectId={projectId} />
             </TabsContent>
           </div>
           {selected && tab === 'documents' && (

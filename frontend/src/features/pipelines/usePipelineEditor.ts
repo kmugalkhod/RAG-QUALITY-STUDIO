@@ -144,7 +144,13 @@ export function usePipelineEditor(projectId: string, pipelineId: string, version
         setIndexes(readyIndexes);
         setError('');
         if (pipelineId === 'new') {
-          const defaultIndex = readyIndexes.find((index) => index.is_current) ?? readyIndexes[0];
+          const linkedIndex = new URLSearchParams(window.location.hash.split('?')[1] || '').get(
+            'index',
+          );
+          const defaultIndex =
+            readyIndexes.find((index) => index.id === linkedIndex) ??
+            readyIndexes.find((index) => index.is_current) ??
+            readyIndexes[0];
           const template = createPipelineDraft(
             serverOptions,
             'Untitled answer pipeline',

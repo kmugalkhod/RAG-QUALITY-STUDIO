@@ -332,6 +332,7 @@ def list_indexes(
                 "embedded_count": index.embedded_count,
                 "is_current": knowledge_set.current_ready_index_id == index.id,
                 "ingestion_pipeline_id": pipeline.id if pipeline else None,
+                "ingestion_pipeline_version_id": version.id if version else None,
                 "ingestion_pipeline_name": pipeline.name if pipeline else None,
                 "ingestion_pipeline_version": version.version if version else None,
                 "created_at": index.created_at,

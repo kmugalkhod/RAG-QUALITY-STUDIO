@@ -44,6 +44,14 @@ class IndexRead(BaseModel):
     failures: int
     processing_run_count: int
     is_current: bool
+    source_snapshot_id: UUID | None = None
+    source_snapshot_number: int | None = None
+    source_snapshot_collected_at: datetime | None = None
+    ingestion_pipeline_id: UUID | None = None
+    ingestion_pipeline_name: str | None = None
+    ingestion_pipeline_version: int | None = None
+    chunk_size: int | None = None
+    chunk_overlap: int | None = None
     error: str | None
     created_at: datetime
 
