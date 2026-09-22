@@ -5,6 +5,7 @@ import { Input } from '../../../components/ui/input';
 import { Label } from '../../../components/ui/label';
 import { NativeSelect, NativeSelectOption } from '../../../components/ui/native-select';
 import type { PipelineVersion } from '../../pipelines/model';
+import type { IndexVersion } from '../../documents/model';
 import * as api from '../api';
 import { type Dataset, type Metric, metricLabel } from '../model';
 import { Configuration } from './Configuration';
@@ -17,6 +18,7 @@ export function ExperimentForm({
   projectId,
   datasets,
   pipelines,
+  indexes,
   options,
   name,
   datasetId,
@@ -36,6 +38,7 @@ export function ExperimentForm({
   projectId: string;
   datasets: Dataset[];
   pipelines: PipelineVersion[];
+  indexes: IndexVersion[];
   options?: EvaluationOptions;
   name: string;
   datasetId: string;
@@ -68,6 +71,28 @@ export function ExperimentForm({
       onChange: onCandidateBChange,
     },
   ];
+  const selectedVersions = [candidateA, candidateB]
+    .filter(Boolean)
+    .map((id) => pipelines.find((pipeline) => pipeline.id === id))
+    .filter((version): version is PipelineVersion => !!version);
+  const selectedIndexes = selectedVersions.map((version) => {
+    const indexId = version.execution.nodes.find((node) => node.type === 'retriever')?.index_id;
+    return indexes.find((index) => index.id === indexId);
+  });
+  const comparisonMessage =
+    selectedIndexes.length === 2 &&
+    selectedIndexes.every((index) => !!index?.source_snapshot) &&
+    selectedIndexes[0]?.source_snapshot?.id === selectedIndexes[1]?.source_snapshot?.id
+      ? {
+          kind: 'same',
+          text: 'Same source snapshot. Differences are caused by the selected index and pipeline configurations, not different collected content.',
+        }
+      : selectedIndexes.length === 2
+        ? {
+            kind: 'warning',
+            text: 'These pipelines use different source snapshots. Quality differences may come from changed source content as well as configuration.',
+          }
+        : undefined;
 
   return (
     <section className="experiment-section mt-6 border-t border-border py-6">
@@ -146,11 +171,26 @@ export function ExperimentForm({
               {pipelines.find((pipeline) => pipeline.id === candidate.value) && (
                 <Configuration
                   version={pipelines.find((pipeline) => pipeline.id === candidate.value)!}
+                  index={indexes.find(
+                    (index) =>
+                      index.id ===
+                      pipelines
+                        .find((pipeline) => pipeline.id === candidate.value)
+                        ?.execution.nodes.find((node) => node.type === 'retriever')?.index_id,
+                  )}
                 />
               )}
             </div>
           ))}
         </div>
+        {comparisonMessage && (
+          <p
+            className={comparisonMessage.kind === 'same' ? 'source-match' : 'source-mismatch'}
+            role="status"
+          >
+            {comparisonMessage.text}
+          </p>
+        )}
         <fieldset>
           <legend>Evaluation metrics</legend>
           {metrics.map((metric) => (

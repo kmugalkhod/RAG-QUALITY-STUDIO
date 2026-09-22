@@ -112,6 +112,21 @@ export function NodeSettings({
               {selectedIndex.chunk_count.toLocaleString()} passages
             </p>
           )}
+          {selectedIndex?.source_snapshot && (
+            <p className="index-source-lineage" aria-label="Selected index source lineage">
+              Source snapshot {selectedIndex.source_snapshot.snapshot_number} · collected{' '}
+              {selectedIndex.source_snapshot.collected_at
+                ? new Intl.DateTimeFormat(undefined, {
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric',
+                  }).format(new Date(selectedIndex.source_snapshot.collected_at))
+                : 'date unavailable'}
+            </p>
+          )}
+          {selectedIndex?.source_kind === 'website' && !selectedIndex.source_snapshot && (
+            <p className="legacy-lineage-warning">Legacy Website snapshot lineage unavailable.</p>
+          )}
           {!indexes.length && (
             <p>Prepare a document set in the Knowledge Base to start asking questions.</p>
           )}

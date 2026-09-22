@@ -113,6 +113,10 @@ test('retrieves from explicit version and exposes source evidence and distance',
   expect(screen.getByRole('heading', { name: 'Uploaded documents' })).toBeVisible();
   expect(screen.getByText('Current index')).toBeVisible();
   expect(screen.getByText(/1 processing run/)).toBeVisible();
+  expect(screen.getByRole('link', { name: 'Use in answer pipeline' })).toHaveAttribute(
+    'href',
+    '#/projects/p1/pipelines/new?index=i1',
+  );
   await userEvent.type(screen.getByLabelText('Search query'), 'Where is the evidence?');
   await userEvent.click(screen.getByRole('button', { name: 'Search documents only' }));
   expect(api.retrieve).toHaveBeenCalledWith('p1', 'i1', 'Where is the evidence?', {

@@ -27,7 +27,13 @@ export type Candidate = {
   version: number;
   execution: PipelineExecution;
   index_id: string;
+  index_name: string;
   index_version: number;
+  source_snapshot: {
+    id: string;
+    snapshot_number: number;
+    collected_at: string | null;
+  } | null;
   generation_config: { model: string };
   embedding_config: { model: string };
 };
@@ -60,6 +66,10 @@ export type Experiment = {
   snapshot: {
     dataset: Dataset;
     candidates: Candidate[];
+    source_comparison?: {
+      status: 'single' | 'same' | 'different_or_unavailable';
+      message: string | null;
+    };
     evaluator: { model: string; metrics: Metric[]; ragas_version: string };
     application: { source_sha256: string };
   };

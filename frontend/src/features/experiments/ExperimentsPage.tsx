@@ -8,6 +8,8 @@ import { Button } from '../../components/ui/button';
 import { listPipelines, listPipelineVersions } from '../pipelines/api';
 import { type PipelineVersion } from '../pipelines/model';
 import { allPages } from '../../lib/pagination';
+import { listIndexes } from '../documents/indexApi';
+import type { IndexVersion } from '../documents/model';
 import * as api from './api';
 import { type Dataset, type Experiment, type Metric } from './model';
 export function ExperimentsPage({
@@ -19,6 +21,7 @@ export function ExperimentsPage({
 }) {
   const [datasets, setDatasets] = useState<Dataset[]>([]);
   const [pipelines, setPipelines] = useState<PipelineVersion[]>([]);
+  const [indexes, setIndexes] = useState<IndexVersion[]>([]);
   const [history, setHistory] = useState<Experiment[]>([]);
   const [options, setOptions] = useState<Awaited<ReturnType<typeof api.getEvaluationOptions>>>();
   const [error, setError] = useState('');
@@ -72,13 +75,15 @@ export function ExperimentsPage({
           Promise.all(ps.map((p) => allPages((o) => listPipelineVersions(projectId, p.id, o)))),
         )
         .then((vs) => vs.flat()),
+      allPages((o) => listIndexes(projectId, o)),
     ])
-      .then(([ds, hs, opts, vs]) => {
+      .then(([ds, hs, opts, vs, loadedIndexes]) => {
         if (!disposed) {
           setDatasets(ds);
           setHistory(hs);
           setOptions(opts);
           setPipelines(vs);
+          setIndexes(loadedIndexes.filter((index) => index.status === 'succeeded'));
           setDataset((id) => (ds.some((d) => d.id === id) ? id : ''));
           setA((id) => (vs.some((v) => v.id === id) ? id : ''));
           setB((id) => (vs.some((v) => v.id === id) ? id : ''));
@@ -171,6 +176,7 @@ export function ExperimentsPage({
             projectId={projectId}
             datasets={datasets}
             pipelines={pipelines}
+            indexes={indexes}
             options={options}
             name={name}
             datasetId={dataset}

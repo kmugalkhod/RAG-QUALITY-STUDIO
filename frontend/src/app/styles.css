@@ -213,6 +213,18 @@
 .candidate-settings span {
   font-size: 12px;
 }
+.source-match,
+.source-mismatch {
+  margin: 16px 0;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--success) 46%, var(--border));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--success) 8%, var(--background));
+}
+.source-mismatch {
+  border-color: color-mix(in srgb, var(--warning) 46%, var(--border));
+  background: color-mix(in srgb, var(--warning) 8%, var(--background));
+}
 .experiments pre {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -1898,6 +1910,12 @@ footer {
   font-size: 11px;
 }
 
+.app-shell .index-source-lineage {
+  margin: -6px 0 12px;
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+
 .app-shell .chunk-presets {
   display: flex;
   flex-wrap: wrap;
@@ -3201,6 +3219,31 @@ summary {
   border-bottom: 1px solid var(--border);
   background: var(--card);
 }
+.snapshot-run-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(220px, 0.8fr) auto;
+  align-items: end;
+  gap: 16px;
+  padding: 18px 24px;
+  border-bottom: 1px solid var(--border);
+  background: var(--card);
+}
+.snapshot-run-panel :is(h2, p) {
+  margin: 0;
+}
+.snapshot-run-panel h2 {
+  font-size: 15px;
+}
+.snapshot-run-panel p {
+  margin-top: 4px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 1.55;
+}
+.snapshot-run-panel label {
+  display: grid;
+  gap: 7px;
+}
 .automatic-sync-intro,
 .automatic-sync-summary,
 .automatic-sync-actions {
@@ -3625,6 +3668,10 @@ summary {
   .automatic-sync-panel {
     max-height: none;
     padding: 20px 16px 24px;
+  }
+  .snapshot-run-panel {
+    grid-template-columns: 1fr;
+    padding: 18px 16px;
   }
   .automatic-sync-create {
     grid-template-columns: 1fr;

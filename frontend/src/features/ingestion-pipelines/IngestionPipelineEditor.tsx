@@ -39,8 +39,12 @@ import { NativeSelect, NativeSelectOption } from '../../components/ui/native-sel
 import { Textarea } from '../../components/ui/textarea';
 import { allPages, type Page } from '../../lib/pagination';
 import { listDocuments } from '../documents/api';
-import { getEmbeddingSettings, listKnowledgeSets } from '../documents/indexApi';
-import type { Document, EmbeddingConfig, KnowledgeSet } from '../documents/model';
+import {
+  getEmbeddingSettings,
+  listKnowledgeSets,
+  listSourceSnapshots,
+} from '../documents/indexApi';
+import type { Document, EmbeddingConfig, KnowledgeSet, SourceSnapshot } from '../documents/model';
 import { getConnectionSettings, listConnections } from '../connections/api';
 import type { ConnectionSettings, SourceConnection } from '../connections/model';
 import * as api from './api';
@@ -924,6 +928,10 @@ export function IngestionPipelineEditor({
   const [run, setRun] = useState<IngestionRun>();
   const [items, setItems] = useState<IngestionRunItem[]>([]);
   const [schedules, setSchedules] = useState<IngestionSchedule[]>([]);
+  const [sourceSnapshots, setSourceSnapshots] = useState<SourceSnapshot[]>([]);
+  const [snapshotPanelOpen, setSnapshotPanelOpen] = useState(false);
+  const [sourceSnapshotId, setSourceSnapshotId] = useState('');
+  const [snapshotRunError, setSnapshotRunError] = useState('');
   const [automaticSyncOpen, setAutomaticSyncOpen] = useState(false);
   const [scheduleName, setScheduleName] = useState('Daily sync');
   const [scheduleMinutes, setScheduleMinutes] = useState(1440);
@@ -964,11 +972,12 @@ export function IngestionPipelineEditor({
       allPages((offset) => listKnowledgeSets(projectId, offset)),
       getEmbeddingSettings(projectId),
       loadConnectionState(projectId),
+      allPages((offset) => listSourceSnapshots(projectId, offset)),
       pipelineId === 'new'
         ? Promise.resolve([] as IngestionPipelineVersion[])
         : allPages((offset) => api.listIngestionPipelineVersions(projectId, pipelineId, offset)),
     ])
-      .then(([docs, sets, embedding, connectionState, savedVersions]) => {
+      .then(([docs, sets, embedding, connectionState, snapshots, savedVersions]) => {
         if (disposed) {
           return;
         }
@@ -976,6 +985,7 @@ export function IngestionPipelineEditor({
         setKnowledgeSets(sets);
         setConnectionSettings(connectionState.settings);
         setConnections(connectionState.connections);
+        setSourceSnapshots(snapshots.filter((snapshot) => snapshot.status === 'ready'));
         setVersions(savedVersions);
         if (!embedding.configured || !embedding.config) {
           throw new Error(
@@ -1370,14 +1380,30 @@ export function IngestionPipelineEditor({
     );
   }
 
-  function startRun(reuseStored = false) {
+  function startRun(
+    sourceInput?: { kind: 'refresh' } | { kind: 'snapshot'; source_snapshot_id: string },
+  ) {
     if (!saved || dirty) {
       return;
     }
-    void perform(async () => {
-      setItems([]);
-      setRun(await api.startIngestionRun(projectId, saved.pipeline_id, saved.id, reuseStored));
-    });
+    setBusy(true);
+    setError('');
+    setSnapshotRunError('');
+    void (async () => {
+      try {
+        setItems([]);
+        setRun(await api.startIngestionRun(projectId, saved.pipeline_id, saved.id, sourceInput));
+      } catch (cause) {
+        const safe = message(cause);
+        if (sourceInput?.kind === 'snapshot') {
+          setSnapshotRunError(safe);
+        } else {
+          setError(safe);
+        }
+      } finally {
+        setBusy(false);
+      }
+    })();
   }
 
   function createSchedule() {
@@ -1528,18 +1554,24 @@ export function IngestionPipelineEditor({
               Preview source
             </Button>
             {websiteSource && (
-              <Button variant="outline" onClick={() => startRun(true)} disabled={!saved || dirty}>
+              <Button
+                variant="outline"
+                aria-expanded={snapshotPanelOpen}
+                aria-controls="snapshot-run-panel"
+                onClick={() => setSnapshotPanelOpen((open) => !open)}
+                disabled={!saved || dirty || busy}
+              >
                 <Database size={15} />
-                Reprocess stored pages
+                Build from source snapshot
               </Button>
             )}
             <Button
               variant={dirty ? 'outline' : 'default'}
-              onClick={() => startRun(false)}
-              disabled={!saved || dirty}
+              onClick={() => startRun(websiteSource ? { kind: 'refresh' } : undefined)}
+              disabled={!saved || dirty || busy}
             >
               <Play size={15} />
-              {websiteSource ? 'Refresh website & run' : 'Run saved version'}
+              {websiteSource ? 'Collect source & build index' : 'Run saved version'}
             </Button>
             {saved && (
               <Button
@@ -1559,6 +1591,49 @@ export function IngestionPipelineEditor({
             )}
           </div>
         </div>
+        {websiteSource && saved && snapshotPanelOpen && (
+          <section id="snapshot-run-panel" className="snapshot-run-panel">
+            <div>
+              <h2>Build from an existing source snapshot</h2>
+              <p>
+                Build another index from the content already collected. The website will not be
+                requested again. Embedding costs may still apply.
+              </p>
+            </div>
+            <Label>
+              Ready source snapshot
+              <NativeSelect
+                value={sourceSnapshotId}
+                onChange={(event) => setSourceSnapshotId(event.target.value)}
+              >
+                <NativeSelectOption value="">Choose a source snapshot</NativeSelectOption>
+                {sourceSnapshots.map((snapshot) => (
+                  <NativeSelectOption key={snapshot.id} value={snapshot.id}>
+                    Snapshot {snapshot.snapshot_number} · {snapshot.included_count} pages ·{' '}
+                    {snapshot.source_identity.origins?.join(', ') || 'Website source'}
+                  </NativeSelectOption>
+                ))}
+              </NativeSelect>
+            </Label>
+            {!sourceSnapshots.length && (
+              <p>
+                No ready source snapshot is available. Collect the source first, or inspect Source
+                snapshots in Knowledge Base.
+              </p>
+            )}
+            {snapshotRunError && (
+              <p role="alert" className="error-message">
+                {snapshotRunError}
+              </p>
+            )}
+            <Button
+              disabled={!sourceSnapshotId || busy}
+              onClick={() => startRun({ kind: 'snapshot', source_snapshot_id: sourceSnapshotId })}
+            >
+              Build index without requesting the website
+            </Button>
+          </section>
+        )}
         {saved && automaticSyncOpen && (
           <section
             id="automatic-sync-panel"
@@ -1960,7 +2035,7 @@ export function IngestionPipelineEditor({
                       <p>
                         To try new chunk settings without scraping again: choose a preset or edit
                         the values, save a new version, then select{' '}
-                        <strong>Reprocess stored pages</strong>.
+                        <strong>Build from source snapshot</strong>.
                       </p>
                     </div>
                   )}

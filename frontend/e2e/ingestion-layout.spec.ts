@@ -205,10 +205,10 @@ test('saving records the draft and discard restores the saved stage settings', a
   await page.getByLabel('Starting URL').fill('https://example.org/');
   await page.getByRole('button', { name: 'Save version', exact: true }).click();
   await expect(page.getByText('Saved version 1', { exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Refresh website & run' })).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'Collect source & build index' })).toBeEnabled();
   await page.getByRole('button', { name: '4 Chunk', exact: true }).click();
   await page.getByLabel('Chunk size (characters)').fill('1500');
-  await expect(page.getByRole('button', { name: 'Refresh website & run' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Collect source & build index' })).toBeDisabled();
   await page.getByRole('button', { name: 'Discard changes' }).click();
   await expect(page.getByLabel('Chunk size (characters)')).toHaveValue('1000');
   await expect(page.getByText('Saved version 1', { exact: true })).toBeVisible();

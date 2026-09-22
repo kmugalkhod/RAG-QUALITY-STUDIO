@@ -78,11 +78,11 @@ export function startIngestionRun(
   projectId: string,
   pipelineId: string,
   versionId: string,
-  reuseStored = false,
+  sourceInput?: { kind: 'refresh' } | { kind: 'snapshot'; source_snapshot_id: string },
 ): Promise<IngestionRun> {
   return postJson<IngestionRun>(
     `${pipelinesPath(projectId)}/${encodeURIComponent(pipelineId)}/versions/${encodeURIComponent(versionId)}/ingestion-runs`,
-    { reuse_stored: reuseStored },
+    sourceInput ? { source_input: sourceInput } : {},
   );
 }
 

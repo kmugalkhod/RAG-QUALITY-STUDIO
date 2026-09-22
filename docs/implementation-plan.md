@@ -2,7 +2,7 @@
 
 ## Source snapshots and reusable index variants — implementation started 2026-09-22
 
-Status: Slices 1–3 of 5 complete and verified; Slices 4–5 remain pending.
+Status: Slices 1–4 of 5 complete and verified; final hardening and documentation remain.
 
 - Slice 1 adds migration `0018`, immutable project-scoped Website source snapshots,
   exact source-item/revision membership, collecting/ready/failed/cancelled states,
@@ -44,6 +44,24 @@ Status: Slices 1–3 of 5 complete and verified; Slices 4–5 remain pending.
   established self-hosted Inter font produced the detector's two known generic-font
   warnings; no new visual anti-pattern finding was introduced. The existing Vite
   bundle-size advisory and Starlette/AnyIO deprecation warning remain.
+- Slice 4 replaces ambiguous Website run actions with explicit **Collect source &
+  build index** and **Build from source snapshot** choices. The latter selects a
+  ready project snapshot, sends the discriminated snapshot input, retains server
+  compatibility validation errors beside the action, and states that no Website
+  request occurs while embedding cost may apply. Answer retrievers display the
+  exact selected index and read-only source snapshot/date lineage.
+- Experiment setup resolves each saved answer pipeline's exact index and source
+  snapshot. Two candidates show the required same-snapshot confirmation or the
+  conservative mismatch/legacy caveat without blocking submission. Submission
+  copies index name/version and snapshot identity into the immutable experiment;
+  results and formula-safe CSV export retain the comparison status and message.
+- Verified with 45 isolated PostgreSQL/pgvector Website, pipeline and experiment
+  tests, including conservative comparison classification and export lineage.
+  All 84 frontend tests across 26 files pass; formatting, structure/ESLint, strict
+  TypeScript and the production build also pass. Coverage verifies the discriminated run request, exact-index
+  handoff URL, answer-retriever lineage, setup same/mismatch copy and immutable
+  result confirmation. Complete frontend and final browser evidence are recorded
+  only after the Slice 5 hardening pass.
 
 The next scoped ingestion improvement is documented in [Source snapshots and reusable index variants](source-snapshot-index-variants-plan.md). It covers one Website collection producing an immutable source snapshot, multiple independently named index families built from that snapshot, clear Knowledge Base lineage, exact-index answer-pipeline handoff, and same-snapshot experiment comparison.
 

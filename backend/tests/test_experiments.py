@@ -50,6 +50,26 @@ def test_csv_bounds_and_quoted_unicode(monkeypatch):
     assert exc.value.status_code == 413
 
 
+def test_source_comparison_is_conservative_and_uses_required_copy():
+    same = experiments.source_comparison(
+        [
+            {"source_snapshot": {"id": "snapshot-1"}},
+            {"source_snapshot": {"id": "snapshot-1"}},
+        ]
+    )
+    assert same == {
+        "status": "same",
+        "message": "Same source snapshot. Differences are caused by the selected index and pipeline configurations, not different collected content.",
+    }
+    unavailable = experiments.source_comparison(
+        [{"source_snapshot": {"id": "snapshot-1"}}, {"source_snapshot": None}]
+    )
+    assert unavailable["status"] == "different_or_unavailable"
+    assert unavailable["message"].startswith(
+        "These pipelines use different source snapshots."
+    )
+
+
 def test_metric_requirements_and_export():
     output = {
         "status": "insufficient_evidence",
@@ -174,6 +194,12 @@ def test_complete_snapshots_scope_denominators(experiment_api):
         done["snapshot"] == run["snapshot"]
         and len(done["snapshot"]["dataset"]["rows"]) == 3
     )
+    assert done["snapshot"]["source_comparison"]["status"] == "different_or_unavailable"
+    assert all(
+        candidate["source_snapshot"] is None
+        and candidate["index_name"] == "Uploaded documents"
+        for candidate in done["snapshot"]["candidates"]
+    )
     assert done["summary"]["paired"]["faithfulness"]["count"] == 2
     assert done["summary"]["paired"]["context_recall"]["count"] == 2
     metric = done["summary"]["candidates"][0]["metrics"]["context_recall"]
@@ -183,7 +209,10 @@ def test_complete_snapshots_scope_denominators(experiment_api):
         actual = c.get(f"/api/projects/{p}/query-runs/{item['query_run_id']}").json()
         assert item["output"]["snapshot"]["evidence"] == actual["snapshot"]["evidence"]
         assert actual["pipeline_version_id"] == versions[item["candidate"]]["id"]
-    assert "reference_answer" in c.get(root + "/export.csv").text
+    export = c.get(root + "/export.csv").text
+    assert "reference_answer" in export
+    assert "source_snapshot_id" in export
+    assert "These pipelines use different source snapshots." in export
 
 
 def test_partial_generation_failure_and_queued_cancel(experiment_api):

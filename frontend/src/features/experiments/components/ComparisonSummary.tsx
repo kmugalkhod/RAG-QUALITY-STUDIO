@@ -28,13 +28,21 @@ export function ComparisonSummary({ run }: { run: Detail }) {
           </section>
         ))}
       </div>
-      {run.snapshot.candidates.length === 2 &&
-        run.snapshot.candidates[0].index_id !== run.snapshot.candidates[1].index_id && (
-          <p className="index-difference">
-            Candidates use different indexed source versions. Inspect evidence before attributing
-            differences to pipeline settings.
-          </p>
-        )}
+      {run.snapshot.candidates.length === 2 && run.snapshot.source_comparison?.message && (
+        <p
+          className={
+            run.snapshot.source_comparison.status === 'same' ? 'source-match' : 'source-mismatch'
+          }
+        >
+          {run.snapshot.source_comparison.message}
+        </p>
+      )}
+      {run.snapshot.candidates.length === 2 && !run.snapshot.source_comparison && (
+        <p className="source-mismatch">
+          These pipelines use different source snapshots. Quality differences may come from changed
+          source content as well as configuration.
+        </p>
+      )}
       <section className="experiment-section">
         <h2>Candidate summaries</h2>
         <p>Means include successful scores only. Counts expose excluded and pending items.</p>

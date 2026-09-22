@@ -8,7 +8,9 @@ from pathlib import Path
 from fastapi import HTTPException
 from sqlalchemy import select
 from app.models.experiment import Experiment, ExperimentItem
+from app.models.index import KnowledgeSet
 from app.models.pipeline import PipelineVersion
+from app.models.source import SourceSnapshot
 from app.schemas.pipeline import Execution
 from app.schemas.experiment import ExperimentRead, ItemRead
 from app.services import datasets, pipelines, indexes
@@ -23,6 +25,26 @@ def application_version():
         digest.update(str(path.relative_to(root)).encode())
         digest.update(path.read_bytes())
     return {"version": "0.1.0", "source_sha256": digest.hexdigest()}
+
+
+def source_comparison(candidates):
+    if len(candidates) < 2:
+        return {"status": "single", "message": None}
+    snapshot_ids = [
+        candidate.get("source_snapshot", {}).get("id")
+        if candidate.get("source_snapshot")
+        else None
+        for candidate in candidates
+    ]
+    if all(snapshot_ids) and len(set(snapshot_ids)) == 1:
+        return {
+            "status": "same",
+            "message": "Same source snapshot. Differences are caused by the selected index and pipeline configurations, not different collected content.",
+        }
+    return {
+        "status": "different_or_unavailable",
+        "message": "These pipelines use different source snapshots. Quality differences may come from changed source content as well as configuration.",
+    }
 
 
 def submit(session, project_id, request):
@@ -45,6 +67,17 @@ def submit(session, project_id, request):
             session, project_id, Execution.model_validate(version.execution)
         )
         index = indexes.get_index(session, project_id, nodes["retriever"].index_id)
+        knowledge_set = session.get(KnowledgeSet, index.knowledge_set_id)
+        source_snapshot = (
+            session.scalar(
+                select(SourceSnapshot).where(
+                    SourceSnapshot.id == index.source_snapshot_id,
+                    SourceSnapshot.project_id == project_id,
+                )
+            )
+            if index.source_snapshot_id
+            else None
+        )
         candidates.append(
             {
                 "id": str(version.id),
@@ -54,7 +87,17 @@ def submit(session, project_id, request):
                 "execution": version.execution,
                 "generation_config": config,
                 "index_id": str(index.id),
+                "index_name": knowledge_set.name,
                 "index_version": index.version,
+                "source_snapshot": {
+                    "id": str(source_snapshot.id),
+                    "snapshot_number": source_snapshot.snapshot_number,
+                    "collected_at": source_snapshot.collected_at.isoformat()
+                    if source_snapshot.collected_at
+                    else None,
+                }
+                if source_snapshot
+                else None,
                 "embedding_config": index.embedding_config,
                 "retrieval": nodes["retriever"].settings.model_dump(),
                 "retrieval_algorithm": algorithm_snapshot(),
@@ -74,6 +117,7 @@ def submit(session, project_id, request):
                 "rows": dataset.rows,
             },
             "candidates": candidates,
+            "source_comparison": source_comparison(candidates),
             "evaluator": judge,
             "application": application_version(),
         }
@@ -289,6 +333,8 @@ def export_csv(session, project_id, experiment_id):
             "candidate",
             "pipeline_version_id",
             "index_id",
+            "source_snapshot_id",
+            "source_comparison",
             "status",
             "answer",
             "query_run_id",
@@ -317,6 +363,8 @@ def export_csv(session, project_id, experiment_id):
                     candidate["name"],
                     candidate["id"],
                     candidate["index_id"],
+                    (candidate.get("source_snapshot") or {}).get("id"),
+                    (experiment.snapshot.get("source_comparison") or {}).get("message"),
                     item.status,
                     item.output.get("answer"),
                     item.query_run_id,

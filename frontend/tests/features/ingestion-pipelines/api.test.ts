@@ -50,7 +50,7 @@ test('keeps preview and durable run operations distinct', async () => {
   await listSourcePreviewItems('project', 'preview');
   await cancelSourcePreview('project', 'preview');
   await listIngestionPipelineVersions('project', 'pipeline');
-  await startIngestionRun('project', 'pipeline', 'version');
+  await startIngestionRun('project', 'pipeline', 'version', { kind: 'refresh' });
   await getIngestionRun('project', 'run');
   await listIngestionRunItems('project', 'run');
   await cancelIngestionRun('project', 'run');
@@ -63,7 +63,10 @@ test('keeps preview and durable run operations distinct', async () => {
   expect(fetch).toHaveBeenNthCalledWith(
     6,
     '/api/projects/project/pipelines/pipeline/versions/version/ingestion-runs',
-    expect.objectContaining({ method: 'POST' }),
+    expect.objectContaining({
+      method: 'POST',
+      body: JSON.stringify({ source_input: { kind: 'refresh' } }),
+    }),
   );
   expect(fetch).toHaveBeenNthCalledWith(
     9,
@@ -109,5 +112,22 @@ test('uses project-scoped schedule endpoints and paused-by-default payloads', as
     4,
     '/api/projects/project/ingestion-schedules/schedule/run',
     expect.objectContaining({ method: 'POST' }),
+  );
+});
+
+test('starts an offline build with an explicit source snapshot', async () => {
+  await startIngestionRun('project', 'pipeline', 'version', {
+    kind: 'snapshot',
+    source_snapshot_id: 'snapshot',
+  });
+
+  expect(fetch).toHaveBeenCalledWith(
+    '/api/projects/project/pipelines/pipeline/versions/version/ingestion-runs',
+    expect.objectContaining({
+      method: 'POST',
+      body: JSON.stringify({
+        source_input: { kind: 'snapshot', source_snapshot_id: 'snapshot' },
+      }),
+    }),
   );
 });

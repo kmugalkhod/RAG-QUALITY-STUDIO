@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ExperimentsPage } from '../../../src/features/experiments/ExperimentsPage';
 import * as api from '../../../src/features/experiments/api';
 import * as pipelines from '../../../src/features/pipelines/api';
+import * as documents from '../../../src/features/documents/indexApi';
 vi.mock('../../../src/features/experiments/api', async (original) => ({
   ...(await original<typeof api>()),
   listDatasets: vi.fn(),
@@ -16,11 +17,21 @@ vi.mock('../../../src/features/pipelines/api', async (original) => ({
   ...(await original<typeof pipelines>()),
   listPipelines: vi.fn(),
 }));
+vi.mock('../../../src/features/documents/indexApi', async (original) => ({
+  ...(await original<typeof documents>()),
+  listIndexes: vi.fn(),
+}));
 beforeEach(() => {
   sessionStorage.clear();
   vi.mocked(api.listDatasets).mockResolvedValue({ items: [], total: 0, limit: 20, offset: 0 });
   vi.mocked(api.listExperiments).mockResolvedValue({ items: [], total: 0, limit: 20, offset: 0 });
   vi.mocked(pipelines.listPipelines).mockResolvedValue({
+    items: [],
+    total: 0,
+    limit: 20,
+    offset: 0,
+  });
+  vi.mocked(documents.listIndexes).mockResolvedValue({
     items: [],
     total: 0,
     limit: 20,
