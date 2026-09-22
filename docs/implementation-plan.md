@@ -1,8 +1,20 @@
 # Implementation plan
 
-## Source snapshots and reusable index variants — proposed 2026-09-22
+## Source snapshots and reusable index variants — implementation started 2026-09-22
 
-Status: planned, not implemented.
+Status: Slice 1 of 5 complete and verified; later slices remain pending.
+
+- Slice 1 adds migration `0018`, immutable project-scoped Website source snapshots,
+  exact source-item/revision membership, collecting/ready/failed/cancelled states,
+  links from ingestion runs and indexes, conservative historical backfill, and
+  paginated snapshot/detail/item/downstream-index reads. Snapshot APIs expose only
+  safe source identity summaries; full stored source configuration remains server-side.
+- Verified on an isolated PostgreSQL/pgvector database: clean upgrade through head,
+  Alembic model drift check, six Website ingestion tests covering exact membership,
+  pagination, project isolation, ready/failed/cancelled behavior and index linkage,
+  plus complete backend Ruff formatting and lint checks.
+- Slice 1 does not yet permit choosing a snapshot as a new execution input or
+  building a second destination. That is the Slice 2 boundary.
 
 The next scoped ingestion improvement is documented in [Source snapshots and reusable index variants](source-snapshot-index-variants-plan.md). It covers one Website collection producing an immutable source snapshot, multiple independently named index families built from that snapshot, clear Knowledge Base lineage, exact-index answer-pipeline handoff, and same-snapshot experiment comparison.
 

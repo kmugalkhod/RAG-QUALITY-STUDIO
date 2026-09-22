@@ -48,6 +48,14 @@ def ready(session: Database) -> dict[str, str]:
     session.execute(text("SELECT extracted_hash FROM source_revisions LIMIT 0"))
     session.execute(text("SELECT outcome, status FROM website_run_items LIMIT 0"))
     session.execute(
+        text("SELECT status, source_config_hash FROM source_snapshots LIMIT 0")
+    )
+    session.execute(
+        text(
+            "SELECT snapshot_id, source_revision_id FROM source_snapshot_members LIMIT 0"
+        )
+    )
+    session.execute(
         text(
             "SELECT index_id, source_revision_id, source_node_id "
             "FROM index_source_revisions LIMIT 0"

@@ -15,7 +15,13 @@ from app.schemas.ingestion import (
     SourcePreviewItemPage,
     SourcePreviewRead,
 )
-from app.services import ingestion, previews
+from app.schemas.source_snapshot import (
+    SourceSnapshotIndexPage,
+    SourceSnapshotMemberPage,
+    SourceSnapshotPage,
+    SourceSnapshotRead,
+)
+from app.services import ingestion, previews, source_snapshots
 from app.services import pipelines as pipeline_service
 
 
@@ -114,3 +120,45 @@ def list_items(
 @router.post("/ingestion-runs/{run_id}/cancel", response_model=IngestionRunRead)
 def cancel_run(project_id: UUID, run_id: UUID, session: Database):
     return ingestion.cancel_run(session, project_id, run_id)
+
+
+@router.get("/source-snapshots", response_model=SourceSnapshotPage)
+def list_source_snapshots(
+    project_id: UUID, session: Database, limit: Limit = 20, offset: Offset = 0
+):
+    return source_snapshots.list_snapshots(session, project_id, limit, offset)
+
+
+@router.get("/source-snapshots/{snapshot_id}", response_model=SourceSnapshotRead)
+def get_source_snapshot(project_id: UUID, snapshot_id: UUID, session: Database):
+    return source_snapshots.read(session, project_id, snapshot_id)
+
+
+@router.get(
+    "/source-snapshots/{snapshot_id}/items",
+    response_model=SourceSnapshotMemberPage,
+)
+def list_source_snapshot_items(
+    project_id: UUID,
+    snapshot_id: UUID,
+    session: Database,
+    limit: Limit = 20,
+    offset: Offset = 0,
+):
+    return source_snapshots.list_items(session, project_id, snapshot_id, limit, offset)
+
+
+@router.get(
+    "/source-snapshots/{snapshot_id}/indexes",
+    response_model=SourceSnapshotIndexPage,
+)
+def list_source_snapshot_indexes(
+    project_id: UUID,
+    snapshot_id: UUID,
+    session: Database,
+    limit: Limit = 20,
+    offset: Offset = 0,
+):
+    return source_snapshots.list_indexes(
+        session, project_id, snapshot_id, limit, offset
+    )

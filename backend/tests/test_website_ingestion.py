@@ -1,3 +1,6 @@
+import os
+import subprocess
+import sys
 from datetime import timedelta
 from uuid import UUID
 
@@ -16,6 +19,8 @@ from app.models.source import (
     IndexSourceRevision,
     SourceItem,
     SourceRevision,
+    SourceSnapshot,
+    SourceSnapshotMember,
     WebsiteRunItem,
 )
 from app.pipelines.web_content import chunk_sections, extract_sections
@@ -86,6 +91,27 @@ def website_api(documents_api, monkeypatch):  # noqa: F811
         ).all()
         processing = [revision.processing_run_id for revision in revisions]
         documents = [revision.document_id for revision in revisions]
+        session.execute(
+            update(IndexVersion)
+            .where(IndexVersion.id.in_(indexes))
+            .values(source_snapshot_id=None)
+        )
+        session.execute(
+            update(IngestionRun)
+            .where(IngestionRun.id.in_(runs))
+            .values(source_snapshot_id=None)
+        )
+        snapshots = select(SourceSnapshot.id).where(
+            SourceSnapshot.project_id == project_uuid
+        )
+        session.execute(
+            delete(SourceSnapshotMember).where(
+                SourceSnapshotMember.snapshot_id.in_(snapshots)
+            )
+        )
+        session.execute(
+            delete(SourceSnapshot).where(SourceSnapshot.project_id == project_uuid)
+        )
         session.execute(
             delete(IndexSourceRevision).where(IndexSourceRevision.index_id.in_(indexes))
         )
@@ -375,6 +401,156 @@ def test_first_crawl_incremental_refresh_and_preserved_indexes(website_api):
     assert len(provider.calls) >= 3
 
 
+def test_ready_snapshot_has_exact_paginated_project_scoped_membership(website_api):
+    client, engine, project_id, other_project_id, config, _provider = website_api
+    version = save_website(client, project_id, config)
+    run = start_run(client, project_id, version)
+    assert run["source_snapshot_id"] is not None
+    collecting = client.get(
+        f"/api/projects/{project_id}/source-snapshots/{run['source_snapshot_id']}"
+    )
+    assert collecting.status_code == 200
+    assert collecting.json()["status"] == "collecting"
+
+    index_id = publish(
+        engine,
+        run["id"],
+        lambda: WebsiteDouble(
+            [
+                page("https://example.com/a", b"<main><p>Alpha page.</p></main>"),
+                page("https://example.com/b", b"<main><p>Beta page.</p></main>"),
+            ],
+            [],
+        ),
+    )
+    snapshot_id = run["source_snapshot_id"]
+    detail = client.get(f"/api/projects/{project_id}/source-snapshots/{snapshot_id}")
+    assert detail.status_code == 200
+    assert detail.json()["status"] == "ready"
+    assert detail.json()["included_count"] == 2
+    assert detail.json()["downstream_index_count"] == 1
+    assert detail.json()["source_identity"] == {
+        "origins": ["https://example.com"],
+        "selection_modes": ["single_url"],
+    }
+
+    first_page = client.get(
+        f"/api/projects/{project_id}/source-snapshots/{snapshot_id}/items",
+        params={"limit": 1, "offset": 0},
+    ).json()
+    second_page = client.get(
+        f"/api/projects/{project_id}/source-snapshots/{snapshot_id}/items",
+        params={"limit": 1, "offset": 1},
+    ).json()
+    assert first_page["total"] == second_page["total"] == 2
+    assert first_page["items"][0]["ordinal"] == 0
+    assert second_page["items"][0]["ordinal"] == 1
+    assert {
+        first_page["items"][0]["canonical_location"],
+        second_page["items"][0]["canonical_location"],
+    } == {"https://example.com/a", "https://example.com/b"}
+
+    indexes = client.get(
+        f"/api/projects/{project_id}/source-snapshots/{snapshot_id}/indexes"
+    ).json()
+    assert indexes["total"] == 1
+    assert indexes["items"][0]["id"] == str(index_id)
+    with Session(engine) as session:
+        snapshot_members = set(
+            session.execute(
+                select(
+                    SourceSnapshotMember.source_item_id,
+                    SourceSnapshotMember.source_revision_id,
+                ).where(SourceSnapshotMember.snapshot_id == UUID(snapshot_id))
+            ).all()
+        )
+        index_members = set(
+            session.execute(
+                select(
+                    IndexSourceRevision.source_item_id,
+                    IndexSourceRevision.source_revision_id,
+                ).where(IndexSourceRevision.index_id == index_id)
+            ).all()
+        )
+        assert snapshot_members == index_members
+        assert session.get(IndexVersion, index_id).source_snapshot_id == UUID(
+            snapshot_id
+        )
+
+    assert (
+        client.get(
+            f"/api/projects/{other_project_id}/source-snapshots/{snapshot_id}"
+        ).status_code
+        == 404
+    )
+    isolated = client.get(f"/api/projects/{other_project_id}/source-snapshots").json()
+    assert isolated["items"] == []
+    assert isolated["total"] == 0
+    assert (
+        client.delete(
+            f"/api/projects/{project_id}/source-snapshots/{snapshot_id}"
+        ).status_code
+        == 405
+    )
+
+
+def test_populated_upgrade_backfills_only_proven_website_lineage(website_api):
+    client, engine, project_id, _, config, _provider = website_api
+    version = save_website(client, project_id, config)
+    first = start_run(client, project_id, version)
+    first_index = publish(
+        engine,
+        first["id"],
+        lambda: WebsiteDouble(
+            [page("https://example.com/", b"<main><p>Legacy page.</p></main>")],
+            [],
+        ),
+    )
+    second = start_run(client, project_id, version, reuse_stored=True)
+    second_index = publish(
+        engine,
+        second["id"],
+        lambda: (_ for _ in ()).throw(
+            AssertionError("Stored-artifact lineage must not fetch the Website.")
+        ),
+    )
+    env = {
+        **os.environ,
+        "DATABASE_URL": os.environ["TEST_DATABASE_URL"],
+    }
+    subprocess.run(
+        [sys.executable, "-m", "alembic", "downgrade", "0017"],
+        env=env,
+        check=True,
+    )
+    subprocess.run(
+        [sys.executable, "-m", "alembic", "upgrade", "head"],
+        env=env,
+        check=True,
+    )
+    with Session(engine) as session:
+        first_run = session.get(IngestionRun, UUID(first["id"]))
+        second_run = session.get(IngestionRun, UUID(second["id"]))
+        assert first_run.source_snapshot_id is not None
+        assert second_run.source_snapshot_id == first_run.source_snapshot_id
+        assert session.get(IndexVersion, first_index).source_snapshot_id == (
+            first_run.source_snapshot_id
+        )
+        assert session.get(IndexVersion, second_index).source_snapshot_id == (
+            first_run.source_snapshot_id
+        )
+        assert (
+            session.scalar(
+                select(func.count())
+                .select_from(SourceSnapshotMember)
+                .where(
+                    SourceSnapshotMember.snapshot_id == first_run.source_snapshot_id
+                )
+            )
+            == 1
+        )
+
+
 def test_failed_refresh_keeps_previous_ready_index(website_api):
     client, engine, project_id, _, config, _ = website_api
     version = save_website(client, project_id, config)
@@ -404,6 +580,11 @@ def test_failed_refresh_keeps_previous_ready_index(website_api):
         f"/api/projects/{project_id}/ingestion-runs/{second['id']}"
     ).json()
     assert result["status"] == "failed"
+    failed_snapshot = client.get(
+        f"/api/projects/{project_id}/source-snapshots/{second['source_snapshot_id']}"
+    ).json()
+    assert failed_snapshot["status"] == "failed"
+    assert failed_snapshot["included_count"] == 0
     with Session(engine) as session:
         run = session.get(IngestionRun, UUID(second["id"]))
         assert session.get(IndexVersion, first_index).status == "succeeded"
@@ -446,6 +627,10 @@ def test_cancellation_duplicate_delivery_and_website_stale_window(website_api):
     with Session(engine) as session:
         assert session.get(IngestionRun, UUID(run["id"])).status == "cancelled"
         assert session.scalar(select(func.count()).select_from(SourceRevision)) == 0
+    cancelled_snapshot = client.get(
+        f"/api/projects/{project_id}/source-snapshots/{run['source_snapshot_id']}"
+    ).json()
+    assert cancelled_snapshot["status"] == "cancelled"
 
     stale = start_run(client, project_id, version)
     stale_id = UUID(stale["id"])

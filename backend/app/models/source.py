@@ -56,6 +56,12 @@ class SourceRevision(Base):
     __table_args__ = (
         UniqueConstraint("id", "project_id", name="uq_source_revision_project"),
         UniqueConstraint(
+            "id",
+            "source_item_id",
+            "project_id",
+            name="uq_source_revision_item_project",
+        ),
+        UniqueConstraint(
             "source_item_id",
             "content_hash",
             "processing_config_hash",
@@ -111,6 +117,127 @@ class SourceRevision(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
+
+
+class SourceSnapshot(Base):
+    __tablename__ = "source_snapshots"
+    __table_args__ = (
+        UniqueConstraint("id", "project_id", name="uq_source_snapshot_project"),
+        UniqueConstraint(
+            "project_id",
+            "source_config_hash",
+            "snapshot_number",
+            name="uq_source_snapshot_number",
+        ),
+        UniqueConstraint(
+            "creating_ingestion_run_id", name="uq_source_snapshot_creating_run"
+        ),
+        ForeignKeyConstraint(
+            ["creating_ingestion_run_id", "project_id"],
+            ["ingestion_runs.id", "ingestion_runs.project_id"],
+            name="fk_source_snapshot_run_project",
+            use_alter=True,
+        ),
+        CheckConstraint("source_kind = 'website'", name="ck_source_snapshot_kind"),
+        CheckConstraint(
+            "status IN ('collecting','ready','failed','cancelled')",
+            name="ck_source_snapshot_status",
+        ),
+        CheckConstraint(
+            "char_length(source_config_hash) = 64",
+            name="ck_source_snapshot_config_hash",
+        ),
+        CheckConstraint("snapshot_number > 0", name="ck_source_snapshot_number"),
+        CheckConstraint(
+            "discovered_count >= 0 AND included_count >= 0 "
+            "AND excluded_count >= 0 AND duplicate_count >= 0 "
+            "AND failed_count >= 0 AND new_count >= 0 "
+            "AND changed_count >= 0 AND unchanged_count >= 0 "
+            "AND removed_count >= 0 AND total_bytes >= 0",
+            name="ck_source_snapshot_counts",
+        ),
+        Index(
+            "ix_source_snapshots_project_source",
+            "project_id",
+            "source_config_hash",
+            "created_at",
+            "id",
+        ),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE")
+    )
+    source_kind: Mapped[str] = mapped_column(String(32), default="website")
+    source_configuration: Mapped[dict] = mapped_column(JSONB)
+    source_config_hash: Mapped[str] = mapped_column(String(64))
+    source_identity: Mapped[dict] = mapped_column(JSONB)
+    connector_version: Mapped[str] = mapped_column(String(80))
+    snapshot_number: Mapped[int] = mapped_column(Integer)
+    status: Mapped[str] = mapped_column(String(16), default="collecting")
+    discovered_count: Mapped[int] = mapped_column(default=0)
+    included_count: Mapped[int] = mapped_column(default=0)
+    excluded_count: Mapped[int] = mapped_column(default=0)
+    duplicate_count: Mapped[int] = mapped_column(default=0)
+    failed_count: Mapped[int] = mapped_column(default=0)
+    new_count: Mapped[int] = mapped_column(default=0)
+    changed_count: Mapped[int] = mapped_column(default=0)
+    unchanged_count: Mapped[int] = mapped_column(default=0)
+    removed_count: Mapped[int] = mapped_column(default=0)
+    total_bytes: Mapped[int] = mapped_column(BigInteger, default=0)
+    creating_ingestion_run_id: Mapped[uuid.UUID]
+    error: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    collected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class SourceSnapshotMember(Base):
+    __tablename__ = "source_snapshot_members"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["snapshot_id", "project_id"],
+            ["source_snapshots.id", "source_snapshots.project_id"],
+            name="fk_source_snapshot_member_snapshot_project",
+        ),
+        ForeignKeyConstraint(
+            ["source_item_id", "project_id"],
+            ["source_items.id", "source_items.project_id"],
+            name="fk_source_snapshot_member_item_project",
+        ),
+        ForeignKeyConstraint(
+            ["source_revision_id", "source_item_id", "project_id"],
+            [
+                "source_revisions.id",
+                "source_revisions.source_item_id",
+                "source_revisions.project_id",
+            ],
+            name="fk_source_snapshot_member_revision_project",
+        ),
+        UniqueConstraint(
+            "snapshot_id", "source_item_id", name="uq_source_snapshot_member_item"
+        ),
+        CheckConstraint("ordinal >= 0", name="ck_source_snapshot_member_ordinal"),
+        CheckConstraint(
+            "inclusion_state = 'included'",
+            name="ck_source_snapshot_member_inclusion",
+        ),
+        Index(
+            "ix_source_snapshot_members_project",
+            "project_id",
+            "snapshot_id",
+            "ordinal",
+        ),
+    )
+    snapshot_id: Mapped[uuid.UUID] = mapped_column(primary_key=True)
+    ordinal: Mapped[int] = mapped_column(Integer, primary_key=True)
+    project_id: Mapped[uuid.UUID]
+    source_node_id: Mapped[str] = mapped_column(String(80))
+    source_item_id: Mapped[uuid.UUID]
+    source_revision_id: Mapped[uuid.UUID]
+    inclusion_state: Mapped[str] = mapped_column(String(16), default="included")
+    provenance: Mapped[dict] = mapped_column(JSONB)
 
 
 class WebsiteRunItem(Base):
