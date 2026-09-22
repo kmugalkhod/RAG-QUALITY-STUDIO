@@ -2,7 +2,7 @@
 
 ## Source snapshots and reusable index variants — implementation started 2026-09-22
 
-Status: Slices 1–4 of 5 complete and verified; final hardening and documentation remain.
+Status: all five slices complete and verified on 2026-09-22.
 
 - Slice 1 adds migration `0018`, immutable project-scoped Website source snapshots,
   exact source-item/revision membership, collecting/ready/failed/cancelled states,
@@ -62,6 +62,34 @@ Status: Slices 1–4 of 5 complete and verified; final hardening and documentati
   handoff URL, answer-retriever lineage, setup same/mismatch copy and immutable
   result confirmation. Complete frontend and final browser evidence are recorded
   only after the Slice 5 hardening pass.
+- Slice 5 reconciles README, architecture, development, deployment and operational
+  guidance with the verified snapshot boundary, no-refetch build contract,
+  conservative migration lineage, storage growth and paired experiment behavior.
+  Browser journeys were hardened for the new Website actions, nested Indexes view,
+  asynchronous ready-index boundary and current Automatic sync controls.
+- A fresh isolated PostgreSQL/pgvector run passed **254 tests with 4 opt-in live
+  checks skipped**. This includes clean migration to head, Alembic model drift,
+  populated `0017 → 0018` upgrade and the complete backend regression suite. Ruff
+  format/lint and whitespace checks passed. The frontend passed **84 Vitest tests
+  across 26 files**, Prettier, structure/ESLint, strict TypeScript and the production
+  build; the existing Vite bundle-size advisory remains.
+- The complete isolated deterministic-provider Chromium suite passed **26 tests
+  with 1 intentional missing-credentials skip**. A separate Agent Browser workflow
+  collected one two-page Website snapshot, built `Ingested knowledge` at 1,000/100
+  and independently named `Precise website` at 600/80 without another Website
+  request, handed each exact index to an answer pipeline, and completed a paired
+  experiment on the same snapshot. Results exposed source lineage, per-question
+  evidence, sample/failure counts, latency, unknown costs and formula-safe CSV
+  export. Desktop 1440×1000 and mobile 390×844 captures were inspected; the mobile
+  page-width assertion passed. No live connector, paid model or developer-data call
+  was made.
+
+Remaining limitations: reusable snapshots are Website-only; snapshot deletion and
+automatic retention are intentionally absent. Rebuilding avoids collection but can
+still create stored processing/vector history and incur embedding cost. Historical
+indexes retain snapshot lineage only when migration evidence proves it. The stack
+remains an unauthenticated loopback workspace, not a shared production deployment;
+the established Starlette/AnyIO deprecation warning and Vite bundle advisory remain.
 
 The next scoped ingestion improvement is documented in [Source snapshots and reusable index variants](source-snapshot-index-variants-plan.md). It covers one Website collection producing an immutable source snapshot, multiple independently named index families built from that snapshot, clear Knowledge Base lineage, exact-index answer-pipeline handoff, and same-snapshot experiment comparison.
 

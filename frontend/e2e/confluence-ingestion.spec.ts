@@ -41,14 +41,15 @@ test('Confluence preview publishes and incrementally refreshes an exact index', 
   await expect(page.getByText('confluence://controlled.atlassian.net/page/101')).toBeVisible();
 
   await page.getByRole('button', { name: 'Save version' }).click();
-  const schedules = page.getByRole('region', { name: 'Ingestion schedules' });
-  await expect(schedules.getByText('No schedules target this saved version.')).toBeVisible();
+  await page.getByRole('button', { name: 'Automatic sync' }).click();
+  const schedules = page.getByRole('region', { name: 'Automatic sync' });
   await schedules.getByLabel('Schedule name').fill('Every fifteen minutes');
-  await schedules.getByLabel('Interval (minutes)').fill('15');
-  await schedules.getByRole('button', { name: 'Create paused schedule' }).click();
-  await expect(schedules.getByText('paused · every 15 minutes')).toBeVisible();
-  await schedules.getByRole('button', { name: 'Enable' }).click();
-  await expect(schedules.getByText('enabled · every 15 minutes')).toBeVisible();
+  await schedules.getByLabel('Sync frequency').selectOption('15');
+  await schedules.getByRole('button', { name: 'Start automatic sync' }).click();
+  await expect(
+    schedules.getByRole('list', { name: 'Automatic sync schedules' }).getByText('Every 15 minutes'),
+  ).toBeVisible();
+  await expect(schedules.getByText('Active', { exact: true })).toBeVisible();
   await schedules.getByRole('button', { name: 'Run now' }).click();
   await expect(page.getByRole('heading', { name: 'Ingested knowledge · succeeded' })).toBeVisible({
     timeout: 60000,
@@ -64,8 +65,8 @@ test('Confluence preview publishes and incrementally refreshes an exact index', 
     timeout: 60000,
   });
   await expect(page.getByRole('link', { name: 'Inspect published index v2' })).toBeVisible();
-  await schedules.getByRole('button', { name: 'Pause', exact: true }).click();
-  await expect(schedules.getByText('paused · every 15 minutes')).toBeVisible();
+  await schedules.getByRole('button', { name: 'Pause sync', exact: true }).click();
+  await expect(schedules.getByText('Paused', { exact: true })).toBeVisible();
 
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.screenshot({ path: 'test-results/confluence-ingestion-desktop.png', fullPage: true });

@@ -36,13 +36,13 @@ test('website discovery publishes and incrementally refreshes an exact index', a
 
   await page.getByRole('button', { name: 'Save version' }).click();
   await expect(page.getByText('Saved version 1', { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Run saved version' }).click();
+  await page.getByRole('button', { name: 'Collect source & build index' }).click();
   await expect(page.getByRole('heading', { name: 'Ingested knowledge · succeeded' })).toBeVisible({
     timeout: 60000,
   });
   await expect(page.getByText('2 new · 0 changed · 0 unchanged · 0 removed')).toBeVisible();
   await expect(page.getByText(/new · succeeded/)).toHaveCount(2);
-  await expect(page.getByRole('link', { name: 'Inspect published index v1' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Inspect reusable source snapshot' })).toBeVisible();
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.screenshot({ path: 'test-results/website-preview-desktop.png', fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
@@ -50,11 +50,11 @@ test('website discovery publishes and incrementally refreshes an exact index', a
   await page.screenshot({ path: 'test-results/website-preview-mobile.png', fullPage: true });
 
   await page.setViewportSize({ width: 1440, height: 1000 });
-  await page.getByRole('button', { name: 'Run saved version' }).click();
+  await page.getByRole('button', { name: 'Collect source & build index' }).click();
   await expect(page.getByText('0 new · 0 changed · 2 unchanged · 0 removed')).toBeVisible({
     timeout: 60000,
   });
-  await expect(page.getByRole('link', { name: 'Inspect published index v2' })).toBeVisible({
+  await expect(page.getByRole('link', { name: 'Inspect reusable source snapshot' })).toBeVisible({
     timeout: 60000,
   });
 
@@ -65,7 +65,7 @@ test('website discovery publishes and incrementally refreshes an exact index', a
   await page.reload();
   await page
     .getByLabel('Documents to search', { exact: true })
-    .selectOption({ label: 'Ingested knowledge · Version 2 · 3 passages' });
+    .selectOption({ label: 'Ingested knowledge · Version 2 · 2 passages' });
   await page.getByRole('button', { name: 'Save version' }).click();
   await page.getByRole('button', { name: 'Open Playground' }).click();
   await page

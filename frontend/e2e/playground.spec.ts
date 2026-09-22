@@ -31,6 +31,7 @@ test('retrieval-only search, editable pipeline draft, immutable save, answers an
   ).toBeVisible({
     timeout: 30000,
   });
+  await expect(page.getByText('Current index', { exact: true })).toBeVisible({ timeout: 30000 });
   await page.getByRole('link', { name: 'Playground', exact: true }).click();
 
   await page.getByRole('button', { name: 'Retrieval test', exact: true }).click();

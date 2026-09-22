@@ -50,13 +50,14 @@ test('indexes and retrieves persisted source evidence using the isolated provide
     timeout: 30000,
   });
   await expect(page.getByRole('heading', { name: 'Uploaded documents' })).toBeVisible();
-  await expect(page.getByText('Current index', { exact: true })).toBeVisible();
+  await expect(page.getByText('Current index', { exact: true })).toBeVisible({ timeout: 30000 });
   await expect(page.getByText(/1 processing run/)).toBeVisible();
   await page.reload();
-  await expect(page.getByRole('tab', { name: 'Indexes', exact: true })).toHaveAttribute(
-    'data-state',
-    'active',
-  );
+  await expect(
+    page
+      .getByRole('tablist', { name: 'Index views' })
+      .getByRole('tab', { name: 'Indexes', exact: true }),
+  ).toHaveAttribute('data-state', 'active');
   await page.getByRole('button', { name: 'Inspect Uploaded documents version 1' }).click();
   await page.getByLabel('Search query').fill('What does the orchard grow?');
   await page.getByRole('button', { name: 'Search documents only', exact: true }).click();
@@ -69,19 +70,12 @@ test('indexes and retrieves persisted source evidence using the isolated provide
   await expect(results.getByText(/Cosine distance 0.0000/)).toBeVisible();
   await expect(results.getByText(/1 passages from document set version 1/)).toBeVisible();
   await page.setViewportSize({ width: 1440, height: 1000 });
-  await page
-    .getByRole('heading', { name: 'Prepare documents for questions' })
-    .scrollIntoViewIfNeeded();
-  await page
-    .getByRole('region', { name: 'Prepare documents for questions' })
-    .screenshot({ path: 'test-results/index-desktop.png' });
+  const details = page.getByRole('region', { name: 'Selected index details' });
+  await details.scrollIntoViewIfNeeded();
+  await details.screenshot({ path: 'test-results/index-desktop.png' });
   await page.setViewportSize({ width: 390, height: 844 });
-  await page
-    .getByRole('heading', { name: 'Prepare documents for questions' })
-    .scrollIntoViewIfNeeded();
-  await page
-    .getByRole('region', { name: 'Prepare documents for questions' })
-    .screenshot({ path: 'test-results/index-mobile.png' });
+  await details.scrollIntoViewIfNeeded();
+  await details.screenshot({ path: 'test-results/index-mobile.png' });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
     true,
   );

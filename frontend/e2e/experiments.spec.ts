@@ -32,6 +32,7 @@ test('import reviewed dataset, compare two versions and inspect evidence', async
   ).toBeVisible({
     timeout: 30000,
   });
+  await expect(page.getByText('Current index', { exact: true })).toBeVisible({ timeout: 30000 });
   const index = (await (await request.get(`/api/projects/${project.id}/indexes`)).json()).items[0];
   const nodes = [
     { id: 'q', type: 'question' },

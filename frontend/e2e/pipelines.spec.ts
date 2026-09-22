@@ -70,6 +70,7 @@ test('pipeline create configure save reopen run evidence and immutable versions'
   ).toBeVisible({
     timeout: 30000,
   });
+  await expect(page.getByText('Current index', { exact: true })).toBeVisible({ timeout: 30000 });
   await page.getByRole('link', { name: 'Pipelines', exact: true }).click();
   await page.getByRole('link', { name: 'New answer pipeline', exact: true }).click();
   await page.getByLabel('Pipeline name', { exact: true }).fill('Orchard answers');
