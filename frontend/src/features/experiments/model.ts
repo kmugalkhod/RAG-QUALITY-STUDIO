@@ -28,6 +28,10 @@ export type Candidate = {
   execution: PipelineExecution;
   index_id: string;
   index_version: number;
+  knowledge_set_name: string;
+  source_snapshot_id: string | null;
+  source_snapshot_number: number | null;
+  source_snapshot_collected_at: string | null;
   generation_config: { model: string };
   embedding_config: { model: string };
 };

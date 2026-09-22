@@ -5,6 +5,7 @@ import { Input } from '../../../components/ui/input';
 import { Label } from '../../../components/ui/label';
 import { NativeSelect, NativeSelectOption } from '../../../components/ui/native-select';
 import type { PipelineVersion } from '../../pipelines/model';
+import type { IndexVersion } from '../../documents/model';
 import * as api from '../api';
 import { type Dataset, type Metric, metricLabel } from '../model';
 import { Configuration } from './Configuration';
@@ -17,6 +18,7 @@ export function ExperimentForm({
   projectId,
   datasets,
   pipelines,
+  indexes,
   options,
   name,
   datasetId,
@@ -36,6 +38,7 @@ export function ExperimentForm({
   projectId: string;
   datasets: Dataset[];
   pipelines: PipelineVersion[];
+  indexes: IndexVersion[];
   options?: EvaluationOptions;
   name: string;
   datasetId: string;
@@ -68,6 +71,18 @@ export function ExperimentForm({
       onChange: onCandidateBChange,
     },
   ];
+  const candidateIndexes = [candidateA, candidateB].filter(Boolean).map((id) => {
+    const version = pipelines.find((value) => value.id === id);
+    const indexId = version?.execution.nodes.find((node) => node.type === 'retriever')?.index_id;
+    return indexes.find((index) => index.id === indexId);
+  });
+  const sameSnapshot =
+    candidateIndexes.length === 2 &&
+    candidateIndexes.every(
+      (index) =>
+        index?.source_snapshot_id &&
+        index.source_snapshot_id === candidateIndexes[0]?.source_snapshot_id,
+    );
 
   return (
     <section className="experiment-section mt-6 border-t border-border py-6">
@@ -114,6 +129,13 @@ export function ExperimentForm({
             </NativeSelect>
           </Label>
         </div>
+        {candidateIndexes.length === 2 && (
+          <p className={sameSnapshot ? 'success-message' : 'index-difference'}>
+            {sameSnapshot
+              ? `Same source snapshot · Snapshot ${candidateIndexes[0]?.source_snapshot_number}`
+              : 'Comparison caveat: these candidates use different source snapshots, or legacy lineage is unavailable. Content changes may affect results.'}
+          </p>
+        )}
         {datasetId && (
           <details>
             <summary>Inspect dataset questions</summary>

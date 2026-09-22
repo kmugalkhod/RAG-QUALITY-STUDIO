@@ -13,6 +13,9 @@ import { Configuration } from './Configuration';
 
 export function ComparisonSummary({ run }: { run: Detail }) {
   const selected = run.snapshot.evaluator.metrics;
+  const snapshotIds = run.snapshot.candidates.map((candidate) => candidate.source_snapshot_id);
+  const sameSnapshot =
+    snapshotIds.length > 1 && snapshotIds.every((id) => id && id === snapshotIds[0]);
   return (
     <>
       <p>
@@ -28,6 +31,13 @@ export function ComparisonSummary({ run }: { run: Detail }) {
           </section>
         ))}
       </div>
+      {run.snapshot.candidates.length === 2 && (
+        <p className={sameSnapshot ? 'success-message' : 'index-difference'}>
+          {sameSnapshot
+            ? `Same source snapshot · Snapshot ${run.snapshot.candidates[0].source_snapshot_number}`
+            : 'Comparison caveat: candidates use different source snapshots, or legacy lineage is unavailable. Content changes may affect results.'}
+        </p>
+      )}
       {run.snapshot.candidates.length === 2 &&
         run.snapshot.candidates[0].index_id !== run.snapshot.candidates[1].index_id && (
           <p className="index-difference">

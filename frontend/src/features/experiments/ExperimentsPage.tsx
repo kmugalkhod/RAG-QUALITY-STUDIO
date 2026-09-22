@@ -8,6 +8,8 @@ import { Button } from '../../components/ui/button';
 import { listPipelines, listPipelineVersions } from '../pipelines/api';
 import { type PipelineVersion } from '../pipelines/model';
 import { allPages } from '../../lib/pagination';
+import { listIndexes } from '../documents/indexApi';
+import type { IndexVersion } from '../documents/model';
 import * as api from './api';
 import { type Dataset, type Experiment, type Metric } from './model';
 export function ExperimentsPage({
@@ -19,6 +21,7 @@ export function ExperimentsPage({
 }) {
   const [datasets, setDatasets] = useState<Dataset[]>([]);
   const [pipelines, setPipelines] = useState<PipelineVersion[]>([]);
+  const [indexes, setIndexes] = useState<IndexVersion[]>([]);
   const [history, setHistory] = useState<Experiment[]>([]);
   const [options, setOptions] = useState<Awaited<ReturnType<typeof api.getEvaluationOptions>>>();
   const [error, setError] = useState('');
@@ -98,6 +101,19 @@ export function ExperimentsPage({
       disposed = true;
     };
   }, [projectId, revision]);
+  useEffect(() => {
+    let disposed = false;
+    void allPages((offset) => listIndexes(projectId, offset))
+      .then((values) => {
+        if (!disposed) {setIndexes(values);}
+      })
+      .catch(() => {
+        if (!disposed) {setIndexes([]);}
+      });
+    return () => {
+      disposed = true;
+    };
+  }, [projectId, revision]);
   async function action(work: () => Promise<void>) {
     setBusy(true);
     setError('');
@@ -171,6 +187,7 @@ export function ExperimentsPage({
             projectId={projectId}
             datasets={datasets}
             pipelines={pipelines}
+            indexes={indexes}
             options={options}
             name={name}
             datasetId={dataset}

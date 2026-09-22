@@ -39,8 +39,12 @@ import { NativeSelect, NativeSelectOption } from '../../components/ui/native-sel
 import { Textarea } from '../../components/ui/textarea';
 import { allPages, type Page } from '../../lib/pagination';
 import { listDocuments } from '../documents/api';
-import { getEmbeddingSettings, listKnowledgeSets } from '../documents/indexApi';
-import type { Document, EmbeddingConfig, KnowledgeSet } from '../documents/model';
+import {
+  getEmbeddingSettings,
+  listKnowledgeSets,
+  listSourceSnapshots,
+} from '../documents/indexApi';
+import type { Document, EmbeddingConfig, KnowledgeSet, SourceSnapshot } from '../documents/model';
 import { getConnectionSettings, listConnections } from '../connections/api';
 import type { ConnectionSettings, SourceConnection } from '../connections/model';
 import * as api from './api';
@@ -911,6 +915,8 @@ export function IngestionPipelineEditor({
   const [saved, setSaved] = useState<IngestionPipelineVersion>();
   const [documents, setDocuments] = useState<Document[]>([]);
   const [knowledgeSets, setKnowledgeSets] = useState<KnowledgeSet[]>([]);
+  const [snapshots, setSnapshots] = useState<SourceSnapshot[]>([]);
+  const [snapshotId, setSnapshotId] = useState('');
   const [connectionSettings, setConnectionSettings] = useState<ConnectionSettings>();
   const [connections, setConnections] = useState<SourceConnection[]>([]);
   const [selectedNode, setSelectedNode] = useState('source');
@@ -962,18 +968,22 @@ export function IngestionPipelineEditor({
     void Promise.all([
       allPages((offset) => listDocuments(projectId, offset)),
       allPages((offset) => listKnowledgeSets(projectId, offset)),
+      allPages((offset) => listSourceSnapshots(projectId, offset)),
       getEmbeddingSettings(projectId),
       loadConnectionState(projectId),
       pipelineId === 'new'
         ? Promise.resolve([] as IngestionPipelineVersion[])
         : allPages((offset) => api.listIngestionPipelineVersions(projectId, pipelineId, offset)),
     ])
-      .then(([docs, sets, embedding, connectionState, savedVersions]) => {
+      .then(([docs, sets, sourceSnapshots, embedding, connectionState, savedVersions]) => {
         if (disposed) {
           return;
         }
         setDocuments(docs);
         setKnowledgeSets(sets);
+        const readySnapshots = sourceSnapshots.filter((snapshot) => snapshot.status === 'ready');
+        setSnapshots(readySnapshots);
+        setSnapshotId((current) => current || readySnapshots[0]?.id || '');
         setConnectionSettings(connectionState.settings);
         setConnections(connectionState.connections);
         setVersions(savedVersions);
@@ -1370,13 +1380,24 @@ export function IngestionPipelineEditor({
     );
   }
 
-  function startRun(reuseStored = false) {
+  function startRun(source: 'refresh' | 'snapshot' = 'refresh') {
     if (!saved || dirty) {
       return;
     }
     void perform(async () => {
       setItems([]);
-      setRun(await api.startIngestionRun(projectId, saved.pipeline_id, saved.id, reuseStored));
+      setRun(
+        await api.startIngestionRun(
+          projectId,
+          saved.pipeline_id,
+          saved.id,
+          !websiteSource
+            ? false
+            : source === 'snapshot'
+              ? { source_input: { kind: 'snapshot', source_snapshot_id: snapshotId } }
+              : { source_input: { kind: 'refresh' } },
+        ),
+      );
     });
   }
 
@@ -1528,18 +1549,39 @@ export function IngestionPipelineEditor({
               Preview source
             </Button>
             {websiteSource && (
-              <Button variant="outline" onClick={() => startRun(true)} disabled={!saved || dirty}>
-                <Database size={15} />
-                Reprocess stored pages
-              </Button>
+              <div className="snapshot-run-choice">
+                <Label>
+                  Ready source snapshot
+                  <NativeSelect
+                    value={snapshotId}
+                    onChange={(event) => setSnapshotId(event.target.value)}
+                  >
+                    <NativeSelectOption value="">Choose a snapshot</NativeSelectOption>
+                    {snapshots.map((snapshot) => (
+                      <NativeSelectOption key={snapshot.id} value={snapshot.id}>
+                        Snapshot {snapshot.snapshot_number} ·{' '}
+                        {snapshot.source_identity.origins?.join(', ') || 'Website'}
+                      </NativeSelectOption>
+                    ))}
+                  </NativeSelect>
+                </Label>
+                <Button
+                  variant="outline"
+                  onClick={() => startRun('snapshot')}
+                  disabled={!saved || dirty || !snapshotId}
+                >
+                  <Database size={15} />
+                  Build from selected snapshot
+                </Button>
+              </div>
             )}
             <Button
               variant={dirty ? 'outline' : 'default'}
-              onClick={() => startRun(false)}
+              onClick={() => startRun('refresh')}
               disabled={!saved || dirty}
             >
               <Play size={15} />
-              {websiteSource ? 'Refresh website & run' : 'Run saved version'}
+              {websiteSource ? 'Collect latest source & build index' : 'Run saved version'}
             </Button>
             {saved && (
               <Button
@@ -1958,9 +2000,9 @@ export function IngestionPipelineEditor({
                     <div className="website-preview-notice">
                       <Database size={17} />
                       <p>
-                        To try new chunk settings without scraping again: choose a preset or edit
-                        the values, save a new version, then select{' '}
-                        <strong>Reprocess stored pages</strong>.
+                        To try new chunk settings without another Website request: save a new
+                        version, choose an exact ready snapshot, then select{' '}
+                        <strong>Build from selected snapshot</strong>.
                       </p>
                     </div>
                   )}

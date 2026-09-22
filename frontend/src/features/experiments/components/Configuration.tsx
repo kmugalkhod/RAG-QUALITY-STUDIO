@@ -16,6 +16,14 @@ export function Configuration({ version }: { version: PipelineVersion | Candidat
       <br />
       Index {'index_version' in version ? `${version.index_version} · ` : ''}
       <span>{retriever?.index_id}</span>
+      {'source_snapshot_id' in version && (
+        <>
+          <br />
+          {version.source_snapshot_id
+            ? `Source snapshot ${version.source_snapshot_number} · collected ${new Date(version.source_snapshot_collected_at!).toLocaleDateString()}`
+            : 'Source snapshot lineage unavailable'}
+        </>
+      )}
     </p>
   );
 }

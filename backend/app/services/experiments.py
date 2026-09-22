@@ -45,6 +45,7 @@ def submit(session, project_id, request):
             session, project_id, Execution.model_validate(version.execution)
         )
         index = indexes.get_index(session, project_id, nodes["retriever"].index_id)
+        index_read = indexes.read_index(session, index)
         candidates.append(
             {
                 "id": str(version.id),
@@ -55,6 +56,16 @@ def submit(session, project_id, request):
                 "generation_config": config,
                 "index_id": str(index.id),
                 "index_version": index.version,
+                "knowledge_set_name": index_read["knowledge_set_name"],
+                "source_snapshot_id": (
+                    str(index.source_snapshot_id) if index.source_snapshot_id else None
+                ),
+                "source_snapshot_number": index_read["source_snapshot_number"],
+                "source_snapshot_collected_at": (
+                    index_read["source_snapshot_collected_at"].isoformat()
+                    if index_read["source_snapshot_collected_at"]
+                    else None
+                ),
                 "embedding_config": index.embedding_config,
                 "retrieval": nodes["retriever"].settings.model_dump(),
                 "retrieval_algorithm": algorithm_snapshot(),
@@ -289,6 +300,9 @@ def export_csv(session, project_id, experiment_id):
             "candidate",
             "pipeline_version_id",
             "index_id",
+            "source_snapshot_id",
+            "source_snapshot_number",
+            "source_comparison",
             "status",
             "answer",
             "query_run_id",
@@ -307,6 +321,15 @@ def export_csv(session, project_id, experiment_id):
     for item in items(session, experiment):
         row = experiment.snapshot["dataset"]["rows"][item.ordinal]
         candidate = experiment.snapshot["candidates"][item.candidate]
+        candidate_snapshots = [
+            value.get("source_snapshot_id")
+            for value in experiment.snapshot["candidates"]
+        ]
+        same_source = (
+            len(candidate_snapshots) > 1
+            and None not in candidate_snapshots
+            and len(set(candidate_snapshots)) == 1
+        )
         snap = item.output.get("snapshot", {})
         writer.writerow(
             [
@@ -317,6 +340,11 @@ def export_csv(session, project_id, experiment_id):
                     candidate["name"],
                     candidate["id"],
                     candidate["index_id"],
+                    candidate.get("source_snapshot_id"),
+                    candidate.get("source_snapshot_number"),
+                    "same_source_snapshot"
+                    if same_source
+                    else "different_or_unavailable_source_snapshot",
                     item.status,
                     item.output.get("answer"),
                     item.query_run_id,

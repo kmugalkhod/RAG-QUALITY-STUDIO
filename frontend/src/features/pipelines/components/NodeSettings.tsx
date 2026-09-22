@@ -112,6 +112,14 @@ export function NodeSettings({
               {selectedIndex.chunk_count.toLocaleString()} passages
             </p>
           )}
+          {selectedIndex?.source_snapshot_id && (
+            <p className="field-hint">
+              Source snapshot {selectedIndex.source_snapshot_number} · collected{' '}
+              {selectedIndex.source_snapshot_collected_at
+                ? new Date(selectedIndex.source_snapshot_collected_at).toLocaleDateString()
+                : 'date unavailable'}
+            </p>
+          )}
           {!indexes.length && (
             <p>Prepare a document set in the Knowledge Base to start asking questions.</p>
           )}
