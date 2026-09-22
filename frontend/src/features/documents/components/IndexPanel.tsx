@@ -90,8 +90,9 @@ export function IndexPanel({ projectId }: { projectId: string }) {
             return;
           }
           setSelected(index);
-          if (index.status !== 'succeeded')
-            {setSearchError('This index is not ready for retrieval.');}
+          if (index.status !== 'succeeded') {
+            setSearchError('This index is not ready for retrieval.');
+          }
         })
         .catch((cause) => !disposed && seq === request && setSearchError(message(cause)));
     };

@@ -18,6 +18,8 @@ Choose Website as the source, then select a single URL, URL list, crawl start or
 
 Save the validated graph before running it. The worker stores immutable raw revisions, extracts bounded main/article text with heading provenance, classifies refresh items as new, changed, unchanged or removed, and reuses compatible embeddings. Publication advances the knowledge set only after all required content and embeddings succeed; failed or cancelled refreshes leave the prior ready version current. The same ingestion-run endpoints documented above expose progress and per-URL results.
 
+Every successful Website collection also publishes a reusable source snapshot. In the ingestion editor, **Collect latest source & build index** performs collection and construction; **Build from selected snapshot** requires an exact ready snapshot and performs no Website request. Knowledge Base → Indexes separates Source snapshots from derived Indexes, including captured pages, downstream indexes, collection status, and full processing lineage. The snapshot endpoints are project-scoped and paginated under `/api/projects/{project_id}/source-snapshots`, with `/{snapshot_id}/items` and `/{snapshot_id}/indexes` inspectors. Run creation accepts either `{"source_input":{"kind":"refresh"}}` or `{"source_input":{"kind":"snapshot","source_snapshot_id":"..."}}`, plus a `new` or `existing` destination. The temporary `reuse_stored` field remains only as a compatibility adapter.
+
 ## Local source connections
 
 Connection APIs are deliberately unavailable until `SOURCE_CONNECTIONS_ENABLED=true`, `SOURCE_CONNECTION_ACTIVE_KEY` names an entry in `SOURCE_CONNECTION_KEYS`, and that entry decodes to exactly 32 bytes. `SOURCE_CONNECTION_KEYS` is a JSON object of version names to base64 keys. The Settings screen sends credential fields only in create/rotate POST bodies and clears its secret controls after every attempt. Reads expose connection name, kind, status, dates, safe errors and deliberately masked hints; they never expose ciphertext, nonce, tag or key version.
@@ -105,6 +107,8 @@ Set server-only `EVALUATOR_MODEL` (independent of `CHAT_MODEL`) and `OPENROUTER_
 In a project, open Experiments, download the example CSV, replace it with reviewed questions for that project's sources, preview, and import. Reference answers are optional; context recall is unavailable for rows without them. Choose one or two saved pipeline versions, select metrics, and run. Open a question in the comparison table to see answers, exact supplied evidence and available structured judge explanations. Export CSV or inspect the immutable snapshot. LLM scores require human review.
 
 The opt-in `backend/scripts/check_experiment_live.py --project <sample-orchard-project> --version <saved-version> [--version <second-version>]` submits exactly three reviewed orchard questions through the running API. Only run against the matching orchard sample source; it creates persistent dataset and experiment records and makes paid calls. It cancels scheduling after a 15-minute deadline. Default automated tests use deterministic provider/evaluator doubles and do not use credentials.
+
+For two-candidate experiments, setup and results report whether both exact saved pipeline versions resolve to one source snapshot. A mismatch or unavailable legacy lineage produces a non-blocking comparison caveat because content changes may affect results. CSV export includes each candidate's snapshot ID/number and the same comparison classification.
 
 ## Retrieval search settings
 

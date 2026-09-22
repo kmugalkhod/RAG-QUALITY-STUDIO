@@ -105,10 +105,14 @@ export function ExperimentsPage({
     let disposed = false;
     void allPages((offset) => listIndexes(projectId, offset))
       .then((values) => {
-        if (!disposed) {setIndexes(values);}
+        if (!disposed) {
+          setIndexes(values);
+        }
       })
       .catch(() => {
-        if (!disposed) {setIndexes([]);}
+        if (!disposed) {
+          setIndexes([]);
+        }
       });
     return () => {
       disposed = true;

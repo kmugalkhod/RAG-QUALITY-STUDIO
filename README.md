@@ -16,6 +16,12 @@ docker compose up --build -d
 
 Compose waits for PostgreSQL, applies Alembic migrations through a one-shot service, starts FastAPI, Celery workers, Redis and the queue dispatcher, then serves the production frontend through nginx. The frontend proxies `/api` to FastAPI. No credentials enter the browser bundle. The sample credentials are for local development only.
 
+### Collect once, build multiple Website indexes
+
+Save a Website ingestion pipeline, then choose **Collect latest source & build index**. A successful collection creates an immutable Source snapshot visible under **Knowledge Base → Indexes → Source snapshots**. From that detail, select any compatible saved Website pipeline version, choose a new or existing destination, and build another index without requesting the Website again. Snapshot reuse avoids connector/network cost, but changed parsing, chunking, or embedding settings may create provider work and cost. Index detail shows the exact snapshot, ingestion version, chunk settings, embedding configuration, status, and passage count. **Use in answer pipeline** opens an unsaved draft with that exact index selected.
+
+Experiments still compare exact saved answer-pipeline versions. When two candidates share a snapshot, setup/results say **Same source snapshot**; different or unavailable legacy lineage produces a non-blocking caveat that is also retained in CSV export.
+
 Open:
 
 - Application: http://localhost:5173

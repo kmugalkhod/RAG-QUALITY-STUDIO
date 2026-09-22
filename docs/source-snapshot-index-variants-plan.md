@@ -457,6 +457,12 @@ The feature is complete only when all of the following are true:
 
 ## Documentation updates after implementation
 
+## Implementation result (2026-09-22)
+
+Slices 1–5 are implemented in order. Website collection now persists immutable exact source snapshots; one ready snapshot can build multiple independently named indexes through compatible saved pipeline versions without another connector request. Knowledge Base exposes responsive, URL-addressable Source snapshot and Index views with captured items, downstream builds, processing lineage, legacy-unavailable states, progress/errors, refresh, variant construction, and exact-index answer-pipeline handoff. Ingestion execution presents explicit refresh/snapshot choices. Experiment snapshots and CSV exports retain candidate snapshot lineage and distinguish same-snapshot comparisons from non-blocking content caveats.
+
+Verified with backend Ruff formatting/lint, the complete isolated PostgreSQL/pgvector suite (253 passed, 4 opt-in live tests skipped), frontend formatting/structure lint/strict TypeScript/78 unit tests/production build, and a deterministic Chromium journey covering one controlled Website collection, two differently chunked same-snapshot indexes, two saved answer candidates, and a paired experiment. Interactive inspection confirmed the snapshot/detail workflow at 1440px, 720px (200% equivalent), and 390px with no horizontal overflow and keyboard-reachable controls. No live Website, embedding, generation, or evaluator call was made.
+
 - `docs/architecture.md`: snapshot boundary, exact membership, build lineage, and compatibility behavior.
 - `docs/implementation-plan.md`: slice status, verification evidence, limitations, and next action.
 - `docs/development.md`: API examples, deterministic provider setup, and snapshot-build troubleshooting.

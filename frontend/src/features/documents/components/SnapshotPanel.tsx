@@ -61,7 +61,9 @@ export function SnapshotPanel({ projectId }: { projectId: string }) {
             ),
           )
         ).flat();
-        if (disposed) {return;}
+        if (disposed) {
+          return;
+        }
         setSnapshots(values);
         setSets(knowledgeSets);
         const websiteVersions = pipelineVersions.filter((version) =>
@@ -107,14 +109,18 @@ export function SnapshotPanel({ projectId }: { projectId: string }) {
   }, [projectId, selected, revision]);
 
   useEffect(() => {
-    if (!run || !['queued', 'running'].includes(run.status)) {return;}
+    if (!run || !['queued', 'running'].includes(run.status)) {
+      return;
+    }
     const timer = window.setTimeout(
       () =>
         ingestionApi
           .getIngestionRun(projectId, run.id)
           .then((value) => {
             setRun(value);
-            if (value.status === 'succeeded') {setRevision((current) => current + 1);}
+            if (value.status === 'succeeded') {
+              setRevision((current) => current + 1);
+            }
           })
           .catch((cause) => setError(message(cause))),
       1500,
@@ -133,13 +139,17 @@ export function SnapshotPanel({ projectId }: { projectId: string }) {
     setSelected(snapshot);
     const [path] = window.location.hash.split('?');
     const params = new URLSearchParams({ view: 'indexes', mode: 'snapshots' });
-    if (snapshot) {params.set('snapshot', snapshot.id);}
+    if (snapshot) {
+      params.set('snapshot', snapshot.id);
+    }
     window.history.replaceState(null, '', `#${path}?${params}`);
   }
 
   async function build(event: FormEvent) {
     event.preventDefault();
-    if (!selected || !chosenVersion || (destination === 'new' ? !name.trim() : !setId)) {return;}
+    if (!selected || !chosenVersion || (destination === 'new' ? !name.trim() : !setId)) {
+      return;
+    }
     setBusy(true);
     setError('');
     try {
@@ -168,7 +178,9 @@ export function SnapshotPanel({ projectId }: { projectId: string }) {
     const lineage = indexes.find(
       (value) => value.ingestion_pipeline_id && value.ingestion_pipeline_version_id,
     );
-    if (!lineage?.ingestion_pipeline_id || !lineage.ingestion_pipeline_version_id) {return;}
+    if (!lineage?.ingestion_pipeline_id || !lineage.ingestion_pipeline_version_id) {
+      return;
+    }
     setBusy(true);
     setError('');
     try {

@@ -2,6 +2,8 @@
 
 The currently verified deployment is the local Docker Compose workspace documented in the [README](../README.md). Its published ports bind to `127.0.0.1`. Authentication and multi-user authorization are not implemented, so do not expose this stack through a public ingress or shared host.
 
+Migration `0018` adds immutable Website source snapshots and exact membership, plus nullable lineage on historical ingestion runs and indexes. Apply it with the normal one-shot migration service before starting updated API/workers. The upgrade backfills only provable one-to-one historical Website lineage; null means unavailable, not an empty snapshot. The downgrade preserves existing indexes, queries, experiments, and artifacts but removes snapshot catalog data, so take a PostgreSQL backup first and roll backend/frontend/worker code together. Snapshot membership references immutable source revisions and raw artifacts; back up PostgreSQL and the document volume at one recovery point. There is no snapshot deletion or automatic retention job.
+
 ## Source connection vault
 
 Source connections are disabled by default. To enable them locally:
