@@ -111,6 +111,7 @@ def create_index_from_processing_runs(
     processing_run_ids: list[UUID],
     *,
     ingestion_run_id: UUID | None = None,
+    source_snapshot_id: UUID | None = None,
     commit: bool = True,
 ):
     if not processing_run_ids:
@@ -177,6 +178,7 @@ def create_index_from_processing_runs(
         project_id=project_id,
         knowledge_set_id=knowledge_set_id,
         ingestion_run_id=ingestion_run_id,
+        source_snapshot_id=source_snapshot_id,
         version=version,
         dimensions=config.dimensions,
         embedding_config=config.model_dump(),

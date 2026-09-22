@@ -6,5 +6,7 @@ from app.models.source import (  # noqa: F401
     IndexSourceRevision,
     SourceItem,
     SourceRevision,
+    SourceSnapshot,
+    SourceSnapshotMember,
     WebsiteRunItem,
 )

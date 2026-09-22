@@ -19,7 +19,7 @@ from app.schemas.ingestion import (
     IngestionPreviewItem,
     IngestionPreviewRead,
 )
-from app.services import indexes, pipelines
+from app.services import indexes, pipelines, source_snapshots
 from app.services.documents import project
 
 
@@ -251,6 +251,12 @@ def start_run(
             },
         )
         session.add(run)
+        session.flush()
+        if remote_kind == "website":
+            if reuse_stored:
+                run.source_snapshot_id = prior_index.source_snapshot_id
+            else:
+                source_snapshots.create_collecting(session, project_id, run, execution)
         session.commit()
         session.refresh(run)
         return read_run(session, run)
@@ -530,6 +536,12 @@ def cancel_run(session: Session, project_id: UUID, run_id: UUID):
             updated_at=func.now(),
             finished_at=func.now(),
         )
+    )
+    source_snapshots.mark_terminal(
+        session,
+        run.source_snapshot_id,
+        "cancelled",
+        "Collection was cancelled before a complete source snapshot was ready.",
     )
     session.execute(
         update(WebsiteRunItem)

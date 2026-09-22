@@ -37,6 +37,7 @@ from app.services import (
     indexes,
     notion_ingestion,
     s3_ingestion,
+    source_snapshots,
     website_ingestion,
 )
 from app.workers.celery_app import celery
@@ -44,6 +45,7 @@ from app.workers.processing import now
 
 
 def _fail(session: Session, job: IngestionRun, message: str):
+    source_snapshots.mark_terminal(session, job.source_snapshot_id, "failed", message)
     job.status = "failed"
     job.execution_token = None
     job.error = message
@@ -607,6 +609,8 @@ def _advance_website(run_id, token, db_engine, connector_factory):
             session.commit()
             return
         website_ingestion.require_artifacts(memberships)
+        if job.source_snapshot_id is not None and not job.snapshot.get("reuse_stored"):
+            source_snapshots.mark_ready(session, job.source_snapshot_id, memberships)
         processing_ids = list(
             dict.fromkeys(revision.processing_run_id for _, _, revision in memberships)
         )
@@ -616,6 +620,7 @@ def _advance_website(run_id, token, db_engine, connector_factory):
             job.knowledge_set_id,
             processing_ids,
             ingestion_run_id=job.id,
+            source_snapshot_id=job.source_snapshot_id,
             commit=False,
         )
         session.execute(

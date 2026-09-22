@@ -41,6 +41,12 @@ class IngestionRun(Base):
             name="fk_ingestion_run_schedule_project",
             use_alter=True,
         ),
+        ForeignKeyConstraint(
+            ["source_snapshot_id", "project_id"],
+            ["source_snapshots.id", "source_snapshots.project_id"],
+            name="fk_ingestion_run_source_snapshot_project",
+            use_alter=True,
+        ),
         UniqueConstraint("id", "project_id", name="uq_ingestion_run_project"),
         CheckConstraint(
             "status IN ('queued','running','succeeded','failed','cancelled')",
@@ -99,6 +105,7 @@ class IngestionRun(Base):
     pipeline_version_id: Mapped[uuid.UUID]
     knowledge_set_id: Mapped[uuid.UUID]
     schedule_id: Mapped[uuid.UUID | None]
+    source_snapshot_id: Mapped[uuid.UUID | None]
     trigger_kind: Mapped[str] = mapped_column(String(16), default="manual")
     status: Mapped[str] = mapped_column(String(16), default="queued")
     stage: Mapped[str] = mapped_column(String(24))

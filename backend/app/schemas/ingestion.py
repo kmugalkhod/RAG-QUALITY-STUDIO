@@ -520,6 +520,7 @@ class IngestionRunRead(Strict):
     pipeline_version_id: UUID
     knowledge_set_id: UUID
     schedule_id: UUID | None
+    source_snapshot_id: UUID | None
     trigger_kind: Literal["manual", "scheduled"]
     knowledge_set_name: str
     status: Literal["queued", "running", "succeeded", "failed", "cancelled"]
