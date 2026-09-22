@@ -263,6 +263,197 @@ test('saving records the draft and discard restores the saved stage settings', a
   await expect(page.getByText('Active', { exact: true })).toBeVisible();
 });
 
+test('real run checkpoints move accessible execution state across the canvas', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  let savedVersion: Record<string, unknown> | undefined;
+  let savedNodes: { id: string; type: string }[] = [];
+  await page.route('**/api/projects/*/pipelines', async (route) => {
+    if (route.request().method() !== 'POST') {
+      await route.fallback();
+      return;
+    }
+    const draft = route.request().postDataJSON();
+    savedNodes = draft.execution.nodes;
+    savedVersion = {
+      ...draft,
+      id: 'version-1',
+      pipeline_id: 'pipeline-1',
+      version: 1,
+      created_at: '2026-09-23T00:00:00Z',
+    };
+    await route.fulfill({ json: savedVersion });
+  });
+  await page.getByLabel('Starting URL').fill('https://example.org/guide');
+  await page.getByRole('button', { name: 'Save version', exact: true }).click();
+
+  const run = {
+    id: 'run-1',
+    project_id: '11111111-1111-4111-8111-111111111111',
+    pipeline_version_id: 'version-1',
+    knowledge_set_id: 'set-1',
+    knowledge_set_name: 'Product docs',
+    schedule_id: null,
+    source_snapshot_id: null,
+    trigger_kind: 'manual',
+    status: 'queued',
+    stage: 'discovering',
+    progress: 0,
+    discovered_count: 0,
+    processed_count: 0,
+    failed_count: 0,
+    new_count: 0,
+    changed_count: 0,
+    unchanged_count: 0,
+    removed_count: 0,
+    chunk_count: 10,
+    embedded_count: 0,
+    published_count: 0,
+    attempts: 0,
+    failures: 0,
+    node_states: savedNodes.map((node, ordinal) => ({
+      node_id: node.id,
+      node_type: node.type,
+      ordinal,
+      status: 'queued',
+      started_at: null,
+      finished_at: null,
+    })),
+    error: null,
+    published_index_id: null,
+    published_index_version: null,
+    created_at: '2026-09-23T00:00:00Z',
+    updated_at: '2026-09-23T00:00:00Z',
+    started_at: null,
+    finished_at: null,
+  };
+  const checkpoint = (active: number) =>
+    savedNodes.map((node, ordinal) => ({
+      node_id: node.id,
+      node_type: node.type,
+      ordinal,
+      status: ordinal < active ? 'succeeded' : ordinal === active ? 'running' : 'queued',
+      started_at: ordinal <= active ? '2026-09-23T00:00:01Z' : null,
+      finished_at: ordinal < active ? '2026-09-23T00:00:02Z' : null,
+    }));
+  const updates = [
+    {
+      ...run,
+      status: 'running',
+      stage: 'discovering',
+      progress: 8,
+      attempts: 1,
+      node_states: checkpoint(0),
+    },
+    {
+      ...run,
+      status: 'running',
+      stage: 'processing',
+      progress: 18,
+      attempts: 1,
+      node_states: checkpoint(1),
+    },
+    {
+      ...run,
+      status: 'running',
+      stage: 'processing',
+      progress: 26,
+      attempts: 1,
+      node_states: checkpoint(2),
+    },
+    {
+      ...run,
+      status: 'running',
+      stage: 'processing',
+      progress: 34,
+      attempts: 1,
+      node_states: checkpoint(3),
+    },
+    {
+      ...run,
+      status: 'running',
+      stage: 'indexing',
+      progress: 67,
+      embedded_count: 5,
+      attempts: 1,
+      node_states: checkpoint(4),
+    },
+    {
+      ...run,
+      status: 'running',
+      stage: 'indexing',
+      progress: 99,
+      embedded_count: 10,
+      attempts: 1,
+      node_states: checkpoint(5),
+    },
+    {
+      ...run,
+      status: 'succeeded',
+      stage: 'complete',
+      progress: 100,
+      embedded_count: 10,
+      published_count: 1,
+      attempts: 1,
+      published_index_id: 'index-1',
+      published_index_version: 1,
+      finished_at: '2026-09-23T00:01:00Z',
+      node_states: checkpoint(6).map((state) => ({ ...state, status: 'succeeded' })),
+    },
+  ];
+  let poll = 0;
+  await page.route(
+    '**/api/projects/*/pipelines/pipeline-1/versions/version-1/ingestion-runs',
+    (route) => route.fulfill({ json: run }),
+  );
+  await page.route('**/api/projects/*/ingestion-runs/run-1', (route) =>
+    route.fulfill({ json: updates[Math.min(poll++, updates.length - 1)] }),
+  );
+
+  await page.getByRole('button', { name: 'Collect source & build index' }).click();
+  const source = page.locator('.react-flow__node[data-id="source"] .ingestion-flow-node');
+  const extract = page.locator('.react-flow__node[data-id="extract"] .ingestion-flow-node');
+  const clean = page.locator('.react-flow__node[data-id="clean"] .ingestion-flow-node');
+  const chunk = page.locator('.react-flow__node[data-id="chunk"] .ingestion-flow-node');
+  const embed = page.locator('.react-flow__node[data-id="embed"] .ingestion-flow-node');
+  const publish = page.locator('.react-flow__node[data-id="publish"] .ingestion-flow-node');
+  await expect(source).toHaveAttribute('data-execution-status', 'running');
+  await expect(extract).toHaveAttribute('data-execution-status', 'running');
+  await expect(clean).toHaveAttribute('data-execution-status', 'running');
+  await expect(chunk).toHaveAttribute('data-execution-status', 'running');
+  await expect(embed).toHaveAttribute('data-execution-status', 'running');
+  await embed.click();
+  await expect(embed).toHaveClass(/workflow-selected/);
+  await expect(embed.getByText('Running now', { exact: true })).toBeVisible();
+  await page.screenshot({ path: 'test-results/ingestion-execution-desktop.png', fullPage: true });
+  await expect(publish).toHaveAttribute('data-execution-status', 'running');
+  await expect(publish).toHaveAttribute('data-execution-status', 'succeeded');
+  await expect(page.locator('.react-flow__attribution')).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Run details' })).toBeVisible();
+
+  await page.route('**/api/projects/*/pipelines/pipeline-1/versions?offset=0', (route) =>
+    route.fulfill({
+      json: { items: [savedVersion], total: 1, limit: 20, offset: 0 },
+    }),
+  );
+  await page.route(
+    '**/api/projects/*/ingestion-runs?pipeline_version_id=version-1&limit=20&offset=0',
+    (route) =>
+      route.fulfill({
+        json: { items: [updates.at(-1)], total: 1, limit: 20, offset: 0 },
+      }),
+  );
+  await page.reload();
+  await expect(page.locator('.ingestion-flow-node[data-execution-status="succeeded"]')).toHaveCount(
+    6,
+  );
+  await expect(page.getByText('Complete', { exact: true }).first()).toBeVisible();
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.getByText('Complete', { exact: true }).first()).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
+  await page.screenshot({ path: 'test-results/ingestion-execution-mobile.png', fullPage: true });
+});
+
 test('unavailable embedding configuration shows an actionable error instead of endless loading', async ({
   page,
 }) => {

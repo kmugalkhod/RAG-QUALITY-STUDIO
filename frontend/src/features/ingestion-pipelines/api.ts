@@ -99,6 +99,16 @@ export function getIngestionRun(projectId: string, runId: string): Promise<Inges
   );
 }
 
+export function listIngestionRuns(
+  projectId: string,
+  pipelineVersionId: string,
+  offset = 0,
+): Promise<Page<IngestionRun>> {
+  return request<Page<IngestionRun>>(
+    `/projects/${encodeURIComponent(projectId)}/ingestion-runs?pipeline_version_id=${encodeURIComponent(pipelineVersionId)}&limit=20&offset=${offset}`,
+  );
+}
+
 export function listIngestionRunItems(
   projectId: string,
   runId: string,

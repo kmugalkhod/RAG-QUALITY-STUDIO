@@ -193,6 +193,14 @@ export type IngestionRun = {
   published_count: number;
   attempts: number;
   failures: number;
+  node_states?: {
+    node_id: string;
+    node_type: IngestionNode['type'];
+    ordinal: number;
+    status: 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled';
+    started_at: string | null;
+    finished_at: string | null;
+  }[];
   error: string | null;
   published_index_id: string | null;
   published_index_version: number | null;

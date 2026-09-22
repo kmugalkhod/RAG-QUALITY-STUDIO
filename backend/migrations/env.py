@@ -6,6 +6,7 @@ from app.models.index import IndexVersion, IndexChunk  # noqa: F401
 from app.db.session import Base, engine
 from app.models.document import Document, ProcessingRun, Chunk  # noqa: F401
 from app.models.project import Project  # noqa: F401
+from app.models.ingestion import IngestionRunNode  # noqa: F401
 
 if context.is_offline_mode():
     from app.core.config import settings

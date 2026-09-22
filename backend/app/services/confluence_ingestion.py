@@ -36,12 +36,22 @@ def _clean(value, clean):
     return _SPACE.sub(" ", value).strip()
 
 
-def _chunks(artifact, chunk, clean):
+def _chunks(artifact, chunk, clean, phase_callback=None):
     values, extracted, total = [], [], 0
+    clean_started = False
+    chunk_started = False
+    if phase_callback is not None:
+        phase_callback("extract")
     for segment in artifact.segments:
+        if phase_callback is not None and not clean_started:
+            phase_callback("clean")
+            clean_started = True
         text = _clean(segment.text, clean)
         if not text:
             continue
+        if phase_callback is not None and not chunk_started:
+            phase_callback("chunk")
+            chunk_started = True
         extracted.append(text)
         for start, end, value in windows(text, chunk.size, chunk.overlap):
             if len(values) >= MAX_CHUNKS:
@@ -86,6 +96,7 @@ def persist_artifact(
     chunk,
     clean,
     prior_revision,
+    phase_callback=None,
 ):
     if artifact.content is None or artifact.content_hash is None:
         raise ValueError("Changed Confluence artifacts require extracted content.")
@@ -129,7 +140,7 @@ def persist_artifact(
     storage_name = stored_path = None
     try:
         storage_name, stored_path = store(artifact.content)
-        chunk_values, extracted_hash = _chunks(artifact, chunk, clean)
+        chunk_values, extracted_hash = _chunks(artifact, chunk, clean, phase_callback)
         document = Document(
             project_id=project_id,
             filename=f"{artifact.item.display_name[:251]}.txt",

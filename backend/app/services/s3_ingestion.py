@@ -44,14 +44,24 @@ def _clean(value: str, clean) -> str:
     return _SPACE.sub(" ", value).strip()
 
 
-def _chunks(path, media_type, source_key, chunk, clean):
+def _chunks(path, media_type, source_key, chunk, clean, phase_callback=None):
     values = []
     extracted = []
     total_characters = 0
+    clean_started = False
+    chunk_started = False
+    if phase_callback is not None:
+        phase_callback("extract")
     for page_number, value, _, _ in pages(path, media_type):
+        if phase_callback is not None and not clean_started:
+            phase_callback("clean")
+            clean_started = True
         cleaned = _clean(value, clean)
         if not cleaned:
             continue
+        if phase_callback is not None and not chunk_started:
+            phase_callback("chunk")
+            chunk_started = True
         extracted.append(cleaned)
         for start, end, text in windows(cleaned, chunk.size, chunk.overlap):
             if len(values) >= MAX_CHUNKS:
@@ -91,6 +101,7 @@ def persist_artifact(
     chunk,
     clean,
     prior_revision: SourceRevision | None,
+    phase_callback=None,
 ):
     if artifact.content is None or artifact.content_hash is None:
         raise ValueError("Changed S3 artifacts require fetched content.")
@@ -138,7 +149,12 @@ def persist_artifact(
         storage_name, stored_path = store(artifact.content)
         media_type = artifact.item.media_type
         chunk_values, extracted_hash = _chunks(
-            stored_path, media_type, str(metadata["key"]), chunk, clean
+            stored_path,
+            media_type,
+            str(metadata["key"]),
+            chunk,
+            clean,
+            phase_callback,
         )
         filename = (PurePosixPath(str(metadata["key"])).name or "s3-object")[:255]
         document = Document(

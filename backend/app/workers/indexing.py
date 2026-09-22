@@ -9,6 +9,7 @@ from app.db.session import engine
 from app.models.document import Chunk, Document, ProcessingRun
 from app.models.index import IndexChunk, IndexVersion, KnowledgeSet
 from app.providers import embeddings
+from app.services import ingestion_execution
 from app.workers.celery_app import celery
 from app.workers.processing import now
 
@@ -33,6 +34,7 @@ def process_index(index_id: UUID, db_engine=engine):
         config = embeddings.EmbeddingConfig.model_validate(job.embedding_config)
         project_id = job.project_id
         session.commit()
+        ingestion_execution.transition_for_index(db_engine, job, "embed")
     try:
         provider = embeddings.provider_for(config)
         with Session(db_engine) as session:
@@ -129,6 +131,9 @@ def process_index(index_id: UUID, db_engine=engine):
             job.dispatched_at = None
             job.status = "succeeded" if completed == job.chunk_count else "queued"
             if job.status == "succeeded":
+                ingestion_execution.transition_for_index(
+                    db_engine, job, "publish_index"
+                )
                 job.finished_at = now()
                 session.execute(
                     update(KnowledgeSet)

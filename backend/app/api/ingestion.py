@@ -99,9 +99,19 @@ def start_run(
 
 @router.get("/ingestion-runs", response_model=IngestionRunPage)
 def list_runs(
-    project_id: UUID, session: Database, limit: Limit = 20, offset: Offset = 0
+    project_id: UUID,
+    session: Database,
+    limit: Limit = 20,
+    offset: Offset = 0,
+    pipeline_version_id: UUID | None = None,
 ):
-    return ingestion.list_runs(session, project_id, limit, offset)
+    return ingestion.list_runs(
+        session,
+        project_id,
+        limit,
+        offset,
+        pipeline_version_id=pipeline_version_id,
+    )
 
 
 @router.get("/ingestion-runs/{run_id}", response_model=IngestionRunRead)

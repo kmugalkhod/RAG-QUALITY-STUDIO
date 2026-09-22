@@ -514,6 +514,15 @@ class SourcePreviewItemPage(Strict):
     offset: int
 
 
+class IngestionRunNodeRead(Strict):
+    node_id: str
+    node_type: Literal["source", "extract", "clean", "chunk", "embed", "publish_index"]
+    ordinal: int
+    status: Literal["queued", "running", "succeeded", "failed", "cancelled"]
+    started_at: datetime | None
+    finished_at: datetime | None
+
+
 class IngestionRunRead(Strict):
     id: UUID
     project_id: UUID
@@ -538,6 +547,7 @@ class IngestionRunRead(Strict):
     published_count: int
     attempts: int
     failures: int
+    node_states: list[IngestionRunNodeRead]
     error: str | None
     published_index_id: UUID | None
     published_index_version: int | None

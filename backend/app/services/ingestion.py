@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from app.connectors.existing_files import ExistingFilesConnector
 from app.models.document import Document, ProcessingRun
 from app.models.index import IndexVersion, KnowledgeSet
-from app.models.ingestion import IngestionRun, IngestionRunItem
+from app.models.ingestion import IngestionRun, IngestionRunItem, IngestionRunNode
 from app.models.project import Project
 from app.models.source import WebsiteRunItem
 from app.pipelines.parsing import PARSER_VERSION
@@ -22,7 +22,7 @@ from app.schemas.ingestion import (
     IngestionPreviewRead,
     IngestionSourceInput,
 )
-from app.services import indexes, pipelines, source_snapshots
+from app.services import indexes, ingestion_execution, pipelines, source_snapshots
 from app.services.documents import project
 
 
@@ -173,6 +173,22 @@ def _processing_matches(run: ProcessingRun, size: int, overlap: int):
     )
 
 
+def _add_node_states(
+    session: Session, run: IngestionRun, execution: IngestionExecution
+):
+    for ordinal, node in enumerate(execution.nodes):
+        session.add(
+            IngestionRunNode(
+                run_id=run.id,
+                project_id=run.project_id,
+                node_id=node.id,
+                node_type=node.type,
+                ordinal=ordinal,
+                status="queued",
+            )
+        )
+
+
 def start_run(
     session: Session,
     project_id: UUID,
@@ -315,6 +331,7 @@ def start_run(
         )
         session.add(run)
         session.flush()
+        _add_node_states(session, run, execution)
         if remote_kind == "website":
             if selected_snapshot is not None:
                 run.source_snapshot_id = selected_snapshot.id
@@ -438,6 +455,7 @@ def start_run(
     )
     session.add(run)
     session.flush()
+    _add_node_states(session, run, execution)
     for item in item_values:
         session.add(IngestionRunItem(run_id=run.id, **item))
     session.commit()
@@ -464,6 +482,11 @@ def _run_rows(session: Session, statement):
     ).all()
     results = []
     for run, set_name, index_id, index_version in rows:
+        node_states = session.scalars(
+            select(IngestionRunNode)
+            .where(IngestionRunNode.run_id == run.id)
+            .order_by(IngestionRunNode.ordinal)
+        ).all()
         outcome_counts = dict(
             session.execute(
                 select(WebsiteRunItem.outcome, func.count())
@@ -482,6 +505,17 @@ def _run_rows(session: Session, statement):
                 "knowledge_set_name": set_name,
                 "published_index_id": index_id,
                 "published_index_version": index_version,
+                "node_states": [
+                    {
+                        "node_id": state.node_id,
+                        "node_type": state.node_type,
+                        "ordinal": state.ordinal,
+                        "status": state.status,
+                        "started_at": state.started_at,
+                        "finished_at": state.finished_at,
+                    }
+                    for state in node_states
+                ],
                 "new_count": outcome_counts.get("new", 0),
                 "changed_count": outcome_counts.get("changed", 0),
                 "unchanged_count": outcome_counts.get("unchanged", 0),
@@ -495,17 +529,25 @@ def read_run(session: Session, run: IngestionRun):
     return _run_rows(session, select(IngestionRun).where(IngestionRun.id == run.id))[0]
 
 
-def list_runs(session: Session, project_id: UUID, limit: int, offset: int):
+def list_runs(
+    session: Session,
+    project_id: UUID,
+    limit: int,
+    offset: int,
+    *,
+    pipeline_version_id: UUID | None = None,
+):
     project(session, project_id)
+    conditions = [IngestionRun.project_id == project_id]
+    if pipeline_version_id is not None:
+        conditions.append(IngestionRun.pipeline_version_id == pipeline_version_id)
     total = session.scalar(
-        select(func.count())
-        .select_from(IngestionRun)
-        .where(IngestionRun.project_id == project_id)
+        select(func.count()).select_from(IngestionRun).where(*conditions)
     )
     items = _run_rows(
         session,
         select(IngestionRun)
-        .where(IngestionRun.project_id == project_id)
+        .where(*conditions)
         .order_by(IngestionRun.created_at.desc(), IngestionRun.id.desc())
         .limit(limit)
         .offset(offset),
@@ -602,6 +644,7 @@ def cancel_run(session: Session, project_id: UUID, run_id: UUID):
             finished_at=func.now(),
         )
     )
+    ingestion_execution.mark_terminal(session, run.id, "cancelled")
     source_snapshots.mark_terminal(
         session,
         run.source_snapshot_id,

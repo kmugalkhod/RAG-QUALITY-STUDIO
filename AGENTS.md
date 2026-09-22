@@ -164,6 +164,8 @@ Keep these operations separate:
 ## Frontend behavior
 
 - Build real API integrations. Use clearly labelled fixtures only in tests or an explicit sample/demo mode.
+- Use `http://127.0.0.1:5273` as the single canonical frontend URL for local development, manual testing and browser verification. Before starting a frontend, inspect and reuse or restart the process on port `5273`; do not switch to `5173` or another port as a fallback.
+- Run the Vite development frontend for local UI work. Do not run the Docker/Nginx frontend alongside it, because two frontend ports make it unclear which build is under test.
 - Provide loading, empty, validation, error, progress and cancellation states as applicable.
 - Use accessible labels, keyboard navigation and readable contrast. Provide forms for editing node settings rather than relying only on dragging.
 - Show unsaved configuration changes and the exact saved version used by a run.
@@ -200,7 +202,8 @@ The following are target conventions for the initial scaffold, not claims that c
 
 | Purpose | Command and location |
 | --- | --- |
-| Start local services | `docker compose up --build` from repository root |
+| Start local backend services | `docker compose up --build -d db redis migrate backend worker dispatcher` from repository root |
+| Start the canonical development frontend | `npm run dev -- --port 5273` in `frontend/`; keep using `http://127.0.0.1:5273` |
 | Stop without deleting data | `docker compose down` from repository root |
 | Apply migrations | `docker compose exec backend alembic upgrade head` |
 | Backend tests | `docker compose exec backend python -m pytest` |
@@ -211,7 +214,7 @@ The following are target conventions for the initial scaffold, not claims that c
 | Frontend type check | `npm run typecheck` in `frontend/` |
 | Frontend tests | `npm run test -- --run` in `frontend/` |
 | Frontend production build | `npm run build` in `frontend/` |
-| Browser journeys | `npm run test:e2e` in `frontend/` with documented test services |
+| Browser journeys | `E2E_BASE_URL=http://127.0.0.1:5273 npm run test:e2e` in `frontend/` with documented test services |
 
 Keep test data in an isolated database/storage location. Automated tests must not reset developer data. Never run `docker compose down -v` as routine cleanup.
 

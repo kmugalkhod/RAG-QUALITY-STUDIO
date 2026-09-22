@@ -35,6 +35,7 @@ from app.schemas.ingestion import IngestionExecution
 from app.services import (
     connections,
     confluence_ingestion,
+    ingestion_execution,
     indexes,
     notion_ingestion,
     s3_ingestion,
@@ -51,6 +52,7 @@ def _fail(session: Session, job: IngestionRun, message: str):
     job.execution_token = None
     job.error = message
     job.updated_at = job.finished_at = now()
+    ingestion_execution.mark_terminal(session, job.id, "failed")
 
 
 def _cancel_unpublished_work(session: Session, run_id: UUID):
@@ -182,7 +184,7 @@ def _website_snapshot_priors(session, job):
     return priors, revisions
 
 
-def _discover_website(run_id, db_engine, connector_factory):
+def _discover_website(run_id, token, db_engine, connector_factory):
     with Session(db_engine) as session:
         job = session.get(IngestionRun, run_id)
         execution = IngestionExecution.model_validate(job.snapshot["execution"])
@@ -194,6 +196,10 @@ def _discover_website(run_id, db_engine, connector_factory):
     if source_input.get("kind") == "snapshot" or job.snapshot.get("reuse_stored"):
         results = []
         for source in [node for node in execution.nodes if node.type == "source"]:
+            if not ingestion_execution.transition(
+                db_engine, run_id, node_id=source.id, execution_token=token
+            ):
+                return execution, revisions, results
             outcomes = []
             artifacts = []
             for location, (revision, source_node_id) in revisions.items():
@@ -228,6 +234,10 @@ def _discover_website(run_id, db_engine, connector_factory):
         return execution, revisions, results
     results = []
     for source in [node for node in execution.nodes if node.type == "source"]:
+        if not ingestion_execution.transition(
+            db_engine, run_id, node_id=source.id, execution_token=token
+        ):
+            return execution, revisions, results
         connector = connector_factory() if connector_factory else WebsiteConnector()
         outcomes, artifacts = connector.fetch_all(source.config, priors)
         results.append((source.id, outcomes, artifacts))
@@ -293,6 +303,10 @@ def _discover_credentialed(
     # Never hold a database transaction open during bounded provider calls.
     results = []
     for source, credentials in sources:
+        if not ingestion_execution.transition(
+            db_engine, run_id, node_id=source.id, execution_token=token
+        ):
+            return execution, priors, results
         connector = (
             connector_factory(credentials)
             if connector_factory
@@ -344,6 +358,15 @@ def _advance_credentialed(
     )
     chunk = next(node for node in execution.nodes if node.type == "chunk")
     clean = next(node for node in execution.nodes if node.type == "clean")
+
+    def phase_callback(node_type):
+        return ingestion_execution.transition(
+            db_engine,
+            run_id,
+            node_type=node_type,
+            execution_token=token,
+        )
+
     with Session(db_engine) as session:
         job = session.scalar(
             select(IngestionRun).where(IngestionRun.id == run_id).with_for_update()
@@ -417,6 +440,7 @@ def _advance_credentialed(
                         chunk,
                         clean,
                         prior,
+                        phase_callback,
                     )
                 if (
                     clean.exact_content_deduplication
@@ -476,6 +500,9 @@ def _advance_credentialed(
             raise HTTPException(
                 409, f"{label.capitalize()} discovery found no indexable pages."
             )
+        ingestion_execution.transition(
+            db_engine, run_id, node_type="embed", execution_token=token
+        )
         processing_ids = list(
             dict.fromkeys(revision.processing_run_id for _, _, revision in memberships)
         )
@@ -552,10 +579,19 @@ def _advance_confluence(run_id, token, db_engine, connector_factory):
 
 def _advance_website(run_id, token, db_engine, connector_factory):
     execution, prior_revisions, results = _discover_website(
-        run_id, db_engine, connector_factory
+        run_id, token, db_engine, connector_factory
     )
     chunk = next(node for node in execution.nodes if node.type == "chunk")
     clean = next(node for node in execution.nodes if node.type == "clean")
+
+    def phase_callback(node_type):
+        return ingestion_execution.transition(
+            db_engine,
+            run_id,
+            node_type=node_type,
+            execution_token=token,
+        )
+
     with Session(db_engine) as session:
         job = session.scalar(
             select(IngestionRun).where(IngestionRun.id == run_id).with_for_update()
@@ -608,6 +644,7 @@ def _advance_website(run_id, token, db_engine, connector_factory):
                         chunk,
                         clean,
                         prior,
+                        phase_callback,
                     )
                 )
                 if (
@@ -664,6 +701,9 @@ def _advance_website(run_id, token, db_engine, connector_factory):
             session.commit()
             return
         website_ingestion.require_artifacts(memberships)
+        ingestion_execution.transition(
+            db_engine, run_id, node_type="embed", execution_token=token
+        )
         if (
             job.source_snapshot_id is not None
             and (job.snapshot.get("source_input") or {}).get("kind") == "refresh"
@@ -724,6 +764,7 @@ def _finish_remote(session, job, index):
     job.failures = 0
     job.error = None
     job.updated_at = job.finished_at = now()
+    ingestion_execution.mark_terminal(session, job.id, "succeeded")
 
 
 def process_ingestion(run_id: UUID, db_engine=engine, connector_factory=None):
@@ -851,6 +892,9 @@ def process_ingestion(run_id: UUID, db_engine=engine, connector_factory=None):
                 select(IndexVersion).where(IndexVersion.ingestion_run_id == run_id)
             )
             if index is None:
+                ingestion_execution.transition(
+                    db_engine, run_id, node_type="embed", execution_token=token
+                )
                 indexes.create_index_from_processing_runs(
                     session,
                     job.project_id,
@@ -903,6 +947,7 @@ def process_ingestion(run_id: UUID, db_engine=engine, connector_factory=None):
             job.failures = 0
             job.error = None
             job.updated_at = job.finished_at = now()
+            ingestion_execution.mark_terminal(session, job.id, "succeeded")
             session.commit()
     except Exception as exc:
         transient = isinstance(exc, SQLAlchemyError) or (

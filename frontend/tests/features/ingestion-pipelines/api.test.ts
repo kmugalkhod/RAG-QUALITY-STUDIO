@@ -7,6 +7,7 @@ import {
   getIngestionRun,
   getSourcePreview,
   listIngestionPipelineVersions,
+  listIngestionRuns,
   listIngestionRunItems,
   listSourcePreviewItems,
   listIngestionSchedules,
@@ -50,7 +51,10 @@ test('keeps preview and durable run operations distinct', async () => {
   await listSourcePreviewItems('project', 'preview');
   await cancelSourcePreview('project', 'preview');
   await listIngestionPipelineVersions('project', 'pipeline');
-  await startIngestionRun('project', 'pipeline', 'version');
+  await listIngestionRuns('project', 'version');
+  await startIngestionRun('project', 'pipeline', 'version', {
+    source_input: { kind: 'refresh' },
+  });
   await getIngestionRun('project', 'run');
   await listIngestionRunItems('project', 'run');
   await cancelIngestionRun('project', 'run');
@@ -61,12 +65,12 @@ test('keeps preview and durable run operations distinct', async () => {
     expect.objectContaining({ method: 'POST' }),
   );
   expect(fetch).toHaveBeenNthCalledWith(
-    6,
+    7,
     '/api/projects/project/pipelines/pipeline/versions/version/ingestion-runs',
     expect.objectContaining({ method: 'POST' }),
   );
   expect(fetch).toHaveBeenNthCalledWith(
-    9,
+    10,
     '/api/projects/project/ingestion-runs/run/cancel',
     expect.objectContaining({ method: 'POST' }),
   );
@@ -74,6 +78,11 @@ test('keeps preview and durable run operations distinct', async () => {
     4,
     '/api/projects/project/source-previews/preview/cancel',
     expect.objectContaining({ method: 'POST' }),
+  );
+  expect(fetch).toHaveBeenNthCalledWith(
+    6,
+    '/api/projects/project/ingestion-runs?pipeline_version_id=version&limit=20&offset=0',
+    expect.anything(),
   );
 });
 

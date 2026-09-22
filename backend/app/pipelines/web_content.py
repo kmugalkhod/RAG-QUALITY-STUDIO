@@ -95,7 +95,7 @@ class _Content(HTMLParser):
             self.buffer.append(data)
 
 
-def extract_sections(content: bytes, clean) -> list[Section]:
+def extract_sections(content: bytes, clean, phase_callback=None) -> list[Section]:
     parser = _Content()
     parser.feed(content.decode("utf-8", errors="replace"))
     parser.flush()
@@ -103,6 +103,8 @@ def extract_sections(content: bytes, clean) -> list[Section]:
     main = [entry for entry in entries if entry[0]]
     if main:
         entries = main
+    if phase_callback is not None:
+        phase_callback("clean")
     boilerplate = tuple(value.strip() for value in clean.repeated_boilerplate)
     sections = []
     for _, path, value in entries:

@@ -132,6 +132,39 @@ class IngestionRun(Base):
     dispatched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
+class IngestionRunNode(Base):
+    __tablename__ = "ingestion_run_nodes"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["run_id", "project_id"],
+            ["ingestion_runs.id", "ingestion_runs.project_id"],
+            name="fk_ingestion_run_node_run_project",
+            ondelete="CASCADE",
+        ),
+        CheckConstraint(
+            "node_type IN ('source','extract','clean','chunk','embed','publish_index')",
+            name="ck_ingestion_run_node_type",
+        ),
+        CheckConstraint(
+            "status IN ('queued','running','succeeded','failed','cancelled')",
+            name="ck_ingestion_run_node_status",
+        ),
+        UniqueConstraint("run_id", "ordinal", name="uq_ingestion_run_node_ordinal"),
+        Index("ix_ingestion_run_nodes_run_ordinal", "run_id", "ordinal"),
+    )
+    run_id: Mapped[uuid.UUID] = mapped_column(primary_key=True)
+    node_id: Mapped[str] = mapped_column(String(120), primary_key=True)
+    project_id: Mapped[uuid.UUID]
+    node_type: Mapped[str] = mapped_column(String(24))
+    ordinal: Mapped[int]
+    status: Mapped[str] = mapped_column(String(16), default="queued")
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
 class IngestionSchedule(Base):
     __tablename__ = "ingestion_schedules"
     __table_args__ = (

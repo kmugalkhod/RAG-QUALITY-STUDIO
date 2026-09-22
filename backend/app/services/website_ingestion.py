@@ -35,6 +35,7 @@ def persist_artifact(
     chunk,
     clean,
     prior_revision: SourceRevision | None,
+    phase_callback=None,
 ):
     source_item = session.scalar(
         select(SourceItem).where(
@@ -80,10 +81,14 @@ def persist_artifact(
         )
         return source_item, revision, outcome, revision.extracted_hash, None
 
-    sections = extract_sections(artifact.content, clean)
+    if phase_callback is not None:
+        phase_callback("extract")
+    sections = extract_sections(artifact.content, clean, phase_callback)
     extracted_hash = hashlib.sha256(
         "\n\n".join(section.text for section in sections).encode("utf-8")
     ).hexdigest()
+    if phase_callback is not None:
+        phase_callback("chunk")
     chunk_values = chunk_sections(sections, chunk.size, chunk.overlap)
     storage_name = None
     stored_path = None

@@ -9,6 +9,7 @@ from app.core.config import settings
 from app.db.session import engine
 from app.models.document import Chunk, Document, ProcessingRun
 from app.pipelines.parsing import MAX_CHUNKS, ProcessingError, pages, windows
+from app.services import ingestion_execution
 from app.workers.celery_app import celery
 
 
@@ -37,10 +38,20 @@ def process(run_id: UUID, db_engine=engine):
         path, media = settings.storage_path / doc.storage_name, doc.media_type
         size, overlap = job.chunk_size, job.overlap
         session.commit()
+    ingestion_execution.transition_for_processing_run(db_engine, run_id, "extract")
     try:
         chunks = []
         chunk_characters = 0
+        processing_phase_started = False
         for page, value, completed, total in pages(path, media):
+            if not processing_phase_started:
+                ingestion_execution.transition_for_processing_run(
+                    db_engine, run_id, "clean"
+                )
+                ingestion_execution.transition_for_processing_run(
+                    db_engine, run_id, "chunk"
+                )
+                processing_phase_started = True
             # Cancellation/recovery is observed between pages and bounded windows.
             for start, end, content in windows(value, size, overlap):
                 if len(chunks) >= MAX_CHUNKS:

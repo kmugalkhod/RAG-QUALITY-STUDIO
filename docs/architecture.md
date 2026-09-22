@@ -292,6 +292,18 @@ Schedules start paused and never alter their saved pipeline version. Immediate s
 
 ## Frontend organization
 
+Ingestion runs also persist one `ingestion_run_nodes` row for every node in the
+immutable saved execution graph. Workers move those rows through queued, running,
+succeeded, failed and cancelled states at the actual connector, extraction,
+cleaning, chunking, embedding and atomic-publication boundaries. This table is
+separate from the coarse run stage so a checkpoint can commit while an artifact
+transaction holds the parent run lock. Execution tokens still fence worker
+transitions, and terminal run handling resolves the active and remaining node
+states in the same transaction. The run read contract returns the ordered node
+states; the React Flow editor renders them by immutable node ID and only falls
+back to legacy stage projection for historical rows created before migration
+`0019`.
+
 The frontend separates workspace navigation, route rendering, and project-loading lifecycle. Document/chunk inspectors and experiment comparison/configuration components belong to their respective features. Unit/component tests live in `frontend/tests/`, mirroring `src/`; browser journeys remain in `frontend/e2e/`. Application imports cannot reference test code or testing libraries (enforced by ESLint).
 
 The application now has one authored stylesheet, `src/app/styles.css`, with root shadcn semantic tokens mapped through Tailwind `@theme inline`. Tailwind and its Vite plugin are pinned to 4.3.3. The official shadcn CLI installed Button, Input, Label, Textarea, Native Select, Checkbox, Table, Badge, Tabs, Separator, Alert, Skeleton, Accordion and Progress using the existing Radix/new-york convention. Local variant changes preserve the compact dark workspace. Required React Flow package CSS is imported once; it is not an authored feature stylesheet.

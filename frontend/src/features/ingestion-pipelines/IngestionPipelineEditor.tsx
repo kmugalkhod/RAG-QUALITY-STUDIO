@@ -14,12 +14,17 @@ import {
 } from '@xyflow/react';
 import {
   Check,
+  Ban,
   ChevronDown,
+  CircleCheck,
+  CircleX,
   Clock3,
   CircleAlert,
   Database,
   FileText,
+  LoaderCircle,
   Play,
+  RefreshCw,
   Save,
   Square,
   X,
@@ -49,6 +54,11 @@ import { getConnectionSettings, listConnections } from '../connections/api';
 import type { ConnectionSettings, SourceConnection } from '../connections/model';
 import * as api from './api';
 import {
+  ingestionNodeExecutionStates,
+  ingestionRunDisplayStatus,
+  type IngestionNodeExecutionStatus,
+} from './executionState';
+import {
   canonicalIngestion,
   type ConfluenceConfig,
   type ExistingFilesConfig,
@@ -71,6 +81,8 @@ type FlowData = {
   first: boolean;
   last: boolean;
   stage: IngestionNode['type'];
+  executionStatus?: IngestionNodeExecutionStatus;
+  executionWasStarted?: boolean;
 };
 type FlowNode = Node<FlowData, 'ingestion'>;
 const terminal = new Set(['succeeded', 'failed', 'cancelled']);
@@ -90,6 +102,13 @@ const stageIcons = {
   embed: Database,
   publish_index: ArrowUpToLine,
 };
+const executionStatusPresentation = {
+  queued: { label: 'Queued', icon: Clock3 },
+  running: { label: 'Running now', icon: LoaderCircle },
+  succeeded: { label: 'Complete', icon: CircleCheck },
+  failed: { label: 'Failed', icon: CircleX },
+  cancelled: { label: 'Cancelled', icon: Ban },
+} satisfies Record<IngestionNodeExecutionStatus, { label: string; icon: typeof Clock3 }>;
 
 function describeCadence(schedule: IngestionSchedule) {
   if (schedule.cadence.kind === 'daily') {
@@ -185,9 +204,19 @@ const lines = (value: string) =>
 
 function IngestionFlowNode({ data, selected }: NodeProps<FlowNode>) {
   const Icon = stageIcons[data.stage];
+  const reused = data.executionStatus === 'succeeded' && data.executionWasStarted === false;
+  const execution = reused
+    ? { label: 'Reused', icon: RefreshCw }
+    : data.executionStatus
+      ? executionStatusPresentation[data.executionStatus]
+      : undefined;
+  const StatusIcon = execution?.icon;
   return (
     <div
-      className={`workflow-node vertical-node w-80 border border-border rounded-[10px] bg-background text-foreground h-21 flex items-center gap-4 shadow-none py-4.5 px-5.5 ${selected ? 'workflow-selected border-primary outline-2 -outline-offset-1 outline-primary' : ''}`}
+      className={`workflow-node ingestion-flow-node vertical-node relative w-80 border border-border rounded-[10px] bg-background text-foreground h-21 flex items-center gap-4 py-4.5 px-5.5 ${selected ? 'workflow-selected outline-2 outline-offset-2 outline-primary' : ''}`}
+      data-execution-status={data.executionStatus}
+      data-execution-reused={reused || undefined}
+      aria-label={`${data.label}${execution ? `: ${execution.label}` : ''}`}
     >
       {!data.first && <Handle type="target" position={Position.Top} />}
       <Icon className="node-symbol shrink-0 text-muted-foreground" size={20} />
@@ -197,6 +226,16 @@ function IngestionFlowNode({ data, selected }: NodeProps<FlowNode>) {
           {data.detail}
         </div>
       </div>
+      {execution && StatusIcon && (
+        <span className="ingestion-node-status" aria-label={`Execution status: ${execution.label}`}>
+          <StatusIcon
+            className={data.executionStatus === 'running' ? 'ingestion-status-spinner' : ''}
+            size={13}
+            aria-hidden="true"
+          />
+          {execution.label}
+        </span>
+      )}
       {!data.last && <Handle type="source" position={Position.Bottom} />}
     </div>
   );
@@ -938,6 +977,7 @@ export function IngestionPipelineEditor({
   const [error, setError] = useState('');
   const [pollError, setPollError] = useState('');
   const canvasRef = useRef<HTMLDivElement>(null);
+  const runRestoreGeneration = useRef(0);
   const [flow, setFlow] = useState<ReactFlowInstance<FlowNode, Edge>>();
   const [flowNodes, setFlowNodes, onFlowNodesChange] = useNodesState<FlowNode>([]);
   const dirty = !!draft && canonicalIngestion(draft) !== baseline;
@@ -945,6 +985,7 @@ export function IngestionPipelineEditor({
 
   const open = useCallback(
     (version: IngestionPipelineVersion) => {
+      runRestoreGeneration.current += 1;
       const editable = editableVersion(version);
       setDraft(editable);
       setSaved(version);
@@ -1032,9 +1073,50 @@ export function IngestionPipelineEditor({
   }, [projectId, saved]);
 
   useEffect(() => {
+    let disposed = false;
+    if (!saved) {
+      return;
+    }
+    const generation = ++runRestoreGeneration.current;
+
+    const restoreLatestRun = async () => {
+      try {
+        const page = await api.listIngestionRuns(projectId, saved.id);
+        if (disposed || generation !== runRestoreGeneration.current) {
+          return;
+        }
+        const latest = page.items.find((candidate) => candidate.pipeline_version_id === saved.id);
+        setRun(latest);
+        setItems([]);
+        if (latest && terminal.has(latest.status)) {
+          const restoredItems = await allPages((offset) =>
+            api.listIngestionRunItems(projectId, latest.id, offset),
+          );
+          if (!disposed && generation === runRestoreGeneration.current) {
+            setItems(restoredItems);
+          }
+        }
+        if (!disposed && generation === runRestoreGeneration.current) {
+          setPollError('');
+        }
+      } catch (cause) {
+        if (!disposed && generation === runRestoreGeneration.current) {
+          setPollError(`Run history unavailable. ${message(cause)}`);
+        }
+      }
+    };
+
+    void restoreLatestRun();
+    return () => {
+      disposed = true;
+    };
+  }, [projectId, saved]);
+
+  useEffect(() => {
     if (!draft) {
       return;
     }
+    const executionStates = ingestionNodeExecutionStates(run, draft.execution.nodes);
     const nodes = draft.execution.nodes.map((node, index) => ({
       id: node.id,
       type: 'ingestion' as const,
@@ -1057,12 +1139,18 @@ export function IngestionPipelineEditor({
         detail: detail(node, documents),
         first: index === 0,
         last: index === draft.execution.nodes.length - 1,
+        executionStatus: executionStates[node.id],
+        executionWasStarted: run?.node_states?.find((state) => state.node_id === node.id)
+          ? Boolean(run.node_states.find((state) => state.node_id === node.id)?.started_at)
+          : undefined,
       },
     }));
     setFlowNodes(nodes);
-  }, [draft, documents, selectedNode, setFlowNodes]);
+  }, [draft, documents, run, selectedNode, setFlowNodes]);
 
   const activeRunId = run?.id;
+  const activeRunStatus = run?.status;
+  const runDisplayStatus = run ? ingestionRunDisplayStatus(run) : undefined;
   const savedVersionId = saved?.id;
   const previewId = preview?.id;
 
@@ -1085,7 +1173,7 @@ export function IngestionPipelineEditor({
   }, [error]);
 
   useEffect(() => {
-    if (!activeRunId) {
+    if (!activeRunId || (activeRunStatus && terminal.has(activeRunStatus))) {
       setPollError('');
       return;
     }
@@ -1135,7 +1223,7 @@ export function IngestionPipelineEditor({
       disposed = true;
       window.clearTimeout(timer);
     };
-  }, [activeRunId, projectId, savedVersionId]);
+  }, [activeRunId, activeRunStatus, projectId, savedVersionId]);
 
   useEffect(() => {
     if (!preview || terminal.has(preview.status)) {
@@ -1334,6 +1422,7 @@ export function IngestionPipelineEditor({
 
   async function perform(work: () => Promise<void>) {
     setBusy(true);
+    runRestoreGeneration.current += 1;
     setError('');
     try {
       await work();
@@ -1441,6 +1530,7 @@ export function IngestionPipelineEditor({
   }
 
   function runSchedule(schedule: IngestionSchedule) {
+    runRestoreGeneration.current += 1;
     void perform(async () => setRun(await api.runIngestionSchedule(projectId, schedule.id)));
   }
 
@@ -1775,6 +1865,61 @@ export function IngestionPipelineEditor({
             );
           })}
         </nav>
+        {run && (
+          <div className="ingestion-run-bar">
+            <div id="ingestion-run" className="ingestion-run-summary" aria-live="polite">
+              <div className="ingestion-run-summary-heading">
+                {(() => {
+                  const displayStatus = runDisplayStatus ?? run.status;
+                  const presentation = executionStatusPresentation[displayStatus];
+                  const StatusIcon = presentation.icon;
+                  return (
+                    <span className="ingestion-run-state" data-status={displayStatus}>
+                      <StatusIcon
+                        className={displayStatus === 'running' ? 'ingestion-status-spinner' : ''}
+                        size={14}
+                        aria-hidden="true"
+                      />
+                      {presentation.label}
+                    </span>
+                  );
+                })()}
+                <strong>{run.progress}%</strong>
+              </div>
+              <p title={run.knowledge_set_name}>{run.knowledge_set_name}</p>
+              <div
+                className="ingestion-run-progress"
+                role="progressbar"
+                aria-label="Ingestion run progress"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={run.progress}
+              >
+                <span style={{ transform: `scaleX(${run.progress / 100})` }} />
+              </div>
+              <small>
+                {run.stage === 'indexing'
+                  ? `${run.embedded_count}/${run.chunk_count} chunks embedded`
+                  : `${run.stage} checkpoint`}
+              </small>
+              {!terminal.has(run.status) && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={busy}
+                  onClick={() =>
+                    void perform(async () =>
+                      setRun(await api.cancelIngestionRun(projectId, run.id)),
+                    )
+                  }
+                >
+                  <Square size={13} />
+                  Cancel run
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
         <div className="pipeline-editor ingestion-editor-grid">
           <div ref={canvasRef} className="pipeline-canvas" aria-label="Ingestion pipeline canvas">
             <ReactFlow<FlowNode, Edge>
@@ -1793,6 +1938,7 @@ export function IngestionPipelineEditor({
               deleteKeyCode={null}
               fitView
               fitViewOptions={{ padding: 0.12, maxZoom: 1 }}
+              proOptions={{ hideAttribution: true }}
             >
               <Background gap={22} size={1.2} />
               <Controls showInteractive={false} />
@@ -2253,21 +2399,14 @@ export function IngestionPipelineEditor({
           />
         </section>
       )}
-      {run && (
+      {run && terminal.has(run.status) && (
         <section
-          id="ingestion-run"
-          className="surface-section ingestion-results"
-          aria-live="polite"
+          className="surface-section ingestion-results ingestion-run-details"
+          aria-labelledby="ingestion-run-details-heading"
         >
           <div className="section-heading">
             <div>
-              <p className="eyebrow">Ingestion run</p>
-              <h2>
-                {run.knowledge_set_name} · {run.status}
-              </h2>
-              <p>
-                {run.stage} · {run.progress}% · {run.embedded_count}/{run.chunk_count} embedded
-              </p>
+              <h2 id="ingestion-run-details-heading">Run details</h2>
               {(run.new_count > 0 ||
                 run.changed_count > 0 ||
                 run.unchanged_count > 0 ||
@@ -2278,17 +2417,6 @@ export function IngestionPipelineEditor({
                 </p>
               )}
             </div>
-            {!terminal.has(run.status) && (
-              <Button
-                variant="outline"
-                onClick={() =>
-                  void perform(async () => setRun(await api.cancelIngestionRun(projectId, run.id)))
-                }
-              >
-                <Square size={14} />
-                Cancel
-              </Button>
-            )}
           </div>
           {run.error && (
             <p role="alert" className="error-message">

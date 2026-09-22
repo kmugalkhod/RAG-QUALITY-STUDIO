@@ -375,11 +375,13 @@ Implemented:
 - The ingestion coordinator reuses matching successful character-window processing or creates a new processing version, then persists exact index membership and waits for the existing fenced processing/index workers. Duplicate delivery is inert after terminal state; cancellation and exhausted stale recovery fence coordinator, created processing, and unpublished index work.
 - Project-scoped preview/run/detail/item/cancel APIs expose safe stage, progress, counts and per-file provenance. A ready `index_versions.ingestion_run_id` proves the publishing run, while atomic index publication keeps earlier ready knowledge-set versions usable.
 - A feature-owned React Flow editor now creates, saves and reopens Existing Files pipelines, edits accessible document/chunk/destination settings outside drag interactions, previews real server decisions, runs only an unchanged saved version, polls sequentially, cancels active work and links to the exact published Knowledge Base version. Answer and ingestion routes remain explicitly separated by pipeline kind.
+- Canvas execution feedback now projects the polled run's durable status, stage and embedding checkpoint onto the saved linear graph. Every node carries a visible icon-and-label state for queued, running, complete, failed or cancelled work; the active checkpoint uses restrained reduced-motion-safe emphasis, and a compact reserved run strip owns progress and cancellation without obscuring the graph or duplicating status below it. Reopening or refreshing a saved version restores its latest persisted run and terminal item details, while active restored runs resume polling. React Flow attribution is disabled through `proOptions.hideAttribution`.
 
 Verification:
 
 - Clean isolated PostgreSQL/pgvector suite: **185 passed, 1 skipped** (the existing opt-in live embedding check). This includes clean/model migrations, exact two-file membership/publication, answer-index selection, pagination/order, project isolation, cancellation, duplicate delivery and exhausted stale recovery. Backend Ruff lint and format checks passed.
 - Frontend format, structure/ESLint, strict typecheck, **72 tests across 20 files**, and production build passed. The known approximately 601 kB Vite chunk advisory remains.
+- The 2026-09-23 execution-visualization update passed frontend structure/ESLint, strict typecheck, **89 tests across 27 files**, the production build and a focused mocked Chromium journey covering checkpoint movement, selection, attribution removal and desktop/mobile layout. The existing Vite chunk-size advisory remains (approximately 667 kB for the main minified JavaScript chunk).
 - The full isolated deterministic-provider Chromium run completed with **10 passed, 1 intentional missing-credentials skip and 2 failures**; the ingestion failure was a test navigation issue after switching to mobile and the answer-editor failure was non-reproducing. After correcting navigation and rebuilding, the complete ingestion journey plus both pipeline regressions passed together: **3 passed**.
 - The browser journey uploaded and processed two files, previewed both, saved and executed the immutable ingestion version, inspected per-file provenance and the published index link, selected that exact two-passage index in an answer pipeline and received a cited grounded answer. Desktop 1440×1000 and mobile 390×844 captures had no page overflow; the confirmation pass verified canvas refitting and corrected return-link placement.
 - The Impeccable detector reported only the repository's established Inter font warning and no new Phase 3 pattern. Its referenced degraded reviewer file was absent and workspace instructions prohibited spawning the optional finish-review sub-agent, so the bounded review was completed in-thread. No live provider, paid call, external source, developer data reset or persistent-volume deletion was used.
@@ -863,3 +865,26 @@ Final verification: Prettier check, structure/ESLint, strict TypeScript, all 66 
 ## Ingestion pipeline expansion — complete
 
 Phases 1–9 delivered separate versioned ingestion graphs, stable knowledge sets, explicit immutable index membership, complete Existing Files and bounded Website ingestion, the AES-256-GCM connection vault, S3/Notion/Confluence adapters, durable schedules and final cross-feature hardening while preserving answer-pipeline behavior. Verification and remaining deployment limits are recorded in the Phase 9 result above; the complete phase table and exit gates remain in [ingestion-pipeline-plan.md](ingestion-pipeline-plan.md).
+## Ingestion canvas node execution checkpoints — 2026-09-23
+
+Status: implemented and verified.
+
+- Migration `0019` adds ordered, project-scoped execution state for every node in
+  an ingestion run. Connector and worker boundaries now persist Source, Extract,
+  Clean, Chunk, Embed and Publish transitions rather than asking the browser to
+  infer them from a percentage or broad run stage.
+- The canvas reads those immutable node IDs directly. Exactly active work receives
+  the restrained running treatment; earlier nodes retain a Complete check, future
+  nodes remain Queued, and failure/cancellation resolves to labeled terminal
+  states. Selection outlines remain independent of execution styling, reduced
+  motion disables the pulse/spinner, and React Flow attribution stays disabled
+  through its supported configuration.
+- Reloading a saved version restores its latest run and node checkpoints. The
+  compact run strip remains above the graph; the redundant bottom execution
+  status is not used.
+- Verification: backend Ruff lint/format and compile checks passed. The complete
+  isolated PostgreSQL suite passed with 254 tests and 4 opt-in live checks skipped,
+  including Existing Files, Website, S3, Notion and Confluence. Frontend lint,
+  strict TypeScript, all 90 Vitest tests and
+  the production build passed; the existing approximately 668 kB Vite chunk
+  advisory remains.

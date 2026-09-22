@@ -2701,6 +2701,97 @@ summary {
 .app-shell .workflow-selected .node-symbol {
   color: var(--primary);
 }
+.app-shell .ingestion-flow-node {
+  --execution-accent: var(--border);
+  box-shadow: none;
+  transition:
+    border-color 180ms cubic-bezier(0.16, 1, 0.3, 1),
+    background-color 180ms cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 180ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.app-shell .ingestion-flow-node[data-execution-status='queued'] {
+  --execution-accent: var(--muted-foreground);
+  border-style: dashed;
+}
+.app-shell .ingestion-flow-node[data-execution-status='running'] {
+  --execution-accent: var(--primary);
+  border-width: 2px;
+  border-color: var(--execution-accent);
+  background: color-mix(in srgb, var(--primary) 13%, var(--background));
+  box-shadow: 0 14px 38px -13px color-mix(in srgb, var(--primary) 96%, transparent);
+  animation: ingestion-active-node 1.8s cubic-bezier(0.16, 1, 0.3, 1) infinite alternate;
+}
+.app-shell .ingestion-flow-node[data-execution-status='running']::before {
+  position: absolute;
+  inset: 10px auto 10px 7px;
+  width: 3px;
+  border-radius: 999px;
+  background: var(--primary);
+  content: '';
+}
+.app-shell .ingestion-flow-node[data-execution-status='running'] .node-symbol {
+  color: var(--primary);
+}
+.app-shell .ingestion-flow-node[data-execution-status='succeeded'] {
+  --execution-accent: var(--success);
+  border-color: color-mix(in srgb, var(--success) 56%, var(--border));
+  background: color-mix(in srgb, var(--success) 4%, var(--background));
+}
+.app-shell .ingestion-flow-node[data-execution-reused='true'] {
+  border-style: dashed;
+  background: color-mix(in srgb, var(--success) 2%, var(--background));
+}
+.app-shell .ingestion-flow-node[data-execution-status='failed'] {
+  --execution-accent: var(--destructive);
+  border-color: var(--destructive);
+  background: color-mix(in srgb, var(--destructive) 8%, var(--background));
+}
+.app-shell .ingestion-flow-node[data-execution-status='cancelled'] {
+  --execution-accent: var(--warning);
+  border-color: color-mix(in srgb, var(--warning) 70%, var(--border));
+  border-style: dashed;
+  background: color-mix(in srgb, var(--warning) 5%, var(--background));
+}
+.app-shell .ingestion-flow-node.workflow-selected {
+  outline-style: solid;
+}
+.ingestion-node-status {
+  position: absolute;
+  top: -12px;
+  right: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 26px;
+  padding: 0 9px;
+  border: 1px solid color-mix(in srgb, var(--execution-accent) 66%, var(--border));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--execution-accent) 10%, var(--background));
+  color: var(--execution-accent);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.01em;
+}
+.app-shell .ingestion-flow-node[data-execution-status='running'] .ingestion-node-status {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: var(--primary-foreground);
+  box-shadow: 0 6px 18px -10px color-mix(in srgb, var(--primary) 90%, transparent);
+}
+.ingestion-status-spinner {
+  animation: ingestion-status-spin 1.6s linear infinite;
+}
+@keyframes ingestion-active-node {
+  to {
+    box-shadow: 0 18px 44px -11px color-mix(in srgb, var(--primary) 100%, transparent);
+  }
+}
+@keyframes ingestion-status-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
 .app-shell .pipeline-editor .react-flow {
   --xy-background-pattern-dots-color: #3b424f;
   --xy-edge-stroke: #8a92a3;
@@ -3019,6 +3110,83 @@ summary {
   min-height: 0;
   height: 100%;
 }
+.ingestion-run-bar {
+  flex: 0 0 auto;
+  padding: 8px 24px;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--muted) 32%, var(--background));
+}
+.ingestion-run-summary {
+  display: grid;
+  grid-template-columns: auto minmax(120px, 1fr) minmax(100px, 180px) auto auto;
+  align-items: center;
+  gap: 12px;
+  color: var(--foreground);
+}
+.ingestion-run-summary-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.ingestion-run-summary-heading > strong {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.ingestion-run-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted-foreground);
+  font-size: 11px;
+  font-weight: 650;
+}
+.ingestion-run-state[data-status='running'] {
+  color: var(--primary);
+}
+.ingestion-run-state[data-status='succeeded'] {
+  color: var(--success);
+}
+.ingestion-run-state[data-status='failed'] {
+  color: var(--destructive);
+}
+.ingestion-run-state[data-status='cancelled'] {
+  color: var(--warning);
+}
+.ingestion-run-summary > p {
+  margin: 0;
+  overflow: hidden;
+  color: var(--foreground);
+  font-size: 12px;
+  font-weight: 550;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ingestion-run-progress {
+  height: 3px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--muted);
+}
+.ingestion-run-progress > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--primary);
+  transform-origin: left;
+  transition: transform 240ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.ingestion-run-summary > small {
+  color: var(--muted-foreground);
+  font-size: 10px;
+}
+.app-shell .ingestion-run-summary [data-slot='button'] {
+  height: 28px;
+  justify-content: center;
+  padding-inline: 8px;
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
 .app-shell .ingestion-editor-grid .node-settings {
   min-width: 0;
   min-height: 0;
@@ -3279,6 +3447,33 @@ summary {
   .app-shell .ingestion-results {
     scroll-margin-top: 200px;
   }
+  .ingestion-run-bar {
+    padding: 10px 16px;
+  }
+  .ingestion-run-summary {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 7px 12px;
+  }
+  .ingestion-run-summary-heading {
+    justify-content: flex-start;
+  }
+  .ingestion-run-summary > p {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+  .ingestion-run-progress {
+    grid-column: 1 / -1;
+    grid-row: 3;
+  }
+  .ingestion-run-summary > small {
+    grid-column: 1 / -1;
+    grid-row: 4;
+  }
+  .app-shell .ingestion-run-summary [data-slot='button'] {
+    grid-column: 2;
+    grid-row: 1;
+    margin: 0;
+  }
   .ingestion-settings-body {
     padding: 20px;
   }
@@ -3299,6 +3494,16 @@ summary {
   }
   .app-shell .website-limit-grid {
     grid-template-columns: 1fr;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-shell .ingestion-flow-node[data-execution-status='running'],
+  .ingestion-status-spinner {
+    animation: none;
+  }
+  .app-shell .ingestion-flow-node,
+  .ingestion-run-progress > span {
+    transition: none;
   }
 }
 .app-shell .pipeline-palette > .canvas-tools:not([hidden]) {

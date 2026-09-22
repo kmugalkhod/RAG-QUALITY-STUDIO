@@ -153,9 +153,21 @@ def test_existing_files_preview_run_publication_and_exact_answer_index(ingestion
     assert accepted.status_code == 202, accepted.text
     run = accepted.json()
     assert run["stage"] == "indexing" and run["discovered_count"] == 2
+    assert [state["status"] for state in run["node_states"]] == ["queued"] * 6
     assert client.post(route).status_code == 409
 
     process_ingestion(UUID(run["id"]), engine)
+    indexing = client.get(
+        f"/api/projects/{project_id}/ingestion-runs/{run['id']}"
+    ).json()
+    assert [state["status"] for state in indexing["node_states"]] == [
+        "succeeded",
+        "succeeded",
+        "succeeded",
+        "succeeded",
+        "running",
+        "queued",
+    ]
     with Session(engine) as session:
         index = session.scalar(
             select(IndexVersion).where(IndexVersion.ingestion_run_id == UUID(run["id"]))
@@ -170,8 +182,19 @@ def test_existing_files_preview_run_publication_and_exact_answer_index(ingestion
         f"/api/projects/{project_id}/ingestion-runs/{run['id']}"
     ).json()
     assert complete["status"] == "succeeded" and complete["progress"] == 100
+    assert [state["status"] for state in complete["node_states"]] == ["succeeded"] * 6
     assert complete["published_index_id"] == str(index_id)
     assert complete["published_count"] == 1
+    filtered_runs = client.get(
+        f"/api/projects/{project_id}/ingestion-runs?pipeline_version_id={version['id']}"
+    ).json()
+    assert filtered_runs["total"] == 1
+    assert filtered_runs["items"][0]["id"] == run["id"]
+    unrelated_runs = client.get(
+        f"/api/projects/{project_id}/ingestion-runs"
+        "?pipeline_version_id=00000000-0000-4000-8000-000000000000"
+    ).json()
+    assert unrelated_runs == {"items": [], "total": 0, "limit": 20, "offset": 0}
     items = client.get(
         f"/api/projects/{project_id}/ingestion-runs/{run['id']}/items?limit=1"
     ).json()
