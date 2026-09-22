@@ -2,7 +2,7 @@
 
 ## Source snapshots and reusable index variants — implementation started 2026-09-22
 
-Status: Slice 1 of 5 complete and verified; later slices remain pending.
+Status: Slices 1–2 of 5 complete and verified; later slices remain pending.
 
 - Slice 1 adds migration `0018`, immutable project-scoped Website source snapshots,
   exact source-item/revision membership, collecting/ready/failed/cancelled states,
@@ -15,8 +15,20 @@ Status: Slice 1 of 5 complete and verified; later slices remain pending.
   ready/failed/cancelled states, index linkage, stored-artifact compatibility and a
   populated `0017 → 0018` backfill that preserved both index IDs and inherited only
   proven lineage. Complete backend Ruff formatting/lint and whitespace checks pass.
-- Slice 1 does not yet permit choosing a snapshot as a new execution input or
-  building a second destination. That is the Slice 2 boundary.
+- Slice 2 adds the discriminated refresh/snapshot execution input, a temporary
+  `reuse_stored` compatibility adapter, explicit existing/new destination choices,
+  authoritative project/status/source-configuration validation, and an offline
+  worker path that reads only immutable snapshot membership and never constructs a
+  Website connector. Independent destinations retain normal atomic index publication,
+  fencing, cancellation, embedding reuse, and cost metadata behavior.
+- Verified against the rebuilt backend image on an isolated PostgreSQL/pgvector
+  database: 32 Website, Existing Files, scheduling and contract tests pass. Coverage
+  includes independently named destinations, different chunk settings, compatible
+  vector reuse, a connector factory that fails if called, ready/config/project and
+  destination validation, legacy request compatibility, cancellation and existing
+  ingestion regressions. Backend Ruff format/lint and whitespace checks also pass.
+- The snapshot-build API is complete, but the Knowledge Base does not expose its
+  user workflow yet. That is the Slice 3 boundary.
 
 The next scoped ingestion improvement is documented in [Source snapshots and reusable index variants](source-snapshot-index-variants-plan.md). It covers one Website collection producing an immutable source snapshot, multiple independently named index families built from that snapshot, clear Knowledge Base lineage, exact-index answer-pipeline handoff, and same-snapshot experiment comparison.
 

@@ -27,6 +27,7 @@ from app.models.source import (
     IndexSourceRevision,
     SourceItem,
     SourceRevision,
+    SourceSnapshotMember,
     WebsiteRunItem,
 )
 from app.pipelines.parsing import ProcessingError
@@ -131,12 +132,66 @@ def _website_priors(session, job):
     return priors, revisions
 
 
+def _website_snapshot_priors(session, job):
+    rows = session.execute(
+        select(SourceSnapshotMember.source_node_id, SourceItem, SourceRevision)
+        .select_from(SourceSnapshotMember)
+        .join(SourceItem, SourceItem.id == SourceSnapshotMember.source_item_id)
+        .join(
+            SourceRevision,
+            SourceRevision.id == SourceSnapshotMember.source_revision_id,
+        )
+        .where(
+            SourceSnapshotMember.snapshot_id == job.source_snapshot_id,
+            SourceSnapshotMember.project_id == job.project_id,
+        )
+        .order_by(SourceSnapshotMember.ordinal)
+    ).all()
+    if not rows:
+        raise ConnectorFailure(
+            ConnectorIssue(
+                code="snapshot_members_unavailable",
+                message="The selected source snapshot has no reusable Website pages.",
+                retryable=False,
+            )
+        )
+    revisions = {
+        item.canonical_location: (revision, source_node_id)
+        for source_node_id, item, revision in rows
+    }
+    priors = {}
+    for location, (revision, _) in revisions.items():
+        try:
+            content = (
+                settings.storage_path / revision.artifact_storage_name
+            ).read_bytes()
+        except OSError as exc:
+            raise ConnectorFailure(
+                ConnectorIssue(
+                    code="snapshot_artifact_unavailable",
+                    message="A source snapshot artifact is unavailable for rebuilding.",
+                    retryable=True,
+                )
+            ) from exc
+        priors[location] = PriorWebsiteRevision(
+            content=content,
+            media_type=revision.media_type,
+            etag=revision.etag,
+            last_modified=revision.last_modified,
+        )
+    return priors, revisions
+
+
 def _discover_website(run_id, db_engine, connector_factory):
     with Session(db_engine) as session:
         job = session.get(IngestionRun, run_id)
         execution = IngestionExecution.model_validate(job.snapshot["execution"])
-        priors, revisions = _website_priors(session, job)
-    if job.snapshot.get("reuse_stored"):
+        source_input = job.snapshot.get("source_input") or {}
+        if source_input.get("kind") == "snapshot":
+            priors, revisions = _website_snapshot_priors(session, job)
+        else:
+            priors, revisions = _website_priors(session, job)
+    if source_input.get("kind") == "snapshot" or job.snapshot.get("reuse_stored"):
         results = []
         for source in [node for node in execution.nodes if node.type == "source"]:
             outcomes = []
@@ -152,7 +207,7 @@ def _discover_website(run_id, db_engine, connector_factory):
                         canonical_location=location,
                         media_type=revision.media_type,
                         status="included",
-                        reason="Stored page selected for offline reprocessing.",
+                        reason="Source snapshot page selected for offline index building.",
                         size_bytes=revision.size_bytes,
                         depth=(revision.provenance or {}).get("depth"),
                         provider_revision=revision.provider_revision,
@@ -609,7 +664,10 @@ def _advance_website(run_id, token, db_engine, connector_factory):
             session.commit()
             return
         website_ingestion.require_artifacts(memberships)
-        if job.source_snapshot_id is not None and not job.snapshot.get("reuse_stored"):
+        if (
+            job.source_snapshot_id is not None
+            and (job.snapshot.get("source_input") or {}).get("kind") == "refresh"
+        ):
             source_snapshots.mark_ready(session, job.source_snapshot_id, memberships)
         processing_ids = list(
             dict.fromkeys(revision.processing_run_id for _, _, revision in memberships)

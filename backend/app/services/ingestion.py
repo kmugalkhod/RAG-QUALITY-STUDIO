@@ -10,14 +10,17 @@ from app.connectors.existing_files import ExistingFilesConnector
 from app.models.document import Document, ProcessingRun
 from app.models.index import IndexVersion, KnowledgeSet
 from app.models.ingestion import IngestionRun, IngestionRunItem
+from app.models.project import Project
 from app.models.source import WebsiteRunItem
 from app.pipelines.parsing import PARSER_VERSION
 from app.providers import embeddings
 from app.schemas.document import ProcessingConfig
 from app.schemas.ingestion import (
+    IngestionDestination,
     IngestionExecution,
     IngestionPreviewItem,
     IngestionPreviewRead,
+    IngestionSourceInput,
 )
 from app.services import indexes, pipelines, source_snapshots
 from app.services.documents import project
@@ -69,6 +72,32 @@ def _knowledge_set(session, project_id, publish, *, create: bool):
         session.flush()
     if result is None:
         raise HTTPException(404, "Knowledge set not found in this project.")
+    return result
+
+
+def _run_destination(session, project_id, publish, destination):
+    if destination is None:
+        return _knowledge_set(session, project_id, publish, create=True)
+    if destination.kind == "existing":
+        return indexes.get_knowledge_set(
+            session, project_id, destination.knowledge_set_id
+        )
+    session.execute(
+        select(Project.id).where(Project.id == project_id).with_for_update()
+    )
+    existing = session.scalar(
+        select(KnowledgeSet).where(
+            KnowledgeSet.project_id == project_id,
+            KnowledgeSet.name == destination.name,
+        )
+    )
+    if existing is not None:
+        raise HTTPException(
+            409, "An index with this name already exists. Select it explicitly."
+        )
+    result = KnowledgeSet(project_id=project_id, name=destination.name)
+    session.add(result)
+    session.flush()
     return result
 
 
@@ -152,7 +181,9 @@ def start_run(
     *,
     trigger_kind: str = "manual",
     schedule_id: UUID | None = None,
-    reuse_stored: bool = False,
+    source_input: IngestionSourceInput | None = None,
+    destination: IngestionDestination | None = None,
+    reuse_stored: bool | None = None,
 ):
     pipeline = pipelines.get_pipeline(session, project_id, pipeline_id)
     if pipeline.kind != "ingestion":
@@ -165,16 +196,23 @@ def start_run(
     embeddings.configured()
     sources = [node for node in execution.nodes if node.type == "source"]
     remote_kind = sources[0].config.kind if sources else None
-    if reuse_stored and remote_kind != "website":
+    snapshot_requested = source_input is not None and source_input.kind == "snapshot"
+    legacy_reuse = source_input is None and reuse_stored is True
+    if (snapshot_requested or legacy_reuse) and remote_kind != "website":
         raise HTTPException(
             422,
             "Stored-artifact reprocessing is currently supported for Website sources only.",
+        )
+    if destination is not None and remote_kind != "website":
+        raise HTTPException(
+            422,
+            "Destination overrides are currently supported for Website sources only.",
         )
     if remote_kind in ("website", "s3", "notion", "confluence") and all(
         source.config.kind == remote_kind for source in sources
     ):
         publish = next(node for node in execution.nodes if node.type == "publish_index")
-        knowledge_set = _knowledge_set(session, project_id, publish, create=True)
+        knowledge_set = _run_destination(session, project_id, publish, destination)
         session.execute(
             select(KnowledgeSet)
             .where(KnowledgeSet.id == knowledge_set.id)
@@ -189,12 +227,14 @@ def start_run(
             raise HTTPException(
                 409, "This knowledge set already has an active ingestion run."
             )
-        if reuse_stored and knowledge_set.current_ready_index_id is None:
+        if legacy_reuse and knowledge_set.current_ready_index_id is None:
             raise HTTPException(
                 409,
                 "Run this Website pipeline once before reprocessing stored pages.",
             )
-        if reuse_stored:
+        prior_index = None
+        selected_snapshot = None
+        if legacy_reuse:
             prior_index = session.get(
                 IndexVersion, knowledge_set.current_ready_index_id
             )
@@ -224,6 +264,28 @@ def start_run(
                     409,
                     "Website source settings changed. Refresh the website before reprocessing stored pages.",
                 )
+            if prior_index.source_snapshot_id is not None:
+                selected_snapshot = source_snapshots.require_compatible(
+                    session,
+                    project_id,
+                    prior_index.source_snapshot_id,
+                    execution,
+                )
+        elif snapshot_requested:
+            selected_snapshot = source_snapshots.require_compatible(
+                session,
+                project_id,
+                source_input.source_snapshot_id,
+                execution,
+            )
+        effective_source_input = (
+            {
+                "kind": "snapshot",
+                "source_snapshot_id": str(selected_snapshot.id),
+            }
+            if selected_snapshot is not None
+            else {"kind": "refresh"}
+        )
         run = IngestionRun(
             project_id=project_id,
             pipeline_version_id=version.id,
@@ -246,14 +308,17 @@ def start_run(
                     if knowledge_set.current_ready_index_id
                     else None
                 ),
-                "reuse_stored": reuse_stored,
+                "source_input": effective_source_input,
+                "reuse_stored": legacy_reuse,
                 "embedding": embeddings.configured().model_dump(mode="json"),
             },
         )
         session.add(run)
         session.flush()
         if remote_kind == "website":
-            if reuse_stored:
+            if selected_snapshot is not None:
+                run.source_snapshot_id = selected_snapshot.id
+            elif legacy_reuse:
                 run.source_snapshot_id = prior_index.source_snapshot_id
             else:
                 source_snapshots.create_collecting(session, project_id, run, execution)

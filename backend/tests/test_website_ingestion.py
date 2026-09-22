@@ -83,9 +83,10 @@ def website_api(documents_api, monkeypatch):  # noqa: F811
     yield client, engine, project_id, other_project_id, config, provider
     with Session(engine) as session:
         project_uuid = UUID(project_id)
+        project_ids = [project_uuid, UUID(other_project_id)]
         indexes = select(IndexVersion.id).where(IndexVersion.project_id == project_uuid)
         runs = select(IngestionRun.id).where(IngestionRun.project_id == project_uuid)
-        pipelines = select(Pipeline.id).where(Pipeline.project_id == project_uuid)
+        pipelines = select(Pipeline.id).where(Pipeline.project_id.in_(project_ids))
         revisions = session.scalars(
             select(SourceRevision).where(SourceRevision.project_id == project_uuid)
         ).all()
@@ -163,11 +164,26 @@ def save_website(client, project_id, config):
     return saved.json()
 
 
-def start_run(client, project_id, version, *, reuse_stored=False):
+def start_run(
+    client,
+    project_id,
+    version,
+    *,
+    reuse_stored=False,
+    source_input=None,
+    destination=None,
+):
+    body = (
+        {"source_input": source_input, "destination": destination}
+        if source_input is not None
+        else {"reuse_stored": reuse_stored}
+    )
+    if destination is None:
+        body.pop("destination", None)
     response = client.post(
         f"/api/projects/{project_id}/pipelines/{version['pipeline_id']}"
         f"/versions/{version['id']}/ingestion-runs",
-        json={"reuse_stored": reuse_stored},
+        json=body,
     )
     assert response.status_code == 202, response.text
     return response.json()
@@ -224,6 +240,168 @@ def test_rechunks_stored_website_artifacts_without_connector_calls(website_api):
     assert result["published_index_id"] == str(second_index)
     assert str(second_index) != str(first_index)
     assert result["chunk_count"] > 1
+
+
+def test_builds_independent_destination_from_ready_snapshot_without_network(
+    website_api,
+):
+    client, engine, project_id, other_project_id, config, provider = website_api
+    version = save_website(client, project_id, config)
+    first = start_run(client, project_id, version)
+    first_index = publish(
+        engine,
+        first["id"],
+        lambda: WebsiteDouble(
+            [
+                page(
+                    "https://example.com/",
+                    b"<main><h1>Guide</h1><p>"
+                    + b"Reusable content. " * 90
+                    + b"</p></main>",
+                )
+            ],
+            [],
+        ),
+    )
+    snapshot_id = first["source_snapshot_id"]
+
+    changed = {
+        "kind": "ingestion",
+        "name": version["name"],
+        "execution": version["execution"],
+        "layout": version["layout"],
+    }
+    chunk = next(
+        node for node in changed["execution"]["nodes"] if node["type"] == "chunk"
+    )
+    chunk.update(size=240, overlap=40)
+    saved = client.post(
+        f"/api/projects/{project_id}/pipelines/{version['pipeline_id']}/versions",
+        json=changed,
+    )
+    assert saved.status_code == 201, saved.text
+    second = start_run(
+        client,
+        project_id,
+        saved.json(),
+        source_input={"kind": "snapshot", "source_snapshot_id": snapshot_id},
+        destination={"kind": "new", "name": "Precise snapshot variant"},
+    )
+
+    def unexpected_connector():
+        raise AssertionError("Snapshot mode must never construct a Website connector.")
+
+    second_index = publish(engine, second["id"], unexpected_connector)
+    result = client.get(
+        f"/api/projects/{project_id}/ingestion-runs/{second['id']}"
+    ).json()
+    assert result["status"] == "succeeded"
+    assert result["knowledge_set_name"] == "Precise snapshot variant"
+    assert result["source_snapshot_id"] == snapshot_id
+    assert second_index != first_index
+    with Session(engine) as session:
+        first_row = session.get(IndexVersion, first_index)
+        second_row = session.get(IndexVersion, second_index)
+        assert first_row.knowledge_set_id != second_row.knowledge_set_id
+        assert (
+            first_row.source_snapshot_id
+            == second_row.source_snapshot_id
+            == UUID(snapshot_id)
+        )
+        assert first_row.chunk_count != second_row.chunk_count
+
+    calls_before_compatible_variant = len(provider.calls)
+    third = start_run(
+        client,
+        project_id,
+        version,
+        source_input={"kind": "snapshot", "source_snapshot_id": snapshot_id},
+        destination={"kind": "new", "name": "Compatible snapshot variant"},
+    )
+    third_index = publish(engine, third["id"], unexpected_connector)
+    assert third_index not in (first_index, second_index)
+    assert len(provider.calls) == calls_before_compatible_variant
+
+    pending = start_run(client, project_id, version)
+    not_ready = client.post(
+        f"/api/projects/{project_id}/pipelines/{version['pipeline_id']}"
+        f"/versions/{version['id']}/ingestion-runs",
+        json={
+            "source_input": {
+                "kind": "snapshot",
+                "source_snapshot_id": pending["source_snapshot_id"],
+            },
+            "destination": {"kind": "new", "name": "Not ready variant"},
+        },
+    )
+    assert not_ready.status_code == 409
+    client.post(f"/api/projects/{project_id}/ingestion-runs/{pending['id']}/cancel")
+
+    with Session(engine) as session:
+        other_destination = KnowledgeSet(
+            project_id=UUID(other_project_id), name="Other project index"
+        )
+        session.add(other_destination)
+        session.commit()
+        other_destination_id = other_destination.id
+    wrong_destination = client.post(
+        f"/api/projects/{project_id}/pipelines/{version['pipeline_id']}"
+        f"/versions/{version['id']}/ingestion-runs",
+        json={
+            "source_input": {
+                "kind": "snapshot",
+                "source_snapshot_id": snapshot_id,
+            },
+            "destination": {
+                "kind": "existing",
+                "knowledge_set_id": str(other_destination_id),
+            },
+        },
+    )
+    assert wrong_destination.status_code == 404
+
+    other_version = save_website(client, other_project_id, config)
+
+    cross_project = client.post(
+        f"/api/projects/{other_project_id}/pipelines/{other_version['pipeline_id']}"
+        f"/versions/{other_version['id']}/ingestion-runs",
+        json={
+            "source_input": {
+                "kind": "snapshot",
+                "source_snapshot_id": snapshot_id,
+            }
+        },
+    )
+    assert cross_project.status_code == 404
+
+    mismatched = saved.json()
+    source = next(
+        node for node in mismatched["execution"]["nodes"] if node["type"] == "source"
+    )
+    source["config"]["selection"]["url"] = "https://example.org/"
+    source["config"]["allowed_origins"] = ["https://example.org"]
+    mismatch_version = client.post(
+        f"/api/projects/{project_id}/pipelines/{version['pipeline_id']}/versions",
+        json={
+            "kind": "ingestion",
+            "name": version["name"],
+            "execution": mismatched["execution"],
+            "layout": mismatched["layout"],
+        },
+    )
+    assert mismatch_version.status_code == 201, mismatch_version.text
+    mismatch = client.post(
+        f"/api/projects/{project_id}/pipelines/{version['pipeline_id']}"
+        f"/versions/{mismatch_version.json()['id']}/ingestion-runs",
+        json={
+            "source_input": {
+                "kind": "snapshot",
+                "source_snapshot_id": snapshot_id,
+            }
+        },
+    )
+    assert mismatch.status_code == 409
+    assert "different Website source settings" in mismatch.json()["detail"]
 
 
 def publish(engine, run_id, factory):
