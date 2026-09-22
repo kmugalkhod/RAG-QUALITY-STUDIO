@@ -1,8 +1,143 @@
 # Implementation plan
 
+## Production-quality audit and hardening — started 2026-09-23
+
+Overall status: **Phase 0 complete; implementation phases pending.** This section is
+the source of truth for the current whole-codebase quality pass. Earlier dated
+sections remain historical delivery records; where their interim status or test
+counts differ, this section and the final verification record below take precedence.
+
+### Phase 0 — audit baseline and prioritized plan
+
+Status: **Complete on 2026-09-23.** The clean linked `main` worktree at
+`/private/tmp/rag-quality-studio-main` matched `origin/main` at `8ec4d63` before the
+audit. The separate `feature/source-snapshot-index-variants` worktree had one local
+commit and a substantially different 46-file tree; it was inspected and left
+unchanged. Generated output, dependencies, locks, screenshots, binaries and build
+artifacts were excluded from source-quality judgment.
+
+Reviewed scope: repository instructions and Git topology; all application/test file
+inventories; backend API, settings, database/session boundary, models, migrations,
+services, connector/provider adapters and workers; frontend routing, shared transport,
+features, primitives, CSS, unit/browser tests and build configuration; Compose and
+environment configuration; README and architecture/development/deployment/frontend
+standards. Static scans covered unsafe execution/deserialization, secret-like tracked
+content, broad exception boundaries, direct database work in routes, HTTP timeouts,
+project-scoped queries, accessibility semantics, focus/motion, raw controls,
+hard-coded colors, storage, oversized modules and duplicated persistence flows.
+
+Baseline evidence:
+
+- Frontend Prettier, structure/ESLint and strict TypeScript passed; 88 Vitest tests
+  across 24 files passed. The production build passed but emitted one 659.92 kB
+  minified / 204.33 kB gzip JavaScript chunk advisory.
+- Backend Ruff lint/format passed. Local pytest passed 140 tests and explicitly
+  skipped 117 PostgreSQL/live-dependent tests. The isolated PostgreSQL/pgvector
+  Compose suite then passed 253 tests with four opt-in live-provider checks skipped.
+  Constraint-violation log entries were expected assertions. One upstream
+  Starlette/AnyIO test-client deprecation warning remains.
+- `npm ci` reported zero known npm vulnerabilities. No tracked credential or private
+  key signature was found. Provider calls, external source fetches and destructive
+  persistent-data operations were not run.
+- Read-only browser inspection used the canonical Vite URL at 1280 px and 390 px.
+  Projects, Overview, Pipelines, the ingestion editor, Knowledge Base and Experiments
+  loaded without JavaScript exceptions or page-level horizontal overflow. Controls
+  exposed accessible names, editor stages remained keyboard-reachable, status used
+  text as well as color, and reduced-motion CSS disables execution animation.
+  React Flow emitted one attribution-policy warning. The user's original Vite process
+  was restored after inspection.
+- The Impeccable detector reported two generic-font warnings for Inter. Those are
+  false positives for this product because `DESIGN.md` explicitly selects the
+  self-hosted font and its OFL file is tracked. The detector found no other mechanical
+  pattern violation.
+
+Frontend audit score: **14/20 (Good; weak dimensions require hardening)**.
+
+| Dimension | Score | Evidence |
+| --- | ---: | --- |
+| Accessibility | 3/4 | Semantic landmarks, labels, focus handling, text statuses and reduced-motion behavior are present; primitive submit defaults and a few raw feature controls weaken the floor. |
+| Performance | 2/4 | The application eagerly loads every route and React Flow into a 659.92 kB entry chunk. |
+| Responsive design | 4/4 | The inspected desktop/mobile routes had no page overflow, and editor settings stack at 390 px. |
+| Theming | 3/4 | Semantic dark tokens are coherent; a few documented legacy color literals and a large incumbent cascade remain. |
+| Implementation integrity | 2/4 | Product-specific behavior is strong, but a 2,465-line editor, 989-line connector worker, four copied persistence flows, a stray JSX glyph and hidden attribution reduce confidence. |
+
+### Audit findings and disposition
+
+Every finding below has an implementation destination. `P1` means release-significant,
+`P2` means important maintainability/correctness work, and `P3` means bounded polish.
+There is no observed `P0` data-loss or core-workflow blocker.
+
+| ID / severity | Evidence and affected files | Proposed change and acceptance criteria | Dependencies, risks and verification |
+| --- | --- | --- | --- |
+| Q-01 / P1 | `frontend/src/app/WorkspacePage.tsx` statically imports every route. `npm run build` produces one 659.92 kB minified entry chunk and warns above 500 kB. | Lazy-load feature routes behind one accessible loading boundary. The entry chunk must fall below Vite's default advisory without raising the threshold; direct hash URLs, focus restoration and errors must behave unchanged. | Phase 2. Risk: Suspense timing can destabilize focus/tests. Verify build chunk report, route unit tests and direct-link/back-forward Chromium journeys. |
+| Q-02 / P1 | `frontend/src/features/ingestion-pipelines/IngestionPipelineEditor.tsx` is 2,465 lines and owns source defaults, four connector forms, graph rendering, catalog loads, preview/run polling, schedules and most markup. This conflicts with the feature ownership rules in `docs/frontend-standards.md`. | Extract connector settings, graph presentation and cohesive controller responsibilities with explicit typed props. Preserve API payloads, immutable-draft behavior, polling fencing, stage focus and layout. No arbitrary pass-through wrappers. | Phase 2 after Q-06/Q-08. High regression risk in the broadest UI; use existing focused unit/browser suites plus desktop/mobile screenshots and the detector. |
+| Q-03 / P1 | `backend/app/services/{website,s3,notion,confluence}_ingestion.py` repeat source-item lookup, immutable-revision reuse, file/document/run/chunk persistence, cleanup and outcome selection. | Introduce a small application-owned immutable-artifact persistence boundary with connector-specific extraction/provenance callbacks. Exact identities, hashes, timestamps, cleanup and transactions must remain connector-tested. | Phase 3. Risk: provenance or retry semantics could drift. Verify all connector, ingestion, snapshot, cancellation and migration/integration tests. |
+| Q-04 / P2 | `backend/app/workers/ingestion.py` is 989 lines and mixes common orchestration with Website/snapshot and three credentialed connector paths. | Separate remote-source advancement from job lifecycle/fencing and use an explicit connector strategy map where behavior is genuinely shared. Keep Website snapshot reuse distinct and retain bounded checkpoints/cancellation. | Phase 3 after Q-03. Risk: duplicate delivery and paid-work fencing are sensitive; require full PostgreSQL suite and deterministic connector browser journeys. |
+| Q-05 / P2 | `frontend/src/components/ui/button.tsx` does not set a default HTML type. Most call sites rely on context; implicit submit is intentional in only a small number of forms. | Default the primitive to `type="button"` when it renders a button and mark every real submit explicitly. Add regressions proving secondary form actions do not submit and submit actions still do. | Phase 1. Risk: missed submit call sites. Verify component tests plus all form-related frontend tests and Chromium journeys. |
+| Q-06 / P2 | `IngestionFlowNode` contains a stray literal `>` immediately inside its root element in `IngestionPipelineEditor.tsx`. It is generated-looking source noise not covered by current assertions. | Remove the glyph and add a focused node rendering assertion so accessible/visible node text contains only intended content. | Phase 1; no dependency. Verify targeted Vitest, lint/typecheck and editor screenshot. |
+| Q-07 / P2 | The ingestion `<ReactFlow>` sets `proOptions={{ hideAttribution: true }}`; `frontend/e2e/ingestion-layout.spec.ts` requires zero attribution nodes. The browser warns on every editor load. Upstream policy asks non-Pro users to keep attribution visible; no entitlement is recorded. | Restore the unobtrusive attribution and update layout tests. Acceptance: no console warning, no overlap at desktop/mobile, and the attribution link remains keyboard-safe. | Phase 1. Risk: canvas overlay collision. Verify focused Playwright/layout screenshots and console. If the owner later confirms Pro entitlement, record it before reconsidering. |
+| Q-08 / P2 | Canonical runtime guidance requires `127.0.0.1:5273`, but `README.md`, `compose.yaml`, `backend/app/core/config.py`, its CORS test and Playwright defaults still use 5173/5174. | Make Vite's script, CORS defaults, Compose/local documentation and browser defaults consistently use 5273. Keep isolated backend/data services separate and never point fixtures at developer data. | Phase 1. Risk: port collisions and stale operator muscle memory. Verify config tests, Compose rendering, README commands and canonical-browser startup. |
+| Q-09 / P2 | The top of this plan still called snapshot slices 3–5 pending while later sections mark them complete; recent historical records claim 89/90 frontend tests while the clean baseline has 88. `docs/frontend-standards.md` also says the Inter license is missing although it is tracked. | Reconcile current status and operational docs with the verified tree; retain old dated evidence as history but label superseded interim status. Current commands/counts/URLs must be accurate. | Phase 4, with the most misleading plan status corrected in Phase 0. Verify links, `rg` for obsolete current instructions, and final command output. |
+| Q-10 / P2 | `frontend/src/app/styles.css` is 3,766 lines. The standards document notes a substantial legacy cascade; hard-coded non-token literals remain in Overview, run badges, shadows and React Flow variables. | While extracting Q-02, remove superseded/duplicate touched selectors and map safe literals to existing semantic tokens. Do not split the single authored stylesheet or attempt a wholesale cascade rewrite. | Phase 2. Visual regression risk is high because unlayered rules outrank utilities. Verify computed layout at representative routes, detector, screenshots and all frontend gates. |
+| Q-11 / P3 | Backend tests pass with a Starlette `TestClient` reference to AnyIO's deprecated `BlockingPortal` alias (`starlette==0.47.3`, `anyio==4.15.1`). | Investigate the smallest compatible pinned FastAPI/Starlette update. Upgrade only if official compatibility and the full suite are clean; otherwise record the upstream warning as deferred instead of suppressing it. | Phase 4. Dependency-lock churn and transitive RAGAS compatibility are risks. Verify frozen lock export, Ruff and full PostgreSQL suite. |
+| Q-12 / P1 deferred boundary | The application intentionally has no authentication/project authorization, deletion/retention API or verified public deployment. Live S3/Notion/Confluence/model checks require credentials and can incur external cost. Evidence: `README.md`, `docs/deployment.md`, AGENTS release sequence. | Do not broaden this quality pass into roadmap work or paid calls. Keep ports loopback-only, keep connection routes disabled by default, document retained artifacts/orphan inspection, and state that the product is not verified production-ready for shared use. | Explicitly deferred: requires product architecture, identity/data-ownership decisions and user-authorized credentials/cost. Verify documentation and loopback Compose bindings only. |
+
+Positive findings to preserve: project-scoped service queries and composite database
+constraints are exercised by integration tests; published indexes are fenced and atomic;
+provider HTTP clients have bounded timeouts and redirects disabled where applicable;
+Website fetching has an explicit SSRF-safe transport; connection secrets use
+AES-256-GCM with project/connection/type AAD and redacted reads; frontend API errors do
+not echo request bodies; polling generally fences stale responses; semantic tokens,
+mobile stacking, focus rings, loading/empty/error states and evidence provenance are
+well established.
+
+### Implementation phases
+
+#### Phase 1 — correctness and release hygiene
+
+Status: **Pending.** Address Q-05 through Q-08, update their regression tests and
+normalize only directly touched documentation/styles. Acceptance requires frontend
+format/lint/typecheck/tests/build; focused browser checks on answer/ingestion editors
+at desktop and 390 px; no React Flow attribution warning; canonical `5273` commands,
+CORS and Compose configuration; and no unrelated behavior change. Commit and push a
+single reviewable phase to `origin/main` after diff review.
+
+#### Phase 2 — frontend ownership and loading performance
+
+Status: **Pending.** Address Q-01, Q-02 and Q-10. First split connector settings and
+graph presentation, then extract a cohesive editor controller only where state and
+request lifecycle ownership is clear. Add route-level lazy loading. Acceptance
+requires identical execution payloads and unsaved guards, fenced polling, direct-link
+restoration, keyboard-accessible settings, no desktop/mobile overflow, entry bundle
+below the default Vite warning, complete frontend gates, focused Chromium journeys and
+one bounded detector/screenshot review. Commit and push after diff review.
+
+#### Phase 3 — backend ingestion cohesion
+
+Status: **Pending.** Address Q-03 and Q-04 without changing connector contracts or
+adding infrastructure. Acceptance requires identical immutable source identities,
+processing hashes, provenance, cleanup, source-snapshot membership, checkpoint/fencing,
+cancellation and atomic publication for Existing Files, Website, S3, Notion and
+Confluence. Run focused connector tests, Ruff, then the complete isolated
+PostgreSQL/pgvector suite and affected deterministic browser journeys. Commit and push
+after diff review.
+
+#### Phase 4 — documentation, dependency decision and final verification
+
+Status: **Pending.** Address Q-09 and make the evidence-based Q-11 upgrade/defer
+decision. Reconcile README, architecture, development, deployment, frontend standards
+and this plan with the implemented tree. Acceptance requires all frontend gates,
+backend Ruff, the full isolated PostgreSQL suite, the complete deterministic Chromium
+suite on canonical Vite, `git diff --check`, a clean worktree, and explicit final
+limitations/next action. No live provider or paid call is required. Commit and push the
+final documentation/verification phase to `origin/main`.
+
+
 ## Source snapshots and reusable index variants — implementation started 2026-09-22
 
-Status: Slices 1–2 of 5 complete and verified; later slices remain pending.
+Historical interim status after Slice 2. All five slices were subsequently completed
+and verified; the authoritative completion record appears under **Reusable Website
+snapshots — Slice 5 complete** below.
 
 - Slice 1 adds migration `0018`, immutable project-scoped Website source snapshots,
   exact source-item/revision membership, collecting/ready/failed/cancelled states,
