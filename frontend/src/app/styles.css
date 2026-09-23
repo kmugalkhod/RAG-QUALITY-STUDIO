@@ -1865,7 +1865,7 @@ main:focus {
 .next-action {
   margin-top: 32px;
   padding: 28px;
-  background: #eaf0e4;
+  background: color-mix(in srgb, var(--success) 12%, var(--card));
   border-radius: 10px;
 }
 .next-action h2 {
@@ -2107,7 +2107,7 @@ summary {
 }
 .app-shell .status-running,
 .app-shell .status-queued {
-  background: #3e3424;
+  background: color-mix(in srgb, var(--warning) 16%, var(--background));
   color: var(--warning);
 }
 .detail-toolbar span {
@@ -2480,6 +2480,8 @@ summary {
   margin: 0;
   padding: 8px 20px;
   border-bottom: 1px solid var(--border);
+  background: var(--background);
+  color: var(--muted-foreground);
   max-height: 110px;
   overflow: auto;
   flex-shrink: 0;
@@ -2515,7 +2517,7 @@ summary {
   border-radius: 6px;
   padding: 14px;
   margin-top: 8px;
-  box-shadow: 0 8px 24px #22222210;
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--foreground) 6%, transparent);
 }
 .app-shell .pipeline-config[hidden] {
   display: none;
@@ -2523,17 +2525,6 @@ summary {
 .app-shell .pipeline-config p {
   color: var(--muted-foreground);
 }
-.app-shell .workflow-node strong {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-.app-shell .pipeline-editor .react-flow {
-  --xy-handle-background-color: var(--primary);
-  --xy-controls-button-background-color: var(--background);
-  --xy-controls-button-color: var(--foreground);
-}
-
 @media (max-width: 1100px) {
   .app-shell .overview-layout {
     grid-template-columns: minmax(0, 1fr) 210px;
@@ -2604,10 +2595,6 @@ summary {
     gap: 12px;
   }
 }
-.app-shell .pipeline-editor .react-flow {
-  --xy-node-boxshadow-selected: 0 0 0 2px var(--primary);
-  --xy-node-border: 1px solid var(--border);
-}
 .app-shell .react-flow__node.selected {
   outline-color: var(--primary);
 }
@@ -2668,10 +2655,6 @@ summary {
 .app-shell .pipeline-toolbar [data-slot='button'] {
   height: 36px;
 }
-.app-shell .pipeline-fields > .pipeline-validation {
-  background: var(--background);
-  color: var(--muted-foreground);
-}
 .app-shell .pipeline-config h2 {
   font-size: 20px;
   font-weight: 550;
@@ -2695,6 +2678,9 @@ summary {
   margin-top: 22px;
 }
 .app-shell .workflow-node strong {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-size: 16px;
   font-weight: 500;
 }
@@ -2793,11 +2779,20 @@ summary {
   }
 }
 .app-shell .pipeline-editor .react-flow {
-  --xy-background-pattern-dots-color: #3b424f;
-  --xy-edge-stroke: #8a92a3;
+  --xy-background-pattern-dots-color: color-mix(
+    in srgb,
+    var(--muted-foreground) 25%,
+    var(--background)
+  );
+  --xy-edge-stroke: color-mix(in srgb, var(--muted-foreground) 82%, var(--background));
   --xy-edge-stroke-width: 1.4;
   --xy-handle-border-color: var(--secondary);
+  --xy-handle-background-color: var(--primary);
+  --xy-node-boxshadow-selected: 0 0 0 2px var(--primary);
+  --xy-node-border: 1px solid var(--border);
+  --xy-controls-button-background-color: var(--background);
   --xy-controls-button-background-color-hover: var(--muted);
+  --xy-controls-button-color: var(--foreground);
 }
 .app-shell .react-flow__controls {
   border: 1px solid var(--border);
@@ -2968,12 +2963,19 @@ summary {
   background: var(--card);
 }
 .automatic-sync-intro,
-.automatic-sync-summary,
-.automatic-sync-actions {
+.automatic-sync-summary {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
+}
+.automatic-sync-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 14px;
 }
 .automatic-sync-intro {
   align-items: flex-start;
@@ -3072,11 +3074,6 @@ summary {
 .automatic-sync-error {
   margin-top: 8px !important;
   color: var(--destructive) !important;
-}
-.automatic-sync-actions {
-  justify-content: flex-start;
-  flex-wrap: wrap;
-  margin-top: 14px;
 }
 .app-shell .ingestion-toolbar-identity > label:first-child {
   flex: 1 1 260px;

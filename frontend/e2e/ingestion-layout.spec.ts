@@ -68,6 +68,19 @@ test('credentialed source types stay discoverable while vault setup is required'
   await expect(page.getByRole('button', { name: 'Save version', exact: true })).toBeDisabled();
 });
 
+test('direct editor links lazy-load and restore through browser history', async ({ page }) => {
+  await expect(page.getByRole('heading', { name: 'Ingestion editor' })).toBeVisible();
+  await expect(page.locator('#main')).toBeFocused();
+
+  await page.goto('/#/projects/11111111-1111-4111-8111-111111111111/pipelines?kind=ingestion');
+  await expect(page.getByRole('heading', { name: 'Pipelines' })).toBeVisible();
+  await expect(page.locator('#main')).toBeFocused();
+
+  await page.goBack();
+  await expect(page.getByRole('heading', { name: 'Ingestion editor' })).toBeVisible();
+  await expect(page.locator('#main')).toBeFocused();
+});
+
 test('all desktop stages preserve canvas position and zoom while the inspector scrolls', async ({
   page,
 }) => {

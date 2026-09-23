@@ -1,12 +1,44 @@
-import { KnowledgeBase } from '../features/documents/KnowledgeBase';
-import { IngestionPipelineEditor } from '../features/ingestion-pipelines/IngestionPipelineEditor';
-import { ExperimentsPage } from '../features/experiments/ExperimentsPage';
-import { PipelineEditor } from '../features/pipelines/PipelineEditor';
-import { PipelinesPage } from '../features/pipelines/PipelinesPage';
-import { Playground } from '../features/playground/Playground';
-import { ProjectsPage } from '../features/projects/ProjectsPage';
-import { ProjectSummary } from '../features/workspace/ProjectSummary';
+import { lazy, Suspense } from 'react';
 import type { parseRoute } from './navigation';
+
+const ExperimentsPage = lazy(() =>
+  import('../features/experiments/ExperimentsPage').then((module) => ({
+    default: module.ExperimentsPage,
+  })),
+);
+const IngestionPipelineEditor = lazy(() =>
+  import('../features/ingestion-pipelines/IngestionPipelineEditor').then((module) => ({
+    default: module.IngestionPipelineEditor,
+  })),
+);
+const KnowledgeBase = lazy(() =>
+  import('../features/documents/KnowledgeBase').then((module) => ({
+    default: module.KnowledgeBase,
+  })),
+);
+const PipelineEditor = lazy(() =>
+  import('../features/pipelines/PipelineEditor').then((module) => ({
+    default: module.PipelineEditor,
+  })),
+);
+const PipelinesPage = lazy(() =>
+  import('../features/pipelines/PipelinesPage').then((module) => ({
+    default: module.PipelinesPage,
+  })),
+);
+const Playground = lazy(() =>
+  import('../features/playground/Playground').then((module) => ({ default: module.Playground })),
+);
+const ProjectsPage = lazy(() =>
+  import('../features/projects/ProjectsPage').then((module) => ({
+    default: module.ProjectsPage,
+  })),
+);
+const ProjectSummary = lazy(() =>
+  import('../features/workspace/ProjectSummary').then((module) => ({
+    default: module.ProjectSummary,
+  })),
+);
 type WorkspacePageProps = {
   route: ReturnType<typeof parseRoute>;
   onProjectCreated: () => void;
@@ -19,7 +51,7 @@ function PageNotFound() {
     </>
   );
 }
-export function WorkspacePage({ route, onProjectCreated }: WorkspacePageProps) {
+function WorkspaceRoute({ route, onProjectCreated }: WorkspacePageProps) {
   const { projectId, page, detail, query } = route;
   if (page === 'projects') {
     return <ProjectsPage onCreated={onProjectCreated} />;
@@ -68,4 +100,12 @@ export function WorkspacePage({ route, onProjectCreated }: WorkspacePageProps) {
     default:
       return <PageNotFound />;
   }
+}
+
+export function WorkspacePage(props: WorkspacePageProps) {
+  return (
+    <Suspense fallback={<p role="status">Loading page…</p>}>
+      <WorkspaceRoute {...props} />
+    </Suspense>
+  );
 }

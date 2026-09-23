@@ -2,7 +2,7 @@
 
 ## Production-quality audit and hardening — started 2026-09-23
 
-Overall status: **Phase 0 complete; implementation phases pending.** This section is
+Overall status: **Phases 0–2 complete; Phases 3–4 pending.** This section is
 the source of truth for the current whole-codebase quality pass. Earlier dated
 sections remain historical delivery records; where their interim status or test
 counts differ, this section and the final verification record below take precedence.
@@ -138,13 +138,42 @@ Verification:
 
 #### Phase 2 — frontend ownership and loading performance
 
-Status: **Pending.** Address Q-01, Q-02 and Q-10. First split connector settings and
-graph presentation, then extract a cohesive editor controller only where state and
-request lifecycle ownership is clear. Add route-level lazy loading. Acceptance
-requires identical execution payloads and unsaved guards, fenced polling, direct-link
-restoration, keyboard-accessible settings, no desktop/mobile overflow, entry bundle
-below the default Vite warning, complete frontend gates, focused Chromium journeys and
-one bounded detector/screenshot review. Commit and push after diff review.
+Status: **Complete on 2026-09-23.** Addressed Q-01, Q-02 and the bounded Q-10
+cleanup without changing editor behavior or adding dependencies.
+
+Implemented:
+
+- Every workspace feature route now loads through `React.lazy` behind one accessible
+  `role="status"` Suspense boundary. Direct hash-route dispatch remains centralized in
+  `WorkspacePage`; no route-specific loading state leaked into feature ownership.
+- Reduced `IngestionPipelineEditor.tsx` from 2,464 to 1,598 lines. Connector forms now
+  live in `components/SourceSettings.tsx`, graph presentation and React Flow policy in
+  `components/IngestionPipelineCanvas.tsx`, and pure defaults/draft/presentation logic
+  in `editorModel.ts`. The stateful request lifecycle remains in the editor because its
+  load, unsaved guard, preview, run, schedule and fenced-poll state form one controller;
+  splitting it further would create pass-through wrappers rather than clearer ownership.
+- Consolidated repeated touched React Flow/workflow selectors and replaced the remaining
+  non-token surface, status, shadow, canvas-dot and edge literals with semantic tokens or
+  `color-mix`. The single authored stylesheet and incumbent visual language are preserved.
+
+Verification:
+
+- Frontend Prettier, structure/ESLint, strict TypeScript, **89 Vitest tests across 25
+  files**, and the production build passed. Route splitting reduced the former 659.94 kB
+  entry bundle to a 180.74 kB entry plus bounded feature/vendor chunks; the largest is
+  241.37 kB and Vite emits no size advisory.
+- All **10 focused Chromium ingestion-layout journeys** passed in one worker after the
+  final CSS change, covering desktop, tablet, 390 px mobile, exact canvas geometry,
+  accessible node settings, save/discard, validation, polling checkpoints and direct
+  reload restoration. A broader first command had one transient checkpoint timing miss;
+  the journey then passed alone and again in the complete focused file.
+- Desktop and 390 px screenshots were reviewed in one bounded pass: settings remain
+  reachable, node status is legible, attribution does not overlap controls, and neither
+  layout has page-level horizontal overflow. Static Impeccable detection reported only
+  the two previously documented Inter warnings, which remain false positives against
+  the product's explicit self-hosted typography decision. URL-mode detection was not
+  used because its optional Puppeteer dependency is not installed; Playwright supplied
+  the rendered-browser coverage instead.
 
 #### Phase 3 — backend ingestion cohesion
 
