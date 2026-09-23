@@ -42,14 +42,14 @@ test('Notion preview publishes and incrementally refreshes an exact index', asyn
 
   await page.getByRole('button', { name: 'Save version' }).click();
   await expect(page.getByText('Saved version 1', { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Run saved version' }).click();
+  await page.getByRole('button', { name: 'Run ingestion' }).click();
   await expect(page.locator('.ingestion-run-state[data-status="succeeded"]')).toBeVisible({
     timeout: 60000,
   });
   await expect(page.getByText('2 new · 0 changed · 0 unchanged · 0 removed')).toBeVisible();
 
   await request.post('/api/test/notion-state/second');
-  await page.getByRole('button', { name: 'Run saved version' }).click();
+  await page.getByRole('button', { name: 'Run ingestion' }).click();
   await expect(page.getByText('1 new · 0 changed · 1 unchanged · 1 removed')).toBeVisible({
     timeout: 60000,
   });
@@ -57,7 +57,7 @@ test('Notion preview publishes and incrementally refreshes an exact index', asyn
     timeout: 60000,
   });
   await expect(page.getByText('notion://page/33333333-3333-4333-8333-333333333333')).toBeVisible();
-  await expect(page.getByRole('link', { name: 'Inspect published index v2' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Use in answer pipeline' })).toBeVisible();
 
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.screenshot({ path: 'test-results/notion-ingestion-desktop.png', fullPage: true });

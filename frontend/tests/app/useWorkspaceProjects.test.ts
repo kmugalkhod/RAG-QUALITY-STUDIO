@@ -1,6 +1,7 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { useWorkspaceProjects } from '../../src/app/useWorkspaceProjects';
 import { getProject, listProjects, type Project } from '../../src/features/projects/api';
+import { ApiError } from '../../src/lib/api';
 
 vi.mock('../../src/features/projects/api', () => ({ getProject: vi.fn(), listProjects: vi.fn() }));
 const first: Project = { id: 'first', name: 'First', description: '', created_at: '2026-09-12' };
@@ -42,4 +43,13 @@ test('ignores a late project response after switching projects', async () => {
   await waitFor(() => expect(result.current.current?.id).toBe('second'));
   await act(async () => finish(first));
   expect(result.current.current?.id).toBe('second');
+});
+
+test('preserves a not-found status so the app can leave a stale project route', async () => {
+  vi.mocked(getProject).mockRejectedValueOnce(new ApiError('Project not found.', 404));
+  const { result } = renderHook(() => useWorkspaceProjects('missing'));
+
+  await waitFor(() =>
+    expect(result.current.error).toEqual({ message: 'Project not found.', status: 404 }),
+  );
 });

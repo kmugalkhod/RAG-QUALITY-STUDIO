@@ -811,7 +811,7 @@ export function IngestionPipelineEditor({
                   disabled={!saved || dirty || !snapshotId}
                 >
                   <Database size={15} />
-                  Build from selected snapshot
+                  Reprocess saved source
                 </Button>
               </div>
             )}
@@ -821,7 +821,7 @@ export function IngestionPipelineEditor({
               disabled={!saved || dirty}
             >
               <Play size={15} />
-              {websiteSource ? 'Collect latest source & build index' : 'Run saved version'}
+              {websiteSource ? 'Collect source & publish index' : 'Run ingestion'}
             </Button>
             {saved && (
               <Button

@@ -70,6 +70,19 @@ def create(client, p):
     return response.json()
 
 
+def test_indexed_document_cannot_be_deleted(index_api):
+    client, engine, p, _, _ = index_api
+    doc, _ = prepared(client, engine, p)
+    create(client, p)
+
+    response = client.delete(f"/api/projects/{p}/documents/{doc['id']}")
+    assert response.status_code == 409
+    assert response.json()["detail"] == (
+        "This document is used by an immutable collection and cannot be deleted."
+    )
+    assert client.get(f"/api/projects/{p}/documents").json()["total"] == 1
+
+
 def search(client, p, index, **kwargs):
     return client.post(
         f"/api/projects/{p}/retrieval",

@@ -1,4 +1,4 @@
-import { Check, FileText, Square, X } from 'lucide-react';
+import { ArrowRight, Check, FileText, Square, X } from 'lucide-react';
 
 import { Pagination } from '../../../components/Pagination';
 import { Button } from '../../../components/ui/button';
@@ -114,13 +114,39 @@ export function IngestionRunResults({
         </p>
       )}
       {run.status === 'succeeded' && run.published_index_id && (
-        <Button asChild variant="outline">
-          <a
-            href={`#/projects/${projectId}/knowledge-base?view=indexes&index=${run.published_index_id}`}
-          >
-            Inspect published index v{run.published_index_version}
-          </a>
-        </Button>
+        <div className="ingestion-published-index">
+          <div>
+            <strong>Index version {run.published_index_version} is ready to use</strong>
+            <p>
+              Select this same version in an answer pipeline. It will not ingest the source or embed
+              these passages again.
+            </p>
+          </div>
+          <div className="ingestion-published-index-actions">
+            <Button asChild>
+              <a href={`#/projects/${projectId}/pipelines/new?index=${run.published_index_id}`}>
+                Use in answer pipeline
+                <ArrowRight size={15} aria-hidden="true" />
+              </a>
+            </Button>
+            <Button asChild variant="outline">
+              <a
+                href={`#/projects/${projectId}/knowledge-base?view=indexes&index=${run.published_index_id}`}
+              >
+                Inspect published index
+              </a>
+            </Button>
+            {run.source_snapshot_id && (
+              <Button asChild variant="ghost">
+                <a
+                  href={`#/projects/${projectId}/knowledge-base?view=indexes&mode=snapshots&snapshot=${run.source_snapshot_id}`}
+                >
+                  Inspect source snapshot
+                </a>
+              </Button>
+            )}
+          </div>
+        </div>
       )}
       <ul className="project-list">
         {items.map((item) => (

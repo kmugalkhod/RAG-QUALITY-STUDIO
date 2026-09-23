@@ -7,8 +7,11 @@ import {
   FileText,
   LoaderCircle,
   RotateCw,
+  Trash2,
 } from 'lucide-react';
 import { Button } from '../../../components/ui/button';
+import { Label } from '../../../components/ui/label';
+import { NativeSelect, NativeSelectOption } from '../../../components/ui/native-select';
 import { StatusBadge } from '../../../components/StatusBadge';
 import { Pagination } from '../../../components/Pagination';
 import { active, bytes, date } from '../documentPresentation';
@@ -17,6 +20,7 @@ import type { Document } from '../model';
 export type DocumentGroup = {
   document: Document;
   uploadCount: number;
+  createdAt: string;
 };
 
 const statusPriority: Record<string, number> = {
@@ -45,7 +49,15 @@ export function groupDocuments(documents: Document[]): DocumentGroup[] {
         Date.parse(b.created_at) - Date.parse(a.created_at)
       );
     });
-    return { document: ranked[0], uploadCount: matches.length };
+    return {
+      document: ranked[0],
+      uploadCount: matches.length,
+      createdAt: matches.reduce(
+        (latest, match) =>
+          Date.parse(match.created_at) > Date.parse(latest) ? match.created_at : latest,
+        matches[0].created_at,
+      ),
+    };
   });
 }
 
@@ -101,9 +113,13 @@ export function DocumentTable({
   loading,
   error,
   selectedId,
+  sort,
+  deletingId,
   onRefresh,
   onPage,
   onSelect,
+  onSort,
+  onDelete,
 }: {
   groups?: DocumentGroup[];
   total: number;
@@ -112,9 +128,13 @@ export function DocumentTable({
   loading: boolean;
   error: string;
   selectedId?: string;
+  sort: 'newest' | 'oldest';
+  deletingId?: string;
   onRefresh: () => void;
   onPage: (offset: number) => void;
   onSelect: (document: Document) => void;
+  onSort: (sort: 'newest' | 'oldest') => void;
+  onDelete: (document: Document, uploadCount: number) => void;
 }) {
   const heading = useRef<HTMLHeadingElement>(null);
 
@@ -132,10 +152,24 @@ export function DocumentTable({
           </h2>
           <p>Each source appears once, with its latest preparation state and next action.</p>
         </div>
-        <Button variant="outline" onClick={onRefresh} disabled={loading}>
-          <RotateCw />
-          Refresh
-        </Button>
+        <div className="document-library-controls">
+          <div className="document-sort-control">
+            <Label htmlFor="document-sort">Sort by date and time</Label>
+            <NativeSelect
+              id="document-sort"
+              size="sm"
+              value={sort}
+              onChange={(event) => onSort(event.target.value as 'newest' | 'oldest')}
+            >
+              <NativeSelectOption value="newest">Newest added</NativeSelectOption>
+              <NativeSelectOption value="oldest">Oldest added</NativeSelectOption>
+            </NativeSelect>
+          </div>
+          <Button variant="outline" onClick={onRefresh} disabled={loading}>
+            <RotateCw />
+            Refresh
+          </Button>
+        </div>
       </div>
       {error && (
         <div role="alert" className="inline-error document-library-error">
@@ -157,7 +191,7 @@ export function DocumentTable({
         </div>
       ) : (
         <ul className="document-list" aria-label="Documents">
-          {groups?.map(({ document, uploadCount }) => {
+          {groups?.map(({ document, uploadCount, createdAt }) => {
             const view = presentation(document);
             const Icon = view.icon;
             return (
@@ -177,7 +211,8 @@ export function DocumentTable({
                     {document.filename}
                   </Button>
                   <p className="document-file-meta">
-                    {bytes(document.size_bytes)} · added {date(document.created_at)}
+                    {bytes(document.size_bytes)} · added{' '}
+                    <time dateTime={createdAt}>{date(createdAt)}</time>
                     {uploadCount > 1 ? ` · ${uploadCount} identical uploads consolidated` : ''}
                   </p>
                   {document.latest_run?.error && (
@@ -188,14 +223,30 @@ export function DocumentTable({
                   <StatusBadge status={view.status}>{view.label}</StatusBadge>
                   <p>{view.detail}</p>
                 </div>
-                <Button
-                  variant={document.latest_run?.status === 'succeeded' ? 'outline' : 'default'}
-                  className="document-next-action"
-                  onClick={() => onSelect(document)}
-                  aria-label={`${view.action}: ${document.filename}`}
-                >
-                  {view.action} <ArrowRight />
-                </Button>
+                <div className="document-row-actions">
+                  <Button
+                    variant={document.latest_run?.status === 'succeeded' ? 'outline' : 'default'}
+                    className="document-next-action"
+                    onClick={() => onSelect(document)}
+                    aria-label={`${view.action}: ${document.filename}`}
+                  >
+                    {view.action} <ArrowRight />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="document-delete-action"
+                    disabled={deletingId === document.id}
+                    onClick={() => onDelete(document, uploadCount)}
+                    aria-label={`Delete document: ${document.filename}`}
+                  >
+                    {deletingId === document.id ? (
+                      <LoaderCircle className="is-spinning" />
+                    ) : (
+                      <Trash2 />
+                    )}
+                    {deletingId === document.id ? 'Deleting…' : 'Delete'}
+                  </Button>
+                </div>
               </li>
             );
           })}

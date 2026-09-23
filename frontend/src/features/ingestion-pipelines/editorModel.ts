@@ -18,7 +18,7 @@ export const ingestionStageLabels: Record<IngestionNode['type'], string> = {
   clean: 'Clean',
   chunk: 'Chunk',
   embed: 'Embed',
-  publish_index: 'Publish index',
+  publish_index: 'Publish reusable index',
 };
 
 export function describeCadence(schedule: IngestionSchedule) {

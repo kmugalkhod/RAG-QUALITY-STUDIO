@@ -116,7 +116,7 @@ test('all desktop stages preserve canvas position and zoom while the inspector s
     '3 Clean',
     '4 Chunk',
     '5 Embed',
-    '6 Publish index',
+    '6 Publish reusable index',
     '1 Source',
   ]) {
     const transform = await page.locator('.react-flow__viewport').getAttribute('style');
@@ -161,7 +161,7 @@ test('tablet stacks the inspector and preserves editable state across every stag
     '3 Clean',
     '4 Chunk',
     '5 Embed',
-    '6 Publish index',
+    '6 Publish reusable index',
     '1 Source',
   ]) {
     await page.getByRole('button', { name: stage, exact: true }).click();
@@ -219,14 +219,10 @@ test('saving records the draft and discard restores the saved stage settings', a
   await page.getByLabel('Starting URL').fill('https://example.org/');
   await page.getByRole('button', { name: 'Save version', exact: true }).click();
   await expect(page.getByText('Saved version 1', { exact: true })).toBeVisible();
-  await expect(
-    page.getByRole('button', { name: 'Collect latest source & build index' }),
-  ).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'Collect source & publish index' })).toBeEnabled();
   await page.getByRole('button', { name: '4 Chunk', exact: true }).click();
   await page.getByLabel('Chunk size (characters)').fill('1500');
-  await expect(
-    page.getByRole('button', { name: 'Collect latest source & build index' }),
-  ).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Collect source & publish index' })).toBeDisabled();
   await page.getByRole('button', { name: 'Discard changes' }).click();
   await expect(page.getByLabel('Chunk size (characters)')).toHaveValue('1000');
   await expect(page.getByText('Saved version 1', { exact: true })).toBeVisible();
@@ -427,7 +423,7 @@ test('real run checkpoints move accessible execution state across the canvas', a
     route.fulfill({ json: updates[Math.min(poll++, updates.length - 1)] }),
   );
 
-  await page.getByRole('button', { name: 'Collect latest source & build index' }).click();
+  await page.getByRole('button', { name: 'Collect source & publish index' }).click();
   const source = page.locator('.react-flow__node[data-id="source"] .ingestion-flow-node');
   const extract = page.locator('.react-flow__node[data-id="extract"] .ingestion-flow-node');
   const clean = page.locator('.react-flow__node[data-id="clean"] .ingestion-flow-node');

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { ArrowLeft, ExternalLink, Globe2, RefreshCw } from 'lucide-react';
+import { ArrowLeft, ArrowRight, ExternalLink, Globe2, RefreshCw } from 'lucide-react';
 
 import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
@@ -173,6 +173,9 @@ export function SnapshotPanel({ projectId }: { projectId: string }) {
   );
   const chunk = chosenVersion?.execution.nodes.find((node) => node.type === 'chunk');
   const embed = chosenVersion?.execution.nodes.find((node) => node.type === 'embed');
+  const currentReadyIndex = indexes.find(
+    (index) => index.is_current && index.status === 'succeeded',
+  );
 
   function select(snapshot?: SourceSnapshot) {
     setSelected(snapshot);
@@ -339,75 +342,90 @@ export function SnapshotPanel({ projectId }: { projectId: string }) {
                 </div>
               </dl>
               {selected.status === 'ready' && (
-                <form className="snapshot-build-form" onSubmit={build}>
-                  <h3>Build an index variant</h3>
-                  <p>
-                    Reprocess this exact snapshot. Embedding may incur provider cost; the Website
-                    will not be fetched again.
-                  </p>
-                  <label>
-                    Ingestion pipeline version
-                    <select
-                      value={versionId}
-                      onChange={(event) => setVersionId(event.target.value)}
-                    >
-                      {versions.map((version) => (
-                        <option key={version.id} value={version.id}>
-                          {version.name} · v{version.version}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  {chunk?.type === 'chunk' && (
-                    <p className="muted">
-                      Chunk size {chunk.size}, overlap {chunk.overlap}
-                      {embed?.type === 'embed' ? ` · ${embed.provider}/${embed.model}` : ''}
-                    </p>
+                <>
+                  {currentReadyIndex && (
+                    <div className="snapshot-actions">
+                      <Button asChild>
+                        <a
+                          href={`#/projects/${projectId}/pipelines/new?index=${currentReadyIndex.id}`}
+                        >
+                          Use current index in answer pipeline
+                          <ArrowRight aria-hidden="true" />
+                        </a>
+                      </Button>
+                    </div>
                   )}
-                  <fieldset>
-                    <legend>Destination</legend>
+                  <form className="snapshot-build-form" onSubmit={build}>
+                    <h3>Create another index version</h3>
+                    <p>
+                      This is optional. Reprocess this exact snapshot only when you need different
+                      processing or embedding settings. The existing ready index remains available,
+                      and the Website will not be fetched again.
+                    </p>
                     <label>
-                      <input
-                        type="radio"
-                        checked={destination === 'new'}
-                        onChange={() => setDestination('new')}
-                      />{' '}
-                      New index
-                    </label>
-                    <label>
-                      <input
-                        type="radio"
-                        checked={destination === 'existing'}
-                        onChange={() => setDestination('existing')}
-                      />{' '}
-                      Existing index
-                    </label>
-                  </fieldset>
-                  {destination === 'new' ? (
-                    <label>
-                      Index name
-                      <Input
-                        value={name}
-                        onChange={(event) => setName(event.target.value)}
-                        required
-                      />
-                    </label>
-                  ) : (
-                    <label>
-                      Existing index
-                      <select value={setId} onChange={(event) => setSetId(event.target.value)}>
-                        {sets.map((set) => (
-                          <option key={set.id} value={set.id}>
-                            {set.name}
+                      Ingestion pipeline version
+                      <select
+                        value={versionId}
+                        onChange={(event) => setVersionId(event.target.value)}
+                      >
+                        {versions.map((version) => (
+                          <option key={version.id} value={version.id}>
+                            {version.name} · v{version.version}
                           </option>
                         ))}
                       </select>
                     </label>
-                  )}
-                  <Button type="submit" disabled={busy || !versions.length}>
-                    Build index
-                  </Button>
-                </form>
+                    {chunk?.type === 'chunk' && (
+                      <p className="muted">
+                        Chunk size {chunk.size}, overlap {chunk.overlap}
+                        {embed?.type === 'embed' ? ` · ${embed.provider}/${embed.model}` : ''}
+                      </p>
+                    )}
+                    <fieldset>
+                      <legend>Destination</legend>
+                      <label>
+                        <input
+                          type="radio"
+                          checked={destination === 'new'}
+                          onChange={() => setDestination('new')}
+                        />{' '}
+                        New index
+                      </label>
+                      <label>
+                        <input
+                          type="radio"
+                          checked={destination === 'existing'}
+                          onChange={() => setDestination('existing')}
+                        />{' '}
+                        Existing index
+                      </label>
+                    </fieldset>
+                    {destination === 'new' ? (
+                      <label>
+                        Index name
+                        <Input
+                          value={name}
+                          onChange={(event) => setName(event.target.value)}
+                          required
+                        />
+                      </label>
+                    ) : (
+                      <label>
+                        Existing index
+                        <select value={setId} onChange={(event) => setSetId(event.target.value)}>
+                          {sets.map((set) => (
+                            <option key={set.id} value={set.id}>
+                              {set.name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    )}
+                    <Button type="submit" disabled={busy || !versions.length}>
+                      Reprocess and publish new version
+                    </Button>
+                  </form>
+                </>
               )}
               {run && (
                 <p

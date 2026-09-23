@@ -139,6 +139,55 @@ test('consolidates identical uploads and keeps the prepared record actionable', 
   expect(within(list).getByRole('button', { name: 'Inspect version 1: source.txt' })).toBeVisible();
 });
 
+test('sorts documents by added date and time', async () => {
+  const older = { ...doc, id: 'older', filename: 'older.txt', content_hash: 'older' };
+  const newer = {
+    ...doc,
+    id: 'newer',
+    filename: 'newer.txt',
+    content_hash: 'newer',
+    created_at: '2026-09-10T12:30:00Z',
+  };
+  vi.mocked(api.listDocuments).mockResolvedValue(page([older, newer]));
+  render(<KnowledgeBase projectId="p1" />);
+
+  const list = await screen.findByRole('list', { name: 'Documents' });
+  expect(
+    within(list).getAllByRole('button', { name: /^(newer|older)\.txt$/ })[0],
+  ).toHaveTextContent('newer.txt');
+  await userEvent.selectOptions(screen.getByLabelText('Sort by date and time'), 'oldest');
+  expect(
+    within(list).getAllByRole('button', { name: /^(newer|older)\.txt$/ })[0],
+  ).toHaveTextContent('older.txt');
+});
+
+test('confirms and deletes an unreferenced document', async () => {
+  vi.mocked(api.listDocuments)
+    .mockResolvedValueOnce(page([doc]))
+    .mockResolvedValue(page([]));
+  vi.mocked(api.deleteDocument).mockResolvedValue({ deleted: true });
+  vi.spyOn(window, 'confirm').mockReturnValue(true);
+  render(<KnowledgeBase projectId="p1" />);
+
+  await userEvent.click(await screen.findByRole('button', { name: 'Delete document: source.txt' }));
+  await waitFor(() => expect(api.deleteDocument).toHaveBeenCalledWith('p1', 'd1'));
+  expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining('cannot be undone'));
+  expect(await screen.findByText('“source.txt” deleted.')).toBeVisible();
+  await waitFor(() => expect(screen.queryByText('source.txt')).toBeNull());
+});
+
+test('requires active processing to be cancelled before deletion', async () => {
+  const queued = { ...run, status: 'queued' as const, chunk_count: 0, progress: 0 };
+  vi.mocked(api.listDocuments).mockResolvedValue(page([{ ...doc, latest_run: queued }]));
+  render(<KnowledgeBase projectId="p1" />);
+
+  await userEvent.click(await screen.findByRole('button', { name: 'Delete document: source.txt' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent(
+    'Cancel the active processing run before deleting this document.',
+  );
+  expect(api.deleteDocument).not.toHaveBeenCalled();
+});
+
 test('shows processing progress and cancels a queued run', async () => {
   const queued = { ...run, status: 'queued' as const, chunk_count: 0, progress: 0 };
   vi.mocked(api.listDocuments).mockResolvedValue(page([{ ...doc, latest_run: queued }]));

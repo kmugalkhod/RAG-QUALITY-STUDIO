@@ -58,6 +58,9 @@ export function ProjectsPage({ onCreated }: { onCreated?: () => void }) {
     }
   }
 
+  const isCreatingFirstProject =
+    formOpen && !loading && !error && page?.items.length === 0 && offset === 0;
+
   return (
     <>
       <div className="page-heading mb-8 flex items-start justify-between gap-6">
@@ -83,16 +86,18 @@ export function ProjectsPage({ onCreated }: { onCreated?: () => void }) {
         </p>
       )}
       {formOpen && <ProjectForm onClose={closeForm} onCreated={handleCreated} />}
-      <ProjectList
-        page={page}
-        offset={offset}
-        loading={loading}
-        error={error}
-        formOpen={formOpen}
-        onRefresh={() => void load(offset)}
-        onPage={setOffset}
-        onCreate={() => setFormOpen(true)}
-      />
+      {!isCreatingFirstProject && (
+        <ProjectList
+          page={page}
+          offset={offset}
+          loading={loading}
+          error={error}
+          formOpen={formOpen}
+          onRefresh={() => void load(offset)}
+          onPage={setOffset}
+          onCreate={() => setFormOpen(true)}
+        />
+      )}
     </>
   );
 }

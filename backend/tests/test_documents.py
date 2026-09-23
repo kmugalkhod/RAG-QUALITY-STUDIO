@@ -177,6 +177,48 @@ def test_upload_processing_duplicate_delivery_and_scope(documents_api):
     assert client.get(route + "/chunks").json()["total"] == 3
 
 
+def test_delete_document_removes_file_and_unreferenced_processing(documents_api):
+    client, engine, p, q = documents_api
+    doc = upload(client, p)
+    job = start(client, p, doc["id"])
+    route = f"/api/projects/{p}/documents/{doc['id']}"
+
+    assert client.delete(route.replace(p, q)).status_code == 404
+    blocked = client.delete(route)
+    assert blocked.status_code == 409
+    assert "active processing run" in blocked.json()["detail"]
+
+    client.post(f"{route}/runs/{job['id']}/cancel")
+    stored_files = list(settings.storage_path.iterdir())
+    assert len(stored_files) == 1
+    deleted = client.delete(route)
+    assert deleted.status_code == 200 and deleted.json() == {"deleted": True}
+    assert client.get(f"/api/projects/{p}/documents").json()["total"] == 0
+    assert not list(settings.storage_path.iterdir())
+    with Session(engine) as session:
+        assert session.get(Document, UUID(doc["id"])) is None
+        assert session.get(ProcessingRun, UUID(job["id"])) is None
+
+
+def test_delete_document_removes_unpublished_chunks(documents_api):
+    client, engine, p, _ = documents_api
+    doc = upload(client, p)
+    job = start(client, p, doc["id"])
+    process(UUID(job["id"]), engine)
+
+    response = client.delete(f"/api/projects/{p}/documents/{doc['id']}")
+    assert response.status_code == 200
+    with Session(engine) as session:
+        assert (
+            session.scalar(
+                select(func.count())
+                .select_from(Chunk)
+                .where(Chunk.run_id == UUID(job["id"]))
+            )
+            == 0
+        )
+
+
 @pytest.mark.parametrize(
     "name,content,status",
     [

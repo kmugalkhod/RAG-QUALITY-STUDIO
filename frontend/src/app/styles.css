@@ -2031,6 +2031,66 @@ summary {
 .app-shell .icon-button:hover {
   background: var(--muted);
 }
+
+.app-shell .project-route-error {
+  max-width: 560px;
+  margin: clamp(48px, 10dvh, 112px) auto 0;
+  padding: 30px;
+  border: 1px solid color-mix(in srgb, var(--destructive) 34%, var(--border));
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--destructive) 5%, var(--background));
+}
+
+.app-shell .project-route-error-icon {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  margin-bottom: 20px;
+  place-items: center;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--destructive) 13%, var(--background));
+  color: var(--destructive);
+}
+
+.app-shell .project-route-error-icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.app-shell .project-route-error > h1,
+.app-shell .project-route-error > p {
+  margin-inline: 0;
+}
+
+.app-shell .project-route-error > p {
+  margin-block: 8px 0;
+  color: var(--foreground);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.app-shell .project-route-error .project-route-error-help {
+  max-width: 58ch;
+  color: var(--muted-foreground);
+}
+
+.app-shell .project-route-error-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 24px;
+}
+
+@media (max-width: 520px) {
+  .app-shell .project-route-error {
+    margin-top: 24px;
+    padding: 22px;
+  }
+
+  .app-shell .project-route-error-actions > * {
+    width: 100%;
+  }
+}
 .knowledge-tabs button {
   display: flex;
   align-items: center;
@@ -2425,6 +2485,153 @@ summary {
   border-color: var(--border);
   padding: 20px 0;
 }
+.app-shell .create-project-panel {
+  width: min(100%, 1040px);
+  margin-top: 30px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--card);
+  box-shadow: 0 18px 50px rgb(0 0 0 / 18%);
+}
+.app-shell .create-project-header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 16px;
+  padding: 24px 26px;
+}
+.app-shell .create-project-icon {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--primary) 32%, var(--border));
+  border-radius: 10px;
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 10%, var(--background));
+}
+.app-shell .create-project-icon svg {
+  width: 20px;
+  height: 20px;
+}
+.app-shell .create-project-heading {
+  min-width: 0;
+}
+.app-shell .create-project-heading > p {
+  margin: 0 0 2px;
+  color: var(--primary);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+.app-shell .create-project-heading > h2 {
+  color: var(--foreground);
+  font-size: 18px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+.app-shell .create-project-heading > span {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.app-shell .create-project-close {
+  margin: -4px -6px 0 0;
+  color: var(--muted-foreground);
+}
+.app-shell .create-project-form {
+  border-top: 1px solid var(--border);
+}
+.app-shell .create-project-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  gap: 28px;
+  padding: 26px;
+}
+.app-shell .create-project-field {
+  min-width: 0;
+}
+.app-shell .create-project-label,
+.app-shell .create-project-field-meta,
+.app-shell .create-project-footer,
+.app-shell .create-project-actions {
+  display: flex;
+  align-items: center;
+}
+.app-shell .create-project-label {
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 9px;
+}
+.app-shell .create-project-label label {
+  color: var(--foreground);
+  font-size: 12px;
+  font-weight: 600;
+}
+.app-shell .create-project-label > span {
+  color: var(--muted-foreground);
+  font-size: 9px;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.app-shell .create-project-field input,
+.app-shell .create-project-field textarea {
+  border-color: color-mix(in srgb, var(--border) 84%, var(--foreground));
+  background: var(--background);
+}
+.app-shell .create-project-field input {
+  height: 42px;
+}
+.app-shell .create-project-field textarea {
+  min-height: 112px;
+  resize: vertical;
+  line-height: 1.55;
+}
+.app-shell .create-project-field-meta {
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 8px;
+  color: var(--muted-foreground);
+  font-size: 10px;
+}
+.app-shell .create-project-field-meta p {
+  margin: 0;
+  line-height: 1.45;
+}
+.app-shell .create-project-field-meta span {
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+.app-shell .create-project-form > .error-message {
+  margin: 0 26px 22px;
+  padding: 11px 13px;
+  border: 1px solid color-mix(in srgb, var(--destructive) 35%, transparent);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--destructive) 9%, transparent);
+  font-size: 11px;
+}
+.app-shell .create-project-footer {
+  justify-content: space-between;
+  gap: 24px;
+  padding: 18px 26px;
+  border-top: 1px solid var(--border);
+  background: color-mix(in srgb, var(--background) 68%, var(--card));
+}
+.app-shell .create-project-footer > p {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 10px;
+  line-height: 1.45;
+}
+.app-shell .create-project-actions {
+  flex-shrink: 0;
+  gap: 10px;
+}
 .app-shell .project-content h3 {
   font-family: Inter, sans-serif;
   font-size: 14px;
@@ -2433,6 +2640,47 @@ summary {
 .app-shell .project-date {
   font-size: 11px;
   color: var(--muted-foreground);
+}
+@media (max-width: 900px) {
+  .app-shell .create-project-fields {
+    grid-template-columns: 1fr;
+    gap: 22px;
+  }
+}
+@media (max-width: 640px) {
+  .app-shell .create-project-panel {
+    margin-top: 22px;
+    border-radius: 10px;
+  }
+  .app-shell .create-project-header {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 12px;
+    padding: 20px 18px;
+  }
+  .app-shell .create-project-icon {
+    width: 38px;
+    height: 38px;
+  }
+  .app-shell .create-project-fields {
+    padding: 22px 18px;
+  }
+  .app-shell .create-project-footer {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 14px;
+    padding: 16px 18px 18px;
+  }
+  .app-shell .create-project-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+  .app-shell .create-project-actions > button {
+    width: 100%;
+  }
+  .app-shell .create-project-form > .error-message {
+    margin-right: 18px;
+    margin-left: 18px;
+  }
 }
 .app-shell .pipeline-list li {
   align-items: center;
@@ -3374,6 +3622,35 @@ summary {
   padding: 24px 0 0;
   border-top: 1px solid var(--border);
 }
+.app-shell .ingestion-published-index {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  margin: 18px 0 24px;
+  padding: 16px 18px;
+  border: 1px solid color-mix(in srgb, var(--success) 30%, var(--border));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--success) 5%, var(--background));
+}
+.app-shell .ingestion-published-index strong {
+  display: block;
+  color: var(--foreground);
+  font-size: 13px;
+}
+.app-shell .ingestion-published-index p {
+  max-width: 68ch;
+  margin: 4px 0 0;
+  font-size: 11px;
+  line-height: 1.55;
+}
+.app-shell .ingestion-published-index-actions {
+  display: flex;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
 .app-shell .ingestion-results .project-list {
   list-style: none;
   padding: 0;
@@ -3458,6 +3735,19 @@ summary {
   }
   .app-shell .ingestion-results {
     scroll-margin-top: 200px;
+  }
+  .app-shell .ingestion-published-index {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .app-shell .ingestion-published-index-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+  .app-shell .ingestion-published-index-actions [data-slot='button'] {
+    width: 100%;
+    min-height: 44px;
   }
   .ingestion-run-bar {
     padding: 10px 16px;
@@ -3688,6 +3978,12 @@ summary {
   display: grid;
   gap: 12px;
 }
+.app-shell .snapshot-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 20px;
+}
 .app-shell .snapshot-build-form label {
   display: grid;
   gap: 6px;
@@ -3833,6 +4129,22 @@ summary {
   margin-bottom: 18px;
 }
 
+.app-shell .document-library-controls {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.app-shell .document-sort-control {
+  width: 178px;
+}
+
+.app-shell .document-sort-control [data-slot='label'] {
+  margin-bottom: 5px;
+  font-size: 11px;
+}
+
 .app-shell .document-library-heading :is(h2, p),
 .app-shell .collection-section-heading :is(h3, p) {
   margin: 0;
@@ -3943,6 +4255,27 @@ summary {
 
 .app-shell .document-next-action {
   justify-self: end;
+}
+
+.app-shell .document-row-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.app-shell .document-delete-action {
+  color: var(--muted-foreground);
+}
+
+.app-shell .document-delete-action:hover {
+  border-color: color-mix(in srgb, var(--destructive) 58%, var(--border));
+  background: color-mix(in srgb, var(--destructive) 10%, var(--background));
+  color: var(--destructive);
+}
+
+.app-shell .document-mutation-error {
+  margin-top: 14px;
 }
 
 .app-shell .document-empty {
@@ -4359,7 +4692,7 @@ summary {
     grid-template-columns: 36px minmax(180px, 1fr) minmax(190px, 0.9fr);
   }
 
-  .app-shell .document-next-action {
+  .app-shell .document-row-actions {
     grid-column: 2 / -1;
     justify-self: start;
   }
@@ -4394,8 +4727,13 @@ summary {
     flex-direction: column;
   }
 
-  .app-shell .document-library-heading [data-slot='button'] {
-    align-self: flex-start;
+  .app-shell .document-library-controls {
+    width: 100%;
+    align-items: flex-end;
+  }
+
+  .app-shell .document-sort-control {
+    width: min(100%, 220px);
   }
 
   .app-shell .document-list {
@@ -4423,12 +4761,13 @@ summary {
   }
 
   .app-shell .document-readiness,
-  .app-shell .document-next-action {
+  .app-shell .document-row-actions {
     grid-column: 2;
   }
 
-  .app-shell .document-next-action {
-    width: fit-content;
+  .app-shell .document-row-actions {
+    flex-wrap: wrap;
+    justify-content: flex-start;
   }
 
   .app-shell .index-workspace {

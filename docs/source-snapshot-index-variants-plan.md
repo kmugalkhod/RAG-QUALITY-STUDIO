@@ -63,11 +63,11 @@ Use one term consistently at each layer:
 | Refresh source | Fetch the Website again and create a newer snapshot | Reprocess |
 | Index | A searchable output built from one source snapshot | Document set |
 | Index version | One immutable build within a named knowledge set | Latest data |
-| Build index variant | Build another named index from an existing snapshot | Reprocess stored pages |
+| Reprocess saved source | Optionally publish another index version from an existing snapshot | Required before answering, re-fetch source |
 
 Required helper copy:
 
-> Build another index from the content already collected. The website will not be requested again. Embedding costs may still apply.
+> This is optional. Reprocess the content already collected only when you need another index version with different processing or embedding settings. The existing ready index remains available to answer pipelines, and the website will not be requested again.
 
 Required experiment confirmation:
 
@@ -93,7 +93,7 @@ The gap is that offline Website rebuilding obtains artifacts through the destina
 
 ### 1. Collect the Website once
 
-From a saved Website ingestion pipeline, the user selects **Collect source & build index** for the first run. The run:
+From a saved Website ingestion pipeline, the user selects **Collect source & publish index** for the first run. The run:
 
 1. Discovers and fetches the configured Website within existing safety limits.
 2. Creates a durable source snapshot only after required collection succeeds.
@@ -104,9 +104,9 @@ The completion state says:
 
 > Source snapshot 3 collected: 43 pages. Balanced index version 1 is ready with 284 passages.
 
-### 2. Build another index without fetching again
+### 2. Optionally reprocess without fetching again
 
-From the source snapshot in Knowledge Base, the user selects **Build index variant**. The flow asks for:
+From the source snapshot in Knowledge Base, the user selects **Create another index version**. The flow asks for:
 
 - A destination index name, creating a new knowledge set or selecting an existing compatible one.
 - A saved Website ingestion-pipeline version whose Website source configuration matches the snapshot source identity.
@@ -157,9 +157,10 @@ Selecting a snapshot opens the detail inspector with:
 1. Source identity and safe crawl-scope summary.
 2. Exact collection status and counts.
 3. Paginated included items with canonical location, media type, revision metadata, and collection outcome.
-4. **Build index variant** as the primary action when the snapshot is ready.
-5. **Refresh source** as a separate secondary action that creates a new snapshot.
-6. A list of downstream index versions already built from this snapshot.
+4. **Use current index in answer pipeline** as the primary action when a ready downstream index exists.
+5. **Create another index version** as an optional action for changed processing or embedding settings.
+6. **Refresh source** as a separate action that creates a new snapshot.
+7. A list of downstream index versions already built from this snapshot.
 
 The empty state says:
 
@@ -219,12 +220,12 @@ The visual graph remains an editor for a supported ingestion configuration. Do n
 
 For a saved Website ingestion version, replace ambiguous execution actions with:
 
-- **Collect source & build index** — performs a new Website fetch, creates a source snapshot, and builds the configured destination index.
-- **Build from snapshot** — opens a pipeline-level panel for selecting a compatible ready source snapshot and destination index.
+- **Collect source & publish index** — performs a new Website fetch, creates a source snapshot, and publishes the configured reusable index.
+- **Reprocess saved source** — opens the optional pipeline-level controls for selecting a compatible ready source snapshot and destination index.
 
 The selected snapshot is an execution input, not a mutation of the source node. The run snapshot records both the saved pipeline version and chosen source snapshot.
 
-The **Build from snapshot** panel displays:
+The **Reprocess saved source** controls display:
 
 - Source origin.
 - Snapshot number, timestamp, and page count.
@@ -378,7 +379,7 @@ Acceptance boundary: one captured snapshot can produce two ready, independently 
 - Rename **Document sets** to **Indexes**.
 - Add Source snapshots and Indexes modes with URL-addressable selection.
 - Add snapshot detail/items/downstream-index inspection.
-- Add index lineage, **Build index variant**, and **Use in answer pipeline**.
+- Add index lineage, optional **Create another index version**, and primary **Use current index in answer pipeline**.
 - Implement loading, empty, collecting, ready, failed, cancelled, validation, progress, retry, and mobile states using real APIs.
 
 Acceptance boundary: a user can understand and complete the collect-once/build-many workflow without opening raw API data or interpreting internal IDs.

@@ -226,7 +226,7 @@ export function IngestionNodeSettings({
                 <p>
                   To try new chunk settings without another Website request: save a new version,
                   choose an exact ready snapshot, then select{' '}
-                  <strong>Build from selected snapshot</strong>.
+                  <strong>Reprocess saved source</strong>.
                 </p>
               </div>
             )}
@@ -298,8 +298,12 @@ export function IngestionNodeSettings({
         )}
         {selected?.type === 'publish_index' && (
           <div className="field-stack">
+            <p className="field-hint">
+              Make the embedded passages available as an immutable, reusable index version.
+              Publishing does not embed the passages again.
+            </p>
             <Label>
-              Destination
+              Reusable index collection
               <NativeSelect
                 value={selected.knowledge_set_id ?? ''}
                 onChange={(event) => {

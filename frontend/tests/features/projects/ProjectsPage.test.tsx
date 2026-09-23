@@ -39,6 +39,10 @@ test('validates whitespace and creates a project through the API', async () => {
   render(<ProjectsPage onCreated={onCreated} />);
   await screen.findByText('Your first project starts here');
   await user.click(screen.getByRole('button', { name: 'New project' }));
+  expect(screen.queryByText('Your first project starts here')).not.toBeInTheDocument();
+  expect(
+    screen.getByText('Give your sources, pipelines, and experiments a shared home.'),
+  ).toBeVisible();
   expect(screen.getByLabelText(/Project name/)).toHaveFocus();
   await user.type(screen.getByLabelText(/Project name/), '   ');
   await user.click(screen.getByRole('button', { name: 'Create project' }));

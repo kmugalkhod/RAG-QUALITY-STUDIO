@@ -1,6 +1,7 @@
 import { Button } from '../components/ui/button';
 import { cn } from '../lib/utils';
 import { useEffect, useState } from 'react';
+import { CircleAlert, FolderOpen, RotateCw } from 'lucide-react';
 import { useRoute } from './navigation';
 import { pages } from './pages';
 import { WorkspaceSidebar } from './WorkspaceSidebar';
@@ -21,10 +22,26 @@ export function App() {
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [projectId, page, detail]);
+  useEffect(() => {
+    if (!projectId || error?.status !== 404) {
+      return;
+    }
+    for (const key of [
+      `knowledge-base:${projectId}`,
+      `pipelines:${projectId}`,
+      `playground:${projectId}`,
+      `experiment-draft:v1:${projectId}`,
+    ]) {
+      sessionStorage.removeItem(key);
+    }
+    window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}#/`);
+    window.dispatchEvent(new Event('hashchange'));
+  }, [error?.status, projectId]);
   const queryString = route.query.toString();
   useEffect(() => {
     if (
       projectId &&
+      error?.status !== 404 &&
       (page === 'knowledge-base' || page === 'playground' || (page === 'pipelines' && !detail))
     ) {
       sessionStorage.setItem(
@@ -32,7 +49,7 @@ export function App() {
         `#/projects/${projectId}/${page}${queryString ? `?${queryString}` : ''}`,
       );
     }
-  }, [detail, projectId, page, queryString]);
+  }, [detail, error?.status, projectId, page, queryString]);
   return (
     <div className="app-shell flex min-h-screen">
       <a
@@ -80,12 +97,28 @@ export function App() {
         >
           {projectId && !current ? (
             error ? (
-              <div role="alert">
-                <h1>Project unavailable</h1>
-                <p>{error}</p>
-                <Button variant="ghost" onClick={() => refresh()}>
-                  Retry
-                </Button>
+              <div role="alert" className="project-route-error">
+                <div className="project-route-error-icon" aria-hidden="true">
+                  <CircleAlert />
+                </div>
+                <h1>We couldn’t open this project</h1>
+                <p>{error.message}</p>
+                <p className="project-route-error-help">
+                  The service may be temporarily unavailable. Try loading again, or return to your
+                  project list.
+                </p>
+                <div className="project-route-error-actions">
+                  <Button onClick={() => refresh()}>
+                    <RotateCw />
+                    Try loading again
+                  </Button>
+                  <Button variant="outline" asChild>
+                    <a href="#/">
+                      <FolderOpen />
+                      View all projects
+                    </a>
+                  </Button>
+                </div>
               </div>
             ) : (
               <p role="status">Loading project…</p>

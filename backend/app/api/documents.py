@@ -62,6 +62,11 @@ def list_documents(
     return documents.list_documents(session, project_id, limit, offset)
 
 
+@router.delete("/documents/{document_id}")
+def remove(project_id: UUID, document_id: UUID, session: Database):
+    return documents.remove(session, project_id, document_id)
+
+
 @router.post("/documents/{document_id}/runs", response_model=RunRead, status_code=202)
 def start(
     project_id: UUID, document_id: UUID, config: ProcessingConfig, session: Database

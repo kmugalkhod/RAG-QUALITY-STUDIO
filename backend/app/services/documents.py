@@ -5,11 +5,14 @@ from pathlib import Path
 from uuid import UUID, uuid4
 
 from fastapi import HTTPException, UploadFile
-from sqlalchemy import func, select, update
+from sqlalchemy import delete, func, select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.models.document import Chunk, Document, ProcessingRun
+from app.models.index import IndexChunk
+from app.models.ingestion import IngestionRunItem
 from app.models.project import Project
 from app.pipelines.parsing import PARSER_VERSION, ProcessingError, validate_text
 from app.schemas.document import DocumentRead, ProcessingConfig, RunRead
@@ -161,14 +164,109 @@ def list_documents(session, project_id, limit, offset):
     return result
 
 
+def remove(session: Session, project_id: UUID, document_id: UUID):
+    result = session.scalar(
+        select(Document)
+        .where(
+            Document.id == document_id,
+            Document.project_id == project_id,
+            Document.origin_kind == "upload",
+        )
+        .with_for_update()
+    )
+    if result is None:
+        raise HTTPException(404, "Document not found in this project.")
+
+    runs = session.scalars(
+        select(ProcessingRun).where(ProcessingRun.document_id == result.id)
+    ).all()
+    if any(run.status in {"queued", "running"} for run in runs):
+        raise HTTPException(
+            409, "Cancel the active processing run before deleting this document."
+        )
+
+    run_ids = [run.id for run in runs]
+    if run_ids and session.scalar(
+        select(IndexChunk.index_id).where(IndexChunk.run_id.in_(run_ids)).limit(1)
+    ):
+        raise HTTPException(
+            409,
+            "This document is used by an immutable collection and cannot be deleted.",
+        )
+    if session.scalar(
+        select(IngestionRunItem.run_id)
+        .where(IngestionRunItem.document_id == result.id)
+        .limit(1)
+    ):
+        raise HTTPException(
+            409,
+            "This document is used by an ingestion run and cannot be deleted.",
+        )
+
+    stored = settings.storage_path / result.storage_name
+    staged = settings.storage_path / f"{result.storage_name}.deleting-{uuid4().hex}"
+    moved = False
+    try:
+        if stored.exists():
+            os.replace(stored, staged)
+            moved = True
+        if run_ids:
+            session.execute(delete(Chunk).where(Chunk.run_id.in_(run_ids)))
+            session.execute(delete(ProcessingRun).where(ProcessingRun.id.in_(run_ids)))
+        session.delete(result)
+        session.commit()
+    except OSError:
+        session.rollback()
+        if moved:
+            try:
+                os.replace(staged, stored)
+            except OSError:
+                logging.error(
+                    "Document delete rollback could not restore stored file %s.",
+                    result.id,
+                )
+        raise HTTPException(
+            503, "File storage unavailable. The document was not deleted."
+        ) from None
+    except IntegrityError:
+        session.rollback()
+        if moved:
+            try:
+                os.replace(staged, stored)
+            except OSError:
+                logging.error(
+                    "Document delete rollback could not restore stored file %s.",
+                    result.id,
+                )
+        raise HTTPException(
+            409, "The document is still in use and could not be deleted."
+        ) from None
+
+    if moved:
+        try:
+            staged.unlink(missing_ok=True)
+        except OSError:
+            logging.warning(
+                "Deleted document file cleanup unavailable; inspect orphan storage offline."
+            )
+    return {"deleted": True}
+
+
 def start(
     session: Session, project_id: UUID, document_id: UUID, config: ProcessingConfig
 ):
-    document(session, project_id, document_id)
     # Serialize version allocation and reject concurrent starts.
-    session.execute(
-        select(Document).where(Document.id == document_id).with_for_update()
+    locked = session.scalar(
+        select(Document)
+        .where(
+            Document.id == document_id,
+            Document.project_id == project_id,
+            Document.origin_kind == "upload",
+        )
+        .with_for_update()
     )
+    if locked is None:
+        raise HTTPException(404, "Document not found in this project.")
     active = session.scalar(
         select(ProcessingRun.id).where(
             ProcessingRun.document_id == document_id,

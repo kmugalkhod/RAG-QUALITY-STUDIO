@@ -28,6 +28,15 @@ export function uploadDocument(projectId: string, file: File): Promise<Document>
   return request<Document>(documentsPath(projectId), { method: 'POST', body });
 }
 
+export function deleteDocument(
+  projectId: string,
+  documentId: string,
+): Promise<{ deleted: boolean }> {
+  return request<{ deleted: boolean }>(documentPath(projectId, documentId), {
+    method: 'DELETE',
+  });
+}
+
 export function listProcessingRuns(
   projectId: string,
   documentId: string,

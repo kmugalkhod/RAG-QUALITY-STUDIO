@@ -1,5 +1,28 @@
 # Implementation plan
 
+## Data management, recovery, and reusable-index handoff — 2026-09-24
+
+Status: implemented and verified.
+
+- Knowledge Base documents have explicit, confirmed deletion with backend
+  protection for active processing, immutable index membership, and ingestion
+  history. Eligible deletion removes the stored upload and only its unreferenced
+  processing data. The complete document catalog can be sorted newest or oldest
+  before pagination.
+- Missing/deleted project routes clear stale project state and return to Projects.
+  Transient failures use specific recovery actions instead of an unexplained
+  generic Retry control. The first-project creation form has clearer guidance,
+  responsive actions, character counts, and no duplicate empty state beneath it.
+- The ingestion boundary is now labeled **Embed → Publish reusable index**.
+  Publication exposes the completed vectors without embedding passages again.
+  Successful runs and ready source snapshots link the exact index directly into a
+  new answer pipeline. Optional variant work is labeled **Reprocess saved source**
+  or **Create another index version** so it is not confused with the normal handoff.
+- Final `main` verification passed 86 focused tests against an isolated
+  PostgreSQL/pgvector database, backend Ruff lint/format, frontend formatting,
+  structure/ESLint, strict TypeScript, all 103 Vitest tests across 28 files, and
+  the route-split production build.
+
 ## Production-quality audit and hardening — started 2026-09-23
 
 Overall status: **Complete — all four phases finished on 2026-09-23.** This section is

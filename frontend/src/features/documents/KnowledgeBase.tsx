@@ -63,6 +63,9 @@ export function KnowledgeBase({
   const [settingsError, setSettingsError] = useState('');
   const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState('');
+  const [mutationError, setMutationError] = useState('');
+  const [deletingId, setDeletingId] = useState<string>();
+  const [sort, setSort] = useState<'newest' | 'oldest'>('newest');
   const [selected, setSelected] = useState<Document>();
   function selectDocument(document?: Document) {
     setSelected(document);
@@ -146,7 +149,15 @@ export function KnowledgeBase({
     };
   }, [projectId, revision]);
 
-  const documentGroups = useMemo(() => groupDocuments(documents ?? []), [documents]);
+  const documentGroups = useMemo(() => {
+    const groups = groupDocuments(documents ?? []);
+    return groups.sort((a, b) => {
+      const difference = Date.parse(b.createdAt) - Date.parse(a.createdAt);
+      return (
+        (sort === 'newest' ? difference : -difference) || a.document.id.localeCompare(b.document.id)
+      );
+    });
+  }, [documents, sort]);
   const visibleDocumentGroups = documentGroups.slice(offset, offset + DOCUMENT_PAGE_SIZE);
 
   useEffect(() => {
@@ -160,6 +171,43 @@ export function KnowledgeBase({
     selectDocument(document);
     setOffset(0);
     setRevision((value) => value + 1);
+  }
+  async function handleDelete(document: Document, uploadCount: number) {
+    setNotice('');
+    setMutationError('');
+    if (active(document.latest_run)) {
+      setMutationError('Cancel the active processing run before deleting this document.');
+      return;
+    }
+    const duplicateNote =
+      uploadCount > 1
+        ? ` ${uploadCount - 1} identical upload${uploadCount === 2 ? '' : 's'} will remain.`
+        : '';
+    if (
+      !window.confirm(
+        `Delete “${document.filename}”? Its unreferenced processing history will also be removed.${duplicateNote} This cannot be undone.`,
+      )
+    ) {
+      return;
+    }
+    setDeletingId(document.id);
+    try {
+      await api.deleteDocument(projectId, document.id);
+      setDocuments((current) => current?.filter((item) => item.id !== document.id));
+      if (selected?.id === document.id) {
+        selectDocument();
+      }
+      setNotice(
+        uploadCount > 1
+          ? `“${document.filename}” deleted. ${uploadCount - 1} identical upload${uploadCount === 2 ? '' : 's'} remain${uploadCount === 2 ? 's' : ''}.`
+          : `“${document.filename}” deleted.`,
+      );
+      setRevision((value) => value + 1);
+    } catch (err) {
+      setMutationError(message(err));
+    } finally {
+      setDeletingId(undefined);
+    }
   }
   return (
     <div className="knowledge-page">
@@ -227,6 +275,11 @@ export function KnowledgeBase({
             {notice}
           </p>
         )}
+        {mutationError && (
+          <p role="alert" className="inline-error document-mutation-error mx-7">
+            {mutationError}
+          </p>
+        )}
         {!showUpload && settingsError && (
           <p role="alert" className="error-message text-xs mt-4 text-destructive">
             {settingsError}
@@ -245,9 +298,16 @@ export function KnowledgeBase({
                 loading={loading}
                 error={error}
                 selectedId={selected?.id}
+                sort={sort}
+                deletingId={deletingId}
                 onRefresh={() => setRevision((value) => value + 1)}
                 onPage={setOffset}
                 onSelect={selectDocument}
+                onSort={(value) => {
+                  setSort(value);
+                  setOffset(0);
+                }}
+                onDelete={(document, uploadCount) => void handleDelete(document, uploadCount)}
               />
             </TabsContent>
             <TabsContent value="indexes">

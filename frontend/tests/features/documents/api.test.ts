@@ -3,6 +3,7 @@ import {
   startProcessingRun,
   cancelProcessingRun,
   listDocumentChunks,
+  deleteDocument,
 } from '../../../src/features/documents/api';
 
 beforeEach(() => vi.spyOn(globalThis, 'fetch').mockImplementation(async () => new Response('{}')));
@@ -35,5 +36,13 @@ test('scopes processing, cancellation and chunk reads to their project and docum
     3,
     '/api/projects/project/documents/document/runs/run/chunks?offset=20',
     expect.anything(),
+  );
+});
+
+test('deletes a document through its project-scoped endpoint', async () => {
+  await deleteDocument('project id', 'document id');
+  expect(fetch).toHaveBeenCalledWith(
+    '/api/projects/project%20id/documents/document%20id',
+    expect.objectContaining({ method: 'DELETE' }),
   );
 });

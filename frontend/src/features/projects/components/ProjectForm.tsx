@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { ArrowRight, X } from 'lucide-react';
+import { ArrowRight, FolderPlus, X } from 'lucide-react';
 import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
 import { Label } from '../../../components/ui/label';
@@ -46,13 +46,18 @@ export function ProjectForm({
   }
 
   return (
-    <section
-      className="create-panel mt-8 rounded-lg border border-border bg-background p-6"
-      aria-labelledby="create-title"
-    >
-      <div className="section-heading flex items-center justify-between gap-4">
-        <h2 id="create-title">Create a project</h2>
+    <section className="create-project-panel" aria-labelledby="create-title">
+      <header className="create-project-header">
+        <span className="create-project-icon" aria-hidden="true">
+          <FolderPlus />
+        </span>
+        <div className="create-project-heading">
+          <p>New workspace</p>
+          <h2 id="create-title">Create a project</h2>
+          <span>Give your sources, pipelines, and experiments a shared home.</span>
+        </div>
         <Button
+          className="create-project-close"
           variant="ghost"
           size="icon"
           aria-label="Close project form"
@@ -61,42 +66,56 @@ export function ProjectForm({
         >
           <X />
         </Button>
-      </div>
-      <form onSubmit={submit} noValidate aria-busy={saving}>
-        <div className="form-grid grid grid-cols-2 gap-6">
-          <div>
-            <Label htmlFor="project-name">
-              Project name <span>Required</span>
-            </Label>
+      </header>
+      <form className="create-project-form" onSubmit={submit} noValidate aria-busy={saving}>
+        <div className="create-project-fields">
+          <div className="create-project-field">
+            <div className="create-project-label">
+              <Label htmlFor="project-name">Project name</Label>
+              <span>Required</span>
+            </div>
             <Input
               ref={nameInput}
               id="project-name"
               value={name}
-              onChange={(event) => setName(event.target.value)}
+              onChange={(event) => {
+                setName(event.target.value);
+                setError('');
+              }}
               maxLength={120}
               required
               disabled={saving}
               aria-invalid={!!error}
-              aria-describedby={error ? 'form-error' : 'name-hint'}
+              aria-describedby={error ? 'name-hint name-count form-error' : 'name-hint name-count'}
               placeholder="Customer support knowledge"
             />
-            <p className="field-hint" id="name-hint">
-              A clear name, up to 120 characters.
-            </p>
+            <div className="create-project-field-meta">
+              <p id="name-hint">Used in navigation and experiment history.</p>
+              <span id="name-count">{name.length}/120</span>
+            </div>
           </div>
-          <div>
-            <Label htmlFor="project-description">
-              Description <span>Optional</span>
-            </Label>
+          <div className="create-project-field">
+            <div className="create-project-label">
+              <Label htmlFor="project-description">Description</Label>
+              <span>Optional</span>
+            </div>
             <Textarea
               id="project-description"
               value={description}
-              onChange={(event) => setDescription(event.target.value)}
+              onChange={(event) => {
+                setDescription(event.target.value);
+                setError('');
+              }}
               maxLength={2000}
-              rows={3}
+              rows={4}
               disabled={saving}
+              aria-describedby="description-hint description-count"
               placeholder="What will this project evaluate?"
             />
+            <div className="create-project-field-meta">
+              <p id="description-hint">Help collaborators understand the project’s scope.</p>
+              <span id="description-count">{description.length}/2,000</span>
+            </div>
           </div>
         </div>
         {error && (
@@ -104,15 +123,18 @@ export function ProjectForm({
             {error}
           </p>
         )}
-        <div className="form-actions mt-5 flex justify-end gap-3">
-          <Button type="button" variant="outline" disabled={saving} onClick={onClose}>
-            Cancel
-          </Button>
-          <Button type="submit" disabled={saving}>
-            {saving ? 'Creating…' : 'Create project'}
-            <ArrowRight />
-          </Button>
-        </div>
+        <footer className="create-project-footer">
+          <p>You can add documents and configure pipelines after creation.</p>
+          <div className="create-project-actions">
+            <Button type="button" variant="outline" disabled={saving} onClick={onClose}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={saving}>
+              {saving ? 'Creating…' : 'Create project'}
+              <ArrowRight />
+            </Button>
+          </div>
+        </footer>
       </form>
     </section>
   );
