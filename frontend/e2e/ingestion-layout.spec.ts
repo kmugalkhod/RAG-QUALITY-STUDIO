@@ -72,8 +72,9 @@ test('direct editor links lazy-load and restore through browser history', async 
   await expect(page.getByRole('heading', { name: 'Ingestion editor' })).toBeVisible();
   await expect(page.locator('#main')).toBeFocused();
 
+  page.once('dialog', (dialog) => dialog.accept());
   await page.goto('/#/projects/11111111-1111-4111-8111-111111111111/pipelines?kind=ingestion');
-  await expect(page.getByRole('heading', { name: 'Pipelines' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Pipelines', exact: true })).toBeVisible();
   await expect(page.locator('#main')).toBeFocused();
 
   await page.goBack();
