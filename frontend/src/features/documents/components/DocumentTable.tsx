@@ -120,6 +120,7 @@ export function DocumentTable({
   onSelect,
   onSort,
   onDelete,
+  onAdd,
 }: {
   groups?: DocumentGroup[];
   total: number;
@@ -135,6 +136,7 @@ export function DocumentTable({
   onSelect: (document: Document) => void;
   onSort: (sort: 'newest' | 'oldest') => void;
   onDelete: (document: Document, uploadCount: number) => void;
+  onAdd: () => void;
 }) {
   const heading = useRef<HTMLHeadingElement>(null);
 
@@ -185,9 +187,17 @@ export function DocumentTable({
         </p>
       ) : groups?.length === 0 ? (
         <div className="empty-state document-empty">
-          <FileText size={30} />
-          <h3>No documents yet</h3>
-          <p>Add a PDF or TXT file, then prepare it for search.</p>
+          <div className="document-empty-mark" aria-hidden="true">
+            <FileText size={22} />
+          </div>
+          <div>
+            <h3>No documents yet</h3>
+            <p>
+              Add a PDF or TXT source. You can inspect its extracted passages before publishing a
+              searchable collection.
+            </p>
+          </div>
+          <Button onClick={onAdd}>Add your first document</Button>
         </div>
       ) : (
         <ul className="document-list" aria-label="Documents">

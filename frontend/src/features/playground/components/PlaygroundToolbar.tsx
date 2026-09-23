@@ -1,4 +1,4 @@
-import { History, PanelRightOpen, Search, SlidersHorizontal, Sparkles } from 'lucide-react';
+import { BookOpenCheck, History, PanelRightOpen, Search, SlidersHorizontal } from 'lucide-react';
 import { Button } from '../../../components/ui/button';
 import type { PipelineVersion } from '../../pipelines/model';
 import type { PlaygroundMode, PlaygroundPanel } from '../model';
@@ -49,7 +49,7 @@ export function PlaygroundToolbar({
           disabled={disabled}
           onClick={() => onModeChange('pipeline')}
         >
-          <Sparkles size={18} />
+          <BookOpenCheck size={18} />
           <span>
             <strong>Pipeline test</strong>
             <small>Find passages + generate an answer</small>

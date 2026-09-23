@@ -19,42 +19,71 @@ export function ProjectOverview({
   );
   const failed = data.documents.filter((document) => document.latest_run?.status === 'failed');
   const indexing = data.indexes.filter((index) => ['queued', 'running'].includes(index.status));
-  const next = !data.documents.length
-    ? [
-        'Add your first source',
-        'Upload a PDF or TXT document to begin.',
-        'knowledge-base',
-        'Upload documents',
-      ]
-    : !processed.length
+  const hasSourceHistory = data.documents.length > 0 || ready.length > 0;
+  const hasPreparedHistory = processed.length > 0 || ready.length > 0;
+  const lifecycle = [
+    {
+      label: 'Sources',
+      complete: hasSourceHistory,
+      value: data.documents.length
+        ? `${data.documents.length} added`
+        : ready.length
+          ? 'Published history'
+          : 'None added',
+    },
+    {
+      label: 'Prepared',
+      complete: hasPreparedHistory,
+      value: processed.length
+        ? `${processed.length} ready`
+        : ready.length
+          ? 'Included in collection'
+          : 'None ready',
+    },
+    { label: 'Published', complete: ready.length > 0, value: `${ready.length} collections` },
+    {
+      label: 'Configured',
+      complete: data.pipelines.length > 0,
+      value: `${data.pipelines.length} pipelines`,
+    },
+  ];
+  const next =
+    !data.documents.length && !ready.length
       ? [
-          'Prepare your documents',
-          'Process uploaded text into inspectable chunks.',
+          'Add your first source',
+          'Upload a PDF or TXT document to begin.',
           'knowledge-base',
-          'Process documents',
+          'Upload documents',
         ]
-      : !ready.length
+      : !processed.length && !ready.length
         ? [
-            'Make your sources searchable',
-            indexing.length
-              ? 'Your documents are being prepared.'
-              : 'Prepare a searchable document set.',
+            'Prepare your documents',
+            'Process uploaded text into inspectable chunks.',
             'knowledge-base',
-            'View document sets',
+            'Process documents',
           ]
-        : !data.pipelines.length
+        : !ready.length
           ? [
-              'Configure your first pipeline',
-              'Choose how answers should be retrieved and written.',
-              'pipelines/new',
-              'Create pipeline',
+              'Make your sources searchable',
+              indexing.length
+                ? 'Your documents are being prepared.'
+                : 'Prepare a searchable document set.',
+              'knowledge-base',
+              'View document sets',
             ]
-          : [
-              'Ask your sources a question',
-              'Run a saved pipeline and inspect its evidence.',
-              'playground',
-              'Open Playground',
-            ];
+          : !data.pipelines.length
+            ? [
+                'Configure your first pipeline',
+                'Choose how answers should be retrieved and written.',
+                'pipelines/new',
+                'Create pipeline',
+              ]
+            : [
+                'Ask your sources a question',
+                'Run a saved pipeline and inspect its evidence.',
+                'playground',
+                'Open Playground',
+              ];
 
   return (
     <>
@@ -73,13 +102,30 @@ export function ProjectOverview({
       <div className="overview-layout grid grid-cols-[minmax(0,1fr)_250px] gap-10">
         <div className="overview-content">
           <section className="project-readiness border-b border-border py-7">
-            <h2>{next[0]}</h2>
-            <p>{next[1]}</p>
-            <div className="readiness-line flex flex-wrap gap-5 text-xs text-muted-foreground">
-              <span>{processed.length} processed documents</span>
-              <span>{ready.length} prepared sets</span>
-              <span>{data.pipelines.length} saved pipelines</span>
+            <div className="readiness-copy">
+              <h2>{next[0]}</h2>
+              <p>{next[1]}</p>
             </div>
+            <ol className="readiness-steps" aria-label="Project readiness">
+              {lifecycle.map((stage, index) => (
+                <li
+                  key={stage.label}
+                  data-state={
+                    stage.complete
+                      ? 'complete'
+                      : index === lifecycle.findIndex((item) => !item.complete)
+                        ? 'current'
+                        : 'pending'
+                  }
+                >
+                  <span className="readiness-marker" aria-hidden="true" />
+                  <span>
+                    <strong>{stage.label}</strong>
+                    <small>{stage.value}</small>
+                  </span>
+                </li>
+              ))}
+            </ol>
           </section>
           <section className="overview-section mt-6">
             <div className="section-heading flex items-center justify-between gap-4 py-3">

@@ -308,6 +308,7 @@ export function KnowledgeBase({
                   setOffset(0);
                 }}
                 onDelete={(document, uploadCount) => void handleDelete(document, uploadCount)}
+                onAdd={() => setShowUpload(true)}
               />
             </TabsContent>
             <TabsContent value="indexes">

@@ -1,11 +1,19 @@
 import { useEffect, useState } from 'react';
-import { Plus, Workflow } from 'lucide-react';
+import { ArrowRight, Plus, Workflow } from 'lucide-react';
 
+import { StatusBadge } from '../../components/StatusBadge';
 import { Button } from '../../components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '../../components/ui/tabs';
 import { allPages } from '../../lib/pagination';
+import { listIngestionPipelineVersions } from '../ingestion-pipelines/api';
 import * as api from './api';
-import { type Pipeline, type PipelineKind } from './model';
+import { type Pipeline, type PipelineKind, validatePipelineExecution } from './model';
+
+type PipelineMetadata = {
+  version: number;
+  updatedAt: string;
+  ready: boolean;
+};
 
 function normalizedKind(value: string): PipelineKind {
   return value === 'ingestion' ? 'ingestion' : 'answer';
@@ -20,17 +28,61 @@ export function PipelinesPage({
 }) {
   const kind = normalizedKind(requestedKind);
   const [pipelines, setPipelines] = useState<Pipeline[]>();
+  const [metadata, setMetadata] = useState<Record<string, PipelineMetadata>>({});
   const [error, setError] = useState('');
   const [revision, setRevision] = useState(0);
 
   useEffect(() => {
     let disposed = false;
     setPipelines(undefined);
+    setMetadata({});
     void allPages((offset) => api.listPipelines(projectId, kind, offset))
-      .then((items) => {
+      .then(async (items) => {
         if (!disposed) {
           setPipelines(items);
           setError('');
+        }
+        const entries = await Promise.all(
+          items.map(async (pipeline): Promise<[string, PipelineMetadata | undefined]> => {
+            try {
+              if (kind === 'answer') {
+                const versions = await allPages((offset) =>
+                  api.listPipelineVersions(projectId, pipeline.id, offset),
+                );
+                const latest = versions.sort((a, b) => b.version - a.version)[0];
+                if (!latest) {
+                  return [pipeline.id, undefined];
+                }
+                return [
+                  pipeline.id,
+                  {
+                    version: latest.version,
+                    updatedAt: latest.created_at,
+                    ready: validatePipelineExecution(latest.execution).length === 0,
+                  },
+                ];
+              }
+              const versions = await allPages((offset) =>
+                listIngestionPipelineVersions(projectId, pipeline.id, offset),
+              );
+              const latest = versions.sort((a, b) => b.version - a.version)[0];
+              return [
+                pipeline.id,
+                latest
+                  ? { version: latest.version, updatedAt: latest.created_at, ready: true }
+                  : undefined,
+              ];
+            } catch {
+              return [pipeline.id, undefined];
+            }
+          }),
+        );
+        if (!disposed) {
+          setMetadata(
+            Object.fromEntries(
+              entries.filter((entry): entry is [string, PipelineMetadata] => !!entry[1]),
+            ),
+          );
         }
       })
       .catch((cause) => {
@@ -64,26 +116,39 @@ export function PipelinesPage({
     </div>
   ) : (
     <ul className="project-list pipeline-list m-0 mt-0 list-none border-t border-border p-0">
-      {pipelines.map((pipeline) => (
-        <li key={pipeline.id}>
-          <Workflow className="list-symbol" size={20} />
-          <div className="project-content min-w-0 flex-1 wrap-anywhere">
-            <h2>{pipeline.name}</h2>
-            <p>
-              {isAnswer
-                ? 'Versioned question → retrieval → answer pipeline'
-                : 'Versioned existing-files → ready index pipeline'}
-            </p>
-          </div>
-          <Button variant="outline" asChild>
-            <a
-              href={`#/projects/${projectId}/pipelines/${pipeline.id}${isAnswer ? '' : '?kind=ingestion'}`}
-            >
-              Open<span className="sr-only"> {pipeline.name}</span>
-            </a>
-          </Button>
-        </li>
-      ))}
+      {pipelines.map((pipeline) => {
+        const details = metadata[pipeline.id];
+        return (
+          <li key={pipeline.id}>
+            <Workflow className="list-symbol" size={20} />
+            <div className="project-content min-w-0 flex-1 wrap-anywhere">
+              <div className="pipeline-row-title">
+                <h2>{pipeline.name}</h2>
+                {details && (
+                  <StatusBadge status={details.ready ? 'configured' : 'uploaded'}>
+                    {details.ready ? (isAnswer ? 'Ready to test' : 'Ready to run') : 'Needs setup'}
+                  </StatusBadge>
+                )}
+              </div>
+              <p>
+                {details
+                  ? `Version ${details.version} · updated ${new Date(details.updatedAt).toLocaleDateString()}`
+                  : isAnswer
+                    ? 'No saved version details available'
+                    : 'Saved ingestion configuration'}
+              </p>
+            </div>
+            <Button variant="ghost" asChild>
+              <a
+                href={`#/projects/${projectId}/pipelines/${pipeline.id}${isAnswer ? '' : '?kind=ingestion'}`}
+              >
+                Open<span className="sr-only"> {pipeline.name}</span>
+                <ArrowRight />
+              </a>
+            </Button>
+          </li>
+        );
+      })}
     </ul>
   );
   return (

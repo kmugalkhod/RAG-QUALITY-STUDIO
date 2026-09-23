@@ -24,7 +24,7 @@ export function WorkspaceSidebar({
   const base = `#/projects/${projectId}`;
   return (
     <aside
-      className={`sidebar border-r flex flex-col shrink-0 bg-secondary sticky top-0 h-dvh w-58 border-border py-5.5 px-3.5 ${mobile ? 'sidebar-open' : ''}`}
+      className={`sidebar border-r flex flex-col shrink-0 bg-secondary sticky top-0 h-dvh w-54 border-border py-5 px-3 ${mobile ? 'sidebar-open' : ''}`}
       onKeyDown={(e) => {
         if (e.key === 'Escape') {
           setMobile(false);
@@ -40,7 +40,7 @@ export function WorkspaceSidebar({
         <Layers3 size={27} />
         <span>
           RAG Quality
-          <span className="brand-secondary block font-normal text-[11px] text-muted-foreground mt-0.25">
+          <span className="brand-secondary block font-normal text-xs text-muted-foreground mt-0.25">
             Studio
           </span>
         </span>
@@ -57,7 +57,7 @@ export function WorkspaceSidebar({
         {mobile ? <X /> : <Menu />}
       </Button>
       <div id="workspace-navigation" className="sidebar-content flex flex-col flex-1 min-h-0">
-        <Label className="project-switcher block text-muted-foreground mt-7 mx-1.5 mb-0 text-[11px] font-medium">
+        <Label className="project-switcher block text-muted-foreground mt-6 mx-1.5 mb-0 text-xs font-medium">
           Project
           <NativeSelect
             aria-label="Switch project"
@@ -116,13 +116,13 @@ export function WorkspaceSidebar({
         </nav>
         {projectId && (
           <a
-            className="all-projects-link text-[11px] no-underline underline-offset-4 text-muted-foreground my-6.25 mx-2.5"
+            className="all-projects-link text-xs no-underline underline-offset-4 text-muted-foreground my-6 mx-2.5"
             href="#/"
           >
             Manage projects
           </a>
         )}
-        <div className="sidebar-note mt-auto text-muted-foreground text-[11px] py-3 px-2.25">
+        <div className="sidebar-note mt-auto text-muted-foreground text-xs py-3 px-2.25">
           <span className="local-dot inline-block w-1.5 h-1.5 rounded-full bg-muted-foreground mr-1.75" />
           Local workspace<p>Sources → pipelines → grounded answers.</p>
         </div>

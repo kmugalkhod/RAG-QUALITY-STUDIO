@@ -1,7 +1,7 @@
 @import 'tailwindcss';
 @import '@xyflow/react/dist/style.css';
 
-/* shadcn semantic theme. The supported workspace appearance is dark. */
+/* Tokens: one restrained dark theme, one interaction accent, and semantic statuses. */
 @font-face {
   font-family: Inter;
   src: url('/fonts/InterVariable.woff2') format('woff2');
@@ -21,34 +21,41 @@
   line-height: 1.5;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
-  --background: #181b21;
-  --foreground: #e8eaf0;
-  --card: #20242b;
-  --card-foreground: #e8eaf0;
-  --popover: #20242b;
-  --popover-foreground: #e8eaf0;
-  --primary: #afa1ff;
-  --primary-foreground: #181b21;
-  --secondary: #20242b;
-  --secondary-foreground: #e8eaf0;
-  --muted: #282d36;
-  --muted-foreground: #a5afbf;
-  --accent: #282d36;
-  --accent-foreground: #e8eaf0;
-  --border: #343b46;
-  --input: #343b46;
-  --ring: #afa1ff;
-  --sidebar: #20242b;
-  --sidebar-foreground: #e8eaf0;
-  --sidebar-accent: #302c49;
-  --sidebar-accent-foreground: #afa1ff;
-  --sidebar-border: #343b46;
-  --sidebar-ring: #afa1ff;
-  --destructive: #f0a3a3;
-  --destructive-foreground: #181b21;
-  --success: #96d3ae;
-  --warning: #e4c780;
-  --radius: 0.375rem;
+  --background: #17191f;
+  --foreground: #eceef3;
+  --card: #1e2229;
+  --card-foreground: #eceef3;
+  --popover: #1e2229;
+  --popover-foreground: #eceef3;
+  --primary: #a49bd8;
+  --primary-foreground: #17191f;
+  --secondary: #1e2229;
+  --secondary-foreground: #eceef3;
+  --muted: #272b33;
+  --muted-foreground: #adb6c4;
+  --accent: #292e37;
+  --accent-foreground: #eceef3;
+  --border: #343b45;
+  --input: #3a424e;
+  --ring: #a49bd8;
+  --sidebar: #1d2026;
+  --sidebar-foreground: #eceef3;
+  --sidebar-accent: #282936;
+  --sidebar-accent-foreground: #c2bce8;
+  --sidebar-border: #343b45;
+  --sidebar-ring: #a49bd8;
+  --destructive: #d99186;
+  --destructive-foreground: #17191f;
+  --success: #91b69b;
+  --warning: #c9aa6c;
+  --status-success-bg: #20332a;
+  --status-warning-bg: #352f20;
+  --status-failure-bg: #3b2726;
+  --status-neutral-bg: #292e36;
+  --surface-raised: #20242b;
+  --surface-sunken: #14171c;
+  --radius: 0.5rem;
+  --transition-fast: 150ms cubic-bezier(0.2, 0, 0, 1);
   color: var(--foreground);
   background: var(--background);
 }
@@ -82,6 +89,28 @@
   --radius-sm: calc(var(--radius) - 2px);
   --radius-md: var(--radius);
   --radius-lg: calc(var(--radius) + 2px);
+}
+
+/* Shared primitives and readable state treatments. */
+.status-badge.status-success {
+  border-color: color-mix(in srgb, var(--success) 28%, transparent);
+  background: var(--status-success-bg);
+  color: var(--success);
+}
+.status-badge.status-warning {
+  border-color: color-mix(in srgb, var(--warning) 28%, transparent);
+  background: var(--status-warning-bg);
+  color: var(--warning);
+}
+.status-badge.status-failure {
+  border-color: color-mix(in srgb, var(--destructive) 30%, transparent);
+  background: var(--status-failure-bg);
+  color: var(--destructive);
+}
+.status-badge.status-neutral {
+  border-color: var(--border);
+  background: var(--status-neutral-bg);
+  color: var(--muted-foreground);
 }
 .retrieval-settings-form legend {
   font-size: 14px;
@@ -151,24 +180,126 @@
 .formatted-answer pre code {
   padding: 0;
 }
+/* Experiments: three explicit stages with one persistent execution summary. */
 .experiment-heading h1 {
   margin-bottom: 8px;
 }
-.experiments summary {
+.experiment-setup {
+  display: grid;
+  gap: 0;
+}
+.experiment-stage {
+  min-width: 0;
+  padding: 24px 0;
+  border-top: 1px solid var(--border);
+}
+.experiment-stage-heading,
+.experiment-stage > summary {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.experiment-stage > summary {
+  min-height: 44px;
+  padding: 0;
   cursor: pointer;
-  font-weight: 600;
-  padding-block: 10px;
+  list-style: none;
+}
+.experiment-stage > summary::-webkit-details-marker {
+  display: none;
+}
+.experiment-stage > summary::after {
+  margin-left: auto;
+  color: var(--muted-foreground);
+  content: '−';
+}
+.experiment-stage:not([open]) > summary::after {
+  content: '+';
+}
+.experiment-stage-index {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  flex: 0 0 26px;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.experiment-stage-heading :is(h2, p),
+.experiment-stage > summary :is(strong, small) {
+  display: block;
+  margin: 0;
+}
+.experiment-stage-heading h2,
+.experiment-stage > summary strong {
+  color: var(--foreground);
+  font-size: 15px;
+  font-weight: 650;
+}
+.experiment-stage-heading p,
+.experiment-stage > summary small {
+  margin-top: 3px;
+  color: var(--muted-foreground);
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.5;
+}
+.dataset-version-field,
+.experiment-name-field {
+  display: grid;
+  max-width: 560px;
+  gap: 7px;
+  margin: 20px 0 0 38px;
+}
+.dataset-questions,
+.dataset-import {
+  margin: 18px 0 0 38px;
+  border-top: 1px solid var(--border);
+}
+.dataset-questions > summary,
+.dataset-import > summary {
+  min-height: 44px;
+  padding: 12px 0;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 550;
+}
+.dataset-import-body {
+  padding: 2px 0 8px;
 }
 .experiment-fields,
 .candidate-columns {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 24px;
-  margin-block: 20px;
+  gap: 16px;
+  margin: 18px 0;
 }
-.experiment-fields label {
+.experiment-fields label,
+.candidate-column > label {
   display: grid;
-  gap: 8px;
+  gap: 7px;
+}
+.experiment-workbench {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  gap: 32px;
+  align-items: start;
+}
+.experiment-stage-body {
+  padding: 4px 0 0 38px;
+}
+.candidate-column {
+  min-width: 0;
+}
+.candidate-settings {
+  margin: 12px 0 0;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  background: var(--secondary);
 }
 .experiments input:not([type='checkbox']),
 .experiments select {
@@ -176,14 +307,83 @@
   min-width: 0;
 }
 .experiments fieldset {
-  border: 0;
+  margin: 24px 0 0;
   padding: 0;
-  margin-block: 24px;
+  border: 0;
+}
+.experiments legend {
+  margin-bottom: 12px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.experiments .metric-choice {
+  display: flex;
+  min-height: 72px;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--background);
+}
+.experiments .metric-choice:has([data-state='checked']) {
+  border-color: color-mix(in srgb, var(--primary) 65%, var(--border));
+  background: color-mix(in srgb, var(--primary) 6%, var(--background));
 }
 .experiments small {
   display: block;
   color: var(--muted-foreground);
-  line-height: 1.6;
+  font-size: 12px;
+  line-height: 1.55;
+}
+.evaluator-note {
+  color: var(--muted-foreground);
+  font-size: 13px;
+}
+.experiment-run-summary {
+  position: sticky;
+  top: 68px;
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) + 2px);
+  background: var(--surface-raised);
+}
+.experiment-run-summary :is(h2, p, dl, dt, dd) {
+  margin: 0;
+}
+.experiment-run-summary > div:first-child {
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+}
+.experiment-run-summary .draft-notice {
+  margin-top: 4px;
+}
+.experiment-run-summary dl {
+  display: grid;
+  gap: 12px;
+}
+.experiment-run-summary dl > div {
+  display: grid;
+  gap: 3px;
+}
+.experiment-run-summary dt {
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+.experiment-run-summary dd {
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.dataset-preview {
+  margin-top: 20px;
 }
 .experiment-table table {
   width: 100%;
@@ -205,7 +405,6 @@
   position: sticky;
   top: 0;
 }
-.candidate-settings,
 .experiments p {
   overflow-wrap: anywhere;
   line-height: 1.7;
@@ -226,14 +425,33 @@
   margin-bottom: 16px;
   accent-color: var(--primary);
 }
+@media (max-width: 960px) {
+  .experiment-workbench {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+  .experiment-run-summary {
+    position: static;
+    order: -1;
+    margin-bottom: 20px;
+  }
+}
 @media (max-width: 720px) {
   .experiment-fields,
-  .candidate-columns {
+  .candidate-columns,
+  .metric-grid {
     grid-template-columns: 1fr;
   }
   .experiment-heading {
     align-items: start;
     flex-wrap: wrap;
+  }
+  .experiment-stage-body,
+  .dataset-version-field,
+  .dataset-questions,
+  .dataset-import {
+    margin-left: 0;
+    padding-left: 0;
   }
 }
 .experiments .metric-choice > span {
@@ -1003,9 +1221,9 @@ h3 {
   margin: 0;
 }
 .empty-state h3 {
-  font-family: Georgia, serif;
-  font-weight: 400;
-  font-size: 27px;
+  font-family: Inter, sans-serif;
+  font-weight: 600;
+  font-size: 20px;
 }
 .empty-state p {
   max-width: 350px;
@@ -1034,8 +1252,8 @@ h3 {
   display: grid;
   place-items: center;
   flex-shrink: 0;
-  font-family: Georgia, serif;
-  font-size: 23px;
+  font-family: Inter, sans-serif;
+  font-size: 18px;
 }
 .project-content p {
   color: var(--muted-foreground);
@@ -1992,12 +2210,22 @@ summary {
   stroke-width: 1.6;
 }
 .app-shell .sidebar nav .nav-active {
-  background: var(--sidebar-accent);
-  color: var(--primary);
+  position: relative;
+  background: color-mix(in srgb, var(--sidebar-accent) 58%, transparent);
+  color: var(--foreground);
   font-weight: 600;
 }
+.app-shell .sidebar nav .nav-active::before {
+  position: absolute;
+  inset: 9px auto 9px 0;
+  width: 1px;
+  border-radius: 1px;
+  background: var(--primary);
+  content: '';
+}
 .app-shell .sidebar nav a:hover {
-  background: var(--muted);
+  background: color-mix(in srgb, var(--muted) 70%, transparent);
+  color: var(--foreground);
 }
 .app-shell .sidebar-note p {
   display: none;
@@ -2021,7 +2249,7 @@ summary {
 }
 .app-shell .knowledge-heading p {
   margin: 0;
-  font-size: 12px;
+  font-size: 13px;
   color: var(--muted-foreground);
 }
 .app-shell :focus-visible {
@@ -2355,7 +2583,7 @@ summary {
 
 /* Shared workspace and full-height editor. */
 .app-shell .page-heading p {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--muted-foreground);
 }
 .app-shell h2 {
@@ -2374,6 +2602,72 @@ summary {
 .app-shell .project-readiness p {
   color: var(--muted-foreground);
   margin: 8px 0 20px;
+}
+.app-shell .project-readiness {
+  display: grid;
+  grid-template-columns: minmax(190px, 0.75fr) minmax(360px, 1.25fr);
+  align-items: center;
+  gap: 32px;
+}
+.app-shell .readiness-steps {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.app-shell .readiness-steps li {
+  position: relative;
+  display: grid;
+  grid-template-rows: 13px auto;
+  min-width: 0;
+  gap: 7px;
+}
+.app-shell .readiness-steps li:not(:last-child)::after {
+  position: absolute;
+  z-index: 0;
+  top: 6px;
+  left: 13px;
+  width: calc(100% - 13px);
+  height: 1px;
+  background: var(--border);
+  content: '';
+}
+.app-shell .readiness-marker {
+  position: relative;
+  z-index: 1;
+  width: 13px;
+  height: 13px;
+  flex: 0 0 13px;
+  border: 2px solid var(--border);
+  border-radius: 50%;
+  background: var(--background);
+}
+.app-shell .readiness-steps li[data-state='complete'] .readiness-marker {
+  border-color: var(--success);
+  background: var(--success);
+}
+.app-shell .readiness-steps li[data-state='current'] .readiness-marker {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 14%, transparent);
+}
+.app-shell .readiness-steps li > span:last-child {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+  padding-right: 10px;
+}
+.app-shell .readiness-steps strong {
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+}
+.app-shell .readiness-steps small {
+  color: var(--muted-foreground);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 .app-shell .overview-section .section-heading {
   padding: 10px 0;
@@ -2689,6 +2983,25 @@ summary {
 .app-shell .pipeline-list li > div {
   flex: 1;
 }
+.app-shell .pipeline-row-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.app-shell .pipeline-row-title h2 {
+  margin: 0;
+}
+.app-shell .pipeline-list > li {
+  min-height: 76px;
+  padding: 14px 4px;
+}
+.app-shell .pipeline-list > li > [data-slot='button'] {
+  color: var(--muted-foreground);
+}
+.app-shell .pipeline-list > li > [data-slot='button']:hover {
+  color: var(--foreground);
+}
 .app-shell .editor-workspace > .back-link {
   position: static;
   width: fit-content;
@@ -2736,10 +3049,10 @@ summary {
   display: flex;
   align-items: center;
   gap: 12px;
-  font-size: 11px;
+  font-size: 12px;
 }
 .app-shell .pipeline-validation h2 {
-  font-size: 11px;
+  font-size: 12px;
   white-space: nowrap;
 }
 .app-shell .pipeline-validation ul {
@@ -2790,6 +3103,10 @@ summary {
 @media (max-width: 760px) {
   .app-shell .overview-layout,
   .app-shell .settings-section {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+  .app-shell .project-readiness {
     grid-template-columns: 1fr;
     gap: 20px;
   }
@@ -2878,7 +3195,7 @@ summary {
   grid-template-columns: minmax(0, 1fr) 320px;
 }
 .app-shell .editor-title h1 {
-  color: var(--primary);
+  color: var(--foreground);
 }
 .app-shell .pipeline-toolbar label:first-child {
   flex-basis: 270px;
@@ -2932,6 +3249,11 @@ summary {
   font-size: 16px;
   font-weight: 500;
 }
+.app-shell .workflow-node.vertical-node {
+  width: 296px;
+  height: 78px;
+  padding: 14px 18px;
+}
 .app-shell .workflow-selected .node-symbol {
   color: var(--primary);
 }
@@ -2952,16 +3274,7 @@ summary {
   border-width: 2px;
   border-color: var(--execution-accent);
   background: color-mix(in srgb, var(--primary) 13%, var(--background));
-  box-shadow: 0 14px 38px -13px color-mix(in srgb, var(--primary) 96%, transparent);
-  animation: ingestion-active-node 1.8s cubic-bezier(0.16, 1, 0.3, 1) infinite alternate;
-}
-.app-shell .ingestion-flow-node[data-execution-status='running']::before {
-  position: absolute;
-  inset: 10px auto 10px 7px;
-  width: 3px;
-  border-radius: 999px;
-  background: var(--primary);
-  content: '';
+  box-shadow: 0 12px 28px -20px color-mix(in srgb, var(--foreground) 34%, transparent);
 }
 .app-shell .ingestion-flow-node[data-execution-status='running'] .node-symbol {
   color: var(--primary);
@@ -3015,11 +3328,6 @@ summary {
 }
 .ingestion-status-spinner {
   animation: ingestion-status-spin 1.6s linear infinite;
-}
-@keyframes ingestion-active-node {
-  to {
-    box-shadow: 0 18px 44px -11px color-mix(in srgb, var(--primary) 100%, transparent);
-  }
 }
 @keyframes ingestion-status-spin {
   to {
@@ -3834,6 +4142,22 @@ summary {
 }
 
 /* Readable metadata and accessible controls across the operating workspace. */
+.app-shell
+  :is(
+    .field-hint,
+    .chunk-provenance,
+    .source-metadata,
+    .technical-value,
+    .run-status,
+    .document-file-meta,
+    .document-readiness p,
+    .collection-summary,
+    .collection-select time,
+    .collection-state-row > span:last-child
+  ) {
+  font-size: 12px;
+  line-height: 1.55;
+}
 .app-shell :is(.source-table th, .source-table td, .knowledge-tabs button span) {
   font-size: 13px;
 }
@@ -4279,9 +4603,40 @@ summary {
 }
 
 .app-shell .document-empty {
-  padding: 52px 20px;
-  border: 1px dashed var(--border);
-  border-radius: 14px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) + 2px);
+  background: color-mix(in srgb, var(--secondary) 54%, var(--background));
+  text-align: left;
+}
+.app-shell .document-empty-mark {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border-radius: var(--radius);
+  background: var(--muted);
+  color: var(--muted-foreground);
+}
+.app-shell .document-empty svg,
+.app-shell .document-empty p,
+.app-shell .document-empty h3 {
+  margin: 0;
+}
+.app-shell .document-empty h3 {
+  font-family: Inter, sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+}
+.app-shell .document-empty p {
+  max-width: 62ch;
+  margin-top: 3px;
+  font-size: 13px;
+  line-height: 1.55;
 }
 
 .app-shell .index-workspace {
@@ -4722,6 +5077,16 @@ summary {
     padding: 18px 18px 28px;
   }
 
+  .app-shell .document-empty {
+    grid-template-columns: auto minmax(0, 1fr);
+    padding: 18px;
+  }
+
+  .app-shell .document-empty > [data-slot='button'] {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
   .app-shell .document-library-heading {
     align-items: stretch;
     flex-direction: column;
@@ -4859,6 +5224,15 @@ summary {
 }
 
 @media (max-width: 420px) {
+  .app-shell .readiness-steps {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px 0;
+  }
+
+  .app-shell .readiness-steps li:nth-child(2)::after {
+    display: none;
+  }
+
   .app-shell .collection-summary-grid {
     grid-template-columns: 1fr;
   }

@@ -177,37 +177,40 @@ export function ExperimentsPage({
         <p role="status">Loading datasets and saved versions…</p>
       ) : (
         <>
-          <DatasetImport
-            projectId={projectId}
-            datasets={datasets}
-            options={options}
-            onImported={(imported) => {
-              setDataset(imported.id);
-              setMessage(`Imported ${imported.name} version ${imported.version}.`);
-              setRevision((value) => value + 1);
-            }}
-          />
-          <ExperimentForm
-            projectId={projectId}
-            datasets={datasets}
-            pipelines={pipelines}
-            indexes={indexes}
-            options={options}
-            name={name}
-            datasetId={dataset}
-            candidateA={a}
-            candidateB={b}
-            selectedMetrics={selected}
-            busy={busy}
-            storageError={storageError}
-            onNameChange={setName}
-            onDatasetChange={setDataset}
-            onCandidateAChange={setA}
-            onCandidateBChange={setB}
-            onMetricsChange={setSelected}
-            onReset={resetDraft}
-            onSubmit={handleStartExperiment}
-          />
+          <div className="experiment-setup">
+            <DatasetImport
+              projectId={projectId}
+              datasets={datasets}
+              options={options}
+              selectedDatasetId={dataset}
+              onDatasetChange={setDataset}
+              onImported={(imported) => {
+                setDataset(imported.id);
+                setMessage(`Imported ${imported.name} version ${imported.version}.`);
+                setRevision((value) => value + 1);
+              }}
+            />
+            <ExperimentForm
+              projectId={projectId}
+              datasets={datasets}
+              pipelines={pipelines}
+              indexes={indexes}
+              options={options}
+              name={name}
+              datasetId={dataset}
+              candidateA={a}
+              candidateB={b}
+              selectedMetrics={selected}
+              busy={busy}
+              storageError={storageError}
+              onNameChange={setName}
+              onCandidateAChange={setA}
+              onCandidateBChange={setB}
+              onMetricsChange={setSelected}
+              onReset={resetDraft}
+              onSubmit={handleStartExperiment}
+            />
+          </div>
           <ExperimentHistory projectId={projectId} experiments={history} />
         </>
       )}

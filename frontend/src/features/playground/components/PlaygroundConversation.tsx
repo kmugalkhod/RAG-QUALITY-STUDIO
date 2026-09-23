@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { LoaderCircle, Search, Sparkles } from 'lucide-react';
+import { BookOpenCheck, LoaderCircle, Search } from 'lucide-react';
 import type { Evidence } from '../../documents/model';
 import type { PlaygroundMode, QueryRun } from '../model';
 import { RunResult } from './AnswerResult';
@@ -47,7 +47,7 @@ export function PlaygroundConversation({
         ) : (
           <section className="playground-welcome" aria-label="Answer workspace">
             <div className="welcome-symbol">
-              {mode === 'retrieval' ? <Search size={26} /> : <Sparkles size={26} />}
+              {mode === 'retrieval' ? <Search size={26} /> : <BookOpenCheck size={26} />}
             </div>
             <h2>{mode === 'retrieval' ? 'Test what your search finds' : 'Test your pipeline'}</h2>
             <p>

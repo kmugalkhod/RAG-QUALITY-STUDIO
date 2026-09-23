@@ -1,6 +1,6 @@
 import { formatRetrievalScores } from '../../../lib/retrieval';
 import { useEffect } from 'react';
-import { Sparkles } from 'lucide-react';
+import { BookOpenCheck } from 'lucide-react';
 import { AnswerText } from '../../../components/AnswerText';
 import { Badge } from '../../../components/ui/badge';
 import { type QueryRun } from '../model';
@@ -32,7 +32,7 @@ export function RunResult({
         <p>{run.question}</p>
       </div>
       <h2 className="assistant-label">
-        <Sparkles size={16} />
+        <BookOpenCheck size={16} />
         {run.status === 'insufficient_evidence'
           ? 'Insufficient evidence'
           : run.status === 'failed'

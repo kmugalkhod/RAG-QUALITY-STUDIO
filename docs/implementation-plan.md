@@ -1,5 +1,45 @@
 # Implementation plan
 
+## Evidence-first workspace refinement — 2026-09-24
+
+Status: implemented; final verification recorded below.
+
+- Consolidated the dark workspace tokens around low-chroma charcoal surfaces, a single
+  desaturated periwinkle interaction accent, readable secondary text, semantic
+  sage/ochre/brick statuses, consistent radii, visible focus and restrained 150ms
+  transitions. The single authored stylesheet convention remains intact.
+- Made the shell quieter and denser. Active navigation now uses a subtle tonal state
+  and one-pixel indicator; mobile navigation retains 44px targets and Escape handling.
+- Added a real-data lifecycle to Overview, including correct handling for historical
+  ready collections, and replaced the Knowledge Base's oversized dashed empty area
+  with a compact onboarding action wired to the existing upload flow.
+- Pipeline rows now retrieve their real latest immutable version, updated date and
+  validated test/run readiness. Answer editor nodes are denser; selected-node settings,
+  graph behavior, saved coordinates and unsaved-state behavior remain unchanged.
+- Playground keeps its evidence-first layout while replacing generic sparkle cues with
+  source-review iconography. Experiments now presents dataset, candidate and
+  metrics/execution stages with a sticky desktop run summary and collapsible mobile
+  sections, preserving drafts, metric warnings, costs and result inspection.
+- Browser review covered representative Overview, Knowledge Base, Pipelines, editor,
+  Playground and Experiments views at 1440px, 1024px and 390px. No page-level overflow
+  or application console errors were observed; Vite development/HMR messages were the
+  only console output.
+
+Verification:
+
+- Frontend Prettier, structure/ESLint, strict TypeScript, all **103 Vitest tests
+  across 28 files**, and the route-split production build passed. The largest output
+  chunk is 242.87 kB and Vite emitted no size advisory.
+- Agent Browser reviewed representative desktop, tablet and 390px mobile states for
+  Overview, Knowledge Base, Pipelines, the answer editor, Playground and Experiments.
+  Mobile pages measured exactly 390px with no document overflow. Navigation closes on
+  Escape and restores focus to its trigger; the document onboarding action opens the
+  real upload region; experiment stages and dataset import disclosure toggle correctly.
+- The one required Impeccable detector run reported only five Inter-font warnings.
+  These are intentional exceptions: the user explicitly required preserving Inter,
+  `DESIGN.md` records that decision, and the self-hosted font and OFL license are
+  committed. It reported no other mechanical design findings.
+
 ## Data management, recovery, and reusable-index handoff — 2026-09-24
 
 Status: implemented and verified.
