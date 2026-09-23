@@ -205,10 +205,14 @@ test('saving records the draft and discard restores the saved stage settings', a
   await page.getByLabel('Starting URL').fill('https://example.org/');
   await page.getByRole('button', { name: 'Save version', exact: true }).click();
   await expect(page.getByText('Saved version 1', { exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Refresh website & run' })).toBeEnabled();
+  await expect(
+    page.getByRole('button', { name: 'Collect latest source & build index' }),
+  ).toBeEnabled();
   await page.getByRole('button', { name: '4 Chunk', exact: true }).click();
   await page.getByLabel('Chunk size (characters)').fill('1500');
-  await expect(page.getByRole('button', { name: 'Refresh website & run' })).toBeDisabled();
+  await expect(
+    page.getByRole('button', { name: 'Collect latest source & build index' }),
+  ).toBeDisabled();
   await page.getByRole('button', { name: 'Discard changes' }).click();
   await expect(page.getByLabel('Chunk size (characters)')).toHaveValue('1000');
   await expect(page.getByText('Saved version 1', { exact: true })).toBeVisible();
@@ -409,7 +413,7 @@ test('real run checkpoints move accessible execution state across the canvas', a
     route.fulfill({ json: updates[Math.min(poll++, updates.length - 1)] }),
   );
 
-  await page.getByRole('button', { name: 'Collect source & build index' }).click();
+  await page.getByRole('button', { name: 'Collect latest source & build index' }).click();
   const source = page.locator('.react-flow__node[data-id="source"] .ingestion-flow-node');
   const extract = page.locator('.react-flow__node[data-id="extract"] .ingestion-flow-node');
   const clean = page.locator('.react-flow__node[data-id="clean"] .ingestion-flow-node');
@@ -427,7 +431,7 @@ test('real run checkpoints move accessible execution state across the canvas', a
   await page.screenshot({ path: 'test-results/ingestion-execution-desktop.png', fullPage: true });
   await expect(publish).toHaveAttribute('data-execution-status', 'running');
   await expect(publish).toHaveAttribute('data-execution-status', 'succeeded');
-  await expect(page.locator('.react-flow__attribution')).toHaveCount(0);
+  await expect(page.locator('.react-flow__attribution')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Run details' })).toBeVisible();
 
   await page.route('**/api/projects/*/pipelines/pipeline-1/versions?offset=0', (route) =>

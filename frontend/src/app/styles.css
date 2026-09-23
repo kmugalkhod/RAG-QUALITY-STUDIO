@@ -2938,6 +2938,21 @@ summary {
   gap: 12px;
   min-width: 0;
 }
+@media (min-width: 1101px) {
+  .ingestion-toolbar-actions {
+    min-height: 56px;
+    align-content: flex-start;
+  }
+  .snapshot-run-choice {
+    display: flex;
+    align-items: flex-end;
+    gap: 12px;
+    min-width: 0;
+  }
+  .snapshot-run-choice > label {
+    min-width: 240px;
+  }
+}
 .ingestion-toolbar-actions [aria-controls='automatic-sync-panel'] svg:last-child {
   transition: transform 160ms ease-out;
 }

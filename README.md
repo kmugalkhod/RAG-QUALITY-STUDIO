@@ -2,19 +2,28 @@
 
 RAG Quality Studio is a local full-stack workspace for versioned retrieval-augmented generation. Upload PDF/TXT files or ingest bounded Website, Amazon S3, Notion and Confluence sources; preview provenance, publish immutable pgvector indexes, configure answer pipelines, inspect cited evidence and compare saved versions with background RAGAS experiments. PostgreSQL, Celery and Redis retain durable jobs and exact snapshots, while React Flow edits only validated application-owned pipeline templates.
 
-## Start with Docker Compose
+## Start locally
 
-Prerequisites: Docker Engine/Desktop running with Docker Compose v2 (2.24.4+ for the isolated browser configuration); ports 5173, 8000 and 5432 available.
+Prerequisites: Docker Engine/Desktop running with Docker Compose v2 (2.24.4+ for
+the isolated browser configuration), Node.js 22.12+ and ports 5273, 8000 and 5432
+available.
 
 From the repository root:
 
 ```sh
 cp .env.example .env
 # Optionally edit .env: choose a URL-safe local database password before first startup.
-docker compose up --build -d
+docker compose up --build -d db redis migrate backend worker dispatcher
+cd frontend
+npm ci
+npm run dev
 ```
 
-Compose waits for PostgreSQL, applies Alembic migrations through a one-shot service, starts FastAPI, Celery workers, Redis and the queue dispatcher, then serves the production frontend through nginx. The frontend proxies `/api` to FastAPI. No credentials enter the browser bundle. The sample credentials are for local development only.
+Compose waits for PostgreSQL, applies Alembic migrations through a one-shot service,
+and starts FastAPI, Celery workers, Redis and the queue dispatcher. Vite serves the
+canonical development frontend at `http://127.0.0.1:5273` and proxies `/api` to
+FastAPI. Do not start the Compose nginx frontend alongside Vite. No credentials enter
+the browser bundle. The sample credentials are for local development only.
 
 ### Collect once, build multiple Website indexes
 
@@ -24,7 +33,7 @@ Experiments still compare exact saved answer-pipeline versions. When two candida
 
 Open:
 
-- Application: http://localhost:5173
+- Application: http://127.0.0.1:5273
 - API documentation: http://localhost:8000/docs
 - API liveness: http://localhost:8000/api/health
 - Database/schema readiness: http://localhost:8000/api/ready
@@ -69,13 +78,17 @@ docker compose -p rag-studio-tests -f compose.test.yaml down
 
 The test database lives in tmpfs and never uses the development volume. Start a fresh test stack for each run; integration tests refuse a nonempty project schema. Without `TEST_DATABASE_URL`, integration tests report explicit skips. An externally supplied test database must be empty and its name must end in `_test`.
 
-Browser journeys use a dedicated full application stack with separate persistent test volumes (ports 5174/8001):
+Browser journeys use dedicated API/worker services and separate test volumes. Keep
+the canonical Vite port `5273`; point its server-only proxy at the isolated API:
 
 ```sh
-docker compose -p rag-studio-e2e -f compose.e2e.yaml up --build -d
+E2E_API_PORT=8002 docker compose -p rag-studio-e2e -f compose.e2e.yaml up --build -d db redis migrate backend worker dispatcher
+# In a dedicated frontend terminal:
 cd frontend
+API_PROXY_TARGET=http://127.0.0.1:8002 npm run dev
+# In another terminal:
 npx playwright install chromium
-E2E_BASE_URL=http://127.0.0.1:5174 npm run test:e2e
+E2E_BASE_URL=http://127.0.0.1:5273 npm run test:e2e
 cd ..
 docker compose -p rag-studio-e2e -f compose.e2e.yaml down
 ```
@@ -109,7 +122,11 @@ npm ci
 npm run dev
 ```
 
-Vite proxies `/api` to `127.0.0.1:8000`. CORS allows only `http://localhost:5173` and `http://127.0.0.1:5173`; configure `CORS_ORIGINS` as a JSON array on the backend if needed. Database requests have connection and statement timeouts.
+Vite proxies `/api` to `127.0.0.1:8000` by default. Set the server-only
+`API_PROXY_TARGET` when the API uses another loopback port. CORS allows only
+`http://localhost:5273` and `http://127.0.0.1:5273`; configure `CORS_ORIGINS` as a
+JSON array on the backend if needed. Database requests have connection and statement
+timeouts.
 
 Backend dependencies are pinned in `pyproject.toml` and `uv.lock`; Docker installs the exported `backend/requirements.lock` (including verification tooling). After intentional dependency changes regenerate it with:
 
@@ -220,14 +237,21 @@ The adapter follows [OpenRouter's embedding endpoint](https://openrouter.ai/docs
 Backend provider doubles are confined to tests. To exercise the real API, database, Redis, dispatcher, Celery and React flow with a **test-only HTTP transport**, use a separate fixture stack:
 
 ```sh
-E2E_API_PORT=8002 E2E_UI_PORT=5175 docker compose -p rag-index-e2e -f compose.e2e.yaml -f compose.index-e2e.yaml up --build -d
+E2E_API_PORT=8002 docker compose -p rag-index-e2e -f compose.e2e.yaml -f compose.index-e2e.yaml up --build -d db redis migrate backend worker dispatcher
+# In a dedicated frontend terminal:
 cd frontend
-E2E_BASE_URL=http://127.0.0.1:5175 E2E_EMBEDDING_FIXTURE=1 npm run test:e2e
+API_PROXY_TARGET=http://127.0.0.1:8002 npm run dev
+# In another terminal:
+E2E_BASE_URL=http://127.0.0.1:5273 E2E_EMBEDDING_FIXTURE=1 npm run test:e2e
 cd ..
 docker compose -p rag-index-e2e -f compose.e2e.yaml -f compose.index-e2e.yaml down
 ```
 
-Do not use the fixture override with developer data. It explicitly starts `tests.e2e_provider`, which the normal application never imports. The default browser stack forces credentials empty and tests the missing-configuration UI. Its ports can also be changed using `E2E_API_PORT` and `E2E_UI_PORT`.
+Do not use the fixture override with developer data. It explicitly starts
+`tests.e2e_provider`, which the normal application never imports. The default browser
+stack forces credentials empty and tests the missing-configuration UI. Change the
+isolated API port with `E2E_API_PORT` and pass the same port in `API_PROXY_TARGET`;
+the frontend remains on canonical port 5273.
 
 An optional external adapter check embeds two short strings only:
 
@@ -250,9 +274,12 @@ API: `POST /api/projects/{id}/query-runs` with `{ "index_id": "UUID", "question"
 Milestone 3 deterministic browser verification uses the separate stack (alternate ports avoid existing test services):
 
 ```sh
-E2E_API_PORT=8002 E2E_UI_PORT=5175 docker compose -p rag-m3-e2e -f compose.e2e.yaml -f compose.index-e2e.yaml up --build -d
+E2E_API_PORT=8002 docker compose -p rag-m3-e2e -f compose.e2e.yaml -f compose.index-e2e.yaml up --build -d db redis migrate backend worker dispatcher
+# In a dedicated frontend terminal:
 cd frontend
-E2E_BASE_URL=http://127.0.0.1:5175 E2E_EMBEDDING_FIXTURE=1 npm run test:e2e
+API_PROXY_TARGET=http://127.0.0.1:8002 npm run dev
+# In another terminal:
+E2E_BASE_URL=http://127.0.0.1:5273 E2E_EMBEDDING_FIXTURE=1 npm run test:e2e
 ```
 
 This fixture module lives only in `backend/tests`; it does not activate fake behavior in production. See `docs/implementation-plan.md` for actual verification results and `docs/architecture.md` for persistence, budget and failure semantics.

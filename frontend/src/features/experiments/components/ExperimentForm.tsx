@@ -204,6 +204,7 @@ export function ExperimentForm({
           calls and require human review.
         </p>
         <Button
+          type="submit"
           disabled={
             busy ||
             !!options?.error ||

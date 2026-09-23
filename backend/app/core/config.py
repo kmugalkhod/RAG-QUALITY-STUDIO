@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     storage_path: Path = Path("/data/documents")
     max_upload_bytes: int = Field(default=20 * 1024 * 1024, gt=0, le=100 * 1024 * 1024)
     redis_url: str = "redis://redis:6379/0"
-    cors_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
+    cors_origins: list[str] = ["http://localhost:5273", "http://127.0.0.1:5273"]
     source_connections_enabled: bool = False
     source_connection_active_key: str = ""
     source_connection_keys: dict[str, SecretStr] = Field(default_factory=dict)

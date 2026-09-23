@@ -56,11 +56,11 @@ def test_explicit_cors(client):
     good = client.options(
         "/api/projects",
         headers={
-            "Origin": "http://localhost:5173",
+            "Origin": "http://localhost:5273",
             "Access-Control-Request-Method": "POST",
         },
     )
-    assert good.headers["access-control-allow-origin"] == "http://localhost:5173"
+    assert good.headers["access-control-allow-origin"] == "http://localhost:5273"
     bad = client.options(
         "/api/projects",
         headers={

@@ -4,7 +4,11 @@ import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
-  server: { proxy: { '/api': 'http://127.0.0.1:8000' } },
+  server: {
+    port: 5273,
+    strictPort: true,
+    proxy: { '/api': process.env.API_PROXY_TARGET || 'http://127.0.0.1:8000' },
+  },
   test: {
     environment: 'jsdom',
     globals: true,

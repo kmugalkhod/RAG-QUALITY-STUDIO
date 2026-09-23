@@ -1938,7 +1938,6 @@ export function IngestionPipelineEditor({
               deleteKeyCode={null}
               fitView
               fitViewOptions={{ padding: 0.12, maxZoom: 1 }}
-              proOptions={{ hideAttribution: true }}
             >
               <Background gap={22} size={1.2} />
               <Controls showInteractive={false} />

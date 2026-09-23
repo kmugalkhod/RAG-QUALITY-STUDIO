@@ -364,7 +364,9 @@ export function SnapshotPanel({ projectId }: { projectId: string }) {
                       </select>
                     </label>
                   )}
-                  <Button disabled={busy || !versions.length}>Build index</Button>
+                  <Button type="submit" disabled={busy || !versions.length}>
+                    Build index
+                  </Button>
                 </form>
               )}
               {run && (

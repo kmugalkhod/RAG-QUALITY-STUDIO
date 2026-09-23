@@ -74,7 +74,7 @@ There is no observed `P0` data-loss or core-workflow blocker.
 | Q-03 / P1 | `backend/app/services/{website,s3,notion,confluence}_ingestion.py` repeat source-item lookup, immutable-revision reuse, file/document/run/chunk persistence, cleanup and outcome selection. | Introduce a small application-owned immutable-artifact persistence boundary with connector-specific extraction/provenance callbacks. Exact identities, hashes, timestamps, cleanup and transactions must remain connector-tested. | Phase 3. Risk: provenance or retry semantics could drift. Verify all connector, ingestion, snapshot, cancellation and migration/integration tests. |
 | Q-04 / P2 | `backend/app/workers/ingestion.py` is 989 lines and mixes common orchestration with Website/snapshot and three credentialed connector paths. | Separate remote-source advancement from job lifecycle/fencing and use an explicit connector strategy map where behavior is genuinely shared. Keep Website snapshot reuse distinct and retain bounded checkpoints/cancellation. | Phase 3 after Q-03. Risk: duplicate delivery and paid-work fencing are sensitive; require full PostgreSQL suite and deterministic connector browser journeys. |
 | Q-05 / P2 | `frontend/src/components/ui/button.tsx` does not set a default HTML type. Most call sites rely on context; implicit submit is intentional in only a small number of forms. | Default the primitive to `type="button"` when it renders a button and mark every real submit explicitly. Add regressions proving secondary form actions do not submit and submit actions still do. | Phase 1. Risk: missed submit call sites. Verify component tests plus all form-related frontend tests and Chromium journeys. |
-| Q-06 / P2 | `IngestionFlowNode` contains a stray literal `>` immediately inside its root element in `IngestionPipelineEditor.tsx`. It is generated-looking source noise not covered by current assertions. | Remove the glyph and add a focused node rendering assertion so accessible/visible node text contains only intended content. | Phase 1; no dependency. Verify targeted Vitest, lint/typecheck and editor screenshot. |
+| Q-06 / closed | An initial concatenated source excerpt appeared to contain a stray JSX glyph in `IngestionFlowNode`. A focused reread of the clean `main` file confirmed it was only the root tag's normal closing delimiter. | No code change. Keep this correction in the audit so the initial suspicion is not repeated as a defect. | Closed during Phase 1 before implementation; TypeScript/build remain the verification boundary. |
 | Q-07 / P2 | The ingestion `<ReactFlow>` sets `proOptions={{ hideAttribution: true }}`; `frontend/e2e/ingestion-layout.spec.ts` requires zero attribution nodes. The browser warns on every editor load. Upstream policy asks non-Pro users to keep attribution visible; no entitlement is recorded. | Restore the unobtrusive attribution and update layout tests. Acceptance: no console warning, no overlap at desktop/mobile, and the attribution link remains keyboard-safe. | Phase 1. Risk: canvas overlay collision. Verify focused Playwright/layout screenshots and console. If the owner later confirms Pro entitlement, record it before reconsidering. |
 | Q-08 / P2 | Canonical runtime guidance requires `127.0.0.1:5273`, but `README.md`, `compose.yaml`, `backend/app/core/config.py`, its CORS test and Playwright defaults still use 5173/5174. | Make Vite's script, CORS defaults, Compose/local documentation and browser defaults consistently use 5273. Keep isolated backend/data services separate and never point fixtures at developer data. | Phase 1. Risk: port collisions and stale operator muscle memory. Verify config tests, Compose rendering, README commands and canonical-browser startup. |
 | Q-09 / P2 | The top of this plan still called snapshot slices 3–5 pending while later sections mark them complete; recent historical records claim 89/90 frontend tests while the clean baseline has 88. `docs/frontend-standards.md` also says the Inter license is missing although it is tracked. | Reconcile current status and operational docs with the verified tree; retain old dated evidence as history but label superseded interim status. Current commands/counts/URLs must be accurate. | Phase 4, with the most misleading plan status corrected in Phase 0. Verify links, `rg` for obsolete current instructions, and final command output. |
@@ -95,12 +95,46 @@ well established.
 
 #### Phase 1 — correctness and release hygiene
 
-Status: **Pending.** Address Q-05 through Q-08, update their regression tests and
-normalize only directly touched documentation/styles. Acceptance requires frontend
-format/lint/typecheck/tests/build; focused browser checks on answer/ingestion editors
-at desktop and 390 px; no React Flow attribution warning; canonical `5273` commands,
-CORS and Compose configuration; and no unrelated behavior change. Commit and push a
-single reviewable phase to `origin/main` after diff review.
+Status: **Complete on 2026-09-23.** Addressed Q-05, Q-07 and Q-08. Q-06 was
+closed as an audit false positive after the clean source showed a normal JSX closing
+delimiter rather than rendered text.
+
+Implemented:
+
+- The shared button primitive now defaults real buttons to `type="button"` while
+  preserving Radix `asChild` behavior. The three implicit submit actions in experiment
+  creation and snapshot index construction are explicit, and a regression proves that
+  secondary form actions cannot submit their parent form.
+- Restored the supported React Flow attribution instead of hiding it without a recorded
+  Pro entitlement. The focused browser journey now requires the attribution to remain
+  visible; desktop/mobile inspection found no overlap or horizontal overflow and the
+  browser console contains no React Flow attribution warning.
+- Standardized Vite, Compose, Playwright defaults, backend CORS and current README
+  commands on `http://127.0.0.1:5273`. Vite uses a strict canonical port and a
+  server-only `API_PROXY_TARGET` for isolated test APIs. Browser-stack instructions no
+  longer start the nginx frontend beside Vite.
+- Corrected stale ingestion browser assertions to the released Website action language.
+  A bounded desktop toolbar row keeps exact canvas geometry stable across source-form
+  variants and connector-kind changes without affecting stacked mobile behavior.
+
+Verification:
+
+- Frontend Prettier, structure/ESLint, strict TypeScript, **89 Vitest tests across 25
+  files**, and the production build passed. The known 659.94 kB entry-chunk advisory is
+  unchanged and remains Phase 2 work. The Impeccable detector returned no findings.
+- Focused Chromium verification passed **10 ingestion editor journeys** in one worker,
+  covering desktop, tablet, 390 px mobile, keyboard stage access, save/discard, errors,
+  validation, node checkpoints and restored attribution. Agent Browser confirmed 390 px
+  document width, a visible attribution link and no application warning in the console.
+- Backend CORS coverage passed (**13 passed, 6 database-dependent skips**) with the
+  known upstream Starlette/AnyIO deprecation warning. Both normal and browser Compose
+  configurations rendered successfully with placeholder local credentials.
+- An initial combined browser command accidentally included a project-kind journey
+  against the already-running local development API and created clearly test-named
+  project rows. No persistent data was deleted or reset; subsequent browser checks used
+  request-mocked journeys or read-only inspection. This does not affect application
+  behavior but remains an operator cleanup limitation because the current product has
+  no deletion API.
 
 #### Phase 2 — frontend ownership and loading performance
 

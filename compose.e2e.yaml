@@ -32,7 +32,7 @@ services:
     environment: *test-env
   frontend:
     extends: { file: compose.yaml, service: frontend }
-    ports: !override ["127.0.0.1:${E2E_UI_PORT:-5174}:80"]
+    ports: !override ["127.0.0.1:${E2E_UI_PORT:-5273}:80"]
 volumes:
   postgres_data:
   document_data:
