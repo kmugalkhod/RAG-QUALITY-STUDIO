@@ -282,6 +282,16 @@ Migration `0016` widens source/document kinds for Confluence and refuses downgra
 
 REST API v2 discovery supports all accessible pages, exact spaces or exact pages plus optional title/label filters. Provider cursors are extracted but never followed as arbitrary URLs. Stable page identity and version number/timestamp flow into immutable source revisions. The exact storage-format body is revision-checked and parsed without executing markup; chunk provenance retains page, space, element ordinal and heading path. Confluence then uses the shared fenced remote coordinator: compatible revisions avoid fetch/embedding, refresh membership is exact, and partial, failed, cancelled or stale work cannot advance the ready-index pointer.
 
+Website, S3, Notion and Confluence now share one application-owned immutable-artifact
+persistence boundary. It owns project/kind/identity lookup, exact revision reuse,
+generated artifact storage, synthetic document/processing/chunk rows and best-effort
+file cleanup; each connector still owns its identity input, extraction, processing hash,
+media types and provenance. Remote discovery and publication advancement live in a
+separate worker module selected through an explicit supported-kind map, while the main
+ingestion worker retains claim/fencing, Existing Files processing, embedding checkpoints
+and terminal job lifecycle. This is an ownership refactor only: transactions, source
+snapshot behavior, cancellation checks and atomic ready-index publication are unchanged.
+
 ## Ingestion scheduling and recovery (Phase 8, 2026-09-14)
 
 Migration `0017` adds project-scoped `ingestion_schedules`. Each row references one immutable ingestion-pipeline version through a composite project foreign key and stores a validated interval or timezone-aware daily cadence, paused/enabled state, next due time, last run/outcome and an internal claim token. Schedule-to-run references are composite and bidirectional; database checks require scheduled runs to carry a schedule and manual runs not to carry one. The existing partial unique active-run index on knowledge-set destination remains the authoritative overlap fence across manual runs and every schedule.

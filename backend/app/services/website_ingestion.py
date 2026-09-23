@@ -1,24 +1,26 @@
 """Website revision persistence and exact immutable-index preparation."""
 
 import hashlib
-import logging
 from pathlib import Path
 from urllib.parse import urlsplit
 
 from fastapi import HTTPException
-from sqlalchemy import insert, select
 from sqlalchemy.orm import Session
 
 from app.connectors.website import WebsiteArtifact
-from app.models.document import Chunk, Document, ProcessingRun
-from app.models.source import SourceItem, SourceRevision, WebsiteRunItem
+from app.models.document import ProcessingRun
+from app.models.source import SourceRevision, WebsiteRunItem
 from app.pipelines.web_content import (
     CLEANER_VERSION,
     EXTRACTOR_VERSION,
     chunk_sections,
     extract_sections,
 )
-from app.services.source_artifacts import config_hash, identity_hash, store
+from app.services.source_artifacts import (
+    SourceArtifactSpec,
+    config_hash,
+    persist_source_artifact,
+)
 from app.workers.processing import now
 
 
@@ -37,27 +39,6 @@ def persist_artifact(
     prior_revision: SourceRevision | None,
     phase_callback=None,
 ):
-    source_item = session.scalar(
-        select(SourceItem).where(
-            SourceItem.project_id == project_id,
-            SourceItem.kind == "website",
-            SourceItem.identity_hash == identity_hash(artifact.canonical_location),
-        )
-    )
-    if source_item is None:
-        source_item = SourceItem(
-            project_id=project_id,
-            kind="website",
-            external_id=artifact.canonical_location,
-            identity_hash=identity_hash(artifact.canonical_location),
-            canonical_location=artifact.canonical_location,
-        )
-        session.add(source_item)
-        session.flush()
-    else:
-        source_item.canonical_location = artifact.canonical_location
-        source_item.updated_at = now()
-
     content_hash = hashlib.sha256(artifact.content).hexdigest()
     processing_config = {
         "extractor": EXTRACTOR_VERSION,
@@ -65,107 +46,50 @@ def persist_artifact(
         "clean": clean.model_dump(mode="json"),
         "chunk": chunk.model_dump(mode="json"),
     }
-    processing_hash = config_hash(processing_config)
-    revision = session.scalar(
-        select(SourceRevision).where(
-            SourceRevision.source_item_id == source_item.id,
-            SourceRevision.content_hash == content_hash,
-            SourceRevision.processing_config_hash == processing_hash,
-        )
-    )
-    if revision is not None:
-        outcome = (
-            "unchanged"
-            if prior_revision is not None and revision.id == prior_revision.id
-            else "changed"
-        )
-        return source_item, revision, outcome, revision.extracted_hash, None
 
-    if phase_callback is not None:
-        phase_callback("extract")
-    sections = extract_sections(artifact.content, clean, phase_callback)
-    extracted_hash = hashlib.sha256(
-        "\n\n".join(section.text for section in sections).encode("utf-8")
-    ).hexdigest()
-    if phase_callback is not None:
-        phase_callback("chunk")
-    chunk_values = chunk_sections(sections, chunk.size, chunk.overlap)
-    storage_name = None
-    stored_path = None
-    try:
-        storage_name, stored_path = store(artifact.content)
-        document = Document(
-            project_id=project_id,
+    def prepare(_stored_path):
+        if phase_callback is not None:
+            phase_callback("extract")
+        sections = extract_sections(artifact.content, clean, phase_callback)
+        extracted_hash = hashlib.sha256(
+            "\n\n".join(section.text for section in sections).encode("utf-8")
+        ).hexdigest()
+        if phase_callback is not None:
+            phase_callback("chunk")
+        return chunk_sections(sections, chunk.size, chunk.overlap), extracted_hash
+
+    return persist_source_artifact(
+        session,
+        project_id,
+        SourceArtifactSpec(
+            kind="website",
+            identity=artifact.canonical_location,
+            external_id=artifact.canonical_location,
+            canonical_location=artifact.canonical_location,
+            content=artifact.content,
+            content_hash=content_hash,
             filename=_display_name(artifact.canonical_location),
-            storage_name=storage_name,
-            media_type="text/html",
-            content_hash=content_hash,
-            size_bytes=len(artifact.content),
-            origin_kind="website",
-        )
-        session.add(document)
-        session.flush()
-        processing = ProcessingRun(
-            document_id=document.id,
-            version=1,
-            chunk_size=chunk.size,
-            overlap=chunk.overlap,
-            config_version=chunk.config_version,
+            document_media_type="text/html",
+            revision_media_type=artifact.media_type,
+            processing_config=processing_config,
+            processing_config_hash=config_hash(processing_config),
             parser_version=f"{EXTRACTOR_VERSION}/{CLEANER_VERSION}",
-            status="succeeded",
-            attempts=1,
-            progress=100,
-            chunk_count=len(chunk_values),
-            started_at=now(),
-            finished_at=now(),
-            updated_at=now(),
-        )
-        session.add(processing)
-        session.flush()
-        session.execute(
-            insert(Chunk),
-            [dict(run_id=processing.id, **value) for value in chunk_values],
-        )
-        revision = SourceRevision(
-            project_id=project_id,
-            source_item_id=source_item.id,
-            document_id=document.id,
-            processing_run_id=processing.id,
-            content_hash=content_hash,
-            extracted_hash=extracted_hash,
-            processing_config_hash=processing_hash,
-            media_type=artifact.media_type,
-            size_bytes=len(artifact.content),
-            artifact_storage_name=storage_name,
+            chunk_size=chunk.size,
+            chunk_overlap=chunk.overlap,
+            chunk_config_version=chunk.config_version,
+            fetched_at=now(),
             etag=artifact.etag,
             last_modified=artifact.last_modified,
             provider_revision=artifact.etag or artifact.last_modified,
-            fetched_at=now(),
-            extraction_config=processing_config,
             provenance={
                 "connector_kind": "website",
                 "connector_version": "1",
                 "canonical_location": artifact.canonical_location,
                 "depth": artifact.depth,
             },
-        )
-        session.add(revision)
-        session.flush()
-    except Exception:
-        if stored_path is not None:
-            try:
-                stored_path.unlink(missing_ok=True)
-            except OSError:
-                logging.warning(
-                    "Website artifact cleanup unavailable; inspect offline."
-                )
-        raise
-    return (
-        source_item,
-        revision,
-        "new" if prior_revision is None else "changed",
-        extracted_hash,
-        stored_path,
+        ),
+        prior_revision,
+        prepare,
     )
 
 

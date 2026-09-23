@@ -1,18 +1,16 @@
 """Persist immutable Confluence revisions with element/section provenance."""
 
 import hashlib
-import logging
 import re
 
-from sqlalchemy import insert, select
-
 from app.connectors.confluence import ConfluenceArtifact
-from app.models.document import Chunk, Document, ProcessingRun
-from app.models.source import SourceItem, SourceRevision
 from app.pipelines.parsing import MAX_CHUNKS, PARSER_VERSION, ProcessingError, windows
 from app.pipelines.web_content import CLEANER_VERSION
-from app.services.source_artifacts import config_hash, identity_hash, store
-from app.workers.processing import now
+from app.services.source_artifacts import (
+    SourceArtifactSpec,
+    config_hash,
+    persist_source_artifact,
+)
 
 
 _SPACE = re.compile(r"\s+")
@@ -101,95 +99,34 @@ def persist_artifact(
     if artifact.content is None or artifact.content_hash is None:
         raise ValueError("Changed Confluence artifacts require extracted content.")
     page_id = artifact.item.external_id
-    identity = f"confluence:{connection_id}:{page_id}"
-    source_item = session.scalar(
-        select(SourceItem).where(
-            SourceItem.project_id == project_id,
-            SourceItem.kind == "confluence",
-            SourceItem.identity_hash == identity_hash(identity),
-        )
-    )
-    if source_item is None:
-        source_item = SourceItem(
-            project_id=project_id,
-            kind="confluence",
-            external_id=page_id,
-            identity_hash=identity_hash(identity),
-            canonical_location=artifact.item.canonical_location,
-        )
-        session.add(source_item)
-        session.flush()
-    else:
-        source_item.canonical_location = artifact.item.canonical_location
-        source_item.updated_at = now()
+    metadata = artifact.item.metadata
     processing_config, processing_hash = processing_configuration(chunk, clean)
-    revision = session.scalar(
-        select(SourceRevision).where(
-            SourceRevision.source_item_id == source_item.id,
-            SourceRevision.content_hash == artifact.content_hash,
-            SourceRevision.processing_config_hash == processing_hash,
-        )
-    )
-    if revision is not None:
-        outcome = (
-            "unchanged"
-            if prior_revision is not None and revision.id == prior_revision.id
-            else "changed"
-        )
-        return source_item, revision, outcome, revision.extracted_hash, None
-    storage_name = stored_path = None
-    try:
-        storage_name, stored_path = store(artifact.content)
-        chunk_values, extracted_hash = _chunks(artifact, chunk, clean, phase_callback)
-        document = Document(
-            project_id=project_id,
+
+    def prepare(_stored_path):
+        return _chunks(artifact, chunk, clean, phase_callback)
+
+    return persist_source_artifact(
+        session,
+        project_id,
+        SourceArtifactSpec(
+            kind="confluence",
+            identity=f"confluence:{connection_id}:{page_id}",
+            external_id=page_id,
+            canonical_location=artifact.item.canonical_location,
+            content=artifact.content,
+            content_hash=artifact.content_hash,
             filename=f"{artifact.item.display_name[:251]}.txt",
-            storage_name=storage_name,
-            media_type="text/plain",
-            content_hash=artifact.content_hash,
-            size_bytes=len(artifact.content),
-            origin_kind="confluence",
-        )
-        session.add(document)
-        session.flush()
-        processing = ProcessingRun(
-            document_id=document.id,
-            version=1,
-            chunk_size=chunk.size,
-            overlap=chunk.overlap,
-            config_version=chunk.config_version,
-            parser_version=PARSER_VERSION,
-            status="succeeded",
-            attempts=1,
-            progress=100,
-            chunk_count=len(chunk_values),
-            started_at=now(),
-            finished_at=now(),
-            updated_at=now(),
-        )
-        session.add(processing)
-        session.flush()
-        session.execute(
-            insert(Chunk),
-            [dict(run_id=processing.id, **value) for value in chunk_values],
-        )
-        metadata = artifact.item.metadata
-        revision = SourceRevision(
-            project_id=project_id,
-            source_item_id=source_item.id,
-            document_id=document.id,
-            processing_run_id=processing.id,
-            content_hash=artifact.content_hash,
-            extracted_hash=extracted_hash,
+            document_media_type="text/plain",
+            revision_media_type="text/plain",
+            processing_config=processing_config,
             processing_config_hash=processing_hash,
-            media_type="text/plain",
-            size_bytes=len(artifact.content),
-            artifact_storage_name=storage_name,
-            etag=None,
+            parser_version=PARSER_VERSION,
+            chunk_size=chunk.size,
+            chunk_overlap=chunk.overlap,
+            chunk_config_version=chunk.config_version,
+            fetched_at=artifact.fetched_at,
             last_modified=metadata.get("version_created_at"),
             provider_revision=artifact.item.provider_revision,
-            fetched_at=artifact.fetched_at,
-            extraction_config=processing_config,
             provenance={
                 "connector_kind": "confluence",
                 "connector_version": "1",
@@ -204,22 +141,7 @@ def persist_artifact(
                 "version_created_at": metadata.get("version_created_at"),
                 "web_url": metadata.get("web_url"),
             },
-        )
-        session.add(revision)
-        session.flush()
-    except Exception:
-        if stored_path is not None:
-            try:
-                stored_path.unlink(missing_ok=True)
-            except OSError:
-                logging.warning(
-                    "Confluence artifact cleanup unavailable; inspect offline."
-                )
-        raise
-    return (
-        source_item,
-        revision,
-        "new" if prior_revision is None else "changed",
-        extracted_hash,
-        stored_path,
+        ),
+        prior_revision,
+        prepare,
     )

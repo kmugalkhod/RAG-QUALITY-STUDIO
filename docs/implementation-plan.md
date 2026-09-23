@@ -146,11 +146,13 @@ Implemented:
 - Every workspace feature route now loads through `React.lazy` behind one accessible
   `role="status"` Suspense boundary. Direct hash-route dispatch remains centralized in
   `WorkspacePage`; no route-specific loading state leaked into feature ownership.
-- Reduced `IngestionPipelineEditor.tsx` from 2,464 to 1,598 lines. Connector forms now
+- Reduced `IngestionPipelineEditor.tsx` from 2,464 to 1,117 lines. Connector forms now
   live in `components/SourceSettings.tsx`, graph presentation and React Flow policy in
-  `components/IngestionPipelineCanvas.tsx`, and pure defaults/draft/presentation logic
-  in `editorModel.ts`. The stateful request lifecycle remains in the editor because its
-  load, unsaved guard, preview, run, schedule and fenced-poll state form one controller;
+  `components/IngestionPipelineCanvas.tsx`, node configuration in
+  `components/IngestionNodeSettings.tsx`, preview/run presentation in
+  `components/IngestionResults.tsx`, and pure defaults/draft/presentation logic in
+  `editorModel.ts`. The stateful request lifecycle remains in the editor because its load,
+  unsaved guard, preview, run, schedule and fenced-poll state form one controller;
   splitting it further would create pass-through wrappers rather than clearer ownership.
 - Consolidated repeated touched React Flow/workflow selectors and replaced the remaining
   non-token surface, status, shadow, canvas-dot and edge literals with semantic tokens or
@@ -158,7 +160,7 @@ Implemented:
 
 Verification:
 
-- Frontend Prettier, structure/ESLint, strict TypeScript, **89 Vitest tests across 25
+- Frontend Prettier, structure/ESLint, strict TypeScript, **92 Vitest tests across 26
   files**, and the production build passed. Route splitting reduced the former 659.94 kB
   entry bundle to a 180.74 kB entry plus bounded feature/vendor chunks; the largest is
   241.37 kB and Vite emits no size advisory.
@@ -177,13 +179,33 @@ Verification:
 
 #### Phase 3 — backend ingestion cohesion
 
-Status: **Pending.** Address Q-03 and Q-04 without changing connector contracts or
-adding infrastructure. Acceptance requires identical immutable source identities,
-processing hashes, provenance, cleanup, source-snapshot membership, checkpoint/fencing,
-cancellation and atomic publication for Existing Files, Website, S3, Notion and
-Confluence. Run focused connector tests, Ruff, then the complete isolated
-PostgreSQL/pgvector suite and affected deterministic browser journeys. Commit and push
-after diff review.
+Status: **Complete on 2026-09-23.** Addressed Q-03 and Q-04 without changing connector
+contracts, persistence schemas or infrastructure.
+
+Implemented:
+
+- Added one application-owned immutable source-artifact persistence boundary for
+  Website, S3, Notion and Confluence. It owns the repeated source identity/revision,
+  artifact, document, synthetic processing-run, chunk and cleanup transaction, while
+  connector callbacks retain exact extraction, processing hashes, media types and
+  provenance.
+- Reduced `app/workers/ingestion.py` from 989 to 277 lines by moving remote discovery
+  and publication advancement to `app/workers/remote_ingestion.py`. An explicit
+  supported-kind strategy map replaces the prior conditional dispatch; Website stored
+  snapshots remain a distinct path and the main worker still owns claim/fencing,
+  Existing Files, embedding checkpoints and terminal lifecycle.
+
+Verification:
+
+- Backend Ruff lint and format checks, bytecode compilation and the local dependency
+  suite passed (**140 passed, 117 skipped**; skips require the isolated database).
+- A fresh isolated PostgreSQL/pgvector Compose run migrated to head and passed the
+  complete backend suite: **253 passed, 4 skipped**. Connector persistence, incremental
+  refresh, source snapshots, cancellation, stale recovery and atomic publication are
+  included. The only warning is the tracked Starlette/AnyIO deprecation addressed in
+  Phase 4.
+- The complete deterministic Chromium connector coverage remains part of the final
+  Phase 4 gate so it runs once against the final combined tree.
 
 #### Phase 4 — documentation, dependency decision and final verification
 
