@@ -1,3 +1,4 @@
+from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
 from uuid import UUID
 
@@ -10,9 +11,10 @@ from app.core.config import settings
 from app.connectors.existing_files import ExistingFilesConnector
 from app.models.document import ProcessingRun
 from app.models.index import IndexChunk, IndexVersion
-from app.models.ingestion import IngestionRun, IngestionRunItem
+from app.models.ingestion import IngestionRun, IngestionRunItem, IngestionRunNode
 from app.models.pipeline import Pipeline, PipelineVersion
 from app.providers import embeddings
+from app.services import ingestion_execution
 from app.workers.indexing import process_index
 from app.workers.dispatcher import dispatch_ingestion_once
 from app.workers.ingestion import process_ingestion
@@ -114,6 +116,46 @@ def prepare(client, engine, project_id, *, name, size=100):
     run = start(client, project_id, document["id"], size=size, overlap=10)
     process(UUID(run["id"]), engine)
     return document, run
+
+
+def test_node_transitions_are_serialized_across_document_workers(ingestion_api):
+    client, engine, project_id, _, config, _ = ingestion_api
+    document, _ = prepare(client, engine, project_id, name="parallel.txt")
+    saved = client.post(
+        f"/api/projects/{project_id}/pipelines",
+        json=ingestion_draft([document["id"]], config),
+    ).json()
+    accepted = client.post(
+        f"/api/projects/{project_id}/pipelines/{saved['pipeline_id']}"
+        f"/versions/{saved['id']}/ingestion-runs"
+    ).json()
+    run_id = UUID(accepted["id"])
+
+    node_types = ["extract", "clean", "chunk"] * 3
+    with ThreadPoolExecutor(max_workers=len(node_types)) as executor:
+        transitions = list(
+            executor.map(
+                lambda node_type: ingestion_execution.transition(
+                    engine, run_id, node_type=node_type
+                ),
+                node_types,
+            )
+        )
+
+    assert all(transitions)
+    with Session(engine) as session:
+        states = session.execute(
+            select(IngestionRunNode.node_type, IngestionRunNode.status)
+            .where(IngestionRunNode.run_id == run_id)
+            .order_by(IngestionRunNode.ordinal)
+        ).all()
+    assert states[:3] == [
+        ("source", "succeeded"),
+        ("extract", "succeeded"),
+        ("clean", "succeeded"),
+    ]
+    assert states[3] == ("chunk", "running")
+    assert states[4:] == [("embed", "queued"), ("publish_index", "queued")]
 
 
 def test_existing_files_preview_run_publication_and_exact_answer_index(ingestion_api):

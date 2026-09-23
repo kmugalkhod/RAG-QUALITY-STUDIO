@@ -312,7 +312,10 @@ transitions, and terminal run handling resolves the active and remaining node
 states in the same transaction. The run read contract returns the ordered node
 states; the React Flow editor renders them by immutable node ID and only falls
 back to legacy stage projection for historical rows created before migration
-`0019`.
+`0019`. Multiple document workers can reach the shared Extract, Clean and Chunk
+checkpoints concurrently, so a transition locks the run's ordered node set and
+updates it at `READ COMMITTED`; checkpoints therefore move forward monotonically
+without a repeatable-read serialization failure.
 
 The frontend separates workspace navigation, route rendering, and project-loading lifecycle. Document/chunk inspectors and experiment comparison/configuration components belong to their respective features. Unit/component tests live in `frontend/tests/`, mirroring `src/`; browser journeys remain in `frontend/e2e/`. Application imports cannot reference test code or testing libraries (enforced by ESLint).
 
@@ -322,7 +325,8 @@ Feature API modules expose descriptive operations; shared transport handles JSON
 
 Pipeline and Playground controller hooks coordinate their feature lifecycles while small page components compose intent-based feature sections. Node settings, run history, document/chunk inspection and experiment comparison have distinct component boundaries. Shared product components live in `src/components`; feature-only sections live under their feature's `components` directory. Necessary responsive layout and vendor rules remain in the central stylesheet, including unlayered rules whose precedence requires computed-style checks. [Frontend standards](frontend-standards.md) document the maintained boundaries and checks.
 
-Long-running frontend reads use one request at a time and bind responses to the selected immutable run ID. Ingestion execution polling owns its timer for the lifetime of that run, retries transient safe read failures, ignores late results after navigation or selection changes, and refreshes terminal items and schedule metadata only for the still-selected pipeline version. Experiment comparison polling likewise retries transient reads until PostgreSQL reports a terminal state. These are presentation recovery rules only: PostgreSQL job state and worker fencing remain authoritative.
+Long-running frontend reads use one request at a time and bind responses to the selected immutable run ID. Ingestion execution polling owns its timer for the lifetime of that run, retries transient safe read failures, ignores late results after navigation or selection changes, and refreshes terminal items and schedule metadata before publishing terminal state for the still-selected pipeline version. This ordering prevents the terminal-state render from cleaning up its own in-flight detail reads. Experiment comparison polling likewise retries transient reads until PostgreSQL reports a terminal state. These are presentation recovery rules only: PostgreSQL job state and worker fencing remain authoritative.
+
 ## Reusable Website source snapshots
 
 Website collection and index construction have separate immutable boundaries. A successful refresh atomically publishes one project-scoped source snapshot with exact ordered source-revision membership; failed or cancelled collection never exposes partial membership as ready. Every Website-derived index stores its snapshot ID, while its ingestion run retains the exact saved pipeline version, effective processing/embedding configuration, destination, counters, and costs. A snapshot build validates the saved Website source configuration against the snapshot hash, reads only that membership, and never constructs the Website adapter. Compatible processing and embeddings may be reused; configuration changes create new work. Current-ready index pointers advance only after complete publication.

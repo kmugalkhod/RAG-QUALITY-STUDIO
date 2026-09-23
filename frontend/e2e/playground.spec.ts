@@ -24,7 +24,7 @@ test('retrieval-only search, editable pipeline draft, immutable save, answers an
   await expect(page.getByRole('button', { name: 'Inspect 1 chunks' })).toBeVisible({
     timeout: 30000,
   });
-  await page.getByRole('tab', { name: 'Document sets', exact: true }).click();
+  await page.getByRole('tab', { name: 'Indexes', exact: true }).click();
   await page.getByRole('button', { name: 'Prepare document set' }).click();
   await expect(page.getByRole('button', { name: 'Use document set 1' })).toBeVisible({
     timeout: 30000,

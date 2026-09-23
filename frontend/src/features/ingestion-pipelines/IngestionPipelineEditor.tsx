@@ -308,7 +308,6 @@ export function IngestionPipelineEditor({
         if (disposed) {
           return;
         }
-        setRun((current) => (current?.id === activeRunId ? next : current));
         if (terminal.has(next.status)) {
           const nextItems = await allPages((offset) =>
             api.listIngestionRunItems(projectId, next.id, offset),
@@ -326,9 +325,11 @@ export function IngestionPipelineEditor({
             }
             setSchedules(refreshed.filter((value) => value.pipeline_version_id === savedVersionId));
           }
+          setRun((current) => (current?.id === activeRunId ? next : current));
           setPollError('');
           return;
         }
+        setRun((current) => (current?.id === activeRunId ? next : current));
         setPollError('');
         timer = window.setTimeout(() => void poll(), 1200);
       } catch (cause) {

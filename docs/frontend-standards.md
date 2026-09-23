@@ -54,7 +54,7 @@ Current structure:
 
 - The supported dark palette is defined as semantic custom properties under `:root`.
 - Tailwind maps those variables through `@theme inline`.
-- Inter is self-hosted from `public/fonts/`. The font file exists, but a corresponding license file is not currently present in the repository.
+- Inter is self-hosted from `public/fonts/`; `Inter-LICENSE.txt` keeps its OFL text beside the committed font asset.
 - Tailwind utilities handle ordinary component layout and spacing.
 - Central custom selectors handle formatted answers, complex workspace geometry, responsive inspectors and React Flow vendor integration.
 - Unlayered custom rules intentionally outrank Tailwind's utility layer in parts of the current stylesheet.
@@ -69,7 +69,7 @@ Rules for changes:
 - Check computed styles before changing a utility that competes with an unlayered custom selector. Do not move the entire stylesheet into a cascade layer without regression testing every major route.
 - Keep visible focus, disabled and invalid states. Preserve the existing reduced-motion behavior and ensure any new motion has a non-motion state change.
 - Use semantic foreground/background pairs. Do not use opacity to repair low text contrast or introduce a second ad hoc dark palette.
-- Keep license text with every committed third-party font. Restore the Inter license before a distributable release; do not add or replace fonts without recording their source and license.
+- Keep license text with every committed third-party font. Do not add or replace fonts without recording their source and license.
 - Do not edit generated `dist/` CSS; it is build output, not source.
 
 ## Routing, state and async behavior
@@ -146,11 +146,10 @@ Run Playwright against the isolated services documented in [development instruct
 
 ## Known frontend constraints
 
-- The production build currently reports one JavaScript chunk above Vite's 500 kB warning threshold. Route-level lazy loading is the intended future fix; do not hide the warning by raising the threshold without measuring and documenting the trade-off.
+- Workspace routes are lazy-loaded from `WorkspacePage`; keep new route entry points behind the shared accessible Suspense boundary and review production chunk output when adding a feature.
 - `src/app/styles.css` contains a substantial incumbent custom-selector cascade. New work should reduce touched duplication, but a wholesale layering or stylesheet rewrite requires route-wide computed-style and visual regression checks.
 - Pipeline and Playground controller hooks are intentionally longer than presentation components because they coordinate cohesive async lifecycles. Split them only around a real responsibility, not an arbitrary line limit.
 - The app currently supports one dark theme. Do not add a nonfunctional theme switch or partial light theme.
-- The committed Inter font currently has no accompanying license file. This must be corrected before a distributable release; do not describe the license as included until the file exists.
 
 ## Primary guidance
 

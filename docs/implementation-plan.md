@@ -2,7 +2,7 @@
 
 ## Production-quality audit and hardening — started 2026-09-23
 
-Overall status: **Phases 0–2 complete; Phases 3–4 pending.** This section is
+Overall status: **Complete — all four phases finished on 2026-09-23.** This section is
 the source of truth for the current whole-codebase quality pass. Earlier dated
 sections remain historical delivery records; where their interim status or test
 counts differ, this section and the final verification record below take precedence.
@@ -198,7 +198,7 @@ Implemented:
 Verification:
 
 - Backend Ruff lint and format checks, bytecode compilation and the local dependency
-  suite passed (**140 passed, 117 skipped**; skips require the isolated database).
+  suite passed (**140 passed, 118 skipped**; skips require the isolated database).
 - A fresh isolated PostgreSQL/pgvector Compose run migrated to head and passed the
   complete backend suite: **253 passed, 4 skipped**. Connector persistence, incremental
   refresh, source snapshots, cancellation, stale recovery and atomic publication are
@@ -209,13 +209,57 @@ Verification:
 
 #### Phase 4 — documentation, dependency decision and final verification
 
-Status: **Pending.** Address Q-09 and make the evidence-based Q-11 upgrade/defer
-decision. Reconcile README, architecture, development, deployment, frontend standards
-and this plan with the implemented tree. Acceptance requires all frontend gates,
-backend Ruff, the full isolated PostgreSQL suite, the complete deterministic Chromium
-suite on canonical Vite, `git diff --check`, a clean worktree, and explicit final
-limitations/next action. No live provider or paid call is required. Commit and push the
-final documentation/verification phase to `origin/main`.
+Status: **Complete on 2026-09-23.** Q-09 documentation reconciliation is implemented.
+For Q-11, the dependency change is deferred: AnyIO 4.15 deprecated the alias used by
+Starlette's `TestClient`, and the upstream report reproduces the warning even with Starlette 1.6.0,
+the latest release available during this review. The fix is merged upstream but is not
+yet in a Starlette release, so a broad FastAPI/Starlette upgrade would add compatibility
+risk without removing the warning. The warning is not suppressed and should be
+revisited after a fixed Starlette release is supported by FastAPI. References:
+[Starlette issue 3497](https://github.com/Kludex/starlette/issues/3497),
+[FastAPI version guidance](https://fastapi.tiangolo.com/deployment/versions/).
+
+Final regression work also corrected two issues exposed only by broad execution:
+
+- Concurrent document workers now serialize shared ingestion-node transitions by
+  locking the ordered node set. A database regression proves repeated Extract, Clean
+  and Chunk callbacks advance monotonically instead of risking a transaction
+  serialization failure or regressing visible state.
+- The ingestion editor fetches terminal run items and schedule metadata before
+  publishing the terminal run state, so effect cleanup cannot discard those final
+  reads. Deterministic connector fixtures now patch the refactored remote worker, and
+  browser assertions use the released navigation, schedule and status semantics.
+
+Verification:
+
+- Frontend Prettier, structure/ESLint, strict TypeScript, **92 Vitest tests across 26
+  files**, and the production build passed. The entry remains 180.74 kB and the largest
+  feature/vendor chunk 241.37 kB; Vite reports no size advisory.
+- Backend Ruff lint/format, bytecode compilation and the local suite passed (**140
+  passed, 118 skipped**). A fresh isolated PostgreSQL/pgvector stack migrated to head
+  and passed **254 tests with 4 opt-in live-provider tests skipped**. The only warning
+  is the intentionally unsuppressed upstream Starlette/AnyIO deprecation above.
+- The complete deterministic Chromium suite passed in one uninterrupted, single-worker
+  run against canonical Vite and a fresh isolated API: **28 passed, 1 intentionally
+  skipped credential-free variant**. It covered all four remote connector fixtures,
+  Existing Files, documents/PDFs, indexing/retrieval, answer pipelines, experiments,
+  routing, responsive layout, accessibility state, cancellation and recovery. No live
+  provider or paid-model request was made. The skipped missing-credentials journey then
+  passed separately against a second fresh credential-free stack (**1 passed**).
+- `git diff --check` and the final source/status review passed before the phase commit.
+
+Remaining limitations: authentication and server-side project authorization, deletion
+and retention behavior, public deployment, and credentialed live-provider validation
+remain outside this pass. The application is therefore **not verified production-ready
+for shared access**. An early browser command was accidentally proxied to the existing
+developer API and left clearly test-named rows there; no data was deleted or reset
+because the product has no deletion API. Final browser verification used an empty,
+isolated database.
+
+Recommended next action: design authentication/authorization and retention ownership
+before any shared deployment, then run separately authorized bounded live-provider
+checks. Revisit Q-11 when FastAPI supports a Starlette release containing the upstream
+warning fix.
 
 
 ## Source snapshots and reusable index variants — implementation started 2026-09-22
@@ -1097,8 +1141,9 @@ Status: implemented and verified.
   the restrained running treatment; earlier nodes retain a Complete check, future
   nodes remain Queued, and failure/cancellation resolves to labeled terminal
   states. Selection outlines remain independent of execution styling, reduced
-  motion disables the pulse/spinner, and React Flow attribution stays disabled
-  through its supported configuration.
+  motion disables the pulse/spinner. This delivery initially hid React Flow attribution;
+  the later production-quality hardening phase restored it because no Pro entitlement
+  is recorded.
 - Reloading a saved version restores its latest run and node checkpoints. The
   compact run strip remains above the graph; the redundant bottom execution
   status is not used.

@@ -13,19 +13,6 @@ def now():
     return datetime.now(timezone.utc)
 
 
-def _target(
-    session: Session, run_id: UUID, *, node_id: str | None, node_type: str | None
-):
-    statement = select(IngestionRunNode).where(IngestionRunNode.run_id == run_id)
-    if node_id is not None:
-        statement = statement.where(IngestionRunNode.node_id == node_id)
-    elif node_type is not None:
-        statement = statement.where(IngestionRunNode.node_type == node_type)
-    else:
-        raise ValueError("A node id or node type is required.")
-    return session.scalar(statement.order_by(IngestionRunNode.ordinal).limit(1))
-
-
 def transition(
     db_engine,
     run_id: UUID,
@@ -35,38 +22,51 @@ def transition(
     execution_token: UUID | None = None,
 ) -> bool:
     """Make one real node active and durably complete nodes before it."""
-    with Session(db_engine) as session:
+    if node_id is None and node_type is None:
+        raise ValueError("A node id or node type is required.")
+    worker_engine = db_engine.execution_options(isolation_level="READ COMMITTED")
+    with Session(worker_engine) as session:
+        # One ingestion run can have several document workers. Lock its ordered node
+        # set so their shared Extract/Clean/Chunk checkpoints cannot move backwards or
+        # fail a repeatable-read transaction with a concurrent-update serialization.
+        nodes = session.scalars(
+            select(IngestionRunNode)
+            .where(IngestionRunNode.run_id == run_id)
+            .order_by(IngestionRunNode.ordinal)
+            .with_for_update()
+        ).all()
         run = session.get(IngestionRun, run_id)
         if run is None or run.status not in ("queued", "running"):
             return False
         if execution_token is not None and run.execution_token != execution_token:
             return False
-        target = _target(session, run_id, node_id=node_id, node_type=node_type)
+        target = next(
+            (
+                node
+                for node in nodes
+                if (node_id is not None and node.node_id == node_id)
+                or (node_id is None and node.node_type == node_type)
+            ),
+            None,
+        )
         if target is None:
             return False
-        furthest_ordinal = session.scalar(
-            select(IngestionRunNode.ordinal)
-            .where(
-                IngestionRunNode.run_id == run_id,
-                IngestionRunNode.status.in_(["running", "succeeded"]),
-            )
-            .order_by(IngestionRunNode.ordinal.desc())
-            .limit(1)
+        furthest_ordinal = max(
+            (node.ordinal for node in nodes if node.status in ("running", "succeeded")),
+            default=None,
         )
         if target.status == "succeeded" or (
             furthest_ordinal is not None and target.ordinal < furthest_ordinal
         ):
             return True
         timestamp = now()
-        session.execute(
-            update(IngestionRunNode)
-            .where(
-                IngestionRunNode.run_id == run_id,
-                IngestionRunNode.ordinal < target.ordinal,
-                IngestionRunNode.status.in_(["queued", "running"]),
-            )
-            .values(status="succeeded", finished_at=timestamp, updated_at=timestamp)
-        )
+        for node in nodes:
+            if node.ordinal >= target.ordinal:
+                break
+            if node.status in ("queued", "running"):
+                node.status = "succeeded"
+                node.finished_at = timestamp
+                node.updated_at = timestamp
         if target.status not in ("failed", "cancelled"):
             target.status = "running"
             target.started_at = target.started_at or timestamp

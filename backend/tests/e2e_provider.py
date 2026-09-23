@@ -16,7 +16,7 @@ from app.connectors.confluence import ConfluenceConnector
 from app.connectors import confluence as confluence_module
 from app.providers.openrouter import OpenRouterEmbeddings
 from app.providers import embeddings, generation
-from app.workers import ingestion as ingestion_worker, previews
+from app.workers import previews, remote_ingestion as remote_ingestion_worker
 from app.main import app  # noqa: F401
 from datetime import UTC, datetime
 from pathlib import Path
@@ -137,7 +137,7 @@ def website_connector():
 
 
 previews.WebsiteConnector = website_connector
-ingestion_worker.WebsiteConnector = website_connector
+remote_ingestion_worker.WebsiteConnector = website_connector
 
 
 S3_STATE = Path("/data/documents/.s3-fixture-state")
@@ -254,7 +254,7 @@ class S3Tester:
 
 s3_module.S3ConnectionTester = S3Tester
 previews.S3Connector = s3_connector
-ingestion_worker.S3Connector = s3_connector
+remote_ingestion_worker.S3Connector = s3_connector
 
 
 @app.post("/api/test/s3-state/{state}")
@@ -391,7 +391,7 @@ class NotionTester:
 
 notion_module.NotionConnectionTester = NotionTester
 previews.NotionConnector = notion_connector
-ingestion_worker.NotionConnector = notion_connector
+remote_ingestion_worker.NotionConnector = notion_connector
 
 
 @app.post("/api/test/notion-state/{state}")
@@ -517,7 +517,7 @@ class ConfluenceTester:
 
 confluence_module.ConfluenceConnectionTester = ConfluenceTester
 previews.ConfluenceConnector = confluence_connector
-ingestion_worker.ConfluenceConnector = confluence_connector
+remote_ingestion_worker.ConfluenceConnector = confluence_connector
 
 
 @app.post("/api/test/confluence-state/{state}")
