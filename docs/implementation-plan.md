@@ -1153,3 +1153,29 @@ Status: implemented and verified.
   strict TypeScript, all 90 Vitest tests and
   the production build passed; the existing approximately 668 kB Vite chunk
   advisory remains.
+
+## Knowledge Base comprehension redesign — 2026-09-23
+
+Acceptance criteria: explain the document → preparation → searchable collection →
+retrieval model in the first viewport; consolidate exact-content duplicate uploads in
+the document list; expose preparation readiness and next actions without opening the
+inspector; make collection and immutable version context persistent; split overview,
+provenance, version history, stored passages and retrieval testing; preserve real API
+workflows, URL-addressable state, pagination, retries and project isolation; provide
+purposeful mobile drill-down without page overflow.
+
+Status: implemented and verified. Documents consolidate identical content while
+retaining processing, retry, history and chunk inspection. Collections are grouped
+across all index-version API pages and use an explicit catalog → immutable-version
+drill-down; overview, provenance, versions, passages and retrieval testing remain
+separate, URL-addressable sections. Source-snapshot selection now also preserves
+canonical hash URLs and browser Back/Forward behavior.
+
+Frontend Prettier, structure/ESLint, strict TypeScript, all 95 Vitest tests across 26
+files and the production build passed. Agent Browser verified Documents, the collection
+catalog, selected-version overview, retrieval testing and source-history empty state at
+1440×1000 and 390×844 against the canonical `http://127.0.0.1:5273` frontend. Both
+mobile views measured 390 px document width with no horizontal overflow. The
+route-split production build completed without the earlier chunk-size advisory. The
+design detector reported only the two established Inter-font warnings required by
+`DESIGN.md`; no new warning class was introduced.

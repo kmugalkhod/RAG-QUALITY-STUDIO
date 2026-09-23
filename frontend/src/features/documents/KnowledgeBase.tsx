@@ -1,16 +1,16 @@
-import type { Page } from '../../lib/pagination';
 import { DocumentInspector } from './components/DocumentInspector';
-import { DocumentTable } from './components/DocumentTable';
+import { DocumentTable, groupDocuments } from './components/DocumentTable';
 import { DocumentUpload } from './components/DocumentUpload';
-import { message } from './documentPresentation';
+import { active, message } from './documentPresentation';
 import { IndexesWorkspace } from './components/IndexesWorkspace';
-import { useEffect, useState } from 'react';
-import { FileText, Plus, X, Files, Database } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { FileText, Plus, X, Files, Database, ArrowRight } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/tabs';
 import * as api from './api';
 import { type Document } from './model';
 import { allPages } from '../../lib/pagination';
+const DOCUMENT_PAGE_SIZE = 20;
 export function KnowledgeBase({
   projectId,
   documentId = '',
@@ -23,14 +23,25 @@ export function KnowledgeBase({
       ? 'indexes'
       : 'documents',
   );
+  const [showUpload, setShowUpload] = useState(
+    () => new URLSearchParams(window.location.hash.split('?')[1]).get('upload') === '1',
+  );
   function setTab(value: 'documents' | 'indexes') {
     setTabState(value);
     const [path, search] = window.location.hash.split('?');
     const query = new URLSearchParams(search);
     if (value === 'indexes') {
+      setShowUpload(false);
       query.set('view', value);
+      if (!query.get('mode')) {
+        query.set('mode', 'indexes');
+      }
     } else {
       query.delete('view');
+      query.delete('mode');
+      query.delete('index');
+      query.delete('snapshot');
+      query.delete('section');
     }
     window.location.hash = `${path || `/projects/${projectId}/knowledge-base`}${query.size ? `?${query}` : ''}`;
   }
@@ -44,11 +55,8 @@ export function KnowledgeBase({
     window.addEventListener('hashchange', update);
     return () => window.removeEventListener('hashchange', update);
   }, []);
-  const [showUpload, setShowUpload] = useState(
-    () => new URLSearchParams(window.location.hash.split('?')[1]).get('upload') === '1',
-  );
   const [limit, setLimit] = useState<number>();
-  const [page, setPage] = useState<Page<Document>>();
+  const [documents, setDocuments] = useState<Document[]>();
   const [offset, setOffset] = useState(0);
   const [revision, setRevision] = useState(0);
   const [error, setError] = useState('');
@@ -108,21 +116,26 @@ export function KnowledgeBase({
     let disposed = false;
     let timer: ReturnType<typeof setTimeout>;
     async function load() {
+      let nextDelay = 10_000;
       try {
-        const result = await api.listDocuments(projectId, offset);
+        const result = await allPages((nextOffset) => api.listDocuments(projectId, nextOffset));
+        if (result.some((document) => active(document.latest_run))) {
+          nextDelay = 2_000;
+        }
         if (!disposed) {
-          setPage(result);
+          setDocuments(result);
           setError('');
           setLoading(false);
         }
       } catch (err) {
+        nextDelay = 5_000;
         if (!disposed) {
           setError(message(err));
           setLoading(false);
         }
       }
       if (!disposed) {
-        timer = setTimeout(() => void load(), 2000);
+        timer = setTimeout(() => void load(), nextDelay);
       }
     }
     setLoading(true);
@@ -131,7 +144,16 @@ export function KnowledgeBase({
       disposed = true;
       clearTimeout(timer);
     };
-  }, [projectId, offset, revision]);
+  }, [projectId, revision]);
+
+  const documentGroups = useMemo(() => groupDocuments(documents ?? []), [documents]);
+  const visibleDocumentGroups = documentGroups.slice(offset, offset + DOCUMENT_PAGE_SIZE);
+
+  useEffect(() => {
+    if (offset > 0 && offset >= documentGroups.length) {
+      setOffset(0);
+    }
+  }, [documentGroups.length, offset]);
   function handleUploaded(document: Document) {
     setNotice(`“${document.filename}” uploaded. Select chunk settings and start processing.`);
     setShowUpload(false);
@@ -144,7 +166,7 @@ export function KnowledgeBase({
       <div className="knowledge-heading flex items-center justify-between gap-5 pt-6.5 px-7 pb-5.5">
         <div>
           <h1>Knowledge Base</h1>
-          <p>Source documents and searchable indexes.</p>
+          <p>Add sources, prepare their content, then publish a fixed version for retrieval.</p>
         </div>
         <Button
           variant={selected || showUpload ? 'outline' : 'default'}
@@ -167,13 +189,30 @@ export function KnowledgeBase({
         >
           <TabsTrigger value="documents">
             <Files />
-            Documents {page && <span>{page.total}</span>}
+            Documents {documents && <span>{documentGroups.length}</span>}
           </TabsTrigger>
           <TabsTrigger value="indexes">
             <Database />
-            Indexes
+            Collections
           </TabsTrigger>
         </TabsList>
+        <ol className="knowledge-journey" aria-label="How knowledge becomes searchable">
+          <li>
+            <span>1</span> Add documents
+          </li>
+          <li>
+            <ArrowRight />
+            <span>2</span> Prepare content
+          </li>
+          <li>
+            <ArrowRight />
+            <span>3</span> Publish a collection
+          </li>
+          <li>
+            <ArrowRight />
+            <span>4</span> Retrieve in pipelines
+          </li>
+        </ol>
         {showUpload && (
           <DocumentUpload
             projectId={projectId}
@@ -199,7 +238,9 @@ export function KnowledgeBase({
           <div className="knowledge-body min-w-0">
             <TabsContent value="documents">
               <DocumentTable
-                page={page}
+                groups={documents ? visibleDocumentGroups : undefined}
+                total={documentGroups.length}
+                pageSize={DOCUMENT_PAGE_SIZE}
                 offset={offset}
                 loading={loading}
                 error={error}
@@ -218,7 +259,7 @@ export function KnowledgeBase({
               <div className="detail-toolbar">
                 <span>
                   <FileText />
-                  Document details
+                  Preparation details
                 </span>
                 <Button
                   variant="ghost"

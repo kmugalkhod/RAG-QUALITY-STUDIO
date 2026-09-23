@@ -8,7 +8,7 @@ import * as api from '../indexApi';
 import type { IndexRecordPage, IndexVersion } from '../model';
 
 const message = (cause: unknown) =>
-  cause instanceof Error ? cause.message : 'Could not load vector records.';
+  cause instanceof Error ? cause.message : 'Could not load stored passages.';
 
 function vectorPreview(values: number[]) {
   return values.map((value) => value.toFixed(4)).join(', ');
@@ -35,15 +35,15 @@ export function IndexRecords({ projectId, index }: { projectId: string; index: I
   useEffect(() => setOffset(0), [index.id]);
 
   return (
-    <section className="vector-browser" aria-labelledby="vector-records-title">
+    <section className="vector-browser" aria-labelledby="stored-passages-title">
       <div className="vector-browser-heading">
         <div>
-          <h3 id="vector-records-title">
-            <Database /> Vector records
+          <h3 id="stored-passages-title">
+            <Database /> Stored passages
           </h3>
           <p>
-            Stored passages and embedding metadata from this immutable index. The first eight vector
-            values are shown for verification.
+            Content available to retrieval in this immutable version. Vector values stay inside each
+            passage’s technical details.
           </p>
         </div>
         <Button
@@ -63,8 +63,8 @@ export function IndexRecords({ projectId, index }: { projectId: string; index: I
           </Button>
         </div>
       )}
-      {!page && !error && <p role="status">Loading vector records…</p>}
-      {page?.total === 0 && <p>No records were stored for this index.</p>}
+      {!page && !error && <p role="status">Loading stored passages…</p>}
+      {page?.total === 0 && <p>No passages were stored for this collection version.</p>}
       <ol className="vector-record-list">
         {page?.items.map((record) => (
           <li key={`${record.run_id}-${record.ordinal}`}>
@@ -133,7 +133,7 @@ export function IndexRecords({ projectId, index }: { projectId: string; index: I
           total={page.total}
           pageSize={page.limit}
           onChange={setOffset}
-          label="Vector record pages"
+          label="Stored passage pages"
         />
       )}
     </section>

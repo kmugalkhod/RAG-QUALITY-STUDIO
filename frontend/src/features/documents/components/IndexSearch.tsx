@@ -31,8 +31,8 @@ export function IndexSearch({
     <section className="index-search">
       <p className="index-search-context">
         {selected
-          ? `Searching document set · Version ${selected.version}`
-          : 'Choose a ready document set to search.'}
+          ? `Testing ${selected.knowledge_set_name} · immutable version ${selected.version}${selected.is_current ? ' · current' : ' · historical'}`
+          : 'Choose a ready collection version to test.'}
       </p>
       <form onSubmit={onSubmit} noValidate aria-busy={searching}>
         <Label htmlFor="retrieval-query">Search query</Label>
@@ -46,7 +46,7 @@ export function IndexSearch({
         />
         <RetrievalSettingsForm value={settings} disabled={searching} onChange={onSettingsChange} />
         <Button type="submit" disabled={searching || !selected}>
-          {searching ? 'Searching…' : 'Search documents only'}
+          {searching ? 'Testing retrieval…' : 'Run retrieval test'}
         </Button>
         <p className="field-hint">Returns passages only. It does not generate an answer.</p>
       </form>
@@ -58,7 +58,7 @@ export function IndexSearch({
       {result && (
         <section aria-label="Retrieval results">
           <p role="status">
-            {result.items.length} passages from document set version {result.index_version}
+            {result.items.length} passages from immutable collection version {result.index_version}
           </p>
           {!result.items.length && <p>No matching passages in this document set.</p>}
           <ol className="chunk-list">

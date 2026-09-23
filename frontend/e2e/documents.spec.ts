@@ -39,7 +39,7 @@ test('uploads, processes, inspects and revisits a versioned document', async ({ 
   await expect(page.getByText(/Chunk 21 · TXT source/)).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Chunks · Version 1' })).toBeFocused();
   await page.reload();
-  await page.getByRole('button', { name: 'Manage knowledge.txt' }).click();
+  await page.getByRole('button', { name: 'Inspect version 1: knowledge.txt' }).click();
   await page.getByRole('button', { name: /Inspect \d+ chunks/ }).click();
   await expect(
     page.getByText('Chunk 1 · TXT source · characters 0–40 (end exclusive)', { exact: true }),

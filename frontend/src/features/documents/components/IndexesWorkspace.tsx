@@ -23,9 +23,9 @@ export function IndexesWorkspace({ projectId }: { projectId: string }) {
   return (
     <div>
       <Tabs value={mode} onValueChange={change}>
-        <TabsList className="index-mode-tabs" aria-label="Index lineage views">
-          <TabsTrigger value="snapshots">Source snapshots</TabsTrigger>
-          <TabsTrigger value="indexes">Indexes</TabsTrigger>
+        <TabsList className="index-mode-tabs" aria-label="Collection workspace views">
+          <TabsTrigger value="indexes">Collections</TabsTrigger>
+          <TabsTrigger value="snapshots">Source history</TabsTrigger>
         </TabsList>
       </Tabs>
       {mode === 'snapshots' ? (

@@ -43,6 +43,45 @@ export function SnapshotPanel({ projectId }: { projectId: string }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [revision, setRevision] = useState(0);
+  const selectedId = selected?.id;
+
+  useEffect(() => {
+    let disposed = false;
+    let request = 0;
+    const restoreSelection = () => {
+      const sequence = ++request;
+      const linkedId = new URLSearchParams(window.location.hash.split('?')[1]).get('snapshot');
+      if (!linkedId) {
+        setSelected(undefined);
+        return;
+      }
+      if (linkedId === selectedId) {
+        return;
+      }
+      void api
+        .getSourceSnapshot(projectId, linkedId)
+        .then((snapshot) => {
+          if (!disposed && sequence === request) {
+            setSelected(snapshot);
+            setError('');
+          }
+        })
+        .catch((cause) => {
+          if (!disposed && sequence === request) {
+            setSelected(undefined);
+            setError(`That source snapshot is unavailable. ${message(cause)}`);
+          }
+        });
+    };
+    restoreSelection();
+    window.addEventListener('hashchange', restoreSelection);
+    window.addEventListener('popstate', restoreSelection);
+    return () => {
+      disposed = true;
+      window.removeEventListener('hashchange', restoreSelection);
+      window.removeEventListener('popstate', restoreSelection);
+    };
+  }, [projectId, selectedId]);
 
   useEffect(() => {
     let disposed = false;
@@ -137,12 +176,13 @@ export function SnapshotPanel({ projectId }: { projectId: string }) {
 
   function select(snapshot?: SourceSnapshot) {
     setSelected(snapshot);
-    const [path] = window.location.hash.split('?');
+    const [rawPath] = window.location.hash.split('?');
+    const path = rawPath.replace(/^#+/, '');
     const params = new URLSearchParams({ view: 'indexes', mode: 'snapshots' });
     if (snapshot) {
       params.set('snapshot', snapshot.id);
     }
-    window.history.replaceState(null, '', `#${path}?${params}`);
+    window.history.pushState(null, '', `#${path}?${params}`);
   }
 
   async function build(event: FormEvent) {

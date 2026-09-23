@@ -1,22 +1,102 @@
 import { useRef } from 'react';
-import { FileText, PanelRight, RotateCw } from 'lucide-react';
-import { Button } from '../../../components/ui/button';
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '../../../components/ui/table';
+  ArrowRight,
+  CircleAlert,
+  FileCheck2,
+  FileClock,
+  FileText,
+  LoaderCircle,
+  RotateCw,
+} from 'lucide-react';
+import { Button } from '../../../components/ui/button';
 import { StatusBadge } from '../../../components/StatusBadge';
 import { Pagination } from '../../../components/Pagination';
-import type { Page } from '../../../lib/pagination';
-import { active, bytes } from '../documentPresentation';
+import { active, bytes, date } from '../documentPresentation';
 import type { Document } from '../model';
 
+export type DocumentGroup = {
+  document: Document;
+  uploadCount: number;
+};
+
+const statusPriority: Record<string, number> = {
+  running: 5,
+  queued: 4,
+  succeeded: 3,
+  failed: 2,
+  cancelled: 1,
+  uploaded: 0,
+};
+
+/** Exact-content uploads share a SHA-256 and represent one source in the UI. */
+export function groupDocuments(documents: Document[]): DocumentGroup[] {
+  const groups = new Map<string, Document[]>();
+  for (const document of documents) {
+    const key = document.content_hash || document.id;
+    groups.set(key, [...(groups.get(key) ?? []), document]);
+  }
+  return Array.from(groups.values()).map((matches) => {
+    const ranked = [...matches].sort((a, b) => {
+      const aStatus = a.latest_run?.status ?? 'uploaded';
+      const bStatus = b.latest_run?.status ?? 'uploaded';
+      return (
+        (statusPriority[bStatus] ?? 0) - (statusPriority[aStatus] ?? 0) ||
+        (b.latest_run?.version ?? 0) - (a.latest_run?.version ?? 0) ||
+        Date.parse(b.created_at) - Date.parse(a.created_at)
+      );
+    });
+    return { document: ranked[0], uploadCount: matches.length };
+  });
+}
+
+function presentation(document: Document) {
+  const run = document.latest_run;
+  if (!run) {
+    return {
+      status: 'uploaded',
+      label: 'Needs preparation',
+      detail: 'Uploaded safely. Prepare it before publishing a searchable collection.',
+      action: 'Prepare document',
+      icon: FileClock,
+    };
+  }
+  if (active(run)) {
+    return {
+      status: run.status,
+      label: run.status === 'queued' ? 'Queued' : 'Preparing',
+      detail:
+        run.status === 'queued'
+          ? `Version ${run.version} is waiting for a worker.`
+          : `Version ${run.version} is ${run.progress}% complete.`,
+      action: 'View progress',
+      icon: LoaderCircle,
+    };
+  }
+  if (run.status === 'succeeded') {
+    return {
+      status: run.status,
+      label: 'Prepared',
+      detail: `Version ${run.version} is ready with ${run.chunk_count.toLocaleString()} passages for the next collection publication.`,
+      action: `Inspect version ${run.version}`,
+      icon: FileCheck2,
+    };
+  }
+  return {
+    status: run.status,
+    label: run.status === 'failed' ? 'Preparation failed' : 'Preparation cancelled',
+    detail:
+      run.status === 'failed'
+        ? `Version ${run.version} failed. Open the document to review the error and retry.`
+        : `Version ${run.version} was cancelled. You can prepare a new version.`,
+    action: 'Review and retry',
+    icon: CircleAlert,
+  };
+}
+
 export function DocumentTable({
-  page,
+  groups,
+  total,
+  pageSize,
   offset,
   loading,
   error,
@@ -25,7 +105,9 @@ export function DocumentTable({
   onPage,
   onSelect,
 }: {
-  page?: Page<Document>;
+  groups?: DocumentGroup[];
+  total: number;
+  pageSize: number;
   offset: number;
   loading: boolean;
   error: string;
@@ -35,119 +117,95 @@ export function DocumentTable({
   onSelect: (document: Document) => void;
 }) {
   const heading = useRef<HTMLHeadingElement>(null);
+
   function changePage(nextOffset: number) {
     onPage(nextOffset);
     requestAnimationFrame(() => heading.current?.focus());
   }
 
   return (
-    <section className="project-section m-0" aria-labelledby="documents-title">
-      <div className="section-heading flex items-center justify-between gap-4 px-7 py-4">
-        <h2 ref={heading} tabIndex={-1} id="documents-title">
-          All documents
-        </h2>
+    <section className="document-library" aria-labelledby="documents-title">
+      <div className="document-library-heading">
+        <div>
+          <h2 ref={heading} tabIndex={-1} id="documents-title">
+            Your documents
+          </h2>
+          <p>Each source appears once, with its latest preparation state and next action.</p>
+        </div>
         <Button variant="outline" onClick={onRefresh} disabled={loading}>
           <RotateCw />
           Refresh
         </Button>
       </div>
       {error && (
-        <p role="alert" className="error-message mx-7">
-          {error}
-        </p>
+        <div role="alert" className="inline-error document-library-error">
+          <p>{error}</p>
+          <Button variant="outline" size="sm" onClick={onRefresh}>
+            Retry
+          </Button>
+        </div>
       )}
-      {!page && !error ? (
-        <p role="status" className="loading-state px-7 py-6 text-muted-foreground">
-          Loading documents…
+      {!groups && !error ? (
+        <p role="status" className="document-loading">
+          <LoaderCircle /> Loading documents…
         </p>
-      ) : page?.items.length === 0 ? (
-        <div className="empty-state py-16 text-center text-muted-foreground">
-          <FileText size={32} />
+      ) : groups?.length === 0 ? (
+        <div className="empty-state document-empty">
+          <FileText size={30} />
           <h3>No documents yet</h3>
-          <p>Upload a source file to begin inspecting its text.</p>
+          <p>Add a PDF or TXT file, then prepare it for search.</p>
         </div>
       ) : (
-        <div className="source-table-wrap">
-          <Table className="source-table table-fixed">
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Size</TableHead>
-                <TableHead>Added</TableHead>
-                <TableHead>
-                  <span className="sr-only">Details</span>
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {page?.items.map((document) => {
-                const status = document.latest_run?.status ?? 'uploaded';
-                const label =
-                  status === 'succeeded'
-                    ? 'Processed'
-                    : active(document.latest_run)
-                      ? 'Processing'
-                      : status;
-                return (
-                  <TableRow
-                    key={document.id}
-                    data-state={selectedId === document.id ? 'selected' : undefined}
+        <ul className="document-list" aria-label="Documents">
+          {groups?.map(({ document, uploadCount }) => {
+            const view = presentation(document);
+            const Icon = view.icon;
+            return (
+              <li
+                key={document.content_hash || document.id}
+                data-selected={selectedId === document.id}
+              >
+                <div className="document-file-mark" aria-hidden="true">
+                  <Icon className={active(document.latest_run) ? 'is-spinning' : ''} />
+                </div>
+                <div className="document-card-main">
+                  <Button
+                    variant="ghost"
+                    className="document-name"
+                    onClick={() => onSelect(document)}
                   >
-                    <TableCell>
-                      <div className="source-name flex min-w-0 items-center gap-3">
-                        <FileText />
-                        <Button
-                          variant="ghost"
-                          className="document-name"
-                          onClick={() => onSelect(document)}
-                        >
-                          {document.filename}
-                        </Button>
-                      </div>
-                      {document.latest_run?.error && (
-                        <p className="error-message">{document.latest_run.error}</p>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <StatusBadge status={status}>{label}</StatusBadge>
-                      {active(document.latest_run) && (
-                        <small className="ml-2">{document.latest_run?.progress}%</small>
-                      )}
-                    </TableCell>
-                    <TableCell>{bytes(document.size_bytes)}</TableCell>
-                    <TableCell>
-                      <time dateTime={document.created_at}>
-                        {new Intl.DateTimeFormat(undefined, {
-                          month: 'short',
-                          day: 'numeric',
-                        }).format(new Date(document.created_at))}
-                      </time>
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        onClick={() => onSelect(document)}
-                        aria-label={`Manage ${document.filename}`}
-                      >
-                        <PanelRight />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-          <p className="table-note mx-7 my-4 text-xs text-muted-foreground">
-            After processing, prepare a document set to start asking questions.
-          </p>
-        </div>
+                    {document.filename}
+                  </Button>
+                  <p className="document-file-meta">
+                    {bytes(document.size_bytes)} · added {date(document.created_at)}
+                    {uploadCount > 1 ? ` · ${uploadCount} identical uploads consolidated` : ''}
+                  </p>
+                  {document.latest_run?.error && (
+                    <p className="document-inline-error">{document.latest_run.error}</p>
+                  )}
+                </div>
+                <div className="document-readiness">
+                  <StatusBadge status={view.status}>{view.label}</StatusBadge>
+                  <p>{view.detail}</p>
+                </div>
+                <Button
+                  variant={document.latest_run?.status === 'succeeded' ? 'outline' : 'default'}
+                  className="document-next-action"
+                  onClick={() => onSelect(document)}
+                  aria-label={`${view.action}: ${document.filename}`}
+                >
+                  {view.action} <ArrowRight />
+                </Button>
+              </li>
+            );
+          })}
+        </ul>
       )}
-      {page && (
+      {groups && (
         <Pagination
           offset={offset}
-          total={page.total}
+          total={total}
+          pageSize={pageSize}
           onChange={changePage}
           busy={loading}
           label="Document pages"

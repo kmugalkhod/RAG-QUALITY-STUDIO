@@ -18,7 +18,11 @@ Existing graph coordinates are preserved. Horizontal layouts retain their origin
 
 ## Other pages
 
-Overview shows actual document/index/pipeline state and a contextual action. Knowledge Base uses source rows, separate Documents/Indexes views and an adjacent detail inspector; mobile detail replaces the table. Playground keeps questions, answers and evidence primary, with metadata/history collapsed. Settings shows supported configuration without secrets or nonfunctional edit controls. Projects and saved pipelines use compact lists.
+Overview shows actual document/index/pipeline state and a contextual action. Knowledge Base makes the retrieval lifecycle explicit: Documents become prepared content, prepared content is published into Collections, and retrieval uses a specific immutable collection version. The Documents view represents each real document once and pairs its current readiness with the next available action rather than exposing duplicate upload or processing records as separate sources.
+
+Collections use a master/detail workspace. The master list summarizes each collection and its current ready version; the detail keeps the selected collection name, immutable version and retrieval readiness visible while the user moves through progressively disclosed Overview, Sources, Versions, Passages and Test retrieval tabs. On mobile, opening a document or collection drills into its detail in place of the list and provides an explicit route back, instead of compressing the desktop split view.
+
+Playground keeps questions, answers and evidence primary, with metadata/history collapsed. Settings shows supported configuration without secrets or nonfunctional edit controls. Projects and saved pipelines use compact lists.
 
 Use real API data. Never copy the reference's illustrative project names, version numbers, preview badges or unsupported controls into the live application. Keep processing distinct from indexing and saved configurations distinct from execution results.
 

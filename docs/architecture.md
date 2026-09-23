@@ -159,7 +159,7 @@ Verification uses the existing isolated PostgreSQL/pgvector/Celery stack and det
 
 ### Linear workspace design
 
-The user rejected the first workspace visual treatment and selected Linear as the reference. The selected charcoal/lavender appearance is now defined by semantic shadcn tokens in `src/app/styles.css`; the old `linear-workspace.css` override file was removed. The Knowledge Base pilot has now been extended to every route. Documents use a semantic table; selecting a row opens an adjacent inspector, which replaces the table on mobile. Add document discloses and focuses the existing upload form. Documents/Indexes view selection is stored in the hash query (`view=indexes`) and responds to refresh/history. Feature APIs and job behavior are unchanged.
+The user rejected the first workspace visual treatment and selected Linear as the reference. The selected charcoal/lavender appearance is now defined by semantic shadcn tokens in `src/app/styles.css`; the old `linear-workspace.css` override file was removed. The Knowledge Base pilot has now been extended to every route. Documents use a semantic table; selecting a row opens an adjacent inspector, which replaces the table on mobile. Add document discloses and focuses the existing upload form. Documents/Collections view selection is stored in the hash query (`view=indexes`) and responds to refresh/history. Feature APIs and job behavior are unchanged.
 
 The pipeline editor is a viewport-height flex workspace below the project header, with a compact version/action toolbar, bounded validation area, flexible React Flow canvas and independently scrolling 300px settings panel. The palette overlays the canvas; closing settings returns its width to the graph. Mobile stacks settings below a 55dvh canvas and allows page scrolling. React Flow fits the graph on initial load; users can zoom, pan, fit, or center a node through the labeled selection field. Save is primary for a draft; Test is primary for an unchanged saved version. This follows Linear’s compact chrome and Dify’s canvas-first workflow structure without adding either product’s unsupported capabilities.
 
@@ -189,7 +189,27 @@ Versioned references: [Faithfulness](https://docs.ragas.io/en/v0.4.3/concepts/me
 
 ### Browser selection continuity (2026-09-12)
 
-Knowledge Base links retain document/view and an explicit selected `index` query parameter. The frontend resolves that ID through the project-scoped index endpoint and only restores successful indexes. Hash changes cancel stale selection requests. Per-project session navigation remembers Knowledge Base and saved-pipeline Playground destinations; switching projects reuses only that project's destination. This stores navigation identifiers, not credentials or source text, and does not change execution snapshots or authorize cross-project access.
+Knowledge Base links retain document/view and an explicit selected `index` query parameter. The frontend resolves that ID through the project-scoped index endpoint, restores its persisted state, and gates passages, retrieval and pipeline handoff on readiness. Hash changes cancel stale selection requests. Per-project session navigation remembers Knowledge Base and saved-pipeline Playground destinations; switching projects reuses only that project's destination. This stores navigation identifiers, not credentials or source text, and does not change execution snapshots or authorize cross-project access.
+
+### Knowledge Base presentation model (2026-09-23)
+
+The Knowledge Base presents the existing execution boundaries as a user-facing
+sequence: documents are added, immutable processing versions prepare content,
+prepared content is published into a searchable collection, and retrieval targets an
+exact immutable collection version. This is presentation and navigation state; it does
+not weaken the persisted document, processing-run, knowledge-set or index-version
+contracts.
+
+Document navigation loads every project-scoped document page before consolidating
+uploads with the same content hash, selecting the most actionable persisted record and
+paginating those complete groups in the UI. The underlying uploads and their histories
+remain unchanged. Collection navigation likewise loads every paginated index-version
+page before grouping versions under their stable knowledge-set identity, then paginates
+those complete groups in the UI. Collection detail keeps the selected index UUID and
+section in the hash. Overview and provenance use only persisted index metadata;
+provider/model/vector data is disclosed on demand. Stored passages and retrieval
+results continue to use their existing paginated, project-scoped endpoints, and
+pipelines still bind the selected immutable index UUID.
 
 
 ### Playground draft execution and sidebar

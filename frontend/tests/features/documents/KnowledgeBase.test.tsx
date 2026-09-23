@@ -112,7 +112,9 @@ test('loads saved chunks and retries a failed request', async () => {
     );
   render(<KnowledgeBase projectId="p1" />);
   await userEvent.click(screen.getByRole('button', { name: 'Add document' }));
-  await userEvent.click(await screen.findByRole('button', { name: 'Manage source.txt' }));
+  await userEvent.click(
+    await screen.findByRole('button', { name: 'Inspect version 1: source.txt' }),
+  );
   await userEvent.click(await screen.findByRole('button', { name: 'Inspect 3 chunks' }));
   expect(await screen.findByRole('alert')).toHaveTextContent('Connection interrupted');
   await userEvent.click(screen.getByRole('button', { name: 'Retry loading chunks' }));
@@ -122,6 +124,21 @@ test('loads saved chunks and retries a failed request', async () => {
   expect(api.listDocumentChunks).toHaveBeenLastCalledWith('p1', 'd1', 'r1', 0);
 });
 
+test('consolidates identical uploads and keeps the prepared record actionable', async () => {
+  vi.mocked(api.listDocuments).mockResolvedValue(
+    page([
+      { ...doc, id: 'd2', created_at: '2026-09-10T00:00:00Z' },
+      { ...doc, latest_run: run },
+    ]),
+  );
+  vi.mocked(api.listProcessingRuns).mockResolvedValue(page([run]));
+  render(<KnowledgeBase projectId="p1" />);
+  const list = await screen.findByRole('list', { name: 'Documents' });
+  expect(within(list).getAllByRole('listitem')).toHaveLength(1);
+  expect(within(list).getByText(/2 identical uploads consolidated/)).toBeVisible();
+  expect(within(list).getByRole('button', { name: 'Inspect version 1: source.txt' })).toBeVisible();
+});
+
 test('shows processing progress and cancels a queued run', async () => {
   const queued = { ...run, status: 'queued' as const, chunk_count: 0, progress: 0 };
   vi.mocked(api.listDocuments).mockResolvedValue(page([{ ...doc, latest_run: queued }]));
@@ -129,12 +146,31 @@ test('shows processing progress and cancels a queued run', async () => {
   vi.mocked(api.cancelProcessingRun).mockResolvedValue({ ...queued, status: 'cancelled' });
   render(<KnowledgeBase projectId="p1" />);
   await userEvent.click(screen.getByRole('button', { name: 'Add document' }));
-  await userEvent.click(await screen.findByRole('button', { name: 'Manage source.txt' }));
+  await userEvent.click(await screen.findByRole('button', { name: 'View progress: source.txt' }));
   expect(await screen.findByText(/Waiting for a worker/)).toBeVisible();
   expect(screen.getByRole('button', { name: 'Start processing' })).toBeDisabled();
   await userEvent.click(screen.getByRole('button', { name: 'Cancel run' }));
   await waitFor(() => expect(api.cancelProcessingRun).toHaveBeenCalledWith('p1', 'd1', 'r1'));
   expect(await screen.findByText(/Run cancelled. In-flight parsing/)).toBeVisible();
+});
+
+test('consolidates identical uploads and opens the prepared copy', async () => {
+  vi.mocked(api.listDocuments).mockResolvedValue(
+    page([
+      { ...doc, id: 'unprepared', latest_run: null },
+      { ...doc, id: 'prepared', latest_run: { ...run, document_id: 'prepared' } },
+    ]),
+  );
+  vi.mocked(api.listProcessingRuns).mockResolvedValue(page([{ ...run, document_id: 'prepared' }]));
+
+  render(<KnowledgeBase projectId="p1" />);
+
+  expect(await screen.findByRole('tab', { name: 'Documents 1' })).toBeVisible();
+  expect(screen.getAllByRole('button', { name: 'source.txt' })).toHaveLength(1);
+  expect(screen.getByText(/2 identical uploads consolidated/)).toBeVisible();
+  await userEvent.click(screen.getByRole('button', { name: 'Inspect version 1: source.txt' }));
+  expect(await screen.findByRole('heading', { name: 'Process: source.txt' })).toBeVisible();
+  expect(api.listProcessingRuns).toHaveBeenCalledWith('p1', 'prepared', 0);
 });
 
 test('retains upload settings errors when the document list succeeds and offers retry', async () => {

@@ -51,8 +51,8 @@ test('shows missing server configuration and keeps paid action disabled', async 
   });
   render(<IndexPanel projectId="p1" />);
   expect(await screen.findByText(/Set OPENROUTER_API_KEY/)).toBeVisible();
-  expect(screen.getByRole('button', { name: 'Prepare document set' })).toBeDisabled();
-  expect(screen.getByRole('button', { name: 'Search documents only' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Publish prepared documents' })).toBeDisabled();
+  expect(screen.getByRole('heading', { name: 'No searchable collections yet' })).toBeVisible();
 });
 
 test('creates an index, shows progress and cancels', async () => {
@@ -64,18 +64,21 @@ test('creates an index, shows progress and cancels', async () => {
   vi.mocked(api.cancelIndex).mockResolvedValue({ ...queued, status: 'cancelled' });
   render(<IndexPanel projectId="p1" />);
   await waitFor(() =>
-    expect(screen.getByRole('button', { name: 'Prepare document set' })).toBeEnabled(),
+    expect(screen.getByRole('button', { name: 'Publish prepared documents' })).toBeEnabled(),
   );
-  await userEvent.click(screen.getByRole('button', { name: 'Prepare document set' }));
-  expect(await screen.findByText(/Document set version 1 created with 3 passages/)).toBeVisible();
+  await userEvent.click(screen.getByRole('button', { name: 'Publish prepared documents' }));
+  expect(
+    await screen.findByText(/version 1 is queued for publication with 3 passages/i),
+  ).toBeVisible();
   expect(await screen.findByRole('progressbar')).toHaveAttribute(
     'aria-valuenow',
     '33.33333333333333',
   );
-  expect(screen.getByRole('button', { name: 'Prepare document set' })).toBeDisabled();
-  await userEvent.click(screen.getByRole('button', { name: 'Cancel document set 1' }));
+  expect(screen.getByRole('button', { name: 'Publish prepared documents' })).toBeDisabled();
+  await userEvent.click(screen.getByRole('tab', { name: 'Versions' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Cancel collection version 1' }));
   expect(api.cancelIndex).toHaveBeenCalledWith('p1', 'i1');
-  expect(await screen.findByText(/Document set version 1 cancelled/)).toBeVisible();
+  expect(await screen.findByText(/Uploaded documents version 1 is cancelled/)).toBeVisible();
 });
 
 test('retrieves from explicit version and exposes source evidence and distance', async () => {
@@ -103,12 +106,19 @@ test('retrieves from explicit version and exposes source evidence and distance',
     ],
   });
   render(<IndexPanel projectId="p1" />);
-  await userEvent.click(await screen.findByRole('button', { name: 'Use document set 1' }));
+  await userEvent.click(
+    await screen.findByRole('button', { name: 'Open Uploaded documents collection' }),
+  );
   expect(screen.getByRole('heading', { name: 'Uploaded documents' })).toBeVisible();
-  expect(screen.getByText('Current')).toBeVisible();
-  expect(screen.getByText(/prepared from 1 processing run/)).toBeVisible();
+  expect(screen.getByText('Current', { exact: true })).toBeVisible();
+  expect(screen.getByText(/1 prepared document version/)).toBeVisible();
+  expect(screen.getByRole('link', { name: 'Use version 1 in a pipeline' })).toHaveAttribute(
+    'href',
+    '#/projects/p1/pipelines/new?index=i1',
+  );
+  await userEvent.click(screen.getByRole('tab', { name: 'Test retrieval' }));
   await userEvent.type(screen.getByLabelText('Search query'), 'Where is the evidence?');
-  await userEvent.click(screen.getByRole('button', { name: 'Search documents only' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Run retrieval test' }));
   expect(api.retrieve).toHaveBeenCalledWith('p1', 'i1', 'Where is the evidence?', {
     mode: 'vector',
     top_k: 5,
@@ -116,7 +126,7 @@ test('retrieves from explicit version and exposes source evidence and distance',
   });
   expect(await screen.findByText('Evidence.')).toBeVisible();
   expect(screen.getByText(/Cosine distance 0.1234/)).toHaveTextContent('PDF page 3');
-  expect(screen.getByText(/1 passages from document set version 1/)).toBeVisible();
+  expect(screen.getByText(/1 passages from immutable collection version 1/)).toBeVisible();
 });
 
 test('validates queries and top k; retry preserves error until a new action', async () => {
@@ -131,22 +141,25 @@ test('validates queries and top k; retry preserves error until a new action', as
       score_semantics: '',
     });
   render(<IndexPanel projectId="p1" />);
-  await userEvent.click(await screen.findByRole('button', { name: 'Use document set 1' }));
-  await userEvent.click(screen.getByRole('button', { name: 'Search documents only' }));
+  await userEvent.click(
+    await screen.findByRole('button', { name: 'Open Uploaded documents collection' }),
+  );
+  await userEvent.click(screen.getByRole('tab', { name: 'Test retrieval' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Run retrieval test' }));
   expect(await screen.findByRole('alert')).toHaveTextContent('enter a query');
   expect(api.retrieve).not.toHaveBeenCalled();
   await userEvent.type(screen.getByLabelText('Search query'), 'query');
   await userEvent.clear(screen.getByLabelText('Top k'));
   await userEvent.type(screen.getByLabelText('Top k'), '51');
-  await userEvent.click(screen.getByRole('button', { name: 'Search documents only' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Run retrieval test' }));
   expect(api.retrieve).not.toHaveBeenCalled();
   await userEvent.clear(screen.getByLabelText('Top k'));
   await userEvent.type(screen.getByLabelText('Top k'), '5');
-  await userEvent.click(screen.getByRole('button', { name: 'Search documents only' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Run retrieval test' }));
   expect(await screen.findByRole('alert')).toHaveTextContent('Provider unavailable');
-  await userEvent.click(screen.getByRole('button', { name: 'Refresh document sets' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Refresh collections' }));
   expect(screen.getByRole('alert')).toHaveTextContent('Provider unavailable');
-  await userEvent.click(screen.getByRole('button', { name: 'Search documents only' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Run retrieval test' }));
   expect(await screen.findByText('No matching passages in this document set.')).toBeVisible();
 });
 
@@ -156,19 +169,44 @@ test('loading errors can be retried; index failures are visible', async () => {
     .mockResolvedValue(page([{ ...index, status: 'failed', error: 'Invalid vector dimensions.' }]));
   render(<IndexPanel projectId="p1" />);
   expect(await screen.findByRole('alert')).toHaveTextContent('Indexes unavailable');
-  await userEvent.click(screen.getByRole('button', { name: 'Refresh document sets' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Refresh collections' }));
+  await userEvent.click(
+    await screen.findByRole('button', { name: 'Open Uploaded documents collection' }),
+  );
   expect(await screen.findByText('Invalid vector dimensions.')).toBeVisible();
-  expect(screen.queryByRole('button', { name: 'Use document set 1' })).toBeNull();
+  expect(screen.getAllByText(/failed/i).length).toBeGreaterThan(0);
 });
 
 test('restores an explicitly selected ready index from a direct link', async () => {
   window.history.replaceState(null, '', '#/projects/p1/knowledge-base?view=indexes&index=i1');
   vi.mocked(api.listIndexes).mockResolvedValue(page([index]));
   render(<IndexPanel projectId="p1" />);
-  expect(await screen.findByText(/Searching document set · Version 1/)).toBeVisible();
+  expect(await screen.findByRole('heading', { name: 'Uploaded documents' })).toBeVisible();
   expect(api.getIndex).toHaveBeenCalledWith('p1', 'i1');
-  expect(screen.getByRole('button', { name: 'Use document set 1' })).toHaveAttribute(
-    'aria-pressed',
-    'true',
+  expect(
+    screen.getByRole('button', { name: 'Open Uploaded documents collection' }),
+  ).toHaveAttribute('aria-pressed', 'true');
+  await userEvent.click(screen.getByRole('tab', { name: 'Test retrieval' }));
+  expect(
+    screen.getByText(/Testing Uploaded documents · immutable version 1 · current/),
+  ).toBeVisible();
+  expect(window.location.hash).toBe(
+    '#/projects/p1/knowledge-base?view=indexes&index=i1&mode=indexes&section=retrieval',
   );
+});
+
+test('explains a stale direct-link selection and returns to the collection list', async () => {
+  window.history.replaceState(
+    null,
+    '',
+    '#/projects/p1/knowledge-base?view=indexes&mode=indexes&index=missing',
+  );
+  vi.mocked(api.listIndexes).mockResolvedValue(page([index]));
+  vi.mocked(api.getIndex).mockRejectedValue(new Error('Index not found.'));
+  render(<IndexPanel projectId="p1" />);
+  expect(await screen.findByRole('heading', { name: 'Version unavailable' })).toBeVisible();
+  expect(screen.getByRole('alert')).toHaveTextContent('no longer available in this project');
+  await userEvent.click(screen.getByRole('button', { name: 'Back to collections' }));
+  expect(await screen.findByRole('heading', { name: 'Select a collection' })).toBeVisible();
+  expect(window.location.hash).not.toContain('index=missing');
 });

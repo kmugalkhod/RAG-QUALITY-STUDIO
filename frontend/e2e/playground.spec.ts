@@ -24,9 +24,11 @@ test('retrieval-only search, editable pipeline draft, immutable save, answers an
   await expect(page.getByRole('button', { name: 'Inspect 1 chunks' })).toBeVisible({
     timeout: 30000,
   });
-  await page.getByRole('tab', { name: 'Indexes', exact: true }).click();
-  await page.getByRole('button', { name: 'Prepare document set' }).click();
-  await expect(page.getByRole('button', { name: 'Use document set 1' })).toBeVisible({
+  await page.getByRole('tab', { name: 'Collections', exact: true }).click();
+  await page.getByRole('button', { name: 'Publish prepared documents' }).click();
+  await expect(
+    page.getByRole('button', { name: 'Open Uploaded documents collection' }),
+  ).toBeVisible({
     timeout: 30000,
   });
   await page.getByRole('link', { name: 'Playground', exact: true }).click();
