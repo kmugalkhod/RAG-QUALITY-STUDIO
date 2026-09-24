@@ -74,9 +74,7 @@ def start(session: Session, project_id: UUID, execution: IngestionExecution):
     source_kinds = {
         node.config.kind for node in execution.nodes if node.type == "source"
     }
-    fetch_mode = (
-        "cached-artifact" if source_kinds == {"existing_files"} else "network"
-    )
+    fetch_mode = "cached-artifact" if source_kinds == {"existing_files"} else "network"
     preview = SourcePreview(
         project_id=project_id,
         execution=execution.model_dump(mode="json"),
@@ -165,9 +163,7 @@ def representations(
         & (SourcePreviewRepresentation.stage == stage)
     )
     total = session.scalar(
-        select(func.count())
-        .select_from(SourcePreviewRepresentation)
-        .where(condition)
+        select(func.count()).select_from(SourcePreviewRepresentation).where(condition)
     )
     rows = session.scalars(
         select(SourcePreviewRepresentation)

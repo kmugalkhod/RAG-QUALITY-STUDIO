@@ -81,6 +81,7 @@ class ContentDerivation(Base):
     output_hash: Mapped[str] = mapped_column(String(64))
     title: Mapped[str | None] = mapped_column(String(1000))
     media_type: Mapped[str] = mapped_column(String(200))
+    language: Mapped[dict | None] = mapped_column(JSONB)
     measurements: Mapped[dict] = mapped_column(JSONB)
     findings: Mapped[list] = mapped_column(JSONB)
     transforms: Mapped[list] = mapped_column(JSONB)

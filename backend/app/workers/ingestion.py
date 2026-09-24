@@ -10,10 +10,13 @@ from sqlalchemy.orm import Session
 from app.db.session import engine
 from app.connectors.base import ConnectorFailure
 from app.ingestion_content import IngestionStageError
-from app.models.document import ProcessingRun
+from app.models.document import ProcessingRun, Document
+from app.models.derivation import ContentBlock, ContentDerivation, ProcessingDerivation
 from app.models.index import IndexVersion
 from app.models.ingestion import IngestionRun, IngestionRunItem
 from app.pipelines.parsing import ProcessingError
+from app.ingestion_content.duplicates import DuplicateCandidate, classify_duplicates
+from app.schemas.ingestion import IngestionExecution
 from app.services import (
     ingestion_execution,
     indexes,
@@ -177,6 +180,61 @@ def process_ingestion(run_id: UUID, db_engine=engine, connector_factory=None):
                 session.commit()
                 return
 
+            execution = IngestionExecution.model_validate(job.snapshot["execution"])
+            clean_node = next(node for node in execution.nodes if node.type == "clean")
+            duplicate_policy = getattr(clean_node, "duplicate_policy", None)
+            retained_items = list(items)
+            if duplicate_policy is not None:
+                candidates = []
+                by_identity = {}
+                for item in items:
+                    document = session.get(Document, item.document_id)
+                    cleaned = session.scalar(
+                        select(ContentDerivation)
+                        .join(
+                            ProcessingDerivation,
+                            ProcessingDerivation.derivation_id == ContentDerivation.id,
+                        )
+                        .where(
+                            ProcessingDerivation.processing_run_id
+                            == item.processing_run_id,
+                            ProcessingDerivation.kind == "cleaned",
+                        )
+                    )
+                    blocks = (
+                        session.scalars(
+                            select(ContentBlock)
+                            .where(ContentBlock.derivation_id == cleaned.id)
+                            .order_by(ContentBlock.ordinal)
+                        ).all()
+                        if cleaned is not None
+                        else []
+                    )
+                    identity = f"project-file:{item.document_id}"
+                    processing = session.get(ProcessingRun, item.processing_run_id)
+                    candidate = DuplicateCandidate(
+                        identity=identity,
+                        source_kind="existing_files",
+                        raw_hash=document.content_hash,
+                        cleaned_hash=(
+                            cleaned.output_hash
+                            if cleaned is not None
+                            else (processing.output_hash or document.content_hash)
+                        ),
+                        text="\n".join(block.text for block in blocks),
+                        stable_order=int(document.created_at.timestamp() * 1_000_000),
+                    )
+                    candidates.append(candidate)
+                    by_identity[identity] = item
+                decisions = classify_duplicates(candidates, duplicate_policy)
+                retained_items = []
+                for identity, decision in decisions.items():
+                    item = by_identity[identity]
+                    item.duplicate_decision = decision.as_dict()
+                    if decision.outcome == "retained":
+                        retained_items.append(item)
+            job.chunk_count = sum(item.chunk_count for item in retained_items)
+
             index = session.scalar(
                 select(IndexVersion).where(IndexVersion.ingestion_run_id == run_id)
             )
@@ -188,7 +246,7 @@ def process_ingestion(run_id: UUID, db_engine=engine, connector_factory=None):
                     session,
                     job.project_id,
                     job.knowledge_set_id,
-                    [item.processing_run_id for item in items],
+                    [item.processing_run_id for item in retained_items],
                     ingestion_run_id=job.id,
                     commit=False,
                 )

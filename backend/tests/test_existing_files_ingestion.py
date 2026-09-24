@@ -330,7 +330,6 @@ def test_existing_files_preview_run_publication_and_exact_answer_index(ingestion
     assert items["total"] == 2 and items["items"][0]["status"] == "succeeded"
     assert provider.calls
 
-
     with Session(engine) as session:
         index = session.get(IndexVersion, index_id)
         membership = set(
@@ -380,6 +379,70 @@ def test_existing_files_preview_run_publication_and_exact_answer_index(ingestion
     assert answer.status_code == 201, answer.text
 
 
+def test_v2_duplicate_decision_preserves_both_documents_and_indexes_canonical(
+    ingestion_api,
+):
+    client, engine, project_id, _, config, _ = ingestion_api
+    content = b"The duplicate policy applies to all employees and contractors."
+    first = upload(client, project_id, content=content, name="canonical.txt")
+    second = upload(client, project_id, content=content, name="mirror.txt")
+    payload = ingestion_draft(
+        [first["id"], second["id"]],
+        config,
+        name="Duplicate policy",
+        schema_version=2,
+    )
+    saved = client.post(f"/api/projects/{project_id}/pipelines", json=payload).json()
+    accepted = client.post(
+        f"/api/projects/{project_id}/pipelines/{saved['pipeline_id']}"
+        f"/versions/{saved['id']}/ingestion-runs"
+    ).json()
+    run_id = UUID(accepted["id"])
+    with Session(engine) as session:
+        processing_ids = list(
+            session.scalars(
+                select(IngestionRunItem.processing_run_id).where(
+                    IngestionRunItem.run_id == run_id
+                )
+            )
+        )
+    for processing_id in processing_ids:
+        process(processing_id, engine)
+    process_ingestion(run_id, engine)
+
+    page = client.get(
+        f"/api/projects/{project_id}/ingestion-runs/{run_id}/items?limit=10"
+    ).json()
+    assert len(page["items"]) == 2
+    decisions = [item["duplicate_decision"] for item in page["items"]]
+    assert {decision["outcome"] for decision in decisions} == {"retained", "excluded"}
+    excluded = next(value for value in decisions if value["outcome"] == "excluded")
+    assert excluded["method"] == "exact_raw_sha256"
+    assert excluded["retained_identity"].startswith("project-file:")
+
+    with Session(engine) as session:
+        index = session.scalar(
+            select(IndexVersion).where(IndexVersion.ingestion_run_id == run_id)
+        )
+        assert index is not None
+        assert (
+            session.scalar(
+                select(text("count(distinct run_id)"))
+                .select_from(IndexChunk)
+                .where(IndexChunk.index_id == index.id)
+            )
+            == 1
+        )
+        assert (
+            session.scalar(
+                select(text("count(*)"))
+                .select_from(ProcessingRun)
+                .where(ProcessingRun.id.in_(processing_ids))
+            )
+            == 2
+        )
+
+
 def test_processing_preview_is_ephemeral_paged_and_retryable(ingestion_api):
     client, engine, project_id, _, config, _ = ingestion_api
     document, _ = prepare(client, engine, project_id, name="preview-v2.txt")
@@ -395,9 +458,9 @@ def test_processing_preview_is_ephemeral_paged_and_retryable(ingestion_api):
         "warning_action": "publish",
         "failed_item_action": "fail",
     }
-    before_indexes = client.get(
-        f"/api/projects/{project_id}/indexes?limit=100"
-    ).json()["total"]
+    before_indexes = client.get(f"/api/projects/{project_id}/indexes?limit=100").json()[
+        "total"
+    ]
     accepted = client.post(
         f"/api/projects/{project_id}/ingestion-previews",
         json={"execution": payload["execution"]},
@@ -437,8 +500,9 @@ def test_processing_preview_is_ephemeral_paged_and_retryable(ingestion_api):
         row.expires_at = now() - timedelta(seconds=1)
         session.commit()
     assert (
-        client.get(f"/api/projects/{project_id}/source-previews/{preview_id}")
-        .json()["status"]
+        client.get(f"/api/projects/{project_id}/source-previews/{preview_id}").json()[
+            "status"
+        ]
         == "expired"
     )
     assert (

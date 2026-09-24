@@ -361,7 +361,10 @@ def start_run(
                 if prior_index is not None and prior_index.ingestion_run_id is not None
                 else None
             )
-            if prior_run is None or prior_run.snapshot.get("source_kind") != remote_kind:
+            if (
+                prior_run is None
+                or prior_run.snapshot.get("source_kind") != remote_kind
+            ):
                 raise HTTPException(
                     409,
                     "The current index does not contain reusable artifacts for this source.",
@@ -757,6 +760,7 @@ def list_items(
                 status=item.status,
                 chunk_count=item.chunk_count,
                 error=item.error,
+                duplicate_decision=item.duplicate_decision,
                 processing_versions=(
                     processing.processing_config.get("versions")
                     if processing.processing_config

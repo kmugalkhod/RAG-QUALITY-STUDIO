@@ -100,6 +100,16 @@ class CanonicalBlock(Strict):
         return self
 
 
+class LanguageResult(Strict):
+    language: str = Field(min_length=2, max_length=35)
+    method: str = Field(min_length=1, max_length=80)
+    model_version: str = Field(
+        default="deterministic-script-v1", min_length=1, max_length=80
+    )
+    confidence: float = Field(default=0, ge=0, le=1, allow_inf_nan=False)
+    mixed: bool = False
+
+
 class ExtractedPage(Strict):
     page_number: int = Field(ge=1)
     block_ids: list[str] = Field(default_factory=list, max_length=10_000)
@@ -117,11 +127,7 @@ class ExtractedPage(Strict):
     ocr_confidence: float | None = Field(
         default=None, ge=0, le=100, allow_inf_nan=False
     )
-
-
-class LanguageResult(Strict):
-    language: str = Field(min_length=2, max_length=35)
-    method: str = Field(min_length=1, max_length=80)
+    language: LanguageResult | None = None
 
 
 class QualityFinding(Strict):
@@ -234,6 +240,7 @@ class CleanedDocumentV1(Strict):
     schema_version: Literal[1] = 1
     media_type: str = Field(min_length=1, max_length=200)
     title: str | None = Field(default=None, max_length=1000)
+    language: LanguageResult | None = None
     blocks: list[CanonicalBlock] = Field(max_length=100_000)
     extractor_version: str = Field(min_length=1, max_length=120)
     cleaner_version: str = Field(min_length=1, max_length=120)

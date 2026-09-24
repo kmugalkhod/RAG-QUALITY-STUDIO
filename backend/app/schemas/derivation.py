@@ -24,6 +24,7 @@ class ContentDerivationRead(ReadModel):
     output_hash: str
     title: str | None
     media_type: str
+    language: dict[str, Any] | None = None
     measurements: dict[str, Any]
     findings: list[dict[str, Any]]
     transforms: list[dict[str, Any]]

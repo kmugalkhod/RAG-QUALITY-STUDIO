@@ -153,6 +153,7 @@ class SourcePreviewItem(Base):
     metrics: Mapped[dict] = mapped_column(JSONB, default=dict)
     stage_timings: Mapped[dict] = mapped_column(JSONB, default=dict)
     cost_basis: Mapped[dict] = mapped_column(JSONB, default=dict)
+    duplicate_decision: Mapped[dict | None] = mapped_column(JSONB)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
@@ -171,7 +172,9 @@ class SourcePreviewRepresentation(Base):
             "stage IN ('raw','extracted','cleaned','diff','chunks')",
             name="ck_source_preview_representation_stage",
         ),
-        CheckConstraint("ordinal >= 0", name="ck_source_preview_representation_ordinal"),
+        CheckConstraint(
+            "ordinal >= 0", name="ck_source_preview_representation_ordinal"
+        ),
         Index(
             "ix_source_preview_representations_stage",
             "preview_id",

@@ -22,6 +22,7 @@ from app.ingestion_content.quality import (
     measured_document,
     quality_allows_publication,
 )
+from app.ingestion_content.language import apply_language_policy
 from app.models.source import SourceRevision
 from app.pipelines.parsing import MAX_CHUNKS, PARSER_VERSION, ProcessingError
 from app.pipelines.web_content import CLEANER_VERSION
@@ -161,6 +162,7 @@ def _canonical_chunks(
             duration_ms=int((time.perf_counter() - extraction_started) * 1000),
         )
         extracted = evaluate_quality(extracted, extract.quality_policy)
+        extracted = apply_language_policy(extracted, extract.language_policy)
         if enforce_quality and not quality_allows_publication(
             extract.quality_policy, extracted.measurements.quality_decision
         ):

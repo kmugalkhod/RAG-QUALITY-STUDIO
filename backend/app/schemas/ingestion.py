@@ -418,6 +418,70 @@ class OcrSettingsV1(Strict):
         return self
 
 
+class LanguagePolicyV1(Strict):
+    id: Literal["language-v1"] = "language-v1"
+    detection_model: Literal["deterministic-script-v1"] = "deterministic-script-v1"
+    allowlist: list[str] = Field(default_factory=list, max_length=20)
+    minimum_confidence: float = Field(default=0, ge=0, le=1)
+    disallowed_action: Literal["fail", "exclude"] = "fail"
+    mixed_language_action: Literal["allow", "warn", "fail"] = "warn"
+
+    @model_validator(mode="after")
+    def safe_allowlist(self):
+        normalized = [value.strip().lower() for value in self.allowlist]
+        if len(set(normalized)) != len(normalized):
+            raise ValueError("Language allowlist values must be unique.")
+        if any(
+            len(value) not in range(2, 16) or not value.replace("-", "").isalnum()
+            for value in normalized
+        ):
+            raise ValueError("Language allowlist values must be bounded language tags.")
+        self.allowlist = normalized
+        return self
+
+
+class DuplicatePolicyV1(Strict):
+    id: Literal["duplicate-v1"] = "duplicate-v1"
+    exact_raw: bool = True
+    exact_cleaned: bool = True
+    normalized_sections: bool = True
+    near_duplicate: bool = False
+    near_duplicate_method: Literal["simhash64"] = "simhash64"
+    near_duplicate_threshold: float = Field(default=0.92, ge=0.75, le=1)
+    pinned_canonical_locations: list[str] = Field(default_factory=list, max_length=100)
+    connector_priority: list[
+        Literal["existing_files", "website", "s3", "notion", "confluence"]
+    ] = Field(
+        default_factory=lambda: [
+            "existing_files",
+            "website",
+            "s3",
+            "notion",
+            "confluence",
+        ],
+        min_length=5,
+        max_length=5,
+    )
+
+    @model_validator(mode="after")
+    def deterministic_priority(self):
+        if len(set(self.connector_priority)) != 5:
+            raise ValueError(
+                "Connector priority must include each supported source once."
+            )
+        if len(set(self.pinned_canonical_locations)) != len(
+            self.pinned_canonical_locations
+        ):
+            raise ValueError("Pinned canonical locations must be unique.")
+        if any(
+            not value or len(value) > 4000 for value in self.pinned_canonical_locations
+        ):
+            raise ValueError(
+                "Pinned canonical locations must contain 1 to 4000 characters."
+            )
+        return self
+
+
 class QualityThresholdsV1(Strict):
     maximum_empty_page_ratio: float = Field(default=0.20, ge=0, le=1)
     maximum_replacement_character_ratio: float = Field(default=0.01, ge=0, le=1)
@@ -472,6 +536,7 @@ class ExtractNodeV2(NodeBase):
     # String profiles are read-only compatibility inputs for saved Phase 2-4 versions.
     # New drafts persist a typed policy with an explicit warning publication action.
     quality_policy: QualityPolicyV1 | LegacyQualityPolicy = "default-v1"
+    language_policy: LanguagePolicyV1 = Field(default_factory=LanguagePolicyV1)
     config_version: Literal["native-text-v1", "layout-ocr-v1"] = "native-text-v1"
 
     @model_validator(mode="after")
@@ -649,6 +714,7 @@ class CleanNodeV2(LegacyCleanNode):
     steps: list[CleaningTransform] = Field(
         default_factory=list, max_length=20, exclude_if=lambda value: not value
     )
+    duplicate_policy: DuplicatePolicyV1 = Field(default_factory=DuplicatePolicyV1)
 
     @model_validator(mode="after")
     def valid_profile_and_order(self):
@@ -934,9 +1000,7 @@ class IngestionPreviewRead(Strict):
 class SourcePreviewRead(Strict):
     id: UUID
     project_id: UUID
-    status: Literal[
-        "queued", "running", "succeeded", "failed", "cancelled", "expired"
-    ]
+    status: Literal["queued", "running", "succeeded", "failed", "cancelled", "expired"]
     progress: int
     discovered_count: int
     included_count: int
@@ -982,6 +1046,7 @@ class SourcePreviewItemRead(Strict):
     metrics: dict[str, Any]
     stage_timings: dict[str, int]
     cost_basis: dict[str, Any]
+    duplicate_decision: dict[str, Any] | None = None
 
 
 class SourcePreviewItemPage(Strict):
@@ -1114,6 +1179,7 @@ class ExistingIngestionRunItemRead(Strict):
     chunk_count: int
     error: str | None
     processing_versions: dict[str, str] | None = None
+    duplicate_decision: dict | None = None
     updated_at: datetime
 
 
@@ -1135,6 +1201,7 @@ class WebsiteIngestionRunItemRead(Strict):
     chunk_count: int
     error: str | None
     processing_versions: dict[str, str] | None = None
+    duplicate_decision: dict | None = None
     updated_at: datetime
 
 
@@ -1156,6 +1223,7 @@ class S3IngestionRunItemRead(Strict):
     chunk_count: int
     error: str | None
     processing_versions: dict[str, str] | None = None
+    duplicate_decision: dict | None = None
     updated_at: datetime
 
 

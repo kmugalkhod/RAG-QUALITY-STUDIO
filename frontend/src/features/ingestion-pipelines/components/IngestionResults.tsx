@@ -20,6 +20,18 @@ import type {
   SourcePreviewRepresentation,
 } from '../model';
 
+function previewLanguage(metrics: Record<string, unknown>) {
+  const value = metrics.language;
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+  const language = (value as Record<string, unknown>).language;
+  const confidence = (value as Record<string, unknown>).confidence;
+  return typeof language === 'string'
+    ? `${language}${typeof confidence === 'number' ? ` · ${Math.round(confidence * 100)}%` : ''}`
+    : null;
+}
+
 function blockOrigin(block: ContentBlock): 'Native' | 'Layout' | 'OCR' | null {
   const origin = block.attributes.origin;
   return origin === 'native'
@@ -214,6 +226,16 @@ export function IngestionPreviewResults({
                 {item.fetch_mode.replace('-', ' ')} · processing {item.processing_status}
                 {item.quality_decision ? ` · quality ${item.quality_decision}` : ''}
               </small>
+              {previewLanguage(item.metrics) && (
+                <small>Language {previewLanguage(item.metrics)} · no translation</small>
+              )}
+              {item.duplicate_decision && (
+                <small>
+                  Duplicate decision {item.duplicate_decision.outcome} ·{' '}
+                  {item.duplicate_decision.method} · retained{' '}
+                  {item.duplicate_decision.retained_identity}
+                </small>
+              )}
               {Object.keys(item.stage_timings).length > 0 && (
                 <small>
                   Extract {item.stage_timings.extract_ms ?? 0} ms · clean{' '}
@@ -611,6 +633,12 @@ export function IngestionRunResults({
                       {item.processing_versions.chunker}
                     </small>
                   )}
+                  {item.duplicate_decision && (
+                    <small>
+                      Duplicate {item.duplicate_decision.outcome} · {item.duplicate_decision.method}
+                      {' · '}retained {item.duplicate_decision.retained_identity}
+                    </small>
+                  )}
                   {item.error && (
                     <small role="alert" className="error-message">
                       {item.error}
@@ -629,6 +657,12 @@ export function IngestionRunResults({
                       Extractor {item.processing_versions.extractor} · cleaner{' '}
                       {item.processing_versions.cleaner} · chunker{' '}
                       {item.processing_versions.chunker}
+                    </small>
+                  )}
+                  {item.duplicate_decision && (
+                    <small>
+                      Duplicate {item.duplicate_decision.outcome} · {item.duplicate_decision.method}
+                      {' · '}retained {item.duplicate_decision.retained_identity}
                     </small>
                   )}
                   {item.error && (
@@ -707,6 +741,12 @@ export function IngestionRunResults({
               <dl className="ingestion-stage-facts content-quality-summary">
                 <dt>Quality decision</dt>
                 <dd>{selectedDerivation.measurements.quality_decision ?? 'not recorded'}</dd>
+                <dt>Language</dt>
+                <dd>
+                  {selectedDerivation.language
+                    ? `${selectedDerivation.language.language} · ${Math.round(selectedDerivation.language.confidence * 100)}% · ${selectedDerivation.language.model_version}${selectedDerivation.language.mixed ? ' · mixed' : ''}`
+                    : 'not recorded'}
+                </dd>
                 <dt>Page origins</dt>
                 <dd>
                   {selectedDerivation.measurements.native_page_count ?? 0} Native ·{' '}

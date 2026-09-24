@@ -158,9 +158,7 @@ def reprocess_source_revision(
         )
     if reuse_stage is not None:
         reuse_stage("chunk")
-    cleaned, _ = reusable_cleaned_document(
-        session, reusable_revision.processing_run_id
-    )
+    cleaned, _ = reusable_cleaned_document(session, reusable_revision.processing_run_id)
     chunk_config = TypeAdapter(ChunkNodeV2).validate_python(
         {
             "id": "chunk",

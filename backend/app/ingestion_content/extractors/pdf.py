@@ -31,6 +31,7 @@ from app.ingestion_content.contracts import (
 )
 from app.ingestion_content.processing import IngestionStageError, NativeTextExtractor
 from app.ingestion_content.quality import evaluate_quality, measured_document
+from app.ingestion_content.language import apply_language_policy
 from app.pipelines.parsing import (
     MAX_CHARACTERS,
     MAX_PAGES,
@@ -65,6 +66,7 @@ class ExtractSettings(Protocol):
     ocr: OcrSettings
     tables: str
     quality_policy: str
+    language_policy: object
     config_version: str
 
 
@@ -799,6 +801,8 @@ def extract_document(
         document = evaluate_quality(
             _text_document(path, title), settings.quality_policy
         )
+        if getattr(settings, "language_policy", None) is not None:
+            document = apply_language_policy(document, settings.language_policy)
         return document, NativeTextExtractor.version
     if settings.config_version == "native-text-v1":
         try:
@@ -806,6 +810,8 @@ def extract_document(
         except ProcessingError as exc:
             raise IngestionStageError("extract", "extraction_failed", str(exc)) from exc
         document = build_extracted_document(segments, media_type=detected, title=title)
+        if getattr(settings, "language_policy", None) is not None:
+            document = apply_language_policy(document, settings.language_policy)
         return document, NativeTextExtractor.version
 
     available_languages = set(installed_ocr_languages())
@@ -982,9 +988,10 @@ def extract_document(
         malformed_table_count=malformed_tables,
         suspicious_reading_order_count=suspicious_order,
     )
-    return evaluate_quality(
-        document, settings.quality_policy
-    ), LAYOUT_OCR_EXTRACTOR_VERSION
+    document = evaluate_quality(document, settings.quality_policy)
+    if getattr(settings, "language_policy", None) is not None:
+        document = apply_language_policy(document, settings.language_policy)
+    return document, LAYOUT_OCR_EXTRACTOR_VERSION
 
 
 def render_pdf_thumbnail(

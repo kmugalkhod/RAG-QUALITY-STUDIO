@@ -1,5 +1,54 @@
 # Implementation plan
 
+## Robust ingestion roadmap — Phase 6 acceptance criteria (2026-09-25)
+
+Status: **Phase 6 complete on 2026-09-25** on
+`codex/robust-ingestion-roadmap`; Phase 7A requires the documented material decisions
+before implementation.
+
+- Save one typed duplicate policy with independent exact raw, exact cleaned, normalized
+  section and optional bounded SimHash comparisons. Comparisons remain scoped to one
+  project/run destination and never delete source identities or immutable revisions.
+- Choose the canonical item deterministically from an explicit pinned-source override,
+  connector priority, earliest stable identity and lexical identity. Persist retained and
+  excluded identities, method, similarity and reason on preview and run items; a user
+  override is a new saved pipeline version rather than historical mutation.
+- Save one typed language policy with deterministic detector/model version, document and
+  page confidence, optional allowlist, explicit disallowed/mixed-language behavior and
+  installed OCR language-pack validation. Detection records metadata only and never
+  translates source evidence.
+- Keep language metadata on immutable derivations for future measured retrieval filters;
+  do not enable a language retrieval filter in this phase.
+- Expose keyboard-accessible duplicate/language controls and inspectable decisions in
+  previews, run items and derivation inspection, including the retained counterpart and
+  explicit no-translation label.
+- Verify exact copies, normalized variants, near-duplicate thresholds, pinned canonical
+  selection, multilingual/mixed-language policy, stored metadata, project/run scoping and
+  responsive Agent Browser journeys.
+
+Implementation and verification evidence:
+
+- Added deterministic SHA-256 and normalized-section comparisons plus an optional saved
+  64-bit SimHash threshold. Existing-file and all remote-connector publication paths embed
+  only retained processing runs while keeping both source documents/revisions and their
+  immutable decision records.
+- Added bounded Unicode-script/stopword language detection with explicit model version and
+  confidence at document/page level. Allowlist and mixed-language findings feed the saved
+  pass/warn/exclude/fail decision; source text is unchanged.
+- Migration 0024 persists derivation language metadata and duplicate decisions. It passed
+  clean upgrade, downgrade to 0023 and re-upgrade on isolated PostgreSQL.
+- Ruff formatting/lint passed. The isolated PostgreSQL backend suite passed 310 tests with
+  4 skips. Frontend formatting, strict type checking, lint, 119 Vitest tests and production
+  build passed.
+- Agent Browser verified language and duplicate editors, an exact unsaved preview reporting
+  language confidence/no translation and a retained duplicate counterpart, plus desktop,
+  720-pixel 200%-equivalent and 390-pixel mobile layouts with no horizontal overflow or
+  browser errors. The unsaved acceptance changes were discarded afterward.
+
+Next required step: before Phase 7A code, confirm the threat model, who may inspect raw
+artifacts/full diffs, raw-artifact retention, encryption boundary/key ownership and which
+sensitive entity classes/actions are authorized.
+
 ## Robust ingestion roadmap — Phase 5 acceptance criteria (2026-09-24)
 
 Status: **Phase 5 complete on 2026-09-24** on

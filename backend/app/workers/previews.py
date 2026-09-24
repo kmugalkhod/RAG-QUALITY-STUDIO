@@ -17,9 +17,14 @@ from app.connectors.notion import NotionConnector
 from app.connectors.confluence import ConfluenceConnector
 from app.core.config import settings
 from app.db.session import engine
-from app.ingestion_content import chunk_cleaned_document, clean_document, cleaner_for_node
+from app.ingestion_content import (
+    chunk_cleaned_document,
+    clean_document,
+    cleaner_for_node,
+)
 from app.ingestion_content.extractors import extract_document
 from app.ingestion_content.quality import quality_policy_settings
+from app.ingestion_content.duplicates import DuplicateCandidate, classify_duplicates
 from app.models.document import Document
 from app.models.preview import (
     SourcePreview,
@@ -117,9 +122,7 @@ def _outcomes(db_session, project_id, execution):
             outcomes, artifacts = S3Connector(credentials).fetch_all(
                 source.config, {}, processing_hash
             )
-            by_location = {
-                item.item.canonical_location: item for item in artifacts
-            }
+            by_location = {item.item.canonical_location: item for item in artifacts}
             for item in outcomes:
                 results.append(
                     dict(
@@ -143,9 +146,7 @@ def _outcomes(db_session, project_id, execution):
             outcomes, artifacts = NotionConnector(credentials).fetch_all(
                 source.config, {}, processing_hash
             )
-            by_location = {
-                item.item.canonical_location: item for item in artifacts
-            }
+            by_location = {item.item.canonical_location: item for item in artifacts}
             for item in outcomes:
                 results.append(
                     dict(
@@ -166,9 +167,7 @@ def _outcomes(db_session, project_id, execution):
             outcomes, artifacts = ConfluenceConnector(credentials).fetch_all(
                 source.config, {}, processing_hash
             )
-            by_location = {
-                item.item.canonical_location: item for item in artifacts
-            }
+            by_location = {item.item.canonical_location: item for item in artifacts}
             for item in outcomes:
                 results.append(
                     dict(
@@ -191,9 +190,7 @@ def _bounded_text(value: str, budget: list[int]) -> tuple[str, bool]:
 
 
 def _path_prepared(path, media_type, title, extract, clean, chunk, config_hash):
-    extracted, extractor_version = extract_document(
-        path, media_type, title, extract
-    )
+    extracted, extractor_version = extract_document(path, media_type, title, extract)
     cleaner = cleaner_for_node(clean)
     cleaned = clean_document(
         extracted,
@@ -396,6 +393,10 @@ def _process_outcomes(session, outcomes, execution, config_hash):
     representations = []
     known_compute_ms = 0
     extract_node = next(node for node in execution.nodes if node.type == "extract")
+    clean_node = next(node for node in execution.nodes if node.type == "clean")
+    source_kinds = {
+        node.id: node.config.kind for node in execution.nodes if node.type == "source"
+    }
     policy = getattr(extract_node, "quality_policy", "default-v1")
     policy_settings = quality_policy_settings(policy)
     for ordinal, item in enumerate(outcomes):
@@ -416,7 +417,9 @@ def _process_outcomes(session, outcomes, execution, config_hash):
         if execution.schema_version == 1:
             item["processing_status"] = "skipped"
             item["quality_decision"] = None
-            item["reason"] = f"{item['reason']} Legacy v1 previews source selection only."
+            item["reason"] = (
+                f"{item['reason']} Legacy v1 previews source selection only."
+            )
             continue
         started = time.perf_counter()
         try:
@@ -443,6 +446,11 @@ def _process_outcomes(session, outcomes, execution, config_hash):
             ]
             item["metrics"] = {
                 **prepared.extracted.measurements.model_dump(mode="json"),
+                "language": (
+                    prepared.extracted.language.model_dump(mode="json")
+                    if prepared.extracted.language
+                    else None
+                ),
                 "cleaned_character_count": prepared.cleaned.measurements.character_count,
                 "chunk_count": len(prepared.chunks),
                 "warning_publication": policy_settings["warning_action"],
@@ -455,6 +463,23 @@ def _process_outcomes(session, outcomes, execution, config_hash):
             }
             known_compute_ms += elapsed
             quality_counts[decision] += 1
+            identity = (
+                item.get("canonical_location")
+                or item.get("external_id")
+                or item.get("display_name")
+            )
+            raw_bytes = raw or "\n".join(
+                block.text for block in prepared.extracted.blocks
+            ).encode("utf-8")
+            item["_duplicate_candidate"] = DuplicateCandidate(
+                identity=identity,
+                source_kind=source_kinds.get(item["source_node_id"], "existing_files"),
+                raw_hash=hashlib.sha256(raw_bytes).hexdigest(),
+                cleaned_hash=prepared.cleaned.output_hash,
+                text="\n".join(block.text for block in prepared.cleaned.blocks),
+                stable_order=ordinal,
+            )
+            item["_quality_for_duplicate"] = decision
             for row in _representations(prepared, raw, item.get("media_type")):
                 representations.append(
                     {
@@ -470,6 +495,28 @@ def _process_outcomes(session, outcomes, execution, config_hash):
             item["error_code"] = "processing_preview_failed"
             item["reason"] = "The exact processing preview could not be completed."
             quality_counts["fail"] += 1
+    if execution.schema_version == 2:
+        candidates = [
+            item["_duplicate_candidate"]
+            for item in outcomes
+            if item.get("_duplicate_candidate") is not None
+        ]
+        decisions = classify_duplicates(candidates, clean_node.duplicate_policy)
+        for item in outcomes:
+            candidate = item.pop("_duplicate_candidate", None)
+            decision = item.pop("_quality_for_duplicate", None)
+            if candidate is None:
+                continue
+            duplicate = decisions[candidate.identity]
+            item["duplicate_decision"] = duplicate.as_dict()
+            if duplicate.outcome == "excluded":
+                item["status"] = "duplicate"
+                item["reason"] = (
+                    f"Duplicate of {duplicate.retained_identity} by "
+                    f"{duplicate.method} ({duplicate.similarity:.3f})."
+                )
+                if decision:
+                    quality_counts[decision] -= 1
     return quality_counts, known_compute_ms, representations
 
 
@@ -534,17 +581,18 @@ def process_preview(preview_id: UUID, db_engine=engine, connector_factory=None):
                     SourcePreviewItem(
                         preview_id=preview.id,
                         ordinal=ordinal,
-                        **{key: value for key, value in item.items() if key in item_columns},
+                        **{
+                            key: value
+                            for key, value in item.items()
+                            if key in item_columns
+                        },
                     )
                 )
             session.flush()
             if representations:
                 session.execute(
                     insert(SourcePreviewRepresentation),
-                    [
-                        {**value, "preview_id": preview.id}
-                        for value in representations
-                    ],
+                    [{**value, "preview_id": preview.id} for value in representations],
                 )
             preview.status = "succeeded"
             preview.progress = 100

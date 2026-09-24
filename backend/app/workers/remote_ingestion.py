@@ -19,7 +19,8 @@ from app.connectors.website import (
 from app.core.connection_secrets import ConnectionKeyring
 from app.core.config import settings
 from app.models.ingestion import IngestionRun
-from app.models.document import ProcessingRun
+from app.models.document import Chunk, ProcessingRun
+from app.ingestion_content.duplicates import DuplicateCandidate, classify_duplicates
 from app.models.source import (
     IndexSourceRevision,
     SourceItem,
@@ -43,6 +44,52 @@ from app.workers.processing import now
 
 
 REMOTE_SOURCE_KINDS = frozenset({"website", "s3", "notion", "confluence"})
+
+
+def _apply_duplicate_policy(session, run_id, memberships, clean, source_kind):
+    policy = getattr(clean, "duplicate_policy", None)
+    if policy is None:
+        return memberships
+    candidates = []
+    by_identity = {}
+    for membership in memberships:
+        source_node_id, item, revision = membership
+        chunks = session.scalars(
+            select(Chunk)
+            .where(Chunk.run_id == revision.processing_run_id)
+            .order_by(Chunk.ordinal)
+        ).all()
+        candidate = DuplicateCandidate(
+            identity=item.canonical_location,
+            source_kind=source_kind,
+            raw_hash=revision.content_hash,
+            cleaned_hash=revision.extracted_hash,
+            text="\n".join(chunk.text for chunk in chunks),
+            stable_order=int(item.created_at.timestamp() * 1_000_000),
+        )
+        candidates.append(candidate)
+        by_identity[candidate.identity] = membership
+    decisions = classify_duplicates(candidates, policy)
+    retained = []
+    for identity, decision in decisions.items():
+        membership = by_identity[identity]
+        row = session.scalar(
+            select(WebsiteRunItem).where(
+                WebsiteRunItem.run_id == run_id,
+                WebsiteRunItem.source_revision_id == membership[2].id,
+            )
+        )
+        if row is not None:
+            row.duplicate_decision = decision.as_dict()
+            if decision.outcome == "excluded":
+                row.outcome = "excluded"
+                row.reason = (
+                    f"Duplicate of {decision.retained_identity} by "
+                    f"{decision.method} ({decision.similarity:.3f})."
+                )
+        if decision.outcome == "retained":
+            retained.append(membership)
+    return retained
 
 
 def fail_run(session: Session, job: IngestionRun, message: str):
@@ -511,7 +558,7 @@ def _advance_credentialed(
         ordinal = 0
         included = set()
         memberships = []
-        seen_extracted = set()
+        seen_extracted = {}
         failed = 0
         for source_node_id, connection_id, outcomes, artifacts in results:
             artifact_by_location = {
@@ -573,16 +620,33 @@ def _advance_credentialed(
                         extract,
                     )
                 if (
-                    clean.exact_content_deduplication
+                    getattr(clean, "duplicate_policy", None) is None
+                    and clean.exact_content_deduplication
                     and extracted_hash in seen_extracted
                 ):
                     classification = "excluded"
                     reason = f"Extracted text duplicates another included {label}."
+                    duplicate_decision = {
+                        "outcome": "excluded",
+                        "retained_identity": seen_extracted[extracted_hash],
+                        "excluded_identity": artifact.item.canonical_location,
+                        "method": "exact_cleaned_sha256",
+                        "similarity": 1.0,
+                        "reason": "Excluded in favor of the deterministic canonical source.",
+                    }
                 else:
-                    seen_extracted.add(extracted_hash)
+                    seen_extracted[extracted_hash] = artifact.item.canonical_location
                     included.add((source_node_id, artifact.item.canonical_location))
                     memberships.append((source_node_id, source_item, revision))
                     reason = f"{label.capitalize()} revision is {classification}."
+                    duplicate_decision = {
+                        "outcome": "retained",
+                        "retained_identity": artifact.item.canonical_location,
+                        "excluded_identity": None,
+                        "method": "unique",
+                        "similarity": 1.0,
+                        "reason": "No duplicate matched the saved policy.",
+                    }
                 website_ingestion.add_run_item(
                     session,
                     run=job,
@@ -595,8 +659,10 @@ def _advance_credentialed(
                     media_type=artifact.item.media_type,
                     source_item=source_item,
                     revision=revision,
+                    duplicate_decision=duplicate_decision,
                 )
                 ordinal += 1
+        memberships = _apply_duplicate_policy(session, job.id, memberships, clean, kind)
         for key, (item, revision) in prior_revisions.items():
             if key in included:
                 continue
@@ -772,7 +838,7 @@ def _advance_website(run_id, token, db_engine, connector_factory):
         ordinal = 0
         included_locations = set()
         memberships = []
-        seen_extracted = set()
+        seen_extracted = {}
         failed = 0
         for source_node_id, outcomes, artifacts in results:
             artifact_by_location = {
@@ -816,16 +882,33 @@ def _advance_website(run_id, token, db_engine, connector_factory):
                     )
                 )
                 if (
-                    clean.exact_content_deduplication
+                    getattr(clean, "duplicate_policy", None) is None
+                    and clean.exact_content_deduplication
                     and extracted_hash in seen_extracted
                 ):
                     classification = "excluded"
                     reason = "Extracted text duplicates another included website page."
+                    duplicate_decision = {
+                        "outcome": "excluded",
+                        "retained_identity": seen_extracted[extracted_hash],
+                        "excluded_identity": artifact.canonical_location,
+                        "method": "exact_cleaned_sha256",
+                        "similarity": 1.0,
+                        "reason": "Excluded in favor of the deterministic canonical source.",
+                    }
                 else:
-                    seen_extracted.add(extracted_hash)
+                    seen_extracted[extracted_hash] = artifact.canonical_location
                     included_locations.add(artifact.canonical_location)
                     memberships.append((source_node_id, source_item, revision))
                     reason = f"Website revision is {classification}."
+                    duplicate_decision = {
+                        "outcome": "retained",
+                        "retained_identity": artifact.canonical_location,
+                        "excluded_identity": None,
+                        "method": "unique",
+                        "similarity": 1.0,
+                        "reason": "No duplicate matched the saved policy.",
+                    }
                 website_ingestion.add_run_item(
                     session,
                     run=job,
@@ -838,8 +921,12 @@ def _advance_website(run_id, token, db_engine, connector_factory):
                     media_type=artifact.media_type,
                     source_item=source_item,
                     revision=revision,
+                    duplicate_decision=duplicate_decision,
                 )
                 ordinal += 1
+        memberships = _apply_duplicate_policy(
+            session, job.id, memberships, clean, "website"
+        )
         for location, (revision, prior_source_node_id) in prior_revisions.items():
             if location in included_locations:
                 continue

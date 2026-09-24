@@ -191,6 +191,36 @@ export type QualityPolicy = {
   failed_item_action: 'fail' | 'exclude';
 };
 
+export type LanguagePolicy = {
+  id: 'language-v1';
+  detection_model: 'deterministic-script-v1';
+  allowlist: string[];
+  minimum_confidence: number;
+  disallowed_action: 'fail' | 'exclude';
+  mixed_language_action: 'allow' | 'warn' | 'fail';
+};
+
+export type DuplicatePolicy = {
+  id: 'duplicate-v1';
+  exact_raw: boolean;
+  exact_cleaned: boolean;
+  normalized_sections: boolean;
+  near_duplicate: boolean;
+  near_duplicate_method: 'simhash64';
+  near_duplicate_threshold: number;
+  pinned_canonical_locations: string[];
+  connector_priority: ('existing_files' | 'website' | 's3' | 'notion' | 'confluence')[];
+};
+
+export type DuplicateDecision = {
+  outcome: 'retained' | 'excluded';
+  retained_identity: string;
+  excluded_identity: string | null;
+  method: string;
+  similarity: number;
+  reason: string;
+};
+
 export type IngestionNode =
   | (NodeBase & {
       type: 'source';
@@ -210,6 +240,7 @@ export type IngestionNode =
       };
       tables?: 'preserve' | 'markdown' | 'plain_text';
       quality_policy?: QualityPolicyId | QualityPolicy;
+      language_policy?: LanguagePolicy;
       config_version?: string;
     })
   | (NodeBase & {
@@ -222,6 +253,7 @@ export type IngestionNode =
       profile?: 'standard-v1' | 'structure-aware-v1';
       config_version?: string;
       steps?: CleaningTransform[];
+      duplicate_policy?: DuplicatePolicy;
     })
   | ChunkNode
   | (NodeBase & {
@@ -283,6 +315,7 @@ export type SourcePreviewItem = {
   metrics: Record<string, unknown>;
   stage_timings: Record<string, number>;
   cost_basis: Record<string, unknown>;
+  duplicate_decision?: DuplicateDecision | null;
 };
 
 export type SourcePreview = {
@@ -376,6 +409,7 @@ export type ExistingIngestionRunItem = {
   chunk_count: number;
   error: string | null;
   processing_versions: Record<string, string> | null;
+  duplicate_decision?: DuplicateDecision | null;
   updated_at: string;
 };
 
@@ -395,6 +429,7 @@ export type WebsiteIngestionRunItem = {
   chunk_count: number;
   error: string | null;
   processing_versions: Record<string, string> | null;
+  duplicate_decision?: DuplicateDecision | null;
   updated_at: string;
 };
 
@@ -430,6 +465,13 @@ export type ContentDerivation = {
   output_hash: string;
   title: string | null;
   media_type: string;
+  language?: {
+    language: string;
+    method: string;
+    model_version: string;
+    confidence: number;
+    mixed: boolean;
+  } | null;
   measurements: {
     character_count: number;
     block_count: number;

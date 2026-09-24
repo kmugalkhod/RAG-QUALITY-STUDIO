@@ -50,6 +50,9 @@ def _derivation_values(
         output_hash=hashes["output_hash"],
         title=document.title,
         media_type=document.media_type,
+        language=(
+            document.language.model_dump(mode="json") if document.language else None
+        ),
         measurements=document.measurements.model_dump(mode="json"),
         findings=[item.model_dump(mode="json") for item in document.findings],
         transforms=(
@@ -234,6 +237,7 @@ def reusable_cleaned_document(
     document = CleanedDocumentV1(
         media_type=cleaned.media_type,
         title=cleaned.title,
+        language=cleaned.language,
         blocks=[
             CanonicalBlock(
                 id=block.block_id,

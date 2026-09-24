@@ -3,15 +3,38 @@ import type {
   ExtractionCapabilities,
   ChunkNode,
   ConfluenceConfig,
+  DuplicatePolicy,
   IngestionNode,
   IngestionPipelineDraft,
   IngestionPipelineVersion,
   IngestionSchedule,
+  LanguagePolicy,
   NotionConfig,
   QualityPolicy,
   S3Config,
   WebsiteConfig,
 } from './model';
+
+export const defaultLanguagePolicy: LanguagePolicy = {
+  id: 'language-v1',
+  detection_model: 'deterministic-script-v1',
+  allowlist: [],
+  minimum_confidence: 0,
+  disallowed_action: 'fail',
+  mixed_language_action: 'warn',
+};
+
+export const defaultDuplicatePolicy: DuplicatePolicy = {
+  id: 'duplicate-v1',
+  exact_raw: true,
+  exact_cleaned: true,
+  normalized_sections: true,
+  near_duplicate: false,
+  near_duplicate_method: 'simhash64',
+  near_duplicate_threshold: 0.92,
+  pinned_canonical_locations: [],
+  connector_priority: ['existing_files', 'website', 's3', 'notion', 'confluence'],
+};
 
 export const terminalIngestionStatuses = new Set(['succeeded', 'failed', 'cancelled', 'expired']);
 
@@ -196,6 +219,7 @@ export function defaultIngestionDraft(
         capabilities?.quality_policies.find((value) => value.id === 'default-v1')?.settings ??
           defaultQualityPolicy,
       ),
+      language_policy: structuredClone(defaultLanguagePolicy),
       config_version: 'layout-ocr-v1',
     },
     {
@@ -209,6 +233,7 @@ export function defaultIngestionDraft(
       profile: cleaningProfile?.id ?? 'standard-v1',
       config_version: cleaningProfile?.config_version ?? 'deterministic-clean-v1',
       steps: structuredClone(cleaningProfile?.steps ?? []),
+      duplicate_policy: structuredClone(defaultDuplicatePolicy),
     },
     defaultChunk(capabilities),
     {
@@ -333,7 +358,12 @@ export function upgradeIngestionDraft(draft: IngestionPipelineDraft): IngestionP
   upgraded.execution.schema_version = 2;
   upgraded.execution.nodes = upgraded.execution.nodes.map((node) => {
     if (node.type === 'extract') {
-      return { ...node, strategy: 'native_text', config_version: 'native-text-v1' };
+      return {
+        ...node,
+        strategy: 'native_text',
+        language_policy: structuredClone(defaultLanguagePolicy),
+        config_version: 'native-text-v1',
+      };
     }
     if (node.type === 'clean') {
       return {
@@ -344,6 +374,7 @@ export function upgradeIngestionDraft(draft: IngestionPipelineDraft): IngestionP
         maximum_text_chars: node.maximum_text_chars ?? 2_000_000,
         exact_content_deduplication: node.exact_content_deduplication ?? true,
         profile: 'standard-v1',
+        duplicate_policy: structuredClone(defaultDuplicatePolicy),
         config_version: 'deterministic-clean-v1',
       };
     }

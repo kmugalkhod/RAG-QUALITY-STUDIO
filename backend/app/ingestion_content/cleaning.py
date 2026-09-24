@@ -632,6 +632,7 @@ def clean_structure_document(
     return CleanedDocumentV1(
         media_type=extracted.media_type,
         title=extracted.title,
+        language=extracted.language,
         blocks=blocks,
         extractor_version=extractor_version,
         cleaner_version=STRUCTURE_CLEANER_VERSION,

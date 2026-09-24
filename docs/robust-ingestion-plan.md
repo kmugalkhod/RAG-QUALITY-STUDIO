@@ -1,6 +1,6 @@
 # Robust extraction, cleaning and chunking implementation plan
 
-Status: implementation in progress; Phases 0–5 completed on 2026-09-24; Phase 6 next
+Status: implementation in progress; Phases 0–6 completed by 2026-09-25; Phase 7A decision gate next
 Last updated: 2026-09-24
 Related plans: [ingestion pipeline plan](ingestion-pipeline-plan.md),
 [source snapshot/index variants plan](source-snapshot-index-variants-plan.md)

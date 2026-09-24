@@ -6,7 +6,12 @@ import { Label } from '../../../components/ui/label';
 import { NativeSelect, NativeSelectOption } from '../../../components/ui/native-select';
 import type { ConnectionSettings, SourceConnection } from '../../connections/model';
 import type { Document, KnowledgeSet } from '../../documents/model';
-import { fallbackQualityPolicy, ingestionStageLabels as labels } from '../editorModel';
+import {
+  defaultDuplicatePolicy,
+  defaultLanguagePolicy,
+  fallbackQualityPolicy,
+  ingestionStageLabels as labels,
+} from '../editorModel';
 import type {
   ExistingFilesConfig,
   ExtractionCapabilities,
@@ -82,6 +87,14 @@ export function IngestionNodeSettings({
           extractionCapabilities?.quality_policies.find((value) => value.id === selectedQualityId)
             ?.settings ?? fallbackQualityPolicy(selectedQualityId),
         );
+  const selectedLanguage =
+    selected?.type === 'extract'
+      ? (selected.language_policy ?? structuredClone(defaultLanguagePolicy))
+      : structuredClone(defaultLanguagePolicy);
+  const selectedDuplicate =
+    selected?.type === 'clean'
+      ? (selected.duplicate_policy ?? structuredClone(defaultDuplicatePolicy))
+      : structuredClone(defaultDuplicatePolicy);
 
   function updateExtract(values: Partial<Extract<IngestionNode, { type: 'extract' }>>) {
     if (selected?.type !== 'extract') {
@@ -611,6 +624,7 @@ export function IngestionNodeSettings({
                             (value) => value.id === 'default-v1',
                           )?.settings ?? fallbackQualityPolicy('default-v1'),
                         ),
+                        language_policy: structuredClone(defaultLanguagePolicy),
                         config_version: 'layout-ocr-v1',
                       })
                     }
@@ -988,6 +1002,89 @@ export function IngestionNodeSettings({
                     </Label>
                   </div>
                 </details>
+                <details>
+                  <summary>Language policy</summary>
+                  <div className="field-stack">
+                    <p className="field-hint">
+                      Detection records model/version and confidence. Source text is never
+                      translated.
+                    </p>
+                    <Label>
+                      Allowed language tags
+                      <Input
+                        value={selectedLanguage.allowlist.join(', ')}
+                        placeholder="Empty allows all; for example en, fr"
+                        onChange={(event) =>
+                          updateExtract({
+                            language_policy: {
+                              ...selectedLanguage,
+                              allowlist: event.target.value
+                                .split(',')
+                                .map((value) => value.trim().toLowerCase())
+                                .filter(Boolean),
+                            },
+                          })
+                        }
+                      />
+                    </Label>
+                    <Label>
+                      Minimum detection confidence
+                      <Input
+                        type="number"
+                        min={0}
+                        max={1}
+                        step={0.05}
+                        value={selectedLanguage.minimum_confidence}
+                        onChange={(event) =>
+                          updateExtract({
+                            language_policy: {
+                              ...selectedLanguage,
+                              minimum_confidence: Number(event.target.value),
+                            },
+                          })
+                        }
+                      />
+                    </Label>
+                    <Label>
+                      Disallowed language
+                      <NativeSelect
+                        value={selectedLanguage.disallowed_action}
+                        onChange={(event) =>
+                          updateExtract({
+                            language_policy: {
+                              ...selectedLanguage,
+                              disallowed_action: event.target.value as 'fail' | 'exclude',
+                            },
+                          })
+                        }
+                      >
+                        <NativeSelectOption value="fail">Fail the run</NativeSelectOption>
+                        <NativeSelectOption value="exclude">Exclude and report</NativeSelectOption>
+                      </NativeSelect>
+                    </Label>
+                    <Label>
+                      Mixed-language documents
+                      <NativeSelect
+                        value={selectedLanguage.mixed_language_action}
+                        onChange={(event) =>
+                          updateExtract({
+                            language_policy: {
+                              ...selectedLanguage,
+                              mixed_language_action: event.target.value as
+                                | 'allow'
+                                | 'warn'
+                                | 'fail',
+                            },
+                          })
+                        }
+                      >
+                        <NativeSelectOption value="allow">Allow</NativeSelectOption>
+                        <NativeSelectOption value="warn">Warn</NativeSelectOption>
+                        <NativeSelectOption value="fail">Fail</NativeSelectOption>
+                      </NativeSelect>
+                    </Label>
+                  </div>
+                </details>
               </>
             )}
           </div>
@@ -1012,13 +1109,101 @@ export function IngestionNodeSettings({
                 <dd>{selected.repeated_boilerplate?.length ?? 0}</dd>
               </dl>
             ) : (
-              <CleaningTransformSettings
-                node={selected}
-                capabilities={extractionCapabilities}
-                update={(value) =>
-                  updateNode(selected.id, (node) => (node.type === 'clean' ? value : node))
-                }
-              />
+              <>
+                <CleaningTransformSettings
+                  node={selected}
+                  capabilities={extractionCapabilities}
+                  update={(value) =>
+                    updateNode(selected.id, (node) => (node.type === 'clean' ? value : node))
+                  }
+                />
+                <details>
+                  <summary>Duplicate policy</summary>
+                  <div className="field-stack">
+                    {(
+                      [
+                        ['exact_raw', 'Exact raw-content hash'],
+                        ['exact_cleaned', 'Exact cleaned-content hash'],
+                        ['normalized_sections', 'Normalized section fingerprint'],
+                        ['near_duplicate', 'Near-duplicate SimHash'],
+                      ] as const
+                    ).map(([key, label]) => (
+                      <Label key={key}>
+                        <input
+                          type="checkbox"
+                          checked={selectedDuplicate[key]}
+                          onChange={(event) =>
+                            updateNode(selected.id, (node) =>
+                              node.type === 'clean'
+                                ? {
+                                    ...node,
+                                    duplicate_policy: {
+                                      ...selectedDuplicate,
+                                      [key]: event.target.checked,
+                                    },
+                                  }
+                                : node,
+                            )
+                          }
+                        />
+                        {label}
+                      </Label>
+                    ))}
+                    {selectedDuplicate.near_duplicate && (
+                      <Label>
+                        Near-duplicate similarity threshold
+                        <Input
+                          type="number"
+                          min={0.75}
+                          max={1}
+                          step={0.01}
+                          value={selectedDuplicate.near_duplicate_threshold}
+                          onChange={(event) =>
+                            updateNode(selected.id, (node) =>
+                              node.type === 'clean'
+                                ? {
+                                    ...node,
+                                    duplicate_policy: {
+                                      ...selectedDuplicate,
+                                      near_duplicate_threshold: Number(event.target.value),
+                                    },
+                                  }
+                                : node,
+                            )
+                          }
+                        />
+                      </Label>
+                    )}
+                    <Label>
+                      Pinned canonical locations
+                      <Input
+                        value={selectedDuplicate.pinned_canonical_locations.join(', ')}
+                        placeholder="Comma-separated stable source identities"
+                        onChange={(event) =>
+                          updateNode(selected.id, (node) =>
+                            node.type === 'clean'
+                              ? {
+                                  ...node,
+                                  duplicate_policy: {
+                                    ...selectedDuplicate,
+                                    pinned_canonical_locations: event.target.value
+                                      .split(',')
+                                      .map((value) => value.trim())
+                                      .filter(Boolean),
+                                  },
+                                }
+                              : node,
+                          )
+                        }
+                      />
+                    </Label>
+                    <p className="field-hint">
+                      Canonical order: pinned source, connector priority, first stable identity,
+                      then lexical identity. Overrides are saved in a new pipeline version.
+                    </p>
+                  </div>
+                </details>
+              </>
             )}
           </div>
         )}

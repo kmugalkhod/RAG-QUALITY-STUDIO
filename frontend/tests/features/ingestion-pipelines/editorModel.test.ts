@@ -1,5 +1,7 @@
 import {
   defaultIngestionDraft,
+  defaultDuplicatePolicy,
+  defaultLanguagePolicy,
   defaultQualityPolicy,
   describeCadence,
   describeIngestionNode,
@@ -32,6 +34,7 @@ describe('ingestion editor model', () => {
       strategy: 'auto',
       ocr: { mode: 'off', languages: ['eng'] },
       quality_policy: defaultQualityPolicy,
+      language_policy: defaultLanguagePolicy,
       config_version: 'layout-ocr-v1',
     });
     expect(draft.execution.edges).toEqual([
@@ -46,6 +49,9 @@ describe('ingestion editor model', () => {
       model: 'embedding-v1',
       dimensions: 3,
       config_version: 'revision-2',
+    });
+    expect(draft.execution.nodes.find((node) => node.type === 'clean')).toMatchObject({
+      duplicate_policy: defaultDuplicatePolicy,
     });
   });
 
