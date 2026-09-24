@@ -154,10 +154,10 @@ See [milestone progress](docs/implementation-plan.md) and [architecture](docs/ar
 1. Create/open a project by clicking its name.
 2. Select one PDF or UTF-8 TXT and upload it. The default limit is 20 MiB; `MAX_UPLOAD_BYTES` configures the backend and displayed UI limit (up to 100 MiB).
 3. Set chunk size (1–100,000 characters) and overlap (0 to size minus one), then **Start processing**. A saved version appears in history; status/progress come from PostgreSQL.
-4. Inspect completed chunks. PDF page numbers and page-relative character offsets accompany exact extracted text. Use the chunk pagination controls for longer documents.
+4. Inspect completed chunks. PDF page numbers and page-relative character offsets accompany exact extracted text. Schema-v2 ingestion runs also expose extracted/cleaned blocks, page origin, quality findings, structured tables and safe page overlays. Use the pagination controls for longer documents.
 5. Cancel queued/running work when needed. Failed/cancelled runs can be retried with **Start processing**, preserving the earlier version. Reprocessing a successful document also saves a new version.
 
-A scanned PDF requires OCR and fails explicitly; malformed/encrypted PDFs fail in the worker. Empty/invalid UTF-8 TXT and unsupported file types fail upload. Duplicate uploads are separate documents. If a response is interrupted, refresh before retrying to avoid accidental duplicates.
+Legacy processing still rejects a scanned PDF explicitly. A schema-v2 ingestion pipeline can select bounded Automatic fallback or Always OCR when the configured local language pack is available. Malformed/encrypted PDFs fail in the worker. Empty/invalid UTF-8 TXT, byte/type mismatches and unsupported files fail safely. Duplicate uploads are separate documents. If a response is interrupted, refresh before retrying to avoid accidental duplicates.
 
 Fixed windows are measured in Unicode code points, preserve whitespace, and never cross PDF page boundaries. The final window ends at the source end without adding an overlap-only tail. TXT removes an optional initial BOM. For detailed boundaries, limits and extraction caveats, see [architecture](docs/architecture.md#versioning-and-deterministic-parsing).
 
@@ -179,7 +179,7 @@ All paths below start with `/api/projects/{project_id}`; wrong-project document,
 
 The dispatcher is required: it sends PostgreSQL queued jobs every five seconds and recovers interrupted running jobs after 180 seconds. Each run permits at most three automatic attempts; parsing errors fail immediately. Redis downtime keeps jobs queued, visible and cancellable. Restarting `dispatcher` resumes delivery/recovery. `docker compose logs worker dispatcher` contains operational errors without source text.
 
-Cancellation prevents publication, but in-flight parsing can continue until the next page checkpoint or the 120-second hard time limit. Current processing bounds are 2,000 PDF pages, 5 million extracted characters, 50,000 chunks and 10 million output characters including overlap. PDF text/layout extraction can be imperfect; inspect evidence, especially mixed text/image pages. OCR is not available.
+Cancellation prevents publication, but in-flight parsing can continue until the next page checkpoint or the 120-second hard time limit. Current processing bounds are 2,000 PDF pages, 5 million extracted characters, 50,000 chunks and 10 million output characters including overlap. Robust OCR additionally limits configured OCR pages, pixels, per-page time and output size. PDF layout/table extraction and OCR can be imperfect; inspect page origins, findings and evidence, especially mixed text/image pages. The default image packages English OCR only; other languages must be installed and are exposed only when detected.
 
 To verify persistence in the isolated browser stack, process a file and record its document/run IDs, then run `docker compose -p rag-studio-e2e -f compose.e2e.yaml restart db redis backend worker dispatcher frontend`. After readiness returns, reopen that project, inspect the original version and start another version from the saved upload. Both PostgreSQL and `document_data` must be retained. For stronger verification, stop/start the stack with `down` and `up -d`, preserving volumes.
 

@@ -3806,6 +3806,20 @@ summary {
   margin: 0 0 12px;
   overflow-wrap: anywhere;
 }
+.ingestion-inline-fieldset {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  margin: 0;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.ingestion-inline-fieldset legend {
+  padding-inline: 4px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
 .app-shell .ingestion-editor-grid .node-settings h2 {
   font-size: 17px;
   font-weight: 550;
@@ -4004,6 +4018,10 @@ summary {
   border-radius: 8px;
   background: var(--muted);
 }
+.app-shell .content-block-list li.is-selected {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 18%, transparent);
+}
 .app-shell .content-block-list small {
   display: block;
   overflow-wrap: anywhere;
@@ -4016,6 +4034,112 @@ summary {
   overflow-wrap: anywhere;
   font: inherit;
   color: var(--foreground);
+}
+.app-shell .content-quality-summary {
+  grid-template-columns: minmax(120px, 0.35fr) minmax(0, 1fr);
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.app-shell .content-quality-summary dd {
+  margin: 0;
+}
+.app-shell .content-quality-findings {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.app-shell .content-quality-findings li {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border-left: 3px solid var(--warning);
+  background: var(--muted);
+  font-size: 12px;
+}
+.app-shell .content-quality-findings small {
+  color: var(--muted-foreground);
+}
+.app-shell .content-page-inspector {
+  display: grid;
+  grid-template-columns: minmax(150px, 220px) minmax(0, 1fr);
+  align-items: start;
+  gap: 16px;
+}
+.app-shell .content-page-inspector > label {
+  display: grid;
+  gap: 7px;
+  font-size: 12px;
+}
+.app-shell .content-page-inspector figure {
+  min-width: 0;
+  margin: 0;
+}
+.app-shell .content-page-canvas {
+  position: relative;
+  width: min(100%, 720px);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--background);
+}
+.app-shell .content-page-canvas img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.app-shell .content-page-overlays {
+  position: absolute;
+  inset: 0;
+}
+.app-shell .content-page-overlays button {
+  position: absolute;
+  min-width: 3px;
+  min-height: 3px;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--primary) 72%, transparent);
+  background: color-mix(in srgb, var(--primary) 14%, transparent);
+  cursor: pointer;
+}
+.app-shell .content-page-overlays button:hover,
+.app-shell .content-page-overlays button:focus-visible,
+.app-shell .content-page-overlays button.is-selected {
+  border-width: 2px;
+  outline: none;
+  background: color-mix(in srgb, var(--primary) 28%, transparent);
+}
+.app-shell .content-page-inspector figcaption {
+  margin-top: 7px;
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+.app-shell .content-table-scroll {
+  max-width: 100%;
+  margin-top: 12px;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.app-shell .content-table-scroll table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.app-shell .content-table-scroll caption {
+  padding: 8px;
+  color: var(--muted-foreground);
+  text-align: left;
+}
+.app-shell .content-table-scroll th,
+.app-shell .content-table-scroll td {
+  min-width: 100px;
+  padding: 8px;
+  border-top: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
 }
 .app-shell .ingestion-results .project-list li {
   min-width: 0;
@@ -4099,6 +4223,9 @@ summary {
   }
   .app-shell .ingestion-results {
     scroll-margin-top: 200px;
+  }
+  .app-shell .content-page-inspector {
+    grid-template-columns: minmax(0, 1fr);
   }
   .app-shell .ingestion-published-index {
     align-items: stretch;

@@ -54,14 +54,34 @@ const derivation = {
   input_hash: 'c'.repeat(64),
   output_hash: 'c'.repeat(64),
   title: 'guide.txt',
-  media_type: 'text/plain',
-  measurements: { character_count: 12, block_count: 1, page_count: 1 },
-  findings: [],
+  media_type: 'application/pdf',
+  measurements: {
+    character_count: 30,
+    block_count: 2,
+    page_count: 1,
+    native_page_count: 0,
+    layout_page_count: 1,
+    ocr_page_count: 0,
+    table_count: 1,
+    quality_decision: 'warn',
+    extraction_duration_ms: 18,
+  },
+  findings: [
+    {
+      code: 'suspicious_reading_order',
+      severity: 'warning',
+      count: 1,
+      message: 'Reading order needs review.',
+      page_numbers: [1],
+      remediation: 'Review the page overlays.',
+    },
+  ],
   transforms: [],
   created_at: '2026-09-24T00:00:00Z',
 } satisfies ContentDerivation;
 
 test('loads the immutable extracted content inspector for a run item', async () => {
+  vi.mocked(api.contentPageThumbnailUrl).mockReturnValue('/api/thumbnail');
   vi.mocked(api.listContentDerivations).mockResolvedValue({
     items: [derivation],
     total: 1,
@@ -75,13 +95,33 @@ test('loads the immutable extracted content inspector for a run item', async () 
         block_type: 'paragraph',
         text: 'Source text.',
         page_number: 1,
-        bounding_box: null,
+        bounding_box: { left: 0.1, top: 0.1, right: 0.8, bottom: 0.2 },
         heading_path: ['Introduction'],
         source_span: { kind: 'artifact_text', start_char: 0, end_char: 12 },
-        attributes: {},
+        attributes: { origin: 'layout' },
+      },
+      {
+        derivation_id: derivation.id,
+        ordinal: 1,
+        block_id: 'e'.repeat(16),
+        block_type: 'table',
+        text: '| Header | Value |',
+        page_number: 1,
+        bounding_box: { left: 0.1, top: 0.3, right: 0.8, bottom: 0.5 },
+        heading_path: [],
+        source_span: { kind: 'artifact_text', page_number: 1, start_char: 12, end_char: 30 },
+        attributes: {
+          origin: 'layout',
+          table: {
+            rows: [
+              ['Header', 'Value'],
+              ['A', 'B'],
+            ],
+          },
+        },
       },
     ],
-    total: 1,
+    total: 2,
     limit: 20,
     offset: 0,
   });
@@ -92,5 +132,32 @@ test('loads the immutable extracted content inspector for a run item', async () 
   expect(await screen.findByText('Source text.')).toBeVisible();
   expect(screen.getByRole('tab', { name: 'Extracted' })).toHaveAttribute('aria-selected', 'true');
   expect(screen.getByText('Introduction')).toBeVisible();
+  expect(screen.getByText('warning · suspicious reading order')).toBeVisible();
+  expect(screen.getByRole('img', { name: 'Rendered PDF page 1' })).toHaveAttribute(
+    'src',
+    '/api/thumbnail',
+  );
+  expect(screen.getAllByRole('button', { name: /Select Layout/ })).toHaveLength(2);
+  expect(screen.getByRole('table')).toHaveTextContent('HeaderValueAB');
   expect(api.listContentDerivations).toHaveBeenCalledWith('project-1', 'processing-1');
+});
+
+test('shows the safe per-item processing failure', () => {
+  render(
+    <IngestionRunResults
+      projectId="project-1"
+      run={{ ...run, status: 'failed', error: 'One or more files failed.' }}
+      items={[
+        {
+          ...item,
+          status: 'failed',
+          error:
+            'Extraction did not satisfy the saved quality policy. Review the source and extraction settings before retrying.',
+        },
+      ]}
+    />,
+  );
+
+  expect(screen.getAllByRole('alert')).toHaveLength(2);
+  expect(screen.getByText(/Review the source and extraction settings/)).toBeVisible();
 });

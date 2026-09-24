@@ -20,6 +20,8 @@ dependencies = [
   "langchain-community==0.4.1",
   "cryptography==46.0.3",
   "boto3==1.43.93",
+  "pymupdf==1.28.2",
+  "pillow==12.3.0",
 ]
 [dependency-groups]
 dev = ["pytest==8.4.1", "httpx==0.28.1", "ruff==0.12.11"]

@@ -262,7 +262,9 @@ pandas==3.0.5
 pgvector==0.4.1
     # via rag-quality-studio-api
 pillow==12.3.0
-    # via ragas
+    # via
+    #   rag-quality-studio-api
+    #   ragas
 pluggy==1.6.0
     # via pytest
 prompt-toolkit==3.0.53
@@ -303,6 +305,8 @@ pygments==2.21.0
     # via
     #   pytest
     #   rich
+pymupdf==1.28.2
+    # via rag-quality-studio-api
 pypdf==6.18.0
     # via rag-quality-studio-api
 pytest==8.4.1

@@ -8,7 +8,12 @@ import { Textarea } from '../../../components/ui/textarea';
 import type { ConnectionSettings, SourceConnection } from '../../connections/model';
 import type { Document, KnowledgeSet } from '../../documents/model';
 import { ingestionStageLabels as labels } from '../editorModel';
-import type { ExistingFilesConfig, IngestionNode, IngestionPipelineVersion } from '../model';
+import type {
+  ExistingFilesConfig,
+  ExtractionCapabilities,
+  IngestionNode,
+  IngestionPipelineVersion,
+} from '../model';
 import { ConfluenceSettings, NotionSettings, S3Settings, WebsiteSettings } from './SourceSettings';
 
 type SourceKind = 'existing_files' | 'website' | 's3' | 'notion' | 'confluence';
@@ -26,6 +31,7 @@ export function IngestionNodeSettings({
   documents,
   knowledgeSets,
   websiteSource,
+  extractionCapabilities,
   schemaVersion,
   updateNode,
   changeSourceKind,
@@ -42,10 +48,31 @@ export function IngestionNodeSettings({
   documents: Document[];
   knowledgeSets: KnowledgeSet[];
   websiteSource: boolean;
+  extractionCapabilities?: ExtractionCapabilities;
   schemaVersion: 1 | 2;
   updateNode: (id: string, update: (node: IngestionNode) => IngestionNode) => void;
   changeSourceKind: (nodeId: string, kind: SourceKind) => void;
 }) {
+  const selectedOcr =
+    selected?.type === 'extract'
+      ? (selected.ocr ?? {
+          mode: 'off' as const,
+          languages: ['eng'],
+          rotate_pages: true,
+          deskew: true,
+          dpi: 200,
+          max_pages: 50,
+          timeout_seconds: 30,
+        })
+      : null;
+
+  function updateExtract(values: Partial<Extract<IngestionNode, { type: 'extract' }>>) {
+    if (selected?.type !== 'extract') {
+      return;
+    }
+    updateNode(selected.id, (node) => (node.type === 'extract' ? { ...node, ...values } : node));
+  }
+
   return (
     <aside
       id="node-settings"
@@ -127,12 +154,28 @@ export function IngestionNodeSettings({
             {selected.config.kind === 'existing_files' ? (
               <>
                 <p className="field-hint">
-                  Choose explicit project files. Only successfully processed files can run.
+                  {schemaVersion === 2
+                    ? 'Choose explicit project files. The saved extraction settings process new or failed uploads when the run starts.'
+                    : 'Choose explicit project files. Legacy pipelines require a successful processing version.'}
                 </p>
                 {documents.map((document) => {
                   const sourceConfig = selected.config as ExistingFilesConfig;
                   const checked = sourceConfig.document_ids.includes(document.id);
-                  const disabled = document.latest_run?.status !== 'succeeded';
+                  const processingActive = ['queued', 'running'].includes(
+                    document.latest_run?.status ?? '',
+                  );
+                  const disabled =
+                    processingActive ||
+                    (schemaVersion === 1 && document.latest_run?.status !== 'succeeded');
+                  const statusCopy = processingActive
+                    ? `Processing ${document.latest_run?.status}`
+                    : document.latest_run?.status === 'succeeded'
+                      ? `${document.latest_run.chunk_count} chunks ready`
+                      : schemaVersion === 2
+                        ? document.latest_run
+                          ? 'Will retry with saved extraction settings'
+                          : 'Will process with saved extraction settings'
+                        : `Processing ${document.latest_run?.status ?? 'required'}`;
                   return (
                     <label className="ingestion-document-option" key={document.id}>
                       <input
@@ -159,17 +202,13 @@ export function IngestionNodeSettings({
                       />
                       <span>
                         <strong>{document.filename}</strong>
-                        <small>
-                          {disabled
-                            ? `Processing ${document.latest_run?.status ?? 'required'}`
-                            : `${document.latest_run?.chunk_count ?? 0} chunks ready`}
-                        </small>
+                        <small>{statusCopy}</small>
                       </span>
                     </label>
                   );
                 })}
                 {documents.length === 0 && (
-                  <p>No uploaded documents. Add and process files in Knowledge Base first.</p>
+                  <p>No uploaded documents. Add files in Knowledge Base first.</p>
                 )}
               </>
             ) : selected.config.kind === 'website' ? (
@@ -351,19 +390,243 @@ export function IngestionNodeSettings({
         {selected?.type === 'extract' && (
           <div className="field-stack">
             <p className="field-hint">
-              Extract readable text using the parser matched to each source’s media type. Source
-              provenance stays attached to the extracted content.
+              Extract readable text with page-level provenance. PDF layout and OCR fallbacks run
+              offline inside bounded workers.
             </p>
-            <dl className="ingestion-stage-facts">
-              <dt>Strategy</dt>
-              <dd>
-                {schemaVersion === 1
-                  ? 'Legacy character extraction'
-                  : (selected.strategy ?? 'native_text')}
-              </dd>
-              <dt>Configuration version</dt>
-              <dd>{selected.config_version ?? '1'}</dd>
-            </dl>
+            {schemaVersion === 1 || selected.config_version !== 'layout-ocr-v1' ? (
+              <>
+                <dl className="ingestion-stage-facts">
+                  <dt>Strategy</dt>
+                  <dd>
+                    {schemaVersion === 1
+                      ? 'Legacy character extraction'
+                      : 'Native text · Phase 1 compatibility'}
+                  </dd>
+                  <dt>Configuration version</dt>
+                  <dd>{selected.config_version ?? '1'}</dd>
+                </dl>
+                {schemaVersion === 2 && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() =>
+                      updateExtract({
+                        strategy: 'auto',
+                        ocr: {
+                          mode: extractionCapabilities?.ocr.available ? 'auto' : 'off',
+                          languages: extractionCapabilities?.ocr.languages.slice(0, 1) ?? ['eng'],
+                          rotate_pages: true,
+                          deskew: true,
+                          dpi: 200,
+                          max_pages: Math.min(extractionCapabilities?.ocr.max_pages ?? 50, 50),
+                          timeout_seconds: 30,
+                        },
+                        tables: 'preserve',
+                        quality_policy: 'default-v1',
+                        config_version: 'layout-ocr-v1',
+                      })
+                    }
+                  >
+                    Enable robust extraction
+                  </Button>
+                )}
+              </>
+            ) : (
+              <>
+                <Label>
+                  Extraction strategy
+                  <NativeSelect
+                    value={selected.strategy ?? 'auto'}
+                    onChange={(event) =>
+                      updateExtract({
+                        strategy: event.target.value as 'auto' | 'native' | 'layout_aware',
+                      })
+                    }
+                  >
+                    <NativeSelectOption value="auto">Auto · page-level fallback</NativeSelectOption>
+                    <NativeSelectOption value="native">Native text</NativeSelectOption>
+                    <NativeSelectOption value="layout_aware">Layout-aware</NativeSelectOption>
+                  </NativeSelect>
+                </Label>
+                <Label>
+                  OCR policy
+                  <NativeSelect
+                    value={selectedOcr?.mode ?? 'off'}
+                    onChange={(event) =>
+                      selectedOcr &&
+                      updateExtract({
+                        ocr: {
+                          ...selectedOcr,
+                          mode: event.target.value as 'off' | 'auto' | 'always',
+                        },
+                      })
+                    }
+                  >
+                    <NativeSelectOption value="off">Off</NativeSelectOption>
+                    <NativeSelectOption
+                      value="auto"
+                      disabled={!extractionCapabilities?.ocr.available}
+                    >
+                      Automatic fallback
+                    </NativeSelectOption>
+                    <NativeSelectOption
+                      value="always"
+                      disabled={!extractionCapabilities?.ocr.available}
+                    >
+                      Always
+                    </NativeSelectOption>
+                  </NativeSelect>
+                </Label>
+                {!extractionCapabilities?.ocr.available && (
+                  <div className="website-preview-notice" role="note">
+                    <CircleAlert size={17} aria-hidden="true" />
+                    <p>
+                      {extractionCapabilities?.ocr.reason ??
+                        'OCR capability information is unavailable.'}
+                    </p>
+                  </div>
+                )}
+                {selectedOcr && selectedOcr.mode !== 'off' && (
+                  <>
+                    <fieldset className="ingestion-inline-fieldset">
+                      <legend>OCR languages</legend>
+                      {(extractionCapabilities?.ocr.languages ?? []).map((language) => {
+                        const checked = selectedOcr.languages.includes(language);
+                        return (
+                          <label className="ingestion-document-option" key={language}>
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              disabled={checked && selectedOcr.languages.length === 1}
+                              onChange={(event) =>
+                                updateExtract({
+                                  ocr: {
+                                    ...selectedOcr,
+                                    languages: event.target.checked
+                                      ? [...selectedOcr.languages, language].slice(0, 3)
+                                      : selectedOcr.languages.filter((value) => value !== language),
+                                  },
+                                })
+                              }
+                            />
+                            <span>
+                              <strong>{language}</strong>
+                              <small>Installed local language pack</small>
+                            </span>
+                          </label>
+                        );
+                      })}
+                    </fieldset>
+                    <label className="ingestion-document-option">
+                      <input
+                        type="checkbox"
+                        checked={selectedOcr.rotate_pages}
+                        onChange={(event) =>
+                          updateExtract({
+                            ocr: { ...selectedOcr, rotate_pages: event.target.checked },
+                          })
+                        }
+                      />
+                      <span>
+                        <strong>Detect page rotation</strong>
+                        <small>Apply only bounded 90-degree orientation correction.</small>
+                      </span>
+                    </label>
+                    <label className="ingestion-document-option">
+                      <input
+                        type="checkbox"
+                        checked={selectedOcr.deskew}
+                        onChange={(event) =>
+                          updateExtract({ ocr: { ...selectedOcr, deskew: event.target.checked } })
+                        }
+                      />
+                      <span>
+                        <strong>Deskew scans</strong>
+                        <small>Search a bounded ±3-degree correction before OCR.</small>
+                      </span>
+                    </label>
+                    <Label>
+                      OCR resolution (DPI)
+                      <Input
+                        type="number"
+                        min={150}
+                        max={300}
+                        value={selectedOcr.dpi}
+                        onChange={(event) =>
+                          updateExtract({
+                            ocr: { ...selectedOcr, dpi: Number(event.target.value) },
+                          })
+                        }
+                      />
+                    </Label>
+                    <Label>
+                      Maximum OCR pages
+                      <Input
+                        type="number"
+                        min={1}
+                        max={extractionCapabilities?.ocr.max_pages ?? 100}
+                        value={selectedOcr.max_pages}
+                        onChange={(event) =>
+                          updateExtract({
+                            ocr: { ...selectedOcr, max_pages: Number(event.target.value) },
+                          })
+                        }
+                      />
+                    </Label>
+                    <Label>
+                      Per-page timeout (seconds)
+                      <Input
+                        type="number"
+                        min={5}
+                        max={60}
+                        value={selectedOcr.timeout_seconds}
+                        onChange={(event) =>
+                          updateExtract({
+                            ocr: {
+                              ...selectedOcr,
+                              timeout_seconds: Number(event.target.value),
+                            },
+                          })
+                        }
+                      />
+                    </Label>
+                  </>
+                )}
+                <Label>
+                  Table evidence
+                  <NativeSelect
+                    value={selected.tables ?? 'preserve'}
+                    onChange={(event) =>
+                      updateExtract({
+                        tables: event.target.value as 'preserve' | 'markdown' | 'plain_text',
+                      })
+                    }
+                  >
+                    <NativeSelectOption value="preserve">Structured + Markdown</NativeSelectOption>
+                    <NativeSelectOption value="markdown">Markdown</NativeSelectOption>
+                    <NativeSelectOption value="plain_text">Plain text</NativeSelectOption>
+                  </NativeSelect>
+                </Label>
+                <Label>
+                  Quality policy
+                  <NativeSelect
+                    value={selected.quality_policy ?? 'default-v1'}
+                    onChange={(event) =>
+                      updateExtract({
+                        quality_policy: event.target.value as
+                          | 'default-v1'
+                          | 'strict-v1'
+                          | 'warn-v1',
+                      })
+                    }
+                  >
+                    <NativeSelectOption value="default-v1">Default</NativeSelectOption>
+                    <NativeSelectOption value="strict-v1">Strict</NativeSelectOption>
+                    <NativeSelectOption value="warn-v1">Warn and allow</NativeSelectOption>
+                  </NativeSelect>
+                </Label>
+              </>
+            )}
           </div>
         )}
         {selected?.type === 'clean' && (

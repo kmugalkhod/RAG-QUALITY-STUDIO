@@ -28,8 +28,10 @@ describe('ingestion editor model', () => {
     ]);
     expect(draft.execution.schema_version).toBe(2);
     expect(draft.execution.nodes.find((node) => node.type === 'extract')).toMatchObject({
-      strategy: 'native_text',
-      config_version: 'native-text-v1',
+      strategy: 'auto',
+      ocr: { mode: 'off', languages: ['eng'] },
+      quality_policy: 'default-v1',
+      config_version: 'layout-ocr-v1',
     });
     expect(draft.execution.edges).toEqual([
       { source: 'source', target: 'extract' },
@@ -85,9 +87,11 @@ describe('ingestion editor model', () => {
       ['document-1'],
     );
     const source = draft.execution.nodes[0];
+    const extract = draft.execution.nodes.find((node) => node.type === 'extract')!;
     const chunk = draft.execution.nodes.find((node) => node.type === 'chunk')!;
 
     expect(describeIngestionNode(source, [])).toBe('1 selected document');
+    expect(describeIngestionNode(extract, [])).toBe('Auto · OCR off');
     expect(describeIngestionNode(chunk, [])).toBe('1000 characters · 100 overlap');
   });
 

@@ -15,9 +15,9 @@ from app.models.source import SourceRevision, WebsiteRunItem
 from app.ingestion_content import (
     CHARACTER_CHUNKER_VERSION,
     STANDARD_CLEANER_VERSION,
-    NativeTextExtractor,
     processing_identity,
 )
+from app.ingestion_content.extractors import extractor_version_for_settings
 from app.pipelines.parsing import PARSER_VERSION
 from app.providers import embeddings
 from app.schemas.document import ProcessingConfig
@@ -64,7 +64,7 @@ def _processing_spec(execution: IngestionExecution):
     chunk = next(node for node in execution.nodes if node.type == "chunk")
     return processing_identity(
         schema_version=execution.schema_version,
-        extractor_version=NativeTextExtractor.version,
+        extractor_version=extractor_version_for_settings(extract),
         cleaner_version=STANDARD_CLEANER_VERSION,
         chunker_version=CHARACTER_CHUNKER_VERSION,
         extract=extract.model_dump(mode="json", exclude={"id", "type"}),
@@ -77,13 +77,16 @@ def _compatible_processing(
     session: Session,
     document_id: UUID,
     execution: IngestionExecution,
-    latest: ProcessingRun,
+    latest: ProcessingRun | None,
 ):
     chunk = next(node for node in execution.nodes if node.type == "chunk")
     spec = _processing_spec(execution)
     if spec is None:
         return (
-            latest if _processing_matches(latest, chunk.size, chunk.overlap) else None
+            latest
+            if latest is not None
+            and _processing_matches(latest, chunk.size, chunk.overlap)
+            else None
         )
     _, config_hash = spec
     return session.scalar(
@@ -173,17 +176,28 @@ def preview(session: Session, project_id: UUID, execution: IngestionExecution):
             .limit(1)
         )
         compatible = None
-        included = latest is not None and latest.status == "succeeded"
-        if latest is None:
+        robust = execution.schema_version == 2
+        active = latest is not None and latest.status in ("queued", "running")
+        if not active and (robust or (latest and latest.status == "succeeded")):
+            compatible = _compatible_processing(session, document.id, execution, latest)
+        included = not active and (robust or compatible is not None)
+        if latest is None and not robust:
             reason = "Process this file successfully before ingestion."
-        elif latest.status in ("queued", "running"):
+        elif active:
             reason = "Wait for the active processing run to finish."
-        elif latest.status != "succeeded":
+        elif latest is not None and latest.status != "succeeded" and not robust:
             reason = "The latest processing run did not succeed. Retry it first."
-        elif compatible := _compatible_processing(
-            session, document.id, execution, latest
-        ):
+        elif compatible:
             reason = f"Ready; processing version {compatible.version} will be reused."
+        elif robust and latest is None:
+            reason = (
+                "Ready; ingestion will create the initial schema-v2 processing version."
+            )
+        elif robust and latest is not None and latest.status != "succeeded":
+            reason = (
+                "Ready; ingestion will retry the immutable upload with the saved "
+                "schema-v2 extraction settings."
+            )
         else:
             reason = (
                 "Ready; ingestion will create a new processing version with "
@@ -448,15 +462,19 @@ def start_run(
             .order_by(ProcessingRun.version.desc())
             .limit(1)
         )
-        if latest is None:
+        if latest is None and execution.schema_version == 1:
             raise HTTPException(
                 409, f"Process {document.filename} successfully before ingestion."
             )
-        if latest.status in ("queued", "running"):
+        if latest is not None and latest.status in ("queued", "running"):
             raise HTTPException(
                 409, f"Wait for {document.filename}'s active processing run to finish."
             )
-        if latest.status != "succeeded":
+        if (
+            latest is not None
+            and latest.status != "succeeded"
+            and execution.schema_version == 1
+        ):
             raise HTTPException(
                 409, f"Retry {document.filename}'s failed processing run first."
             )
@@ -466,14 +484,12 @@ def start_run(
             spec = _processing_spec(execution)
             processing = ProcessingRun(
                 document_id=document.id,
-                version=latest.version + 1,
+                version=(latest.version if latest is not None else 0) + 1,
                 **ProcessingConfig(
                     chunk_size=chunk.size, overlap=chunk.overlap
                 ).model_dump(),
                 parser_version=(
-                    NativeTextExtractor.version
-                    if execution.schema_version == 2
-                    else PARSER_VERSION
+                    spec[0]["versions"]["extractor"] if spec else PARSER_VERSION
                 ),
                 config_version=(
                     "ingestion-v2" if execution.schema_version == 2 else "characters-v1"

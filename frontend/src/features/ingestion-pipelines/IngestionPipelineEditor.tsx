@@ -44,6 +44,7 @@ import { ingestionNodeExecutionStates, ingestionRunDisplayStatus } from './execu
 import {
   canonicalIngestion,
   type ExistingFilesConfig,
+  type ExtractionCapabilities,
   type IngestionNode,
   type IngestionPipelineDraft,
   type IngestionPipelineVersion,
@@ -80,6 +81,7 @@ export function IngestionPipelineEditor({
   const [snapshotId, setSnapshotId] = useState('');
   const [connectionSettings, setConnectionSettings] = useState<ConnectionSettings>();
   const [connections, setConnections] = useState<SourceConnection[]>([]);
+  const [extractionCapabilities, setExtractionCapabilities] = useState<ExtractionCapabilities>();
   const [selectedNode, setSelectedNode] = useState('source');
   const [preview, setPreview] = useState<SourcePreview>();
   const [previewPage, setPreviewPage] = useState<Page<SourcePreviewItem>>({
@@ -134,41 +136,53 @@ export function IngestionPipelineEditor({
       allPages((offset) => listSourceSnapshots(projectId, offset)),
       getEmbeddingSettings(projectId),
       loadConnectionState(projectId),
+      api.getExtractionCapabilities(projectId),
       pipelineId === 'new'
         ? Promise.resolve([] as IngestionPipelineVersion[])
         : allPages((offset) => api.listIngestionPipelineVersions(projectId, pipelineId, offset)),
     ])
-      .then(([docs, sets, sourceSnapshots, embedding, connectionState, savedVersions]) => {
-        if (disposed) {
-          return;
-        }
-        setDocuments(docs);
-        setKnowledgeSets(sets);
-        const readySnapshots = sourceSnapshots.filter((snapshot) => snapshot.status === 'ready');
-        setSnapshots(readySnapshots);
-        setSnapshotId((current) => current || readySnapshots[0]?.id || '');
-        setConnectionSettings(connectionState.settings);
-        setConnections(connectionState.connections);
-        setVersions(savedVersions);
-        if (!embedding.configured || !embedding.config) {
-          throw new Error(
-            embedding.error ||
-              'Configure an embedding provider before creating ingestion pipelines.',
-          );
-        }
-        if (pipelineId === 'new') {
-          setDraft(defaultDraft(embedding.config, []));
-          setBaseline('');
-        } else {
-          const target =
-            savedVersions.find((version) => version.id === versionId) ?? savedVersions[0];
-          if (!target) {
-            throw new Error('No saved ingestion pipeline version was found.');
+      .then(
+        ([
+          docs,
+          sets,
+          sourceSnapshots,
+          embedding,
+          connectionState,
+          capabilities,
+          savedVersions,
+        ]) => {
+          if (disposed) {
+            return;
           }
-          open(target);
-        }
-        setError('');
-      })
+          setDocuments(docs);
+          setKnowledgeSets(sets);
+          const readySnapshots = sourceSnapshots.filter((snapshot) => snapshot.status === 'ready');
+          setSnapshots(readySnapshots);
+          setSnapshotId((current) => current || readySnapshots[0]?.id || '');
+          setConnectionSettings(connectionState.settings);
+          setConnections(connectionState.connections);
+          setExtractionCapabilities(capabilities);
+          setVersions(savedVersions);
+          if (!embedding.configured || !embedding.config) {
+            throw new Error(
+              embedding.error ||
+                'Configure an embedding provider before creating ingestion pipelines.',
+            );
+          }
+          if (pipelineId === 'new') {
+            setDraft(defaultDraft(embedding.config, [], capabilities));
+            setBaseline('');
+          } else {
+            const target =
+              savedVersions.find((version) => version.id === versionId) ?? savedVersions[0];
+            if (!target) {
+              throw new Error('No saved ingestion pipeline version was found.');
+            }
+            open(target);
+          }
+          setError('');
+        },
+      )
       .catch((cause) => !disposed && setError(message(cause)))
       .finally(() => !disposed && setLoading(false));
     return () => {
@@ -1119,6 +1133,7 @@ export function IngestionPipelineEditor({
             documents={documents}
             knowledgeSets={knowledgeSets}
             websiteSource={websiteSource}
+            extractionCapabilities={extractionCapabilities}
             schemaVersion={draft.execution.schema_version}
             updateNode={updateNode}
             changeSourceKind={changeSourceKind}

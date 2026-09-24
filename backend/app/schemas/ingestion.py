@@ -391,10 +391,53 @@ LegacyIngestionNode = Annotated[
 ]
 
 
+class OcrSettingsV1(Strict):
+    mode: Literal["off", "auto", "always"] = "off"
+    languages: list[str] = Field(
+        default_factory=lambda: ["eng"], min_length=1, max_length=3
+    )
+    rotate_pages: bool = True
+    deskew: bool = True
+    dpi: int = Field(default=200, strict=True, ge=150, le=300)
+    max_pages: int = Field(default=50, strict=True, ge=1, le=100)
+    timeout_seconds: int = Field(default=30, strict=True, ge=5, le=60)
+
+    @model_validator(mode="after")
+    def safe_languages(self):
+        if len(set(self.languages)) != len(self.languages):
+            raise ValueError("OCR languages must be unique.")
+        if any(
+            not value
+            or len(value) > 16
+            or not value.replace("_", "").replace("-", "").isalnum()
+            for value in self.languages
+        ):
+            raise ValueError(
+                "OCR languages must use bounded language-pack identifiers."
+            )
+        return self
+
+
 class ExtractNodeV2(NodeBase):
     type: Literal["extract"]
-    strategy: Literal["native_text"] = "native_text"
-    config_version: Literal["native-text-v1"] = "native-text-v1"
+    strategy: Literal["native_text", "auto", "native", "layout_aware"] = "native_text"
+    ocr: "OcrSettingsV1" = Field(default_factory=lambda: OcrSettingsV1())
+    tables: Literal["preserve", "markdown", "plain_text"] = "preserve"
+    quality_policy: Literal["default-v1", "strict-v1", "warn-v1"] = "default-v1"
+    config_version: Literal["native-text-v1", "layout-ocr-v1"] = "native-text-v1"
+
+    @model_validator(mode="after")
+    def versioned_settings(self):
+        if self.config_version == "native-text-v1":
+            if self.strategy != "native_text" or self.ocr.mode != "off":
+                raise ValueError(
+                    "Legacy native-text-v1 extraction supports only native text with OCR off."
+                )
+        elif self.strategy == "native_text":
+            raise ValueError(
+                "layout-ocr-v1 extraction requires Auto, Native or Layout-aware strategy."
+            )
+        return self
 
 
 class CleanNodeV2(LegacyCleanNode):

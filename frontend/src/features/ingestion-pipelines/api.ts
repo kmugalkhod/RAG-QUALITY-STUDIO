@@ -8,9 +8,24 @@ import type {
   IngestionSchedule,
   ContentBlock,
   ContentDerivation,
+  ExtractionCapabilities,
   SourcePreview,
   SourcePreviewItem,
 } from './model';
+
+export function getExtractionCapabilities(projectId: string): Promise<ExtractionCapabilities> {
+  return request<ExtractionCapabilities>(
+    `/projects/${encodeURIComponent(projectId)}/ingestion-capabilities`,
+  );
+}
+
+export function contentPageThumbnailUrl(
+  projectId: string,
+  processingRunId: string,
+  pageNumber: number,
+): string {
+  return `/api/projects/${encodeURIComponent(projectId)}/processing-runs/${encodeURIComponent(processingRunId)}/pages/${pageNumber}/thumbnail`;
+}
 
 function pipelinesPath(projectId: string): string {
   return `/projects/${encodeURIComponent(projectId)}/pipelines`;

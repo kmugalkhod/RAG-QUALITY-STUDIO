@@ -15,6 +15,9 @@ from app.ingestion_content.contracts import (
 )
 from app.models.derivation import ChunkBlockSpan, ContentBlock, ContentDerivation
 from app.models.document import Document, ProcessingRun
+from app.core.config import settings
+from app.ingestion_content.processing import IngestionStageError
+from app.ingestion_content.extractors import render_pdf_thumbnail
 
 
 def _derivation_values(
@@ -235,3 +238,30 @@ def _require_run(session: Session, project_id: UUID, processing_run_id: UUID):
         is None
     ):
         raise HTTPException(404, "Processing run not found.")
+
+
+def page_thumbnail(
+    session: Session,
+    project_id: UUID,
+    processing_run_id: UUID,
+    page_number: int,
+) -> bytes:
+    row = session.execute(
+        select(Document, ProcessingRun)
+        .join(ProcessingRun, ProcessingRun.document_id == Document.id)
+        .where(
+            ProcessingRun.id == processing_run_id,
+            Document.project_id == project_id,
+        )
+    ).one_or_none()
+    if row is None:
+        raise HTTPException(404, "Processing run not found.")
+    document, _ = row
+    if document.media_type != "application/pdf":
+        raise HTTPException(404, "Page thumbnails are available only for PDFs.")
+    try:
+        return render_pdf_thumbnail(
+            settings.storage_path / document.storage_name, page_number
+        )
+    except IngestionStageError as exc:
+        raise HTTPException(422, exc.message) from None

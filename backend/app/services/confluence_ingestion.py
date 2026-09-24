@@ -22,7 +22,7 @@ from app.services.source_artifacts import (
 )
 
 
-def processing_configuration(chunk, clean):
+def processing_configuration(chunk, clean, extract=None):
     if getattr(clean, "profile", None) is None:
         value = {
             "extractor": f"confluence-storage-{PARSER_VERSION}",
@@ -37,7 +37,14 @@ def processing_configuration(chunk, clean):
         extractor_version=f"confluence-storage-{PARSER_VERSION}",
         cleaner_version=cleaner.version,
         chunker_version=CharacterWindowChunker.version,
-        extract={"strategy": "confluence_storage"},
+        extract={
+            "strategy": "confluence_storage",
+            "pipeline": (
+                extract.model_dump(mode="json", exclude={"id", "type"})
+                if extract is not None
+                else None
+            ),
+        },
         clean=clean.model_dump(mode="json", exclude={"id", "type"}),
         chunk=chunk.model_dump(mode="json", exclude={"id", "type"}),
     )
@@ -179,12 +186,13 @@ def persist_artifact(
     clean,
     prior_revision,
     phase_callback=None,
+    extract=None,
 ):
     if artifact.content is None or artifact.content_hash is None:
         raise ValueError("Changed Confluence artifacts require extracted content.")
     page_id = artifact.item.external_id
     metadata = artifact.item.metadata
-    processing_config, processing_hash = processing_configuration(chunk, clean)
+    processing_config, processing_hash = processing_configuration(chunk, clean, extract)
 
     def prepare(_stored_path):
         if getattr(clean, "profile", None) is not None:

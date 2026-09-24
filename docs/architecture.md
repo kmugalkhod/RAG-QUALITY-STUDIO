@@ -379,6 +379,42 @@ records as unavailable. This phase intentionally does not add OCR, layout engine
 table reconstruction, quality policy, semantic chunking, near-duplicate logic or
 sensitive-data transforms.
 
+## Layout-aware PDF extraction and OCR (robust ingestion Phase 2, 2026-09-24)
+
+Schema-v2 extraction uses an application-owned adapter contract. `pypdf` remains the
+strict native-text and page-count adapter; PyMuPDF 1.28.2 supplies normalized layout
+blocks, reading order, safe thumbnails and bounded table rows; a local Tesseract 5.5.0
+subprocess supplies OCR TSV and engine confidence. The container installs only the
+pinned English and orientation language data. OCR has no network path or runtime model
+download, and subprocess environment, time, output, page and pixel limits are explicit.
+
+Docling 2.130.0 was evaluated before engine selection. Its current standard installation
+requires a newer settings stack plus Torch, Transformers and model assets. That footprint
+does not fit the existing 768 MiB isolated worker or deterministic offline packaging
+gate, so it is not selected or exposed. This is a measured packaging decision, not a
+claim that the smaller adapter is generally more accurate.
+
+Auto extraction records its page rule: fewer than 20 native characters selects OCR
+when automatic OCR is enabled; otherwise a detected table, separated columns or a
+material native/layout character-count delta selects layout output; uncomplicated pages
+retain native text. Explicit Native and Layout-aware profiles bypass the corresponding
+Auto choice. Every page records Native, Layout or OCR origin, fallback reason, size,
+rotation and available OCR confidence. Confidence remains an OCR-engine observation,
+not factual confidence.
+
+The versioned quality policy maps measured empty pages, character anomalies, ambiguous
+reading order, malformed/truncated tables and OCR confidence to pass, warn, fail or
+exclude before cleaning, chunking, embedding or publication. Failed/cancelled/fenced
+attempts commit neither chunks nor derivations and cannot advance a knowledge set's
+current-ready pointer. Schema-v1 and `native-text-v1` schema-v2 executions retain their
+historical parser behavior and data.
+
+The inspector fetches project-scoped, annotation-free PNG thumbnails from the immutable
+raw artifact and overlays normalized block geometry in the browser. Structured table
+rows and their deterministic Markdown/plain-text evidence are both bounded. See the
+[reviewed corpus baseline](ingestion-corpus-baseline.md) for the exact release sample,
+thresholds and limitations.
+
 ## Frontend organization
 
 Ingestion runs also persist one `ingestion_run_nodes` row for every node in the

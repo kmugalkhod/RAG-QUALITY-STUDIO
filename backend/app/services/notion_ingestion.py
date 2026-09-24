@@ -26,7 +26,7 @@ from app.services.source_artifacts import (
 )
 
 
-def processing_configuration(chunk, clean):
+def processing_configuration(chunk, clean, extract=None):
     if getattr(clean, "profile", None) is None:
         value = {
             "extractor": f"notion-blocks-{PARSER_VERSION}",
@@ -41,7 +41,14 @@ def processing_configuration(chunk, clean):
         extractor_version=f"notion-blocks-{PARSER_VERSION}",
         cleaner_version=cleaner.version,
         chunker_version=CharacterWindowChunker.version,
-        extract={"strategy": "notion_blocks"},
+        extract={
+            "strategy": "notion_blocks",
+            "pipeline": (
+                extract.model_dump(mode="json", exclude={"id", "type"})
+                if extract is not None
+                else None
+            ),
+        },
         clean=clean.model_dump(mode="json", exclude={"id", "type"}),
         chunk=chunk.model_dump(mode="json", exclude={"id", "type"}),
     )
@@ -188,13 +195,14 @@ def persist_artifact(
     clean,
     prior_revision: SourceRevision | None,
     phase_callback=None,
+    extract=None,
 ):
     if artifact.content is None or artifact.content_hash is None:
         raise ValueError("Changed Notion artifacts require extracted content.")
     page_id = artifact.item.external_id
     metadata = artifact.item.metadata
     modified = artifact.item.modified_at
-    processing_config, processing_hash = processing_configuration(chunk, clean)
+    processing_config, processing_hash = processing_configuration(chunk, clean, extract)
 
     def prepare(_stored_path):
         if getattr(clean, "profile", None) is not None:

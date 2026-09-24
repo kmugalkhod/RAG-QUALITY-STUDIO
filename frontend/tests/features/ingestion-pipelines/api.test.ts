@@ -5,6 +5,7 @@ import {
   createIngestionPipeline,
   createIngestionPipelineVersion,
   getIngestionRun,
+  getExtractionCapabilities,
   getSourcePreview,
   listIngestionPipelineVersions,
   listIngestionRuns,
@@ -17,6 +18,7 @@ import {
   startIngestionRun,
   runIngestionSchedule,
   updateIngestionSchedule,
+  contentPageThumbnailUrl,
 } from '../../../src/features/ingestion-pipelines/api';
 import type {
   IngestionPipelineDraft,
@@ -89,18 +91,27 @@ test('keeps preview and durable run operations distinct', async () => {
 });
 
 test('uses project-scoped canonical content inspection endpoints', async () => {
+  await getExtractionCapabilities('project');
   await listContentDerivations('project', 'processing');
   await listContentBlocks('project', 'derivation', 20);
 
   expect(fetch).toHaveBeenNthCalledWith(
     1,
-    '/api/projects/project/processing-runs/processing/derivations',
+    '/api/projects/project/ingestion-capabilities',
     expect.anything(),
   );
   expect(fetch).toHaveBeenNthCalledWith(
     2,
+    '/api/projects/project/processing-runs/processing/derivations',
+    expect.anything(),
+  );
+  expect(fetch).toHaveBeenNthCalledWith(
+    3,
     '/api/projects/project/content-derivations/derivation/blocks?offset=20',
     expect.anything(),
+  );
+  expect(contentPageThumbnailUrl('project', 'processing', 2)).toBe(
+    '/api/projects/project/processing-runs/processing/pages/2/thumbnail',
   );
 });
 

@@ -246,7 +246,8 @@ def _discover_credentialed(
         keyring = ConnectionKeyring.from_settings(settings)
         chunk = next(node for node in execution.nodes if node.type == "chunk")
         clean = next(node for node in execution.nodes if node.type == "clean")
-        _, processing_hash = persistence.processing_configuration(chunk, clean)
+        extract = next(node for node in execution.nodes if node.type == "extract")
+        _, processing_hash = persistence.processing_configuration(chunk, clean, extract)
         sources = [
             (
                 source,
@@ -320,6 +321,7 @@ def _advance_credentialed(
     )
     chunk = next(node for node in execution.nodes if node.type == "chunk")
     clean = next(node for node in execution.nodes if node.type == "clean")
+    extract = next(node for node in execution.nodes if node.type == "extract")
 
     def phase_callback(node_type):
         return ingestion_execution.transition(
@@ -403,6 +405,7 @@ def _advance_credentialed(
                         clean,
                         prior,
                         phase_callback,
+                        extract,
                     )
                 if (
                     clean.exact_content_deduplication
@@ -545,6 +548,7 @@ def _advance_website(run_id, token, db_engine, connector_factory):
     )
     chunk = next(node for node in execution.nodes if node.type == "chunk")
     clean = next(node for node in execution.nodes if node.type == "clean")
+    extract = next(node for node in execution.nodes if node.type == "extract")
 
     def phase_callback(node_type):
         return ingestion_execution.transition(
@@ -607,6 +611,7 @@ def _advance_website(run_id, token, db_engine, connector_factory):
                         clean,
                         prior,
                         phase_callback,
+                        extract,
                     )
                 )
                 if (

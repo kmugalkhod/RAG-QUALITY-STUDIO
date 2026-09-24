@@ -138,6 +138,7 @@ def persist_artifact(
     clean,
     prior_revision: SourceRevision | None,
     phase_callback=None,
+    extract=None,
 ):
     content_hash = hashlib.sha256(artifact.content).hexdigest()
     cleaner = cleaner_for_node(clean)
@@ -156,7 +157,14 @@ def persist_artifact(
             extractor_version=EXTRACTOR_VERSION,
             cleaner_version=cleaner.version,
             chunker_version=CharacterWindowChunker.version,
-            extract={"strategy": "html_main"},
+            extract={
+                "strategy": "html_main",
+                "pipeline": (
+                    extract.model_dump(mode="json", exclude={"id", "type"})
+                    if extract is not None
+                    else None
+                ),
+            },
             clean=clean.model_dump(mode="json", exclude={"id", "type"}),
             chunk=chunk.model_dump(mode="json", exclude={"id", "type"}),
         )

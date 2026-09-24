@@ -9,6 +9,7 @@ from typing import Any, Iterable
 
 from app.ingestion_content.contracts import (
     ArtifactTextSpan,
+    BoundingBox,
     CanonicalBlock,
     CleanedDocumentV1,
     ChunkBlockSpanV1,
@@ -16,6 +17,7 @@ from app.ingestion_content.contracts import (
     ExtractedDocumentV1,
     ExtractedPage,
     ProviderBlockSpan,
+    QualityFinding,
     TransformAudit,
 )
 from app.ingestion_content.processing import (
@@ -35,6 +37,7 @@ class CanonicalInputSegment:
     provider: str | None = None
     external_id: str | None = None
     attributes: dict[str, Any] | None = None
+    bounding_box: BoundingBox | None = None
 
 
 @dataclass(frozen=True)
@@ -73,6 +76,9 @@ def build_extracted_document(
     *,
     media_type: str,
     title: str | None = None,
+    page_metadata: dict[int, dict[str, Any]] | None = None,
+    findings: list[QualityFinding] | None = None,
+    measurement_updates: dict[str, Any] | None = None,
 ) -> ExtractedDocumentV1:
     blocks = []
     page_cursor: dict[int | None, int] = {}
@@ -117,6 +123,7 @@ def build_extracted_document(
                 type=block_type,
                 text=text,
                 page_number=page_number,
+                bounding_box=getattr(segment, "bounding_box", None),
                 heading_path=heading_path,
                 source_span=source_span,
                 attributes=attributes,
@@ -128,21 +135,26 @@ def build_extracted_document(
             block_ids=[
                 block.id for block in blocks if block.page_number == page_number
             ],
+            **((page_metadata or {}).get(page_number, {})),
         )
         for page_number in sorted(
-            {block.page_number for block in blocks if block.page_number is not None}
+            set(page_metadata or {})
+            | {block.page_number for block in blocks if block.page_number is not None}
         )
     ]
+    measurements = DocumentMeasurements(
+        character_count=sum(len(block.text) for block in blocks),
+        block_count=len(blocks),
+        page_count=len(pages),
+        **(measurement_updates or {}),
+    )
     return ExtractedDocumentV1(
         media_type=media_type,
         title=title,
         pages=pages,
         blocks=blocks,
-        measurements=DocumentMeasurements(
-            character_count=sum(len(block.text) for block in blocks),
-            block_count=len(blocks),
-            page_count=len(pages),
-        ),
+        measurements=measurements,
+        findings=findings or [],
     )
 
 
@@ -186,13 +198,26 @@ def clean_document(
                 removed_blocks=removed,
             )
         ],
-        measurements=DocumentMeasurements(
-            character_count=sum(len(block.text) for block in blocks),
-            block_count=len(blocks),
-            page_count=len(
-                {block.page_number for block in blocks if block.page_number}
-            ),
+        measurements=extracted.measurements.model_copy(
+            update={
+                "character_count": sum(len(block.text) for block in blocks),
+                "block_count": len(blocks),
+                "page_count": extracted.measurements.page_count,
+                "page_character_counts": [
+                    sum(
+                        len(block.text)
+                        for block in blocks
+                        if block.page_number == page.page_number
+                    )
+                    for page in extracted.pages
+                ],
+                "page_block_counts": [
+                    sum(1 for block in blocks if block.page_number == page.page_number)
+                    for page in extracted.pages
+                ],
+            }
         ),
+        findings=extracted.findings,
     )
 
 

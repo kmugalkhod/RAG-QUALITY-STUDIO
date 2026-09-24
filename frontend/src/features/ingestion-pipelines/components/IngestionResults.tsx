@@ -3,6 +3,8 @@ import { ArrowRight, Check, FileText, Square, X } from 'lucide-react';
 
 import { Pagination } from '../../../components/Pagination';
 import { Button } from '../../../components/ui/button';
+import { Label } from '../../../components/ui/label';
+import { NativeSelect, NativeSelectOption } from '../../../components/ui/native-select';
 import type { Page } from '../../../lib/pagination';
 import { terminalIngestionStatuses } from '../editorModel';
 import * as api from '../api';
@@ -14,6 +16,41 @@ import type {
   SourcePreview,
   SourcePreviewItem,
 } from '../model';
+
+function blockOrigin(block: ContentBlock): 'Native' | 'Layout' | 'OCR' | null {
+  const origin = block.attributes.origin;
+  return origin === 'native'
+    ? 'Native'
+    : origin === 'layout'
+      ? 'Layout'
+      : origin === 'ocr'
+        ? 'OCR'
+        : null;
+}
+
+function tableRows(block: ContentBlock): string[][] | null {
+  const value = block.attributes.table;
+  if (!value || typeof value !== 'object' || !('rows' in value) || !Array.isArray(value.rows)) {
+    return null;
+  }
+  const rows = value.rows
+    .filter(Array.isArray)
+    .map((row) => row.map((cell) => (typeof cell === 'string' ? cell : String(cell ?? ''))));
+  return rows.length ? rows : null;
+}
+
+function overlayStyle(block: ContentBlock) {
+  const box = block.bounding_box;
+  if (!box || !['left', 'top', 'right', 'bottom'].every((key) => typeof box[key] === 'number')) {
+    return undefined;
+  }
+  return {
+    left: `${box.left * 100}%`,
+    top: `${box.top * 100}%`,
+    width: `${(box.right - box.left) * 100}%`,
+    height: `${(box.bottom - box.top) * 100}%`,
+  };
+}
 
 function sourceSpanLabel(span: Record<string, unknown>) {
   if (span.kind === 'provider_block') {
@@ -118,6 +155,8 @@ export function IngestionRunResults({
   const [blocks, setBlocks] = useState<Page<ContentBlock> | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedPage, setSelectedPage] = useState<number | null>(null);
+  const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!selectedRunId) {
@@ -127,6 +166,8 @@ export function IngestionRunResults({
     setBusy(true);
     setError(null);
     setBlocks(null);
+    setSelectedPage(null);
+    setSelectedBlockId(null);
     api
       .listContentDerivations(projectId, selectedRunId)
       .then((result) => {
@@ -178,6 +219,11 @@ export function IngestionRunResults({
       current = false;
     };
   }, [projectId, selectedDerivation]);
+
+  const visiblePages = Array.from(
+    new Set(blocks?.items.flatMap((block) => (block.page_number ? [block.page_number] : [])) ?? []),
+  ).sort((left, right) => left - right);
+  const previewPage = selectedPage ?? visiblePages[0] ?? null;
 
   function processingRunId(item: IngestionRunItem) {
     return item.processing_run_id;
@@ -276,6 +322,11 @@ export function IngestionRunResults({
                       {item.processing_versions.chunker}
                     </small>
                   )}
+                  {item.error && (
+                    <small role="alert" className="error-message">
+                      {item.error}
+                    </small>
+                  )}
                 </>
               ) : (
                 <>
@@ -289,6 +340,11 @@ export function IngestionRunResults({
                       Extractor {item.processing_versions.extractor} · cleaner{' '}
                       {item.processing_versions.cleaner} · chunker{' '}
                       {item.processing_versions.chunker}
+                    </small>
+                  )}
+                  {item.error && (
+                    <small role="alert" className="error-message">
+                      {item.error}
                     </small>
                   )}
                 </>
@@ -351,13 +407,103 @@ export function IngestionRunResults({
                 {selectedDerivation.measurements.character_count} characters · engine{' '}
                 {selectedDerivation.engine_version}
               </p>
+              <dl className="ingestion-stage-facts content-quality-summary">
+                <dt>Quality decision</dt>
+                <dd>{selectedDerivation.measurements.quality_decision ?? 'not recorded'}</dd>
+                <dt>Page origins</dt>
+                <dd>
+                  {selectedDerivation.measurements.native_page_count ?? 0} Native ·{' '}
+                  {selectedDerivation.measurements.layout_page_count ?? 0} Layout ·{' '}
+                  {selectedDerivation.measurements.ocr_page_count ?? 0} OCR
+                </dd>
+                <dt>Tables</dt>
+                <dd>{selectedDerivation.measurements.table_count ?? 0}</dd>
+                <dt>Extraction time</dt>
+                <dd>{selectedDerivation.measurements.extraction_duration_ms ?? 0} ms</dd>
+              </dl>
+              {selectedDerivation.findings.length > 0 && (
+                <ul className="content-quality-findings" aria-label="Extraction findings">
+                  {selectedDerivation.findings.map((finding) => (
+                    <li key={`${finding.code}-${finding.page_numbers?.join('-') ?? 'document'}`}>
+                      <strong>
+                        {finding.severity} · {finding.code.replaceAll('_', ' ')}
+                      </strong>
+                      <span>
+                        {finding.message}
+                        {finding.page_numbers?.length
+                          ? ` Pages ${finding.page_numbers.join(', ')}.`
+                          : ''}
+                      </span>
+                      {finding.remediation && <small>{finding.remediation}</small>}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {kind === 'extracted' &&
+                selectedDerivation.media_type === 'application/pdf' &&
+                previewPage && (
+                  <div className="content-page-inspector">
+                    <Label>
+                      Preview page
+                      <NativeSelect
+                        value={previewPage}
+                        onChange={(event) => {
+                          setSelectedPage(Number(event.target.value));
+                          setSelectedBlockId(null);
+                        }}
+                      >
+                        {visiblePages.map((page) => (
+                          <NativeSelectOption key={page} value={page}>
+                            Page {page}
+                          </NativeSelectOption>
+                        ))}
+                      </NativeSelect>
+                    </Label>
+                    <figure>
+                      <div className="content-page-canvas">
+                        <img
+                          src={api.contentPageThumbnailUrl(projectId, selectedRunId, previewPage)}
+                          alt={`Rendered PDF page ${previewPage}`}
+                        />
+                        <div
+                          className="content-page-overlays"
+                          aria-label="Extracted block overlays"
+                        >
+                          {blocks?.items
+                            .filter(
+                              (block) =>
+                                block.page_number === previewPage &&
+                                overlayStyle(block) !== undefined,
+                            )
+                            .map((block) => (
+                              <button
+                                type="button"
+                                key={block.block_id}
+                                style={overlayStyle(block)}
+                                className={selectedBlockId === block.block_id ? 'is-selected' : ''}
+                                aria-label={`Select ${blockOrigin(block) ?? ''} ${block.block_type} block ${block.ordinal + 1}`}
+                                onClick={() => setSelectedBlockId(block.block_id)}
+                              />
+                            ))}
+                        </div>
+                      </div>
+                      <figcaption>
+                        Select an overlay to match normalized geometry with the extracted block.
+                      </figcaption>
+                    </figure>
+                  </div>
+                )}
               <ul className="content-block-list">
                 {blocks?.items.map((block) => (
-                  <li key={block.block_id}>
+                  <li
+                    key={block.block_id}
+                    className={selectedBlockId === block.block_id ? 'is-selected' : ''}
+                  >
                     <div>
                       <strong>
                         {block.ordinal + 1}. {block.block_type}
                         {block.page_number ? ` · page ${block.page_number}` : ''}
+                        {blockOrigin(block) ? ` · ${blockOrigin(block)}` : ''}
                       </strong>
                       {block.heading_path.length > 0 && (
                         <small>{block.heading_path.join(' / ')}</small>
@@ -365,6 +511,35 @@ export function IngestionRunResults({
                       <small>Source: {sourceSpanLabel(block.source_span)}</small>
                     </div>
                     <pre>{block.text}</pre>
+                    {tableRows(block) && (
+                      <div className="content-table-scroll" tabIndex={0}>
+                        <table>
+                          <caption>Structured table cells for block {block.ordinal + 1}</caption>
+                          <thead>
+                            <tr>
+                              {tableRows(block)?.[0].map((cell, index) => (
+                                <th key={`${block.block_id}-head-${index}`} scope="col">
+                                  {cell || `Column ${index + 1}`}
+                                </th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {tableRows(block)
+                              ?.slice(1)
+                              .map((row, rowIndex) => (
+                                <tr key={`${block.block_id}-row-${rowIndex}`}>
+                                  {row.map((cell, columnIndex) => (
+                                    <td key={`${block.block_id}-${rowIndex}-${columnIndex}`}>
+                                      {cell}
+                                    </td>
+                                  ))}
+                                </tr>
+                              ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
                   </li>
                 ))}
               </ul>

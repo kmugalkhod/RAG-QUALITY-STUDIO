@@ -1,5 +1,86 @@
 # Implementation plan
 
+## Robust ingestion roadmap — Phase 2 acceptance criteria (2026-09-24)
+
+Status: **Phase 2 complete on 2026-09-24** on
+`codex/robust-ingestion-roadmap`; Phase 3 is next.
+
+- Detect PDF/TXT media from bounded bytes and reject declared/extension mismatches.
+  Preserve every schema-v1 execution and historical result unchanged.
+- Add saved schema-v2 extraction settings for Auto, Native text and Layout-aware
+  profiles; Off, Automatic fallback and Always OCR policies; installed OCR languages;
+  bounded rotation, deskew, DPI, page and per-page timeout controls; table rendering;
+  and versioned quality policy.
+- Keep `pypdf` as the fast native adapter. Use an application-owned layout adapter
+  with deterministic PyMuPDF block/table conversion and an offline, subprocess-bounded
+  Tesseract adapter. Do not permit network model downloads or expose unavailable
+  engines/languages as selectable.
+- Apply explicit page-level Auto rules, retain the actual Native/Layout/OCR origin and
+  fallback reason, normalized block geometry, safe findings, extraction measurements,
+  OCR engine confidence when available, and bounded structured table cells plus
+  deterministic Markdown/plain-text evidence.
+- Evaluate current Docling packaging before selection. It must remain unselected if its
+  pinned dependency/model footprint cannot satisfy the existing isolated worker and
+  deterministic offline packaging gate.
+- Evaluate a reviewed deterministic corpus covering native, scanned, mixed, rotated,
+  skewed, two-column, repeated-header, list/code/caption and table cases. Record native
+  preservation, OCR character error, reading-order and table association results plus
+  extraction time and output hashes; failures remain visible instead of being averaged
+  away.
+- Enforce versioned quality policies before cleaning/chunking/embedding. Failed or
+  excluded items cannot publish, warning publication must remain visible, and a failed
+  retry cannot replace the prior ready index.
+- Add project-scoped capability and safe PDF-thumbnail reads. The editor exposes only
+  configured controls and the inspector shows origins, page findings, structured tables
+  and selectable normalized overlays without executing document content.
+- Verify schema validation, engine/fallback rules, media spoofing, encryption and
+  malformed PDFs, pixel/page/time limits, OCR-off behavior, cancellation/fencing,
+  deterministic reruns, table bounds, quality decisions, isolated container packaging,
+  all backend/frontend regressions and Agent Browser desktop/tablet/mobile journeys.
+
+Phase 2 does not add the Phase 3 cleaning transform catalog, Phase 4 token/semantic/
+parent-child chunking, Phase 5 duplicate clustering, or Phase 6 sensitive-data policy.
+
+Implementation and verification evidence:
+
+- The schema-v2 Extract node now saves Auto, Native text and Layout-aware profiles;
+  Off, Automatic fallback and Always OCR policies; installed content languages;
+  rotation, deskew, DPI, page/pixel/time bounds; table mode; and deterministic quality
+  thresholds. Schema-v1 versions retain their original validation and execution path.
+- Bounded byte inspection rejects media spoofing before parsing. Native PDF extraction
+  remains on `pypdf`; an application-owned PyMuPDF adapter supplies ordered blocks,
+  geometry and structured tables, while an offline Tesseract subprocess adapter supplies
+  OCR text, confidence, rotation and deskew. Docling 2.130.0 was evaluated but rejected
+  because its model/runtime footprint did not meet the deterministic offline packaging
+  and existing 768 MiB worker gate.
+- Page-level Auto selection records Native, Layout or OCR origin, fallback path, safe
+  findings and measurements. Quality policy is applied before clean/chunk/embed; failed
+  or excluded items cannot publish. A real mixed-PDF regression proves an OCR-disabled
+  quality failure leaves the prior current-ready index and membership unchanged.
+- The reviewed corpus baseline records **100.000% native-text preservation**, **0.570%
+  median / 1.141% p95 OCR character error**, **100% reading-order precedence**, **100%
+  table association**, **100% deterministic reruns** and correct 90-degree rotation.
+  Representative extraction times were 9 ms native, 237 ms scanned, 578 ms rotated and
+  12 ms layout-aware. Full cases and hashes are in
+  [the ingestion corpus baseline](ingestion-corpus-baseline.md).
+- Project-scoped capability and safe-thumbnail endpoints drive only available controls.
+  The inspector exposes page origins, quality findings, OCR confidence, structured table
+  cells, selectable normalized overlays and safe item failures. Schema-v2 Existing Files
+  can process a new upload or retry failed/cancelled processing with the exact saved
+  extraction settings; active work is still fenced and schema v1 remains unchanged.
+- Backend Ruff format/lint passed. A fresh isolated PostgreSQL/pgvector run passed
+  **280 tests with 4 opt-in live tests skipped**; the only warning is the existing
+  upstream Starlette multipart deprecation. Clean container builds verified pinned
+  PyMuPDF, Pillow and Debian Tesseract packaging.
+- Frontend formatting, structure/ESLint, strict TypeScript, all **107 Vitest tests
+  across 29 files**, and the production build passed. Agent Browser performed a real
+  upload, preview, save and full mixed-PDF run, inspected Layout/OCR overlays and a
+  structured table, then verified an OCR-off quality failure and the surviving current
+  ready index. Desktop (1440 px), tablet (1024 px) and mobile (390 px) had no horizontal
+  overflow or application-console errors. The browser pass also found and drove fixes
+  for new-file selection, hidden per-item failures and the internal `osd` language being
+  exposed as a content-language option.
+
 ## Robust ingestion roadmap — Phase 1 acceptance criteria (2026-09-24)
 
 Status: **Phase 1 complete on 2026-09-24** on

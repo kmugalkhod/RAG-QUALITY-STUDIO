@@ -1,7 +1,9 @@
 from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
+from io import BytesIO
 from uuid import UUID
 
+import pymupdf
 import pytest
 from pydantic import SecretStr
 from sqlalchemy import delete, select, text, update
@@ -10,9 +12,10 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.connectors.existing_files import ExistingFilesConnector
+from app.ingestion_content.extractors.pdf import installed_ocr_languages
 from app.models.document import Chunk, ProcessingRun
 from app.models.derivation import ChunkBlockSpan
-from app.models.index import IndexChunk, IndexVersion
+from app.models.index import IndexChunk, IndexVersion, KnowledgeSet
 from app.models.ingestion import IngestionRun, IngestionRunItem, IngestionRunNode
 from app.models.pipeline import Pipeline, PipelineVersion
 from app.providers import embeddings
@@ -22,7 +25,7 @@ from app.workers.dispatcher import dispatch_ingestion_once
 from app.workers.ingestion import process_ingestion
 from app.workers.processing import now, process
 from app.workers.previews import process_preview
-from test_documents import documents_api, start, upload  # noqa: F401
+from test_documents import documents_api, pdf_bytes, start, upload  # noqa: F401
 from test_indexes import ProviderDouble
 
 
@@ -151,6 +154,41 @@ def prepare(client, engine, project_id, *, name, size=100):
     run = start(client, project_id, document["id"], size=size, overlap=10)
     process(UUID(run["id"]), engine)
     return document, run
+
+
+def mixed_pdf_bytes():
+    with pymupdf.open() as document:
+        native = document.new_page(width=612, height=792)
+        native.insert_text(
+            (54, 100),
+            "Native content remains available while OCR handles the next page.",
+            fontsize=14,
+        )
+        with pymupdf.open() as image_source:
+            page = image_source.new_page(width=612, height=792)
+            page.insert_text((72, 150), "Scanned quality policy evidence", fontsize=26)
+            pixmap = page.get_pixmap(dpi=200, colorspace=pymupdf.csGRAY, alpha=False)
+        scan = document.new_page(width=612, height=792)
+        scan.insert_image(scan.rect, stream=pixmap.tobytes("png"))
+        output = BytesIO()
+        document.save(output)
+    return output.getvalue()
+
+
+def robust_extract(payload, *, ocr_mode):
+    extract = next(
+        node for node in payload["execution"]["nodes"] if node["type"] == "extract"
+    )
+    extract.update(
+        {
+            "strategy": "auto",
+            "ocr": {"mode": ocr_mode, "languages": ["eng"], "deskew": False},
+            "tables": "preserve",
+            "quality_policy": "default-v1",
+            "config_version": "layout-ocr-v1",
+        }
+    )
+    return payload
 
 
 def test_node_transitions_are_serialized_across_document_workers(ingestion_api):
@@ -403,6 +441,185 @@ def test_v2_failed_cleaning_exposes_no_partial_derivations(ingestion_api):
     )
     assert response.status_code == 200
     assert response.json()["total"] == 0
+
+
+def test_layout_capabilities_and_thumbnail_are_project_scoped(ingestion_api):
+    client, engine, project_id, other_project_id, config, _ = ingestion_api
+    capabilities = client.get(f"/api/projects/{project_id}/ingestion-capabilities")
+    assert capabilities.status_code == 200, capabilities.text
+    assert {profile["id"] for profile in capabilities.json()["profiles"]} == {
+        "auto",
+        "native",
+        "layout_aware",
+    }
+    assert (
+        client.get(
+            f"/api/projects/{other_project_id}/ingestion-capabilities"
+        ).status_code
+        == 200
+    )
+
+    document = upload(
+        client,
+        project_id,
+        pdf_bytes(
+            ["Robust ingestion PDF has enough native text for layout inspection."]
+        ),
+        "layout.pdf",
+    )
+    payload = ingestion_draft(
+        [document["id"]], config, name="Layout extraction", schema_version=2
+    )
+    extract = next(
+        node for node in payload["execution"]["nodes"] if node["type"] == "extract"
+    )
+    extract.update(
+        {
+            "strategy": "layout_aware",
+            "ocr": {"mode": "off", "languages": ["eng"]},
+            "tables": "preserve",
+            "quality_policy": "default-v1",
+            "config_version": "layout-ocr-v1",
+        }
+    )
+    preview = client.post(
+        f"/api/projects/{project_id}/ingestion-previews",
+        json={"execution": payload["execution"]},
+    )
+    assert preview.status_code == 202, preview.text
+    process_preview(UUID(preview.json()["id"]), engine)
+    preview_items = client.get(
+        f"/api/projects/{project_id}/source-previews/{preview.json()['id']}/items"
+    ).json()["items"]
+    assert preview_items[0]["status"] == "included"
+    assert "initial schema-v2 processing" in preview_items[0]["reason"]
+    version = client.post(f"/api/projects/{project_id}/pipelines", json=payload)
+    assert version.status_code == 201, version.text
+    accepted = client.post(
+        f"/api/projects/{project_id}/pipelines/{version.json()['pipeline_id']}"
+        f"/versions/{version.json()['id']}/ingestion-runs"
+    ).json()
+    item = client.get(
+        f"/api/projects/{project_id}/ingestion-runs/{accepted['id']}/items"
+    ).json()["items"][0]
+    assert item["processing_created"] is True
+    process(UUID(item["processing_run_id"]), engine)
+    with Session(engine) as session:
+        assert session.get(ProcessingRun, UUID(item["processing_run_id"])).status == (
+            "succeeded"
+        )
+
+    thumbnail_path = (
+        f"/api/projects/{project_id}/processing-runs/"
+        f"{item['processing_run_id']}/pages/1/thumbnail"
+    )
+    thumbnail = client.get(thumbnail_path)
+    assert thumbnail.status_code == 200, thumbnail.text
+    assert thumbnail.headers["content-type"] == "image/png"
+    assert thumbnail.headers["x-content-type-options"] == "nosniff"
+    assert thumbnail.content.startswith(b"\x89PNG\r\n\x1a\n")
+    assert (
+        client.get(
+            thumbnail_path.replace(
+                f"projects/{project_id}", f"projects/{other_project_id}"
+            )
+        ).status_code
+        == 404
+    )
+
+
+def test_quality_rejection_preserves_previous_ready_index(ingestion_api):
+    if "eng" not in installed_ocr_languages():
+        pytest.skip("The deterministic container OCR engine is not installed.")
+    client, engine, project_id, _, config, _ = ingestion_api
+    document = upload(
+        client,
+        project_id,
+        mixed_pdf_bytes(),
+        "mixed-quality.pdf",
+    )
+    successful_payload = robust_extract(
+        ingestion_draft(
+            [document["id"]],
+            config,
+            name="Quality-gated set",
+            schema_version=2,
+        ),
+        ocr_mode="auto",
+    )
+    successful_version = client.post(
+        f"/api/projects/{project_id}/pipelines", json=successful_payload
+    ).json()
+    successful_run = client.post(
+        f"/api/projects/{project_id}/pipelines/"
+        f"{successful_version['pipeline_id']}/versions/"
+        f"{successful_version['id']}/ingestion-runs"
+    ).json()
+    successful_item = client.get(
+        f"/api/projects/{project_id}/ingestion-runs/{successful_run['id']}/items"
+    ).json()["items"][0]
+    process(UUID(successful_item["processing_run_id"]), engine)
+    process_ingestion(UUID(successful_run["id"]), engine)
+    with Session(engine) as session:
+        first_index = session.scalar(
+            select(IndexVersion).where(
+                IndexVersion.ingestion_run_id == UUID(successful_run["id"])
+            )
+        )
+        assert first_index is not None
+        first_index_id = first_index.id
+        knowledge_set_id = first_index.knowledge_set_id
+    process_index(first_index_id, engine)
+    process_ingestion(UUID(successful_run["id"]), engine)
+    process_ingestion(UUID(successful_run["id"]), engine)
+
+    rejected_payload = robust_extract(
+        ingestion_draft(
+            [document["id"]],
+            config,
+            name="Quality-gated set",
+            schema_version=2,
+        ),
+        ocr_mode="off",
+    )
+    rejected_version = client.post(
+        f"/api/projects/{project_id}/pipelines", json=rejected_payload
+    ).json()
+    rejected_run = client.post(
+        f"/api/projects/{project_id}/pipelines/{rejected_version['pipeline_id']}"
+        f"/versions/{rejected_version['id']}/ingestion-runs"
+    ).json()
+    rejected_item = client.get(
+        f"/api/projects/{project_id}/ingestion-runs/{rejected_run['id']}/items"
+    ).json()["items"][0]
+    process(UUID(rejected_item["processing_run_id"]), engine)
+    process_ingestion(UUID(rejected_run["id"]), engine)
+
+    rejected_result = client.get(
+        f"/api/projects/{project_id}/ingestion-runs/{rejected_run['id']}"
+    ).json()
+    rejected_items = client.get(
+        f"/api/projects/{project_id}/ingestion-runs/{rejected_run['id']}/items"
+    ).json()["items"]
+    assert rejected_result["status"] == "failed"
+    assert rejected_items[0]["error"] == (
+        "Extraction did not satisfy the saved quality policy. Review the source "
+        "and extraction settings before retrying."
+    )
+    with Session(engine) as session:
+        assert session.get(IndexVersion, first_index_id).status == "succeeded"
+        assert (
+            session.get(KnowledgeSet, knowledge_set_id).current_ready_index_id
+            == first_index_id
+        )
+        assert (
+            session.scalar(
+                select(IndexVersion.id).where(
+                    IndexVersion.ingestion_run_id == UUID(rejected_run["id"])
+                )
+            )
+            is None
+        )
 
 
 def test_v2_existing_files_executes_clean_config_and_reuses_exact_identity(

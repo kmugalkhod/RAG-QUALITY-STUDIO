@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request, Response
 
 from app.api.connections import require_keyring
 from app.api.documents import Limit, Offset
@@ -20,6 +20,7 @@ from app.schemas.derivation import (
     ContentBlockPage,
     ContentDerivationList,
 )
+from app.schemas.extraction import ExtractionCapabilities
 from app.schemas.source_snapshot import (
     SourceSnapshotIndexPage,
     SourceSnapshotMemberPage,
@@ -27,10 +28,18 @@ from app.schemas.source_snapshot import (
     SourceSnapshotRead,
 )
 from app.services import derivations, ingestion, previews, source_snapshots
+from app.services import documents
+from app.ingestion_content.extractors import extraction_capabilities
 from app.services import pipelines as pipeline_service
 
 
 router = APIRouter(prefix="/api/projects/{project_id}")
+
+
+@router.get("/ingestion-capabilities", response_model=ExtractionCapabilities)
+def capabilities(project_id: UUID, session: Database):
+    documents.project(session, project_id)
+    return extraction_capabilities()
 
 
 def _protect_credentialed_source(request: Request, execution: IngestionExecution):
@@ -171,6 +180,28 @@ def list_content_chunk_spans(
 ):
     return derivations.list_chunk_spans(
         session, project_id, processing_run_id, chunk_ordinal
+    )
+
+
+@router.get("/processing-runs/{processing_run_id}/pages/{page_number}/thumbnail")
+def page_thumbnail(
+    project_id: UUID,
+    processing_run_id: UUID,
+    page_number: int,
+    session: Database,
+):
+    if page_number < 1 or page_number > 2_000:
+        return Response(status_code=422)
+    content = derivations.page_thumbnail(
+        session, project_id, processing_run_id, page_number
+    )
+    return Response(
+        content=content,
+        media_type="image/png",
+        headers={
+            "Cache-Control": "private, max-age=300",
+            "X-Content-Type-Options": "nosniff",
+        },
     )
 
 

@@ -2,6 +2,24 @@
 
 The currently verified deployment is the local Docker Compose workspace documented in the [README](../README.md). Its published ports bind to `127.0.0.1`. Authentication and multi-user authorization are not implemented, so do not expose this stack through a public ingress or shared host.
 
+## PDF extraction and OCR capacity
+
+The backend and worker images pin PyMuPDF, Pillow and the Debian Tesseract CLI with the
+English trained-data pack. Extraction and OCR run in workers, not the API process. The
+capability endpoint is authoritative for selectable profiles, table modes and installed
+content languages; Tesseract's internal orientation data is not a selectable content
+language. Install and pin another trained-data pack in every worker image before making
+that language available.
+
+Schema-v2 extraction enforces saved page, rendered-pixel, per-page timeout and output
+bounds. Size worker concurrency and memory for the configured DPI and page limit, and
+prefer Auto OCR so native pages avoid OCR work. Monitor extraction/OCR durations,
+quality warnings and temporary-storage capacity without logging document text. A parser
+or OCR failure cannot replace the current ready index; investigate and retry against a
+new immutable run while the prior ready version remains queryable. Docling is not part
+of the deployed runtime because its evaluated model/runtime footprint did not meet the
+current deterministic offline and worker-memory gate.
+
 Migration `0018` adds immutable Website source snapshots and exact membership, plus nullable lineage on historical ingestion runs and indexes. Apply it with the normal one-shot migration service before starting updated API/workers. The upgrade backfills only provable one-to-one historical Website lineage; null means unavailable, not an empty snapshot. The downgrade preserves existing indexes, queries, experiments, and artifacts but removes snapshot catalog data, so take a PostgreSQL backup first and roll backend/frontend/worker code together. Snapshot membership references immutable source revisions and raw artifacts; back up PostgreSQL and the document volume at one recovery point. There is no snapshot deletion or automatic retention job.
 
 ## Source connection vault

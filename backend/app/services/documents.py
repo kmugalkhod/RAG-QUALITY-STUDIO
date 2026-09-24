@@ -14,7 +14,9 @@ from app.models.document import Chunk, Document, ProcessingRun
 from app.models.index import IndexChunk
 from app.models.ingestion import IngestionRunItem
 from app.models.project import Project
-from app.pipelines.parsing import PARSER_VERSION, ProcessingError, validate_text
+from app.pipelines.parsing import PARSER_VERSION, ProcessingError
+from app.ingestion_content.processing import IngestionStageError
+from app.ingestion_content.extractors.pdf import detect_media_type
 from app.schemas.document import DocumentRead, ProcessingConfig, RunRead
 
 
@@ -81,12 +83,12 @@ def upload(session: Session, project_id: UUID, file: UploadFile):
             os.fsync(output.fileno())
         if size == 0:
             raise HTTPException(422, "The uploaded file is empty.")
-        if extension == ".txt":
-            validate_text(temporary.read_bytes())
-        else:
-            with temporary.open("rb") as source:
-                if source.read(5) != b"%PDF-":
-                    raise HTTPException(422, "The file is not a PDF.")
+        expected_media_type = "text/plain" if extension == ".txt" else "application/pdf"
+        detected_media_type = detect_media_type(temporary)
+        if detected_media_type != expected_media_type:
+            raise HTTPException(
+                422, "The file bytes do not match the selected PDF or TXT filename."
+            )
         os.replace(temporary, final)
         # Persist the directory entry before committing its database reference.
         descriptor = os.open(root, os.O_RDONLY)
@@ -98,7 +100,7 @@ def upload(session: Session, project_id: UUID, file: UploadFile):
             project_id=project_id,
             filename=filename,
             storage_name=name,
-            media_type="text/plain" if extension == ".txt" else "application/pdf",
+            media_type=detected_media_type,
             content_hash=digest.hexdigest(),
             size_bytes=size,
         )
@@ -110,6 +112,8 @@ def upload(session: Session, project_id: UUID, file: UploadFile):
         return response
     except ProcessingError as exc:
         raise HTTPException(422, str(exc)) from None
+    except IngestionStageError as exc:
+        raise HTTPException(422, exc.message) from None
     except OSError:
         raise HTTPException(
             503, "File storage unavailable. Please try again."

@@ -103,6 +103,20 @@ class CanonicalBlock(Strict):
 class ExtractedPage(Strict):
     page_number: int = Field(ge=1)
     block_ids: list[str] = Field(default_factory=list, max_length=10_000)
+    origin: Literal["native", "layout", "ocr"] = "native"
+    character_count: int = Field(default=0, ge=0)
+    block_count: int = Field(default=0, ge=0)
+    fallback_reason: str | None = Field(default=None, max_length=200)
+    width_points: float | None = Field(
+        default=None, gt=0, le=100_000, allow_inf_nan=False
+    )
+    height_points: float | None = Field(
+        default=None, gt=0, le=100_000, allow_inf_nan=False
+    )
+    rotation_degrees: int = Field(default=0, ge=0, le=359)
+    ocr_confidence: float | None = Field(
+        default=None, ge=0, le=100, allow_inf_nan=False
+    )
 
 
 class LanguageResult(Strict):
@@ -115,6 +129,14 @@ class QualityFinding(Strict):
     severity: Literal["info", "warning", "error"]
     count: int = Field(default=1, ge=1, le=1_000_000)
     message: str = Field(min_length=1, max_length=500)
+    page_numbers: list[int] = Field(default_factory=list, max_length=100)
+    remediation: str | None = Field(default=None, max_length=500)
+
+    @model_validator(mode="after")
+    def ordered_pages(self):
+        if self.page_numbers != sorted(set(self.page_numbers)):
+            raise ValueError("Finding page numbers must be unique and ordered.")
+        return self
 
 
 class DocumentMeasurements(Strict):
@@ -122,6 +144,30 @@ class DocumentMeasurements(Strict):
     block_count: int = Field(ge=0)
     page_count: int = Field(ge=0)
     empty_block_count: int = Field(default=0, ge=0)
+    page_character_counts: list[int] = Field(default_factory=list, max_length=2_000)
+    page_block_counts: list[int] = Field(default_factory=list, max_length=2_000)
+    native_page_count: int = Field(default=0, ge=0)
+    layout_page_count: int = Field(default=0, ge=0)
+    ocr_page_count: int = Field(default=0, ge=0)
+    empty_page_count: int = Field(default=0, ge=0)
+    replacement_character_ratio: float = Field(
+        default=0, ge=0, le=1, allow_inf_nan=False
+    )
+    control_character_ratio: float = Field(default=0, ge=0, le=1, allow_inf_nan=False)
+    repeated_line_ratio: float = Field(default=0, ge=0, le=1, allow_inf_nan=False)
+    suspicious_reading_order_count: int = Field(default=0, ge=0)
+    table_count: int = Field(default=0, ge=0)
+    malformed_table_count: int = Field(default=0, ge=0)
+    ocr_confidence_median: float | None = Field(
+        default=None, ge=0, le=100, allow_inf_nan=False
+    )
+    ocr_confidence_p05: float | None = Field(
+        default=None, ge=0, le=100, allow_inf_nan=False
+    )
+    extraction_duration_ms: int = Field(default=0, ge=0)
+    resource_category: Literal["native", "bounded-cpu"] = "native"
+    fallback_path: list[str] = Field(default_factory=list, max_length=2_000)
+    quality_decision: Literal["pass", "warn", "exclude", "fail"] = "pass"
 
 
 class ExtractedDocumentV1(Strict):
@@ -154,6 +200,14 @@ class ExtractedDocumentV1(Strict):
             raise ValueError("Block measurement does not match the document.")
         if self.measurements.page_count != len(self.pages):
             raise ValueError("Page measurement does not match the document.")
+        if self.measurements.page_character_counts and len(
+            self.measurements.page_character_counts
+        ) != len(self.pages):
+            raise ValueError("Per-page character measurements must match the pages.")
+        if self.measurements.page_block_counts and len(
+            self.measurements.page_block_counts
+        ) != len(self.pages):
+            raise ValueError("Per-page block measurements must match the pages.")
         return self
 
 

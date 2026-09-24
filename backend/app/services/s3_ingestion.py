@@ -9,12 +9,16 @@ from app.connectors.s3 import S3Artifact
 from app.ingestion_content import (
     CharacterWindowChunker,
     ExtractedSegment,
-    build_extracted_document,
     chunk_cleaned_document,
     clean_document,
     cleaner_for_node,
     processing_identity,
 )
+from app.ingestion_content.extractors import (
+    extract_document,
+    extractor_version_for_settings,
+)
+from app.schemas.ingestion import ExtractNodeV2
 from app.models.source import SourceRevision
 from app.pipelines.parsing import (
     MAX_CHUNKS,
@@ -31,7 +35,11 @@ from app.services.source_artifacts import (
 )
 
 
-def processing_configuration(chunk, clean):
+def _extract_settings(extract=None):
+    return extract or ExtractNodeV2(id="extract", type="extract")
+
+
+def processing_configuration(chunk, clean, extract=None):
     if getattr(clean, "profile", None) is None:
         value = {
             "extractor": PARSER_VERSION,
@@ -41,12 +49,13 @@ def processing_configuration(chunk, clean):
         }
         return value, config_hash(value)
     cleaner = cleaner_for_node(clean)
+    extract = _extract_settings(extract)
     return processing_identity(
         schema_version=2 if getattr(clean, "profile", None) else 1,
-        extractor_version=PARSER_VERSION,
+        extractor_version=extractor_version_for_settings(extract),
         cleaner_version=cleaner.version,
         chunker_version=CharacterWindowChunker.version,
-        extract={"strategy": "media_type_registry"},
+        extract=extract.model_dump(mode="json", exclude={"id", "type"}),
         clean=clean.model_dump(mode="json", exclude={"id", "type"}),
         chunk=chunk.model_dump(mode="json", exclude={"id", "type"}),
     )
@@ -110,14 +119,14 @@ def _canonical_chunks(
     clean,
     processing_hash,
     phase_callback=None,
+    extract=None,
 ):
     if phase_callback is not None:
         phase_callback("extract")
-    segments = [
-        ExtractedSegment(text=value, page_number=page_number)
-        for page_number, value, _, _ in pages(path, media_type)
-    ]
-    extracted = build_extracted_document(segments, media_type=media_type, title=title)
+    extract = _extract_settings(extract)
+    extracted, extractor_version = extract_document(path, media_type, title, extract)
+    if extracted.measurements.quality_decision in {"fail", "exclude"}:
+        raise ProcessingError("S3 extraction did not satisfy the saved quality policy.")
     if phase_callback is not None:
         phase_callback("clean")
     cleaner = cleaner_for_node(clean)
@@ -125,7 +134,7 @@ def _canonical_chunks(
         extracted,
         clean,
         cleaner,
-        extractor_version=PARSER_VERSION,
+        extractor_version=extractor_version,
         configuration_hash=processing_hash,
     )
     violation = cleaner.length_violation(cleaned.measurements.character_count, clean)
@@ -153,7 +162,7 @@ def _canonical_chunks(
         extracted=extracted,
         cleaned=cleaned,
         spans=result.spans,
-        extractor_version=PARSER_VERSION,
+        extractor_version=extractor_version,
     )
 
 
@@ -166,11 +175,12 @@ def persist_artifact(
     clean,
     prior_revision: SourceRevision | None,
     phase_callback=None,
+    extract=None,
 ):
     if artifact.content is None or artifact.content_hash is None:
         raise ValueError("Changed S3 artifacts require fetched content.")
     metadata = artifact.item.metadata
-    processing_config, processing_hash = processing_configuration(chunk, clean)
+    processing_config, processing_hash = processing_configuration(chunk, clean, extract)
     media_type = artifact.item.media_type
     modified = artifact.item.modified_at
 
@@ -185,6 +195,7 @@ def persist_artifact(
                 clean,
                 processing_hash,
                 phase_callback,
+                extract,
             )
         return _chunks(
             stored_path,
@@ -210,7 +221,11 @@ def persist_artifact(
             revision_media_type=media_type,
             processing_config=processing_config,
             processing_config_hash=processing_hash,
-            parser_version=PARSER_VERSION,
+            parser_version=(
+                extractor_version_for_settings(_extract_settings(extract))
+                if getattr(clean, "profile", None) is not None
+                else PARSER_VERSION
+            ),
             chunk_size=chunk.size,
             chunk_overlap=chunk.overlap,
             chunk_config_version=chunk.config_version,

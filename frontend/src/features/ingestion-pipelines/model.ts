@@ -84,7 +84,18 @@ export type IngestionNode =
     })
   | (NodeBase & {
       type: 'extract';
-      strategy?: 'media_type_registry' | 'native_text';
+      strategy?: 'media_type_registry' | 'native_text' | 'auto' | 'native' | 'layout_aware';
+      ocr?: {
+        mode: 'off' | 'auto' | 'always';
+        languages: string[];
+        rotate_pages: boolean;
+        deskew: boolean;
+        dpi: number;
+        max_pages: number;
+        timeout_seconds: number;
+      };
+      tables?: 'preserve' | 'markdown' | 'plain_text';
+      quality_policy?: 'default-v1' | 'strict-v1' | 'warn-v1';
       config_version?: string;
     })
   | (NodeBase & {
@@ -285,8 +296,33 @@ export type ContentDerivation = {
     block_count: number;
     page_count: number;
     empty_block_count?: number;
+    page_character_counts?: number[];
+    page_block_counts?: number[];
+    native_page_count?: number;
+    layout_page_count?: number;
+    ocr_page_count?: number;
+    empty_page_count?: number;
+    replacement_character_ratio?: number;
+    control_character_ratio?: number;
+    repeated_line_ratio?: number;
+    suspicious_reading_order_count?: number;
+    table_count?: number;
+    malformed_table_count?: number;
+    ocr_confidence_median?: number | null;
+    ocr_confidence_p05?: number | null;
+    extraction_duration_ms?: number;
+    resource_category?: 'native' | 'bounded-cpu';
+    fallback_path?: string[];
+    quality_decision?: 'pass' | 'warn' | 'exclude' | 'fail';
   };
-  findings: { code: string; severity: string; count: number; message: string }[];
+  findings: {
+    code: string;
+    severity: string;
+    count: number;
+    message: string;
+    page_numbers?: number[];
+    remediation?: string | null;
+  }[];
   transforms: {
     transform: string;
     version: string;
@@ -294,6 +330,25 @@ export type ContentDerivation = {
     removed_blocks: number;
   }[];
   created_at: string;
+};
+
+export type ExtractionCapabilities = {
+  schema_version: 1;
+  media_types: ('application/pdf' | 'text/plain')[];
+  profiles: {
+    id: 'auto' | 'native' | 'layout_aware';
+    available: boolean;
+    reason: string | null;
+  }[];
+  ocr: {
+    available: boolean;
+    languages: string[];
+    reason: string | null;
+    max_pages: number;
+    max_pixels_per_page: number;
+  };
+  table_modes: ('preserve' | 'markdown' | 'plain_text')[];
+  quality_policies: ('default-v1' | 'strict-v1' | 'warn-v1')[];
 };
 
 export type ContentBlock = {

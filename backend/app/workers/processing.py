@@ -14,13 +14,13 @@ from app.ingestion_content import (
     CleanSemantics,
     DeterministicCleaner,
     IngestionStageError,
-    NativeTextExtractor,
-    build_extracted_document,
     chunk_cleaned_document,
     clean_document,
 )
+from app.ingestion_content.extractors import extract_document
 from app.models.document import Chunk, Document, ProcessingRun
 from app.pipelines.parsing import MAX_CHUNKS, ProcessingError, pages, windows
+from app.schemas.ingestion import ExtractNodeV2
 from app.services import ingestion_execution
 from app.services.derivations import persist_derivations
 from app.workers.celery_app import celery
@@ -30,23 +30,34 @@ def now():
     return datetime.now(timezone.utc)
 
 
-def _v2_chunks(job, path, media, title, on_stage):
+def _v2_chunks(job, path, media, title, on_stage, cancelled=None):
     config = job.processing_config or {}
+    extract_config = ExtractNodeV2.model_validate(
+        {"id": "extract", "type": "extract", **config.get("extract", {})}
+    )
     clean_config = SimpleNamespace(**config.get("clean", {}))
     chunk_config = SimpleNamespace(**config.get("chunk", {}))
-    extractor = NativeTextExtractor()
     cleaner = DeterministicCleaner(CleanSemantics.STANDARD_V1)
-    try:
-        segments = list(extractor.extract(path, media))
-    except ProcessingError as exc:
-        raise IngestionStageError("extract", "extraction_failed", str(exc)) from exc
+    extracted, extractor_version = extract_document(
+        path,
+        media,
+        title,
+        extract_config,
+        cancelled=cancelled,
+    )
+    if extracted.measurements.quality_decision in {"fail", "exclude"}:
+        raise IngestionStageError(
+            "extract",
+            "quality_rejected",
+            "Extraction did not satisfy the saved quality policy. Review the source "
+            "and extraction settings before retrying.",
+        )
     on_stage("clean")
-    extracted = build_extracted_document(segments, media_type=media, title=title)
     cleaned = clean_document(
         extracted,
         clean_config,
         cleaner,
-        extractor_version=extractor.version,
+        extractor_version=extractor_version,
         configuration_hash=job.processing_config_hash,
     )
     total_characters = cleaned.measurements.character_count
@@ -107,7 +118,7 @@ def _v2_chunks(job, path, media, title, on_stage):
         extracted,
         cleaned,
         chunking.spans,
-        extractor.version,
+        extractor_version,
     )
 
 
@@ -138,6 +149,16 @@ def process(run_id: UUID, db_engine=engine):
         title = doc.filename
         session.commit()
     ingestion_execution.transition_for_processing_run(db_engine, run_id, "extract")
+
+    def cancelled():
+        with Session(db_engine) as cancellation_session:
+            current = cancellation_session.get(ProcessingRun, run_id)
+            return (
+                current is None
+                or current.status != "running"
+                or current.execution_token != token
+            )
+
     try:
         output_hash = None
         canonical = None
@@ -155,6 +176,7 @@ def process(run_id: UUID, db_engine=engine):
                     lambda stage: ingestion_execution.transition_for_processing_run(
                         db_engine, run_id, stage
                     ),
+                    cancelled,
                 )
             )
             canonical = extracted, cleaned, spans, extractor_version

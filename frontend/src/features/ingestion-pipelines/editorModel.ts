@@ -1,5 +1,6 @@
 import type { Document, EmbeddingConfig } from '../documents/model';
 import type {
+  ExtractionCapabilities,
   ConfluenceConfig,
   IngestionNode,
   IngestionPipelineDraft,
@@ -102,14 +103,26 @@ export const defaultConfluence = (connectionId = ''): ConfluenceConfig => ({
 export function defaultIngestionDraft(
   embedding: EmbeddingConfig,
   documentIds: string[],
+  capabilities?: ExtractionCapabilities,
 ): IngestionPipelineDraft {
   const nodes: IngestionNode[] = [
     { id: 'source', type: 'source', config: { kind: 'existing_files', document_ids: documentIds } },
     {
       id: 'extract',
       type: 'extract',
-      strategy: 'native_text',
-      config_version: 'native-text-v1',
+      strategy: 'auto',
+      ocr: {
+        mode: capabilities?.ocr.available ? 'auto' : 'off',
+        languages: capabilities?.ocr.languages.slice(0, 1) ?? ['eng'],
+        rotate_pages: true,
+        deskew: true,
+        dpi: 200,
+        max_pages: Math.min(capabilities?.ocr.max_pages ?? 50, 50),
+        timeout_seconds: 30,
+      },
+      tables: 'preserve',
+      quality_policy: 'default-v1',
+      config_version: 'layout-ocr-v1',
     },
     {
       id: 'clean',
@@ -206,7 +219,16 @@ export function describeIngestionNode(node: IngestionNode, documents: Document[]
     return node.knowledge_set_name;
   }
   if (node.type === 'extract') {
-    return 'Supported source text';
+    if (node.config_version !== 'layout-ocr-v1') {
+      return 'Native text · compatibility';
+    }
+    const strategy =
+      node.strategy === 'layout_aware'
+        ? 'Layout-aware'
+        : node.strategy === 'native'
+          ? 'Native'
+          : 'Auto';
+    return `${strategy} · OCR ${node.ocr?.mode ?? 'off'}`;
   }
   if (node.type === 'clean') {
     return 'Normalize and deduplicate';
