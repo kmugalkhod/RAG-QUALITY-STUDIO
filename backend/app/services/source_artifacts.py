@@ -18,10 +18,28 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.models.document import Chunk, Document, ProcessingRun
 from app.models.source import SourceItem, SourceRevision
+from app.ingestion_content.contracts import (
+    ChunkBlockSpanV1,
+    CleanedDocumentV1,
+    ExtractedDocumentV1,
+)
+from app.services.derivations import persist_derivations
 
 
 ChunkValues = list[dict[str, Any]]
-PrepareArtifact = Callable[[Path], tuple[ChunkValues, str]]
+
+
+@dataclass(frozen=True)
+class PreparedArtifact:
+    chunks: ChunkValues
+    extracted_hash: str
+    extracted: ExtractedDocumentV1
+    cleaned: CleanedDocumentV1
+    spans: dict[int, list[ChunkBlockSpanV1]]
+    extractor_version: str
+
+
+PrepareArtifact = Callable[[Path], tuple[ChunkValues, str] | PreparedArtifact]
 
 
 @dataclass(frozen=True)
@@ -135,7 +153,12 @@ def persist_source_artifact(
     stored_path: Path | None = None
     try:
         storage_name, stored_path = store(spec.content)
-        chunk_values, extracted_hash = prepare(stored_path)
+        prepared = prepare(stored_path)
+        if isinstance(prepared, PreparedArtifact):
+            chunk_values = prepared.chunks
+            extracted_hash = prepared.extracted_hash
+        else:
+            chunk_values, extracted_hash = prepared
         document = Document(
             project_id=project_id,
             filename=spec.filename,
@@ -171,6 +194,17 @@ def persist_source_artifact(
             insert(Chunk),
             [dict(run_id=processing.id, **value) for value in chunk_values],
         )
+        if isinstance(prepared, PreparedArtifact):
+            persist_derivations(
+                session,
+                project_id=project_id,
+                document_id=document.id,
+                processing_run_id=processing.id,
+                extracted=prepared.extracted,
+                cleaned=prepared.cleaned,
+                extractor_version=prepared.extractor_version,
+                spans=prepared.spans,
+            )
         revision = SourceRevision(
             project_id=project_id,
             source_item_id=source_item.id,

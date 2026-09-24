@@ -106,21 +106,17 @@ class _Content(HTMLParser):
 
 def extract_sections(content: bytes, clean, phase_callback=None) -> list[Section]:
     standard = getattr(clean, "profile", None) == "standard-v1"
-    parser = _Content(preserve_whitespace=standard and not clean.normalize_whitespace)
-    parser.feed(content.decode("utf-8", errors="replace"))
-    parser.flush()
-    entries = parser.entries
-    main = [entry for entry in entries if entry[0]]
-    if main:
-        entries = main
+    sections = extract_raw_sections(
+        content, preserve_whitespace=standard and not clean.normalize_whitespace
+    )
     if phase_callback is not None:
         phase_callback("clean")
     cleaner = cleaner_for_node(clean)
-    sections = []
-    for _, path, value in entries:
-        value = cleaner.clean(value, clean)
-        if value:
-            sections.append(Section(path=path, text=value))
+    sections = [
+        Section(path=section.path, text=value)
+        for section in sections
+        if (value := cleaner.clean(section.text, clean))
+    ]
     combined = "\n\n".join(section.text for section in sections)
     length_violation = cleaner.length_violation(len(combined), clean)
     if length_violation == "too_short":
@@ -128,6 +124,21 @@ def extract_sections(content: bytes, clean, phase_callback=None) -> list[Section
     if length_violation == "too_long":
         raise ProcessingError("Website page exceeds the configured cleaned-text limit.")
     return sections
+
+
+def extract_raw_sections(
+    content: bytes, *, preserve_whitespace: bool = False
+) -> list[Section]:
+    """Extract safe HTML text boundaries without applying cleaning semantics."""
+
+    parser = _Content(preserve_whitespace=preserve_whitespace)
+    parser.feed(content.decode("utf-8", errors="replace"))
+    parser.flush()
+    entries = parser.entries
+    main = [entry for entry in entries if entry[0]]
+    if main:
+        entries = main
+    return [Section(path=path, text=value) for _, path, value in entries]
 
 
 def chunk_sections(sections: list[Section], size: int, overlap: int):

@@ -3,14 +3,19 @@
 import hashlib
 from app.connectors.confluence import ConfluenceArtifact
 from app.ingestion_content import (
+    CanonicalInputSegment,
     CharacterWindowChunker,
     ExtractedSegment,
+    build_extracted_document,
+    chunk_cleaned_document,
+    clean_document,
     cleaner_for_node,
     processing_identity,
 )
 from app.pipelines.parsing import MAX_CHUNKS, PARSER_VERSION, ProcessingError
 from app.pipelines.web_content import CLEANER_VERSION
 from app.services.source_artifacts import (
+    PreparedArtifact,
     SourceArtifactSpec,
     config_hash,
     persist_source_artifact,
@@ -90,6 +95,81 @@ def _chunks(artifact, chunk, clean, phase_callback=None):
     return values, hashlib.sha256(combined.encode()).hexdigest()
 
 
+def _block_type(element: str):
+    if element.startswith("h") and element[1:].isdigit():
+        return "heading"
+    return {
+        "p": "paragraph",
+        "li": "list_item",
+        "pre": "code",
+        "blockquote": "quote",
+        "td": "table",
+        "th": "table",
+    }.get(element, "unknown")
+
+
+def _canonical_chunks(artifact, chunk, clean, processing_hash, phase_callback=None):
+    if phase_callback is not None:
+        phase_callback("extract")
+    extractor_version = f"confluence-storage-{PARSER_VERSION}"
+    extracted = build_extracted_document(
+        [
+            CanonicalInputSegment(
+                text=segment.text,
+                block_type=_block_type(segment.element),
+                heading_path=segment.section_path,
+                provider="confluence",
+                external_id=f"{artifact.item.external_id}:{segment.ordinal}",
+                attributes={"provider_element": segment.element},
+            )
+            for segment in artifact.segments
+        ],
+        media_type="text/plain",
+        title=artifact.item.display_name,
+    )
+    if phase_callback is not None:
+        phase_callback("clean")
+    cleaner = cleaner_for_node(clean)
+    cleaned = clean_document(
+        extracted,
+        clean,
+        cleaner,
+        extractor_version=extractor_version,
+        configuration_hash=processing_hash,
+    )
+    combined = "\n".join(block.text for block in cleaned.blocks)
+    violation = cleaner.length_violation(len(combined), clean)
+    if violation == "too_short":
+        raise ProcessingError("Confluence page contains too little extractable text.")
+    if violation == "too_long":
+        raise ProcessingError(
+            "Confluence page exceeds the configured cleaned-text limit."
+        )
+    if phase_callback is not None:
+        phase_callback("chunk")
+    result = chunk_cleaned_document(
+        cleaned,
+        chunk,
+        provenance={"confluence_page_id": artifact.item.external_id},
+    )
+    if not result.chunks:
+        raise ProcessingError("Confluence page contains no chunkable text.")
+    if len(result.chunks) > MAX_CHUNKS:
+        raise ProcessingError(
+            "Confluence page exceeds the 50,000 chunk limit. Increase chunk size."
+        )
+    if sum(len(item.text) for item in result.chunks) > 10_000_000:
+        raise ProcessingError("Confluence page exceeds the chunk-output limit.")
+    return PreparedArtifact(
+        chunks=[item.as_record() for item in result.chunks],
+        extracted_hash=hashlib.sha256(combined.encode()).hexdigest(),
+        extracted=extracted,
+        cleaned=cleaned,
+        spans=result.spans,
+        extractor_version=extractor_version,
+    )
+
+
 def persist_artifact(
     session,
     project_id,
@@ -107,6 +187,10 @@ def persist_artifact(
     processing_config, processing_hash = processing_configuration(chunk, clean)
 
     def prepare(_stored_path):
+        if getattr(clean, "profile", None) is not None:
+            return _canonical_chunks(
+                artifact, chunk, clean, processing_hash, phase_callback
+            )
         return _chunks(artifact, chunk, clean, phase_callback)
 
     return persist_source_artifact(

@@ -348,6 +348,37 @@ run items. Remote synthetic processing runs store the same identity that their s
 revision already uses. No canonical block IR, derivation table, OCR, layout engine,
 semantic chunker, near-duplicate or sensitive-data policy is introduced at this phase.
 
+## Canonical content derivations and lineage (Phase 1, 2026-09-24)
+
+`app.ingestion_content.contracts` is the strict application-owned representation for
+extracted and cleaned content. It is independent of SQLAlchemy and connector SDKs.
+Every block has a deterministic ID, contiguous reading-order ordinal, explicit bounded
+type, text, optional page/normalized geometry/heading path, bounded JSON attributes and
+a discriminated artifact/provider/derived source span. Unclassified native content is
+retained as `unknown`; the system does not invent geometry or semantic structure.
+
+Migration `0021` adds immutable `content_derivations`, `content_blocks` and
+`chunk_block_spans`. Derivations are unique by processing run and kind and are bound to
+the same project-owned document and processing run with composite foreign keys. Span
+rows reference an existing chunk, an existing block and the `cleaned` derivation from
+that exact run. The processing worker and shared remote-artifact boundary insert chunks,
+both derivations, blocks and spans in one caller-owned transaction before marking the
+run successful; failed, cancelled, duplicate or fenced attempts cannot publish partial
+canonical records.
+
+Schema-v2 Existing Files, Website, S3, Notion and Confluence adapters all construct the
+same IR before shared deterministic cleaning/chunking. The character-window algorithm
+continues to produce Phase 0 evidence text and offsets. Per-block native/provider paths
+map a chunk to one exact local block range; Website retains its historical joined-block
+windowing and records every intersecting block range, excluding synthetic separators
+from source coverage. Schema-v1 execution is not backfilled or inferred.
+
+Project-scoped API reads expose the two derivations, primary-key-paginated blocks and
+bounded spans. The run inspector is read-only and labels legacy runs without canonical
+records as unavailable. This phase intentionally does not add OCR, layout engines,
+table reconstruction, quality policy, semantic chunking, near-duplicate logic or
+sensitive-data transforms.
+
 ## Frontend organization
 
 Ingestion runs also persist one `ingestion_run_nodes` row for every node in the

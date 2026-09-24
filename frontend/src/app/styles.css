@@ -3975,6 +3975,48 @@ summary {
   min-width: 0;
   max-width: 100%;
 }
+.app-shell .content-derivation-inspector {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+  margin-top: 20px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--card);
+}
+.app-shell .content-derivation-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.app-shell .content-block-list {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.app-shell .content-block-list li {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--muted);
+}
+.app-shell .content-block-list small {
+  display: block;
+  overflow-wrap: anywhere;
+}
+.app-shell .content-block-list pre {
+  max-width: 100%;
+  margin: 10px 0 0;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: inherit;
+  color: var(--foreground);
+}
 .app-shell .ingestion-results .project-list li {
   min-width: 0;
   max-width: 100%;

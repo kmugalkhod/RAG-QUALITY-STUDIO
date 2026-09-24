@@ -677,6 +677,11 @@ def list_items(
                         if item.source_revision_id in revisions
                         else None
                     ),
+                    "processing_run_id": (
+                        revisions[item.source_revision_id].processing_run_id
+                        if item.source_revision_id in revisions
+                        else None
+                    ),
                 }
                 for item in rows
             ],

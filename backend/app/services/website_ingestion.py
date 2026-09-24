@@ -9,19 +9,26 @@ from sqlalchemy.orm import Session
 
 from app.connectors.website import WebsiteArtifact
 from app.ingestion_content import (
+    CanonicalInputSegment,
     CharacterWindowChunker,
+    build_extracted_document,
+    chunk_cleaned_document,
+    clean_document,
     cleaner_for_node,
     processing_identity,
 )
 from app.models.document import ProcessingRun
 from app.models.source import SourceRevision, WebsiteRunItem
+from app.pipelines.parsing import MAX_CHUNKS, ProcessingError
 from app.pipelines.web_content import (
     CLEANER_VERSION,
     EXTRACTOR_VERSION,
     chunk_sections,
+    extract_raw_sections,
     extract_sections,
 )
 from app.services.source_artifacts import (
+    PreparedArtifact,
     SourceArtifactSpec,
     config_hash,
     persist_source_artifact,
@@ -33,6 +40,94 @@ def _display_name(url: str) -> str:
     parts = urlsplit(url)
     tail = Path(parts.path).name or parts.hostname or "website"
     return tail[:255]
+
+
+def _canonical_chunks(
+    artifact: WebsiteArtifact,
+    chunk,
+    clean,
+    processing_config_hash,
+    phase_callback=None,
+):
+    if phase_callback is not None:
+        phase_callback("extract")
+    sections = extract_raw_sections(
+        artifact.content,
+        preserve_whitespace=not clean.normalize_whitespace,
+    )
+    extracted = build_extracted_document(
+        [
+            CanonicalInputSegment(
+                text=section.text,
+                block_type="paragraph",
+                heading_path=section.path,
+                provider="website",
+                external_id=f"{artifact.canonical_location}#section-{ordinal}",
+            )
+            for ordinal, section in enumerate(sections)
+        ],
+        media_type=artifact.media_type,
+        title=_display_name(artifact.canonical_location),
+    )
+    if phase_callback is not None:
+        phase_callback("clean")
+    cleaner = cleaner_for_node(clean)
+    cleaned = clean_document(
+        extracted,
+        clean,
+        cleaner,
+        extractor_version=EXTRACTOR_VERSION,
+        configuration_hash=processing_config_hash,
+    )
+    combined = "\n\n".join(block.text for block in cleaned.blocks)
+    violation = cleaner.length_violation(len(combined), clean)
+    if violation == "too_short":
+        raise ProcessingError("Website page contains too little extractable main text.")
+    if violation == "too_long":
+        raise ProcessingError("Website page exceeds the configured cleaned-text limit.")
+    if phase_callback is not None:
+        phase_callback("chunk")
+    result = chunk_cleaned_document(
+        cleaned,
+        chunk,
+        provenance={"canonical_location": artifact.canonical_location},
+        join_blocks=True,
+    )
+    if not result.chunks:
+        raise ProcessingError("Website page contains no chunkable text.")
+    if len(result.chunks) > MAX_CHUNKS:
+        raise ProcessingError(
+            "Website page exceeds the 50,000 chunk limit. Increase chunk size."
+        )
+    if sum(len(item.text) for item in result.chunks) > 10_000_000:
+        raise ProcessingError("Website page exceeds the chunk-output limit.")
+    records = []
+    for prepared in result.chunks:
+        paths = [
+            cleaned.blocks[span.block_ordinal].heading_path
+            for span in result.spans[prepared.ordinal]
+        ]
+        prefix = list(paths[0]) if paths else []
+        for path in paths[1:]:
+            prefix = [
+                value
+                for index, value in enumerate(prefix)
+                if index < len(path) and path[index] == value
+            ]
+        record = prepared.as_record()
+        record["provenance"] = {
+            **record["provenance"],
+            "section_path": prefix,
+        }
+        records.append(record)
+    return PreparedArtifact(
+        chunks=records,
+        extracted_hash=hashlib.sha256(combined.encode("utf-8")).hexdigest(),
+        extracted=extracted,
+        cleaned=cleaned,
+        spans=result.spans,
+        extractor_version=EXTRACTOR_VERSION,
+    )
 
 
 def persist_artifact(
@@ -68,6 +163,14 @@ def persist_artifact(
         parser_version = f"{EXTRACTOR_VERSION}/{cleaner.version}"
 
     def prepare(_stored_path):
+        if getattr(clean, "profile", None) is not None:
+            return _canonical_chunks(
+                artifact,
+                chunk,
+                clean,
+                processing_config_hash,
+                phase_callback,
+            )
         if phase_callback is not None:
             phase_callback("extract")
         sections = extract_sections(artifact.content, clean, phase_callback)

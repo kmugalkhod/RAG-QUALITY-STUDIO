@@ -1,10 +1,33 @@
+import { useEffect, useState } from 'react';
 import { ArrowRight, Check, FileText, Square, X } from 'lucide-react';
 
 import { Pagination } from '../../../components/Pagination';
 import { Button } from '../../../components/ui/button';
 import type { Page } from '../../../lib/pagination';
 import { terminalIngestionStatuses } from '../editorModel';
-import type { IngestionRun, IngestionRunItem, SourcePreview, SourcePreviewItem } from '../model';
+import * as api from '../api';
+import type {
+  ContentBlock,
+  ContentDerivation,
+  IngestionRun,
+  IngestionRunItem,
+  SourcePreview,
+  SourcePreviewItem,
+} from '../model';
+
+function sourceSpanLabel(span: Record<string, unknown>) {
+  if (span.kind === 'provider_block') {
+    return `${String(span.provider)} block · ${String(span.external_id)}`;
+  }
+  if (span.kind === 'artifact_text') {
+    const page = span.page_number ? `page ${String(span.page_number)} · ` : '';
+    return `${page}characters ${String(span.start_char)}–${String(span.end_char)}`;
+  }
+  if (span.kind === 'derived') {
+    return `${Array.isArray(span.parent_block_ids) ? span.parent_block_ids.length : 0} parent blocks`;
+  }
+  return 'Source provenance unavailable';
+}
 
 export function IngestionPreviewResults({
   preview,
@@ -89,6 +112,92 @@ export function IngestionRunResults({
   run: IngestionRun;
   items: IngestionRunItem[];
 }) {
+  const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
+  const [derivations, setDerivations] = useState<ContentDerivation[]>([]);
+  const [kind, setKind] = useState<'extracted' | 'cleaned'>('extracted');
+  const [blocks, setBlocks] = useState<Page<ContentBlock> | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!selectedRunId) {
+      return;
+    }
+    let current = true;
+    setBusy(true);
+    setError(null);
+    setBlocks(null);
+    api
+      .listContentDerivations(projectId, selectedRunId)
+      .then((result) => {
+        if (current) {
+          setDerivations(result.items);
+        }
+      })
+      .catch((reason: Error) => {
+        if (current) {
+          setError(reason.message);
+        }
+      })
+      .finally(() => {
+        if (current) {
+          setBusy(false);
+        }
+      });
+    return () => {
+      current = false;
+    };
+  }, [projectId, selectedRunId]);
+
+  const selectedDerivation = derivations.find((item) => item.kind === kind) ?? null;
+
+  useEffect(() => {
+    if (!selectedDerivation) {
+      return;
+    }
+    let current = true;
+    setBusy(true);
+    api
+      .listContentBlocks(projectId, selectedDerivation.id)
+      .then((result) => {
+        if (current) {
+          setBlocks(result);
+        }
+      })
+      .catch((reason: Error) => {
+        if (current) {
+          setError(reason.message);
+        }
+      })
+      .finally(() => {
+        if (current) {
+          setBusy(false);
+        }
+      });
+    return () => {
+      current = false;
+    };
+  }, [projectId, selectedDerivation]);
+
+  function processingRunId(item: IngestionRunItem) {
+    return item.processing_run_id;
+  }
+
+  async function pageBlocks(offset: number) {
+    if (!selectedDerivation) {
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      setBlocks(await api.listContentBlocks(projectId, selectedDerivation.id, offset));
+    } catch (reason) {
+      setError((reason as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <section
       className="surface-section ingestion-results ingestion-run-details"
@@ -185,9 +294,95 @@ export function IngestionRunResults({
                 </>
               )}
             </div>
+            {processingRunId(item) && (
+              <Button
+                variant="outline"
+                size="sm"
+                aria-pressed={selectedRunId === processingRunId(item)}
+                onClick={() => {
+                  setDerivations([]);
+                  setKind('extracted');
+                  setSelectedRunId(processingRunId(item));
+                }}
+              >
+                Inspect content
+              </Button>
+            )}
           </li>
         ))}
       </ul>
+      {selectedRunId && (
+        <section className="content-derivation-inspector" aria-busy={busy}>
+          <div className="section-heading">
+            <div>
+              <p className="eyebrow">Canonical processing record</p>
+              <h3>Extracted and cleaned content</h3>
+            </div>
+            <div className="content-derivation-tabs" role="tablist" aria-label="Content stage">
+              {(['extracted', 'cleaned'] as const).map((value) => (
+                <Button
+                  key={value}
+                  role="tab"
+                  size="sm"
+                  variant={kind === value ? 'default' : 'outline'}
+                  aria-selected={kind === value}
+                  onClick={() => {
+                    setKind(value);
+                    setBlocks(null);
+                  }}
+                >
+                  {value === 'extracted' ? 'Extracted' : 'Cleaned'}
+                </Button>
+              ))}
+            </div>
+          </div>
+          {error && (
+            <p role="alert" className="error-message">
+              {error}
+            </p>
+          )}
+          {!busy && derivations.length === 0 && !error && (
+            <p>Canonical content is unavailable for this legacy processing version.</p>
+          )}
+          {selectedDerivation && (
+            <>
+              <p>
+                {selectedDerivation.measurements.block_count} blocks ·{' '}
+                {selectedDerivation.measurements.character_count} characters · engine{' '}
+                {selectedDerivation.engine_version}
+              </p>
+              <ul className="content-block-list">
+                {blocks?.items.map((block) => (
+                  <li key={block.block_id}>
+                    <div>
+                      <strong>
+                        {block.ordinal + 1}. {block.block_type}
+                        {block.page_number ? ` · page ${block.page_number}` : ''}
+                      </strong>
+                      {block.heading_path.length > 0 && (
+                        <small>{block.heading_path.join(' / ')}</small>
+                      )}
+                      <small>Source: {sourceSpanLabel(block.source_span)}</small>
+                    </div>
+                    <pre>{block.text}</pre>
+                  </li>
+                ))}
+              </ul>
+              {blocks?.total === 0 && <p>This derivation contains no text blocks.</p>}
+              {blocks && (
+                <Pagination
+                  offset={blocks.offset}
+                  total={blocks.total}
+                  pageSize={blocks.limit}
+                  busy={busy}
+                  label={`${kind} content pages`}
+                  onChange={pageBlocks}
+                />
+              )}
+            </>
+          )}
+        </section>
+      )}
     </section>
   );
 }

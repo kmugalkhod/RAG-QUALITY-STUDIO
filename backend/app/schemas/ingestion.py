@@ -725,6 +725,7 @@ class WebsiteIngestionRunItemRead(Strict):
     source_node_id: str
     source_item_id: UUID | None
     source_revision_id: UUID | None
+    processing_run_id: UUID | None = None
     canonical_location: str | None
     display_name: str
     media_type: str | None
@@ -745,6 +746,7 @@ class S3IngestionRunItemRead(Strict):
     source_node_id: str
     source_item_id: UUID | None
     source_revision_id: UUID | None
+    processing_run_id: UUID | None = None
     canonical_location: str | None
     display_name: str
     media_type: str | None

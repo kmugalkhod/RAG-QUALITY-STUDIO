@@ -235,6 +235,7 @@ export type WebsiteIngestionRunItem = {
   source_node_id: string;
   source_item_id: string | null;
   source_revision_id: string | null;
+  processing_run_id: string | null;
   canonical_location: string | null;
   display_name: string;
   media_type: string | null;
@@ -265,6 +266,48 @@ export type IngestionRunItem =
   | S3IngestionRunItem
   | NotionIngestionRunItem
   | ConfluenceIngestionRunItem;
+
+export type ContentDerivation = {
+  id: string;
+  project_id: string;
+  document_id: string;
+  processing_run_id: string;
+  kind: 'extracted' | 'cleaned';
+  schema_version: 1;
+  engine_version: string;
+  configuration_hash: string;
+  input_hash: string;
+  output_hash: string;
+  title: string | null;
+  media_type: string;
+  measurements: {
+    character_count: number;
+    block_count: number;
+    page_count: number;
+    empty_block_count?: number;
+  };
+  findings: { code: string; severity: string; count: number; message: string }[];
+  transforms: {
+    transform: string;
+    version: string;
+    changed_blocks: number;
+    removed_blocks: number;
+  }[];
+  created_at: string;
+};
+
+export type ContentBlock = {
+  derivation_id: string;
+  ordinal: number;
+  block_id: string;
+  block_type: string;
+  text: string;
+  page_number: number | null;
+  bounding_box: Record<string, number> | null;
+  heading_path: string[];
+  source_span: Record<string, unknown>;
+  attributes: Record<string, unknown>;
+};
 
 export type IngestionSchedule = {
   id: string;

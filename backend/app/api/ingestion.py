@@ -15,13 +15,18 @@ from app.schemas.ingestion import (
     SourcePreviewItemPage,
     SourcePreviewRead,
 )
+from app.schemas.derivation import (
+    ChunkBlockSpanList,
+    ContentBlockPage,
+    ContentDerivationList,
+)
 from app.schemas.source_snapshot import (
     SourceSnapshotIndexPage,
     SourceSnapshotMemberPage,
     SourceSnapshotPage,
     SourceSnapshotRead,
 )
-from app.services import ingestion, previews, source_snapshots
+from app.services import derivations, ingestion, previews, source_snapshots
 from app.services import pipelines as pipeline_service
 
 
@@ -128,6 +133,45 @@ def list_items(
     offset: Offset = 0,
 ):
     return ingestion.list_items(session, project_id, run_id, limit, offset)
+
+
+@router.get(
+    "/processing-runs/{processing_run_id}/derivations",
+    response_model=ContentDerivationList,
+)
+def list_content_derivations(
+    project_id: UUID, processing_run_id: UUID, session: Database
+):
+    return derivations.list_derivations(session, project_id, processing_run_id)
+
+
+@router.get(
+    "/content-derivations/{derivation_id}/blocks",
+    response_model=ContentBlockPage,
+)
+def list_content_blocks(
+    project_id: UUID,
+    derivation_id: UUID,
+    session: Database,
+    limit: Limit = 20,
+    offset: Offset = 0,
+):
+    return derivations.list_blocks(session, project_id, derivation_id, limit, offset)
+
+
+@router.get(
+    "/processing-runs/{processing_run_id}/chunks/{chunk_ordinal}/spans",
+    response_model=ChunkBlockSpanList,
+)
+def list_content_chunk_spans(
+    project_id: UUID,
+    processing_run_id: UUID,
+    chunk_ordinal: int,
+    session: Database,
+):
+    return derivations.list_chunk_spans(
+        session, project_id, processing_run_id, chunk_ordinal
+    )
 
 
 @router.post("/ingestion-runs/{run_id}/cancel", response_model=IngestionRunRead)

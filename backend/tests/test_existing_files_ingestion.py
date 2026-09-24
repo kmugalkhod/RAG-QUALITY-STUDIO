@@ -4,12 +4,14 @@ from uuid import UUID
 
 import pytest
 from pydantic import SecretStr
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, select, text, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.connectors.existing_files import ExistingFilesConnector
 from app.models.document import Chunk, ProcessingRun
+from app.models.derivation import ChunkBlockSpan
 from app.models.index import IndexChunk, IndexVersion
 from app.models.ingestion import IngestionRun, IngestionRunItem, IngestionRunNode
 from app.models.pipeline import Pipeline, PipelineVersion
@@ -328,7 +330,13 @@ def test_existing_files_preview_run_publication_and_exact_answer_index(ingestion
 def test_mismatched_processing_is_fenced_and_cancellable(ingestion_api):
     client, engine, project_id, _, config, _ = ingestion_api
     document, _ = prepare(client, engine, project_id, name="cancel.txt", size=100)
-    payload = ingestion_draft([document["id"]], config, name="Cancelled set", size=120)
+    payload = ingestion_draft(
+        [document["id"]],
+        config,
+        name="Cancelled set",
+        size=120,
+        schema_version=2,
+    )
     version = client.post(f"/api/projects/{project_id}/pipelines", json=payload).json()
     accepted = client.post(
         f"/api/projects/{project_id}/pipelines/{version['pipeline_id']}"
@@ -352,12 +360,55 @@ def test_mismatched_processing_is_fenced_and_cancellable(ingestion_api):
             session.get(ProcessingRun, UUID(item["processing_run_id"])).status
             == "cancelled"
         )
+    assert (
+        client.get(
+            f"/api/projects/{project_id}/processing-runs/"
+            f"{item['processing_run_id']}/derivations"
+        ).json()["total"]
+        == 0
+    )
+
+
+def test_v2_failed_cleaning_exposes_no_partial_derivations(ingestion_api):
+    client, engine, project_id, _, config, _ = ingestion_api
+    document, _ = prepare(client, engine, project_id, name="too-long.txt", size=100)
+    payload = ingestion_draft(
+        [document["id"]], config, name="Bounded clean", schema_version=2
+    )
+    clean = next(
+        node for node in payload["execution"]["nodes"] if node["type"] == "clean"
+    )
+    clean["maximum_text_chars"] = 20
+    version = client.post(f"/api/projects/{project_id}/pipelines", json=payload).json()
+    accepted = client.post(
+        f"/api/projects/{project_id}/pipelines/{version['pipeline_id']}"
+        f"/versions/{version['id']}/ingestion-runs"
+    ).json()
+    item = client.get(
+        f"/api/projects/{project_id}/ingestion-runs/{accepted['id']}/items"
+    ).json()["items"][0]
+
+    process(UUID(item["processing_run_id"]), engine)
+
+    with Session(engine) as session:
+        processing = session.get(ProcessingRun, UUID(item["processing_run_id"]))
+        assert processing.status == "failed"
+        assert (
+            session.scalar(select(Chunk).where(Chunk.run_id == processing.id).limit(1))
+            is None
+        )
+    response = client.get(
+        f"/api/projects/{project_id}/processing-runs/"
+        f"{item['processing_run_id']}/derivations"
+    )
+    assert response.status_code == 200
+    assert response.json()["total"] == 0
 
 
 def test_v2_existing_files_executes_clean_config_and_reuses_exact_identity(
     ingestion_api,
 ):
-    client, engine, project_id, _, config, _ = ingestion_api
+    client, engine, project_id, other_project_id, config, _ = ingestion_api
     content = ("REMOVE  alpha\n\t beta   " * 10).encode()
     document = upload(client, project_id, content=content, name="v2-clean.txt")
     initial = start(client, project_id, document["id"], size=100, overlap=10)
@@ -399,6 +450,81 @@ def test_v2_existing_files_executes_clean_config_and_reuses_exact_identity(
         assert processing.output_hash
         assert "REMOVE" not in "".join(chunks)
         assert "\n\t beta" in "".join(chunks)
+
+    derivations_response = client.get(
+        f"/api/projects/{project_id}/processing-runs/"
+        f"{item['processing_run_id']}/derivations"
+    )
+    assert derivations_response.status_code == 200, derivations_response.text
+    derivations = derivations_response.json()["items"]
+    assert [value["kind"] for value in derivations] == ["cleaned", "extracted"]
+    assert all(value["schema_version"] == 1 for value in derivations)
+    cleaned_derivation = next(
+        value for value in derivations if value["kind"] == "cleaned"
+    )
+    blocks = client.get(
+        f"/api/projects/{project_id}/content-derivations/"
+        f"{cleaned_derivation['id']}/blocks?limit=1"
+    )
+    assert blocks.status_code == 200, blocks.text
+    assert blocks.json()["total"] == 1
+    assert blocks.json()["items"][0]["text"].startswith("  alpha")
+    with Session(engine) as session:
+        session.execute(text("SET LOCAL enable_seqscan = off"))
+        plan = session.execute(
+            text(
+                "EXPLAIN SELECT * FROM content_blocks "
+                "WHERE derivation_id=:derivation_id ORDER BY ordinal LIMIT 20"
+            ),
+            {"derivation_id": cleaned_derivation["id"]},
+        ).scalars()
+        assert any("content_blocks_pkey" in line for line in plan)
+    spans = client.get(
+        f"/api/projects/{project_id}/processing-runs/"
+        f"{item['processing_run_id']}/chunks/0/spans"
+    )
+    assert spans.status_code == 200, spans.text
+    assert spans.json()["items"] == [
+        {
+            "run_id": item["processing_run_id"],
+            "chunk_ordinal": 0,
+            "span_ordinal": 0,
+            "derivation_id": cleaned_derivation["id"],
+            "derivation_kind": "cleaned",
+            "block_ordinal": 0,
+            "block_start_char": 0,
+            "block_end_char": 100,
+            "chunk_start_char": 0,
+            "chunk_end_char": 100,
+        }
+    ]
+    assert (
+        client.get(
+            f"/api/projects/{other_project_id}/processing-runs/"
+            f"{item['processing_run_id']}/derivations"
+        ).status_code
+        == 404
+    )
+    extracted_derivation = next(
+        value for value in derivations if value["kind"] == "extracted"
+    )
+    with Session(engine) as session, pytest.raises(IntegrityError):
+        with session.begin_nested():
+            session.add(
+                ChunkBlockSpan(
+                    run_id=UUID(item["processing_run_id"]),
+                    chunk_ordinal=0,
+                    span_ordinal=99,
+                    derivation_id=UUID(extracted_derivation["id"]),
+                    derivation_kind="cleaned",
+                    block_ordinal=0,
+                    block_start_char=0,
+                    block_end_char=1,
+                    chunk_start_char=0,
+                    chunk_end_char=1,
+                )
+            )
+            session.flush()
 
     client.post(
         f"/api/projects/{project_id}/ingestion-runs/{accepted.json()['id']}/cancel"

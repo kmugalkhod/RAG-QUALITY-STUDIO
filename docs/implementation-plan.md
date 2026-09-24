@@ -1,5 +1,66 @@
 # Implementation plan
 
+## Robust ingestion roadmap — Phase 1 acceptance criteria (2026-09-24)
+
+Status: **Phase 1 complete on 2026-09-24** on
+`codex/robust-ingestion-roadmap`; Phase 2 is next.
+
+- Add strict application-owned extracted/cleaned document, page, block, source-span,
+  finding, measurement, transform-audit and chunk-span contracts with bounded metadata
+  and deterministic identifiers/hashes.
+- Add only additive immutable derivation, block and chunk-span records. Composite
+  foreign keys must prove project/document/processing ownership and prevent a chunk
+  from claiming lineage from another processing run.
+- Persist a complete extracted derivation, cleaned derivation, their blocks and exact
+  chunk-to-cleaned-block spans atomically with successful schema-v2 processing. Failed,
+  cancelled or fenced work must not expose partial successful derivations.
+- Adapt schema-v2 Existing Files, Website, S3, Notion and Confluence paths to emit the
+  same canonical IR. Preserve page numbers and available heading/provider provenance;
+  represent unclassified native blocks explicitly as `unknown`.
+- Make the legacy character chunker consume cleaned blocks while reproducing Phase 0
+  schema-v2 evidence text and offsets. Schema-v1 execution and historical indexes,
+  queries and experiments remain unchanged and report block lineage as unavailable.
+- Add project-scoped, paginated derivation and block reads plus bounded chunk-span
+  reads. The ingestion run inspector gains read-only Extracted and Cleaned tabs for v2
+  items and truthful unavailable/empty/error states for legacy history.
+- Verify strict contract rejection, deterministic ordering/hashes, ownership
+  constraints, cross-block mappings, atomic failure/cancellation, migration
+  downgrade/re-upgrade preservation, pagination/query plans, all native regressions and
+  Agent Browser desktop/narrow/mobile inspector journeys.
+
+Phase 1 does not add layout engines, bounding-box synthesis, OCR, quality scoring,
+semantic or parent/child chunking, near-duplicate detection or sensitive-data policy.
+
+Implementation and verification evidence:
+
+- Strict Pydantic contracts now define versioned extracted and cleaned documents,
+  ordered pages/blocks, normalized optional geometry, bounded JSON attributes,
+  discriminated source spans, findings, measurements, transform audits and exact
+  chunk-to-block spans. Stable block IDs and document hashes are deterministic.
+- Migration `0021` adds immutable project/document/processing-owned derivations,
+  bounded block rows and exact span rows. Composite foreign keys require each span to
+  reference a chunk and the cleaned derivation from the same processing run; content
+  blocks are inserted in bounded batches in the caller's success transaction.
+- Existing Files, Website, S3, Notion and Confluence schema-v2 execution now construct
+  the same canonical IR, retain available pages/headings/provider IDs and route the
+  existing character-window output through cleaned blocks. Schema-v1 paths and stored
+  history remain unchanged and expose canonical lineage as unavailable.
+- Project-scoped reads list derivations, paginate blocks through the composite primary
+  key and return bounded chunk spans. The ingestion run inspector provides keyboard-
+  accessible Extracted/Cleaned tabs, measurements, type/page/heading/source context,
+  pagination and explicit legacy/unavailable/empty/error states.
+- Backend Ruff lint/format passed. A fresh isolated PostgreSQL/pgvector run passed
+  **268 tests with 4 opt-in live tests skipped**; focused tests cover every connector,
+  deterministic IR, malformed contracts, joined/split spans, cleaned-run ownership,
+  project isolation, atomic failure/cancellation and the indexed block query plan.
+  Populated migration downgrade to `0020`, legacy processing/chunk preservation and
+  re-upgrade to `0021` passed.
+- Frontend formatting, structure/ESLint, strict TypeScript, all **106 Vitest tests
+  across 29 files**, and the production build passed. Agent Browser completed a real
+  v2 upload/process/save/run/inspect journey at the canonical Vite URL, switched both
+  inspector tabs by keyboard, verified the legacy unavailable state and found no app
+  console errors or horizontal overflow at 1440, 1024 or 390 pixels.
+
 ## Robust ingestion roadmap — Phase 0 acceptance criteria (2026-09-24)
 
 Status: **Phase 0 complete on 2026-09-24** on

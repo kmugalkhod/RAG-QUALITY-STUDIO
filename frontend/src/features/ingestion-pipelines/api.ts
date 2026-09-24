@@ -6,6 +6,8 @@ import type {
   IngestionRun,
   IngestionRunItem,
   IngestionSchedule,
+  ContentBlock,
+  ContentDerivation,
   SourcePreview,
   SourcePreviewItem,
 } from './model';
@@ -116,6 +118,25 @@ export function listIngestionRunItems(
 ): Promise<Page<IngestionRunItem>> {
   return request<Page<IngestionRunItem>>(
     `/projects/${encodeURIComponent(projectId)}/ingestion-runs/${encodeURIComponent(runId)}/items?offset=${offset}`,
+  );
+}
+
+export function listContentDerivations(
+  projectId: string,
+  processingRunId: string,
+): Promise<{ items: ContentDerivation[]; total: number }> {
+  return request<{ items: ContentDerivation[]; total: number }>(
+    `/projects/${encodeURIComponent(projectId)}/processing-runs/${encodeURIComponent(processingRunId)}/derivations`,
+  );
+}
+
+export function listContentBlocks(
+  projectId: string,
+  derivationId: string,
+  offset = 0,
+): Promise<Page<ContentBlock>> {
+  return request<Page<ContentBlock>>(
+    `/projects/${encodeURIComponent(projectId)}/content-derivations/${encodeURIComponent(derivationId)}/blocks?offset=${offset}`,
   );
 }
 

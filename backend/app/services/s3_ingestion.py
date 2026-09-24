@@ -9,6 +9,9 @@ from app.connectors.s3 import S3Artifact
 from app.ingestion_content import (
     CharacterWindowChunker,
     ExtractedSegment,
+    build_extracted_document,
+    chunk_cleaned_document,
+    clean_document,
     cleaner_for_node,
     processing_identity,
 )
@@ -21,6 +24,7 @@ from app.pipelines.parsing import (
 )
 from app.pipelines.web_content import CLEANER_VERSION
 from app.services.source_artifacts import (
+    PreparedArtifact,
     SourceArtifactSpec,
     config_hash,
     persist_source_artifact,
@@ -97,6 +101,62 @@ def _chunks(path, media_type, source_key, chunk, clean, phase_callback=None):
     return values, hashlib.sha256(combined.encode("utf-8")).hexdigest()
 
 
+def _canonical_chunks(
+    path,
+    media_type,
+    source_key,
+    title,
+    chunk,
+    clean,
+    processing_hash,
+    phase_callback=None,
+):
+    if phase_callback is not None:
+        phase_callback("extract")
+    segments = [
+        ExtractedSegment(text=value, page_number=page_number)
+        for page_number, value, _, _ in pages(path, media_type)
+    ]
+    extracted = build_extracted_document(segments, media_type=media_type, title=title)
+    if phase_callback is not None:
+        phase_callback("clean")
+    cleaner = cleaner_for_node(clean)
+    cleaned = clean_document(
+        extracted,
+        clean,
+        cleaner,
+        extractor_version=PARSER_VERSION,
+        configuration_hash=processing_hash,
+    )
+    violation = cleaner.length_violation(cleaned.measurements.character_count, clean)
+    if violation == "too_short":
+        raise ProcessingError("S3 object contains too little extractable text.")
+    if violation == "too_long":
+        raise ProcessingError("S3 object exceeds the configured cleaned-text limit.")
+    if phase_callback is not None:
+        phase_callback("chunk")
+    result = chunk_cleaned_document(cleaned, chunk, provenance={"s3_key": source_key})
+    if not result.chunks:
+        raise ProcessingError("S3 object contains no chunkable text.")
+    if len(result.chunks) > MAX_CHUNKS:
+        raise ProcessingError(
+            "S3 object exceeds the 50,000 chunk limit. Increase chunk size."
+        )
+    if sum(len(item.text) for item in result.chunks) > 10_000_000:
+        raise ProcessingError("S3 object exceeds the cleaned chunk-output limit.")
+    combined_hash = hashlib.sha256(
+        "\n\n".join(block.text for block in cleaned.blocks).encode("utf-8")
+    ).hexdigest()
+    return PreparedArtifact(
+        chunks=[item.as_record() for item in result.chunks],
+        extracted_hash=combined_hash,
+        extracted=extracted,
+        cleaned=cleaned,
+        spans=result.spans,
+        extractor_version=PARSER_VERSION,
+    )
+
+
 def persist_artifact(
     session: Session,
     project_id,
@@ -115,6 +175,17 @@ def persist_artifact(
     modified = artifact.item.modified_at
 
     def prepare(stored_path):
+        if getattr(clean, "profile", None) is not None:
+            return _canonical_chunks(
+                stored_path,
+                media_type,
+                str(metadata["key"]),
+                PurePosixPath(str(metadata["key"])).name or "s3-object",
+                chunk,
+                clean,
+                processing_hash,
+                phase_callback,
+            )
         return _chunks(
             stored_path,
             media_type,

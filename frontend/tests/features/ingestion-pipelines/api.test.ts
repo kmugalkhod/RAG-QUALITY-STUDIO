@@ -9,6 +9,8 @@ import {
   listIngestionPipelineVersions,
   listIngestionRuns,
   listIngestionRunItems,
+  listContentBlocks,
+  listContentDerivations,
   listSourcePreviewItems,
   listIngestionSchedules,
   previewIngestion,
@@ -82,6 +84,22 @@ test('keeps preview and durable run operations distinct', async () => {
   expect(fetch).toHaveBeenNthCalledWith(
     6,
     '/api/projects/project/ingestion-runs?pipeline_version_id=version&limit=20&offset=0',
+    expect.anything(),
+  );
+});
+
+test('uses project-scoped canonical content inspection endpoints', async () => {
+  await listContentDerivations('project', 'processing');
+  await listContentBlocks('project', 'derivation', 20);
+
+  expect(fetch).toHaveBeenNthCalledWith(
+    1,
+    '/api/projects/project/processing-runs/processing/derivations',
+    expect.anything(),
+  );
+  expect(fetch).toHaveBeenNthCalledWith(
+    2,
+    '/api/projects/project/content-derivations/derivation/blocks?offset=20',
     expect.anything(),
   );
 });

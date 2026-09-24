@@ -11,15 +11,18 @@ from sqlalchemy.exc import SQLAlchemyError
 from app.core.config import settings
 from app.db.session import engine
 from app.ingestion_content import (
-    CharacterWindowChunker,
     CleanSemantics,
     DeterministicCleaner,
     IngestionStageError,
     NativeTextExtractor,
+    build_extracted_document,
+    chunk_cleaned_document,
+    clean_document,
 )
 from app.models.document import Chunk, Document, ProcessingRun
 from app.pipelines.parsing import MAX_CHUNKS, ProcessingError, pages, windows
 from app.services import ingestion_execution
+from app.services.derivations import persist_derivations
 from app.workers.celery_app import celery
 
 
@@ -27,37 +30,26 @@ def now():
     return datetime.now(timezone.utc)
 
 
-def _v2_chunks(job, path, media, on_stage):
+def _v2_chunks(job, path, media, title, on_stage):
     config = job.processing_config or {}
     clean_config = SimpleNamespace(**config.get("clean", {}))
     chunk_config = SimpleNamespace(**config.get("chunk", {}))
     extractor = NativeTextExtractor()
     cleaner = DeterministicCleaner(CleanSemantics.STANDARD_V1)
-    chunker = CharacterWindowChunker()
     try:
         segments = list(extractor.extract(path, media))
     except ProcessingError as exc:
         raise IngestionStageError("extract", "extraction_failed", str(exc)) from exc
     on_stage("clean")
-    cleaned = []
-    seen: set[str] = set()
-    total_characters = 0
-    for segment in segments:
-        value = cleaner.clean(segment.text, clean_config)
-        digest = hashlib.sha256(value.encode("utf-8")).hexdigest()
-        if clean_config.exact_content_deduplication and digest in seen:
-            continue
-        seen.add(digest)
-        total_characters += len(value)
-        cleaned.append(
-            type(segment)(
-                text=value,
-                page_number=segment.page_number,
-                provenance=segment.provenance,
-                completed=segment.completed,
-                total=segment.total,
-            )
-        )
+    extracted = build_extracted_document(segments, media_type=media, title=title)
+    cleaned = clean_document(
+        extracted,
+        clean_config,
+        cleaner,
+        extractor_version=extractor.version,
+        configuration_hash=job.processing_config_hash,
+    )
+    total_characters = cleaned.measurements.character_count
     length_violation = cleaner.length_violation(total_characters, clean_config)
     if length_violation == "too_short":
         raise IngestionStageError(
@@ -72,29 +64,24 @@ def _v2_chunks(job, path, media, on_stage):
             "Cleaned text exceeds the configured maximum.",
         )
     on_stage("chunk")
-    chunks = []
-    chunk_characters = 0
-    for segment in cleaned:
-        values = chunker.chunk_segment(
-            segment,
-            chunk_config,
-            first_ordinal=len(chunks),
-            provenance={"processing_versions": config.get("versions", {})},
+    chunking = chunk_cleaned_document(
+        cleaned,
+        chunk_config,
+        provenance={"processing_versions": config.get("versions", {})},
+    )
+    if len(chunking.chunks) > MAX_CHUNKS:
+        raise IngestionStageError(
+            "chunk",
+            "chunk_limit_exceeded",
+            "Processing exceeds the 50,000 chunk limit. Increase chunk size or reduce overlap.",
         )
-        if len(chunks) + len(values) > MAX_CHUNKS:
-            raise IngestionStageError(
-                "chunk",
-                "chunk_limit_exceeded",
-                "Processing exceeds the 50,000 chunk limit. Increase chunk size or reduce overlap.",
-            )
-        chunk_characters += sum(len(value.text) for value in values)
-        if chunk_characters > 10_000_000:
-            raise IngestionStageError(
-                "chunk",
-                "chunk_output_too_large",
-                "Chunk text exceeds the 10,000,000 character output limit. Reduce overlap.",
-            )
-        chunks.extend(value.as_record() | {"run_id": job.id} for value in values)
+    if sum(len(value.text) for value in chunking.chunks) > 10_000_000:
+        raise IngestionStageError(
+            "chunk",
+            "chunk_output_too_large",
+            "Chunk text exceeds the 10,000,000 character output limit. Reduce overlap.",
+        )
+    chunks = [value.as_record() | {"run_id": job.id} for value in chunking.chunks]
     if not chunks:
         raise IngestionStageError(
             "chunk", "no_text", "The document contains no text after cleaning."
@@ -114,7 +101,14 @@ def _v2_chunks(job, path, media, on_stage):
         separators=(",", ":"),
         ensure_ascii=True,
     ).encode("utf-8")
-    return chunks, hashlib.sha256(encoded).hexdigest()
+    return (
+        chunks,
+        hashlib.sha256(encoded).hexdigest(),
+        extracted,
+        cleaned,
+        chunking.spans,
+        extractor.version,
+    )
 
 
 def process(run_id: UUID, db_engine=engine):
@@ -138,19 +132,32 @@ def process(run_id: UUID, db_engine=engine):
         path, media = settings.storage_path / doc.storage_name, doc.media_type
         size, overlap = job.chunk_size, job.overlap
         processing_config = job.processing_config
+        processing_config_hash = job.processing_config_hash
+        document_id = doc.id
+        project_id = doc.project_id
+        title = doc.filename
         session.commit()
     ingestion_execution.transition_for_processing_run(db_engine, run_id, "extract")
     try:
         output_hash = None
+        canonical = None
         if processing_config and processing_config.get("schema_version") == 2:
-            chunks, output_hash = _v2_chunks(
-                SimpleNamespace(id=run_id, processing_config=processing_config),
-                path,
-                media,
-                lambda stage: ingestion_execution.transition_for_processing_run(
-                    db_engine, run_id, stage
-                ),
+            chunks, output_hash, extracted, cleaned, spans, extractor_version = (
+                _v2_chunks(
+                    SimpleNamespace(
+                        id=run_id,
+                        processing_config=processing_config,
+                        processing_config_hash=processing_config_hash,
+                    ),
+                    path,
+                    media,
+                    title,
+                    lambda stage: ingestion_execution.transition_for_processing_run(
+                        db_engine, run_id, stage
+                    ),
+                )
             )
+            canonical = extracted, cleaned, spans, extractor_version
         else:
             chunks = []
             chunk_characters = 0
@@ -215,6 +222,18 @@ def process(run_id: UUID, db_engine=engine):
                 raise ProcessingError("The document contains no text.")
             for start in range(0, len(chunks), 500):
                 session.execute(insert(Chunk), chunks[start : start + 500])
+            if canonical is not None:
+                extracted, cleaned, spans, extractor_version = canonical
+                persist_derivations(
+                    session,
+                    project_id=project_id,
+                    document_id=document_id,
+                    processing_run_id=run_id,
+                    extracted=extracted,
+                    cleaned=cleaned,
+                    extractor_version=extractor_version,
+                    spans=spans,
+                )
             job.status = "succeeded"
             job.chunk_count = len(chunks)
             job.progress = 100
