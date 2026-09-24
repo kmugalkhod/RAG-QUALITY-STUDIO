@@ -414,7 +414,13 @@ def cancel_index(session, project_id, index_id):
     return result
 
 
-def retrieve(session, project_id, request: RetrievalRequest):
+def retrieve(
+    session,
+    project_id,
+    request: RetrievalRequest,
+    *,
+    query_embeddings=None,
+):
     index = get_index(session, project_id, request.index_id)
     if index.status != "succeeded":
         raise HTTPException(
@@ -423,7 +429,14 @@ def retrieve(session, project_id, request: RetrievalRequest):
     config = embeddings.EmbeddingConfig.model_validate(index.embedding_config)
     from app.pipelines.retrieval import search
 
-    items, diagnostics = search(session, project_id, index, request, config)
+    items, diagnostics = search(
+        session,
+        project_id,
+        index,
+        request,
+        config,
+        query_embeddings=query_embeddings,
+    )
     return dict(
         index_id=index.id,
         index_version=index.version,

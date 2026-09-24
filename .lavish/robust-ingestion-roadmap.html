@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>RAG Quality Studio — Robust ingestion roadmap</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --background: #17191f;
+        --foreground: #eceef3;
+        --raised: #20242b;
+        --sunken: #14171c;
+        --muted: #272b33;
+        --muted-fg: #adb6c4;
+        --border: #343b45;
+        --accent: #a49bd8;
+        --success: #9fb69a;
+        --warning: #c7a66a;
+        --danger: #c27d72;
+        --cyan: #82b5bf;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: var(--background);
+        color: var(--foreground);
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        line-height: 1.55;
+      }
+      main { width: min(1180px, calc(100% - 32px)); margin: 0 auto; padding: 42px 0 80px; }
+      h1, h2, h3, p { margin-top: 0; }
+      h1 { max-width: 900px; margin-bottom: 14px; font-size: clamp(2rem, 5vw, 4.2rem); line-height: 1.02; letter-spacing: -0.055em; }
+      h2 { margin-bottom: 18px; font-size: clamp(1.35rem, 3vw, 2rem); letter-spacing: -0.025em; }
+      h3 { margin-bottom: 8px; font-size: 1rem; }
+      a { color: var(--accent); }
+      code { font: 0.88em ui-monospace, SFMono-Regular, Menlo, monospace; color: #d7d2f1; overflow-wrap: anywhere; }
+      .eyebrow { color: var(--accent); font-size: .75rem; font-weight: 750; letter-spacing: .13em; text-transform: uppercase; }
+      .lede { max-width: 860px; color: var(--muted-fg); font-size: 1.08rem; }
+      .verdict { margin: 28px 0 46px; padding: 22px; border: 1px solid color-mix(in srgb, var(--accent) 55%, var(--border)); border-radius: 14px; background: color-mix(in srgb, var(--accent) 6%, var(--raised)); }
+      .verdict strong { color: var(--foreground); }
+      section { margin-top: 52px; }
+      .grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 14px; }
+      .card { min-width: 0; padding: 20px; border: 1px solid var(--border); border-radius: 12px; background: var(--raised); }
+      .card p:last-child, .card ul:last-child { margin-bottom: 0; }
+      .span-4 { grid-column: span 4; }
+      .span-6 { grid-column: span 6; }
+      .span-8 { grid-column: span 8; }
+      .span-12 { grid-column: span 12; }
+      .muted { color: var(--muted-fg); }
+      .metric { display: flex; align-items: baseline; gap: 10px; margin-bottom: 7px; }
+      .metric b { color: var(--accent); font-size: 1.55rem; font-variant-numeric: tabular-nums; }
+      .tag { display: inline-flex; align-items: center; padding: 3px 8px; border: 1px solid var(--border); border-radius: 999px; color: var(--muted-fg); background: var(--sunken); font-size: .72rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+      .tag.high { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 45%, var(--border)); }
+      .tag.medium { color: var(--warning); border-color: color-mix(in srgb, var(--warning) 45%, var(--border)); }
+      .tag.core { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 48%, var(--border)); }
+      ul, ol { padding-left: 1.2rem; }
+      li + li { margin-top: 6px; }
+      .evidence { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); color: var(--muted-fg); font-size: .82rem; }
+      .diagram { padding: 18px; border: 1px solid var(--border); border-radius: 14px; background: var(--sunken); overflow: hidden; }
+      svg { display: block; width: 100%; height: auto; }
+      .diagram-copy { fill: var(--foreground); font: 600 17px Inter, sans-serif; }
+      .diagram-small { fill: var(--muted-fg); font: 13px Inter, sans-serif; }
+      .node { fill: var(--raised); stroke: var(--border); stroke-width: 1.5; }
+      .node.hot { stroke: var(--accent); }
+      .edge { fill: none; stroke: var(--accent); stroke-width: 2; marker-end: url(#arrow); }
+      .subedge { fill: none; stroke: var(--muted-fg); stroke-width: 1.5; stroke-dasharray: 5 5; }
+      .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 12px; }
+      table { width: 100%; min-width: 820px; border-collapse: collapse; background: var(--raised); }
+      th, td { padding: 14px 16px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
+      th { color: var(--muted-fg); background: var(--sunken); font-size: .75rem; letter-spacing: .06em; text-transform: uppercase; }
+      tbody tr:last-child td { border-bottom: 0; }
+      td:first-child { font-weight: 700; }
+      .phase { position: relative; padding-left: 54px; }
+      .phase-number { position: absolute; left: 0; top: 0; width: 34px; height: 34px; display: grid; place-items: center; border-radius: 50%; color: var(--background); background: var(--accent); font-weight: 800; }
+      .phase + .phase { margin-top: 20px; }
+      .example { margin: 14px 0 0; padding: 16px; border: 1px solid var(--border); border-radius: 9px; background: var(--sunken); white-space: pre-wrap; color: #d8dbe2; font: .82rem/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wrap: anywhere; }
+      .callout { border-left: 3px solid var(--warning); padding: 5px 0 5px 14px; color: var(--muted-fg); }
+      .source-list { display: flex; flex-wrap: wrap; gap: 8px; }
+      footer { margin-top: 58px; padding-top: 22px; border-top: 1px solid var(--border); color: var(--muted-fg); font-size: .86rem; }
+      @media (max-width: 820px) {
+        main { width: min(100% - 22px, 1180px); padding-top: 26px; }
+        .span-4, .span-6, .span-8 { grid-column: span 12; }
+        .card { padding: 16px; }
+        .diagram { padding: 8px; }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <p class="eyebrow">RAG Quality Studio · ingestion review</p>
+        <h1>Make extraction a real, inspectable data product.</h1>
+        <p class="lede">The highest-value change is not “add more cleaning switches.” It is to introduce a canonical structured document between source fetching and chunking, then make extraction quality, transformations, and provenance visible and reproducible.</p>
+      </header>
+
+      <div class="verdict" id="recommendation">
+        <strong>Recommendation:</strong> first build one shared <code>ExtractedDocument → CleanedDocument → Chunk</code> path for every connector. Then add layout-aware PDF extraction with page-level OCR fallback, deterministic block-aware cleaning, quality gates, and semantic/token chunking. Do not begin with an LLM cleaner: it adds cost and nondeterminism before the basic structure is trustworthy.
+      </div>
+
+      <section aria-labelledby="current-heading">
+        <p class="eyebrow">Codebase diagnosis</p>
+        <h2 id="current-heading">Why Extract and Clean currently feel shallow</h2>
+        <div class="grid">
+          <article class="card span-4" id="finding-schema">
+            <span class="tag high">High impact</span>
+            <div class="metric"><b>1</b><span>extract strategy</span></div>
+            <p class="muted">The schema only allows <code>media_type_registry</code>. There is no OCR policy, layout/table mode, language, or extraction-quality threshold.</p>
+            <p class="evidence"><code>backend/app/schemas/ingestion.py:317</code></p>
+          </article>
+          <article class="card span-4" id="finding-existing-files">
+            <span class="tag high">Correctness gap</span>
+            <div class="metric"><b>0</b><span>clean transforms on uploads</span></div>
+            <p class="muted">Existing uploaded PDF/TXT processing marks the Clean node active, but chunks the parser output directly. The saved Clean configuration does not change those passages.</p>
+            <p class="evidence"><code>backend/app/workers/processing.py:41–74</code></p>
+          </article>
+          <article class="card span-4" id="finding-ocr">
+            <span class="tag medium">Coverage gap</span>
+            <div class="metric"><b>PDF</b><span>native text only</span></div>
+            <p class="muted">A single image-only page causes the whole PDF to fail. There is no mixed-document, page-level OCR fallback or extraction confidence.</p>
+            <p class="evidence"><code>backend/app/pipelines/parsing.py:40–70</code></p>
+          </article>
+          <article class="card span-6" id="finding-duplicate-cleaners">
+            <span class="tag medium">Drift risk</span>
+            <h3>Cleaning behavior is duplicated by connector</h3>
+            <p class="muted">S3, Notion, Confluence, and Website each implement their own loop. The “normalize whitespace = off” option still ends with unconditional whitespace collapse in multiple paths, so the setting is not semantically true.</p>
+            <p class="evidence"><code>services/s3_ingestion.py:39–44</code> · <code>services/notion_ingestion.py:32–37</code> · <code>pipelines/web_content.py:108–116</code></p>
+          </article>
+          <article class="card span-6" id="finding-ui">
+            <span class="tag medium">Product gap</span>
+            <h3>The editor reports settings but cannot tune them</h3>
+            <p class="muted">Extract and Clean render descriptive facts, not labeled inputs or before/after previews. Users cannot inspect why text was removed or what a rule changed.</p>
+            <p class="evidence"><code>frontend/.../IngestionNodeSettings.tsx:350–380</code></p>
+          </article>
+        </div>
+      </section>
+
+      <section aria-labelledby="target-heading">
+        <p class="eyebrow">Target architecture</p>
+        <h2 id="target-heading">One intermediate representation, many extractor adapters</h2>
+        <div class="diagram">
+          <svg viewBox="0 0 1080 360" role="img" aria-labelledby="flow-title flow-desc">
+            <title id="flow-title">Proposed ingestion processing flow</title>
+            <desc id="flow-desc">Source artifacts pass through extractor adapters into a canonical structured document, deterministic cleaners, quality gates, chunk profiles, embeddings, and an immutable index.</desc>
+            <defs>
+              <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="var(--accent)" /></marker>
+            </defs>
+            <rect id="raw-artifact" class="node" x="20" y="130" width="145" height="82" rx="12"><title>Raw immutable source artifact</title></rect>
+            <text class="diagram-copy" x="92" y="162" text-anchor="middle">Raw artifact</text><text class="diagram-small" x="92" y="188" text-anchor="middle">bytes + provenance</text>
+            <rect id="extractor-adapter" class="node" x="205" y="130" width="150" height="82" rx="12"><title>Media-type-specific extraction adapter</title></rect>
+            <text class="diagram-copy" x="280" y="162" text-anchor="middle">Extractor</text><text class="diagram-small" x="280" y="188" text-anchor="middle">native / layout / OCR</text>
+            <rect id="canonical-document" class="node hot" x="400" y="96" width="190" height="150" rx="12"><title>Canonical structured document</title></rect>
+            <text class="diagram-copy" x="495" y="130" text-anchor="middle">ExtractedDocument</text><text class="diagram-small" x="495" y="158" text-anchor="middle">pages · blocks · types</text><text class="diagram-small" x="495" y="181" text-anchor="middle">bbox · heading path</text><text class="diagram-small" x="495" y="204" text-anchor="middle">tables · warnings</text><text class="diagram-small" x="495" y="227" text-anchor="middle">source spans</text>
+            <rect id="cleaner" class="node" x="635" y="130" width="150" height="82" rx="12"><title>Deterministic ordered cleaning transforms</title></rect>
+            <text class="diagram-copy" x="710" y="162" text-anchor="middle">Cleaner</text><text class="diagram-small" x="710" y="188" text-anchor="middle">ordered transforms</text>
+            <rect id="quality-gate" class="node" x="825" y="35" width="220" height="72" rx="12"><title>Extraction quality gate</title></rect>
+            <text class="diagram-copy" x="935" y="65" text-anchor="middle">Quality gate</text><text class="diagram-small" x="935" y="89" text-anchor="middle">pass · warn · exclude · fail</text>
+            <rect id="chunker" class="node" x="825" y="145" width="220" height="72" rx="12"><title>Block-aware and token-aware chunk profiles</title></rect>
+            <text class="diagram-copy" x="935" y="175" text-anchor="middle">Chunk profile</text><text class="diagram-small" x="935" y="199" text-anchor="middle">sections · tokens · parent/child</text>
+            <rect id="index" class="node" x="825" y="255" width="220" height="72" rx="12"><title>Immutable index with exact processing lineage</title></rect>
+            <text class="diagram-copy" x="935" y="285" text-anchor="middle">Embed + publish</text><text class="diagram-small" x="935" y="309" text-anchor="middle">immutable index version</text>
+            <path class="edge" d="M165 171 H205" /><path class="edge" d="M355 171 H400" /><path class="edge" d="M590 171 H635" /><path class="edge" d="M785 171 H825" /><path class="edge" d="M935 217 V255" />
+            <path class="subedge" d="M710 130 C710 70 790 70 825 70" />
+          </svg>
+        </div>
+        <div class="grid" style="margin-top:14px">
+          <article class="card span-6">
+            <h3>Canonical block contract</h3>
+            <div class="example">Block {
+  id, type: heading | paragraph | list_item | table | code | image_caption,
+  text, page, bbox?, heading_path[], language?,
+  source_span, extractor_confidence?, warnings[]
+}</div>
+          </article>
+          <article class="card span-6">
+            <h3>Important storage boundary</h3>
+            <p class="muted">Keep the immutable raw artifact. Store or reproducibly regenerate extracted and cleaned representations with their versioned configs and hashes. A chunk should point back to block IDs and source spans—not only character offsets in a flattened string.</p>
+          </article>
+        </div>
+      </section>
+
+      <section aria-labelledby="features-heading">
+        <p class="eyebrow">What to add</p>
+        <h2 id="features-heading">Robust extraction and cleaning capabilities</h2>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Capability</th><th>Concrete behavior</th><th>Why retrieval improves</th><th>Priority</th></tr></thead>
+            <tbody>
+              <tr id="cap-layout"><td>Layout-aware extraction</td><td>Preserve headings, paragraphs, lists, columns, tables, code, captions, page and bounding box.</td><td>Reading order and section context stop being flattened away.</td><td><span class="tag core">P1</span></td></tr>
+              <tr id="cap-ocr"><td>Page-level OCR fallback</td><td><code>off | auto | always</code>, language list, rotation/deskew, maximum raster pixels, timeout, confidence and per-page warning.</td><td>Mixed digital/scanned PDFs work without forcing OCR on good pages.</td><td><span class="tag core">P1</span></td></tr>
+              <tr id="cap-tables"><td>Table preservation</td><td>Store structured rows/cells plus a deterministic Markdown rendering; repeat table title/header when splitting large tables.</td><td>Values remain associated with their headers.</td><td><span class="tag core">P1</span></td></tr>
+              <tr id="cap-boilerplate"><td>Detected boilerplate</td><td>Remove repeated headers/footers using cross-page frequency and position; Website supports bounded include/exclude selectors.</td><td>Repeated navigation and legal chrome stop dominating vectors.</td><td><span class="tag core">P1</span></td></tr>
+              <tr id="cap-clean"><td>Ordered deterministic transforms</td><td>Unicode normalization, control-character removal, dehyphenation, line reflow, empty-block removal, preserving lists/tables/code.</td><td>Text becomes consistent without destroying semantic boundaries.</td><td><span class="tag core">P0</span></td></tr>
+              <tr id="cap-dedupe"><td>Near-duplicate detection</td><td>Exact hash first; optional SimHash/MinHash at document/section level with threshold, chosen canonical source and visible exclusion reason.</td><td>Template copies and mirrored pages no longer crowd results.</td><td><span class="tag">P2</span></td></tr>
+              <tr id="cap-quality"><td>Quality scoring and gates</td><td>Measure extracted chars/page, empty-page ratio, replacement characters, repeated-line ratio, OCR confidence and suspicious reading order. Policy: pass, warn, exclude, fail.</td><td>Bad extraction is detected before embedding cost is paid.</td><td><span class="tag core">P1</span></td></tr>
+              <tr id="cap-language"><td>Language policy</td><td>Detect per document/page, allowlist languages, route OCR language packs, store confidence; never silently translate.</td><td>Correct OCR and analyzers are selected while provenance stays honest.</td><td><span class="tag">P2</span></td></tr>
+              <tr id="cap-pii"><td>Sensitive-data transform</td><td>Optional versioned redact/drop policy with entity type, count, location and audit record; raw artifact remains separately protected.</td><td>Prevents sensitive text from entering embeddings when required.</td><td><span class="tag">Later</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section aria-labelledby="chunk-heading">
+        <p class="eyebrow">Beyond cleaning</p>
+        <h2 id="chunk-heading">Extraction quality is wasted if chunking destroys structure</h2>
+        <div class="grid">
+          <article class="card span-4"><h3>Section-aware token chunks</h3><p class="muted">Split at heading and block boundaries, then by tokenizer only when a section is too large. Keep character windows as a legacy profile.</p></article>
+          <article class="card span-4"><h3>Parent/child retrieval</h3><p class="muted">Embed compact child passages, but return the larger parent section as evidence. This improves matching without starving generation context.</p></article>
+          <article class="card span-4"><h3>Separate embedding text</h3><p class="muted">Prepend document title and heading path to <code>embedding_text</code>, while keeping <code>evidence_text</code> faithful to the source and citations.</p></article>
+        </div>
+      </section>
+
+      <section aria-labelledby="ux-heading">
+        <p class="eyebrow">Product experience</p>
+        <h2 id="ux-heading">Make every transformation inspectable</h2>
+        <div class="grid">
+          <article class="card span-8">
+            <h3>Preview should show four synchronized panes</h3>
+            <ol>
+              <li><strong>Raw:</strong> PDF page/HTML/block source metadata, safely rendered.</li>
+              <li><strong>Extracted:</strong> detected blocks, reading order, tables and OCR markers.</li>
+              <li><strong>Cleaned:</strong> before/after diff with each removed or rewritten span attributed to a rule.</li>
+              <li><strong>Chunks:</strong> boundaries, token counts, heading context and eventual embedding text.</li>
+            </ol>
+          </article>
+          <article class="card span-4">
+            <h3>Per-item stage report</h3>
+            <p class="muted">Record extractor used, native/OCR pages, warnings, removed characters/blocks, quality score, dedupe decision, chunk count, duration and estimated/actual OCR cost. Current run-level node status is not enough.</p>
+          </article>
+        </div>
+      </section>
+
+      <section aria-labelledby="roadmap-heading">
+        <p class="eyebrow">Recommended delivery order</p>
+        <h2 id="roadmap-heading">Four vertical slices, each usable on its own</h2>
+        <div class="card">
+          <div class="phase" id="phase-0"><span class="phase-number">0</span><h3>Make the current nodes truthful</h3><p class="muted">Create shared extractor/cleaner interfaces, execute Clean for uploaded files, remove connector-specific cleaner copies, and add editable settings plus before/after preview. Keep v1 pipeline versions executable with explicit legacy semantics.</p></div>
+          <div class="phase" id="phase-1"><span class="phase-number">1</span><h3>Introduce the structured document IR</h3><p class="muted">Persist blocks and source spans, implement layout-aware PDF extraction and automatic page-level OCR fallback, preserve HTML/Notion/Confluence hierarchy, and add quality gates. Reprocessing must produce a new immutable revision.</p></div>
+          <div class="phase" id="phase-2"><span class="phase-number">2</span><h3>Structure-aware cleaning and chunking</h3><p class="muted">Add detected headers/footers, dehyphenation, table handling, token/section chunks, heading enrichment, and exact + near-duplicate reports. Build index variants from one source snapshot to compare chunk profiles without refetching.</p></div>
+          <div class="phase" id="phase-3"><span class="phase-number">3</span><h3>Measure ingestion quality</h3><p class="muted">Create a reviewed “golden extraction” set with PDFs, scans, columns, tables, Notion/Confluence nesting and noisy web pages. Track block-order accuracy, table cell accuracy, OCR character error rate, removed-boilerplate precision, chunk boundary quality and downstream retrieval recall.</p></div>
+        </div>
+      </section>
+
+      <section aria-labelledby="schema-heading">
+        <p class="eyebrow">Schema direction</p>
+        <h2 id="schema-heading">Prefer profiles and bounded policies over arbitrary scripts</h2>
+        <div class="grid">
+          <article class="card span-6">
+            <h3>Extract node v2</h3>
+            <div class="example">strategy: auto | native | layout_aware
+ocr:
+  mode: off | auto | always
+  languages: [eng]
+  rotate_pages: true
+tables: preserve | markdown | plain_text
+quality_policy_id: default-v1</div>
+          </article>
+          <article class="card span-6">
+            <h3>Clean node v2</h3>
+            <div class="example">steps:
+  - unicode_normalize: NFC
+  - remove_repeated_headers: { page_ratio: 0.6 }
+  - dehyphenate: conservative
+  - reflow_lines: preserve_blocks
+dedup: { mode: exact_and_near, threshold: 0.92 }</div>
+          </article>
+        </div>
+        <p class="callout" style="margin-top:16px">Avoid arbitrary user regex, Python, selectors without validation, or LLM prompts as executable cleaning logic. Start with typed, bounded rules. If LLM enrichment is later added, snapshot provider/model/prompt, retain the original text, label generated content, and expose its cost and failures.</p>
+      </section>
+
+      <section aria-labelledby="build-heading">
+        <p class="eyebrow">Build vs integrate</p>
+        <h2 id="build-heading">Own the contract; plug in extraction engines</h2>
+        <div class="grid">
+          <article class="card span-4"><h3>Own in RAG Studio</h3><p class="muted">IR schemas, provenance, quality policy, transformation audit, job fencing, immutable revisions, preview UI, chunk profiles and evaluation.</p></article>
+          <article class="card span-4"><h3>Evaluate as adapters</h3><p class="muted">Docling for layout/table/OCR-aware conversion; OCRmyPDF/Tesseract for scanned PDF preprocessing; Apache Tika when broad format coverage becomes a requirement.</p></article>
+          <article class="card span-4"><h3>Do not couple to</h3><p class="muted">A vendor-specific JSON shape. Normalize every engine into the application-owned <code>ExtractedDocument</code> contract and version the adapter.</p></article>
+        </div>
+      </section>
+
+      <section aria-labelledby="done-heading">
+        <p class="eyebrow">First acceptance gate</p>
+        <h2 id="done-heading">A robust first release is done when…</h2>
+        <div class="card">
+          <ul>
+            <li>A mixed text/scanned PDF succeeds with per-page native/OCR provenance; a bad OCR page is warned or excluded by policy.</li>
+            <li>A two-column PDF preserves reading order, and a table keeps header/value relationships.</li>
+            <li>Repeated headers/footers are removed by a recorded deterministic rule without deleting matching body text.</li>
+            <li>The same cleaning settings behave identically for uploads, S3, Website, Notion and Confluence.</li>
+            <li>The user can compare raw, extracted, cleaned and chunked output before paying for embeddings.</li>
+            <li>Every chunk links to exact source revision, block IDs, page/section, extractor/cleaner versions and config hashes.</li>
+            <li>Changing extraction or cleaning produces a new immutable revision/index; prior experiments remain reproducible.</li>
+          </ul>
+        </div>
+      </section>
+
+      <footer>
+        <p><strong>External references:</strong> <a href="https://docling-project.github.io/docling/reference/cli/">Docling CLI capabilities</a> · <a href="https://ocrmypdf.readthedocs.io/en/stable/advanced.html">OCRmyPDF processing modes</a> · <a href="https://tika.apache.org/docs/">Apache Tika documentation</a>.</p>
+        <p>Design source: the repository’s charcoal/periwinkle workspace tokens from <code>DESIGN.md</code> and <code>frontend/src/app/styles.css</code>.</p>
+      </footer>
+    </main>
+  </body>
+</html>

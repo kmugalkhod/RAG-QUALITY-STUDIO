@@ -2,6 +2,10 @@
 
 Status: Phases 1–9 complete as of 2026-09-14.
 
+Follow-on work for layout-aware extraction, OCR, deterministic cleaning,
+structure-aware chunking and ingestion-quality evaluation is specified in the
+[robust ingestion plan](robust-ingestion-plan.md).
+
 This plan adds a second saved pipeline kind for acquiring and indexing knowledge. It preserves the existing answer pipeline and the current charcoal/lavender workspace. The first complete slice uses existing project documents, the second adds bounded public-website ingestion, and later slices add credentialed connectors through the same source-node contract.
 
 ## 1. Outcome

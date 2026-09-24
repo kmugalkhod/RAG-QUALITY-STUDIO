@@ -85,6 +85,12 @@ def test_save_reopen_versions_execution_and_duplicate(pipeline_api):
         run1 = c.get(f"/api/projects/{p}/query-runs/{accepted.json()['id']}").json()
         assert run1["status"] == "succeeded", run1
         assert len(run1["snapshot"]["evidence"]) == 1
+        assert run1["snapshot"]["execution_engine"]["node_order"] == [
+            node["id"] for node in payload["execution"]["nodes"]
+        ]
+        assert run1["snapshot"]["execution_engine"]["composition"] == (
+            "LCEL RunnableSequence"
+        )
         assert provider.call_args.args[1]["model"] == "test/chat"
         assert run1["pipeline_version_id"] == first["id"]
         payload["execution"]["nodes"][1]["top_k"] = 3

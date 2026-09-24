@@ -7,8 +7,10 @@ from sqlalchemy import select, update
 from app.models.query import QueryRun
 from app.providers import generation
 from app.providers.embeddings import EmbeddingError
-from app.pipelines.generation import PROMPT_VERSION, build_context, validate_citations
+from app.pipelines.generation import PROMPT_VERSION
+from app.pipelines.langchain_rag import compile_answer_chain, runtime_snapshot
 from app.schemas.index import RetrievalRequest
+from app.schemas.pipeline import Execution
 from app.services import indexes
 from app.services.documents import project, paginate
 
@@ -70,6 +72,12 @@ def execute(
         raise HTTPException(
             409, "Select a ready index. Partial indexes cannot be queried."
         )
+    pipeline_execution = preview_execution or (version.execution if version else None)
+    node_ids = (
+        {node["type"]: node["id"] for node in pipeline_execution["nodes"]}
+        if pipeline_execution
+        else None
+    )
     snapshot = dict(
         top_k=request.top_k,
         retrieval=request.retrieval.model_dump(),
@@ -87,8 +95,8 @@ def execute(
         generation_config=config,
         prompt_template=template,
         pipeline_version=version.version if version else None,
-        pipeline_execution=preview_execution
-        or (version.execution if version else None),
+        pipeline_execution=pipeline_execution,
+        execution_engine=runtime_snapshot(node_ids),
         pipeline_preview=preview_execution is not None,
         base_pipeline_id=str(preview_base.pipeline_id) if preview_base else None,
         base_version_id=str(preview_base.id) if preview_base else None,
@@ -120,81 +128,81 @@ def finish(session, run, *, before_provider=None):
 
     started = monotonic()
     project_id = run.project_id
-    request = QueryRequest(
-        index_id=run.index_id,
-        question=run.question,
-        retrieval=run.snapshot.get("retrieval")
-        or {"mode": "vector", "top_k": run.snapshot["top_k"]},
-    )
     snapshot = dict(run.snapshot)
-    stage = None
-    stage_start = started
+    trace = None
     try:
+        execution_data = snapshot.get("pipeline_execution")
+        if execution_data:
+            execution = Execution.model_validate(execution_data)
+            nodes = {node.type: node for node in execution.nodes}
+            retriever_node = nodes["retriever"]
+            if retriever_node.index_id != run.index_id:
+                raise generation.GenerationError(
+                    "The saved pipeline index does not match this query run."
+                )
+            retrieval = retriever_node.settings
+            prompt_template = nodes["prompt"].template
+            llm_node = nodes["llm"]
+            node_ids = {kind: node.id for kind, node in nodes.items()}
+        else:
+            retrieval = snapshot.get("retrieval") or {
+                "mode": "vector",
+                "top_k": snapshot["top_k"],
+            }
+            prompt_template = snapshot.get("prompt_template")
+            node_ids = None
+        request = QueryRequest(
+            index_id=run.index_id,
+            question=run.question,
+            retrieval=retrieval,
+        )
         config = snapshot.get("generation_config") or generation.configured()
+        if execution_data:
+            config = {
+                **config,
+                "model": llm_node.model,
+                "max_tokens": llm_node.max_tokens,
+                "temperature": llm_node.temperature,
+            }
         snapshot["generation_config"] = config
-        stage = "retrieval_ms"
-        stage_start = monotonic()
-        if before_provider:
-            before_provider()
-        result = indexes.retrieve(
-            session,
-            project_id,
-            RetrievalRequest(
+        index = indexes.get_index(session, project_id, run.index_id)
+
+        def checkpoint(updates):
+            snapshot.update(jsonable_encoder(updates))
+            run.snapshot = dict(snapshot)
+            session.commit()
+
+        chain, trace = compile_answer_chain(
+            session=session,
+            project_id=project_id,
+            index=index,
+            request=RetrievalRequest(
                 index_id=run.index_id,
                 query=request.question,
                 retrieval=request.retrieval,
             ),
+            generation_config=config,
+            prompt_template=prompt_template,
+            node_ids=node_ids,
+            checkpoint=checkpoint,
+            before_provider=before_provider,
         )
-        snapshot[stage] = round((monotonic() - stage_start) * 1000, 3)
-        stage = None
-        snapshot["retrieval_result"] = jsonable_encoder(result)
-        sources, messages = build_context(
-            request.question,
-            jsonable_encoder(result["items"]),
-            config,
-            snapshot.get("prompt_template"),
+        result = chain.invoke(
+            {"question": request.question},
+            config={"run_name": "validated_answer_pipeline"},
         )
-        snapshot.update(
-            evidence=sources,
-            messages=messages,
-            retrieved_count=len(result["items"]),
-            omitted_count=len(result["items"]) - len(sources),
-        )
-        # Checkpoint evidence before the potentially billable call.
-        run.snapshot = dict(snapshot)
-        session.commit()
-        if not sources:
-            answer = "INSUFFICIENT_EVIDENCE: No evidence was retrieved from this index."
-            snapshot["generation_ms"] = 0
-        else:
-            stage = "generation_ms"
-            stage_start = monotonic()
-            if before_provider:
-                before_provider()
-            completion = generation.provider_for().generate(messages, config)
-            snapshot[stage] = round((monotonic() - stage_start) * 1000, 3)
-            stage = None
-            answer = completion.answer
-            snapshot.update(
-                actual_model=completion.model,
-                finish_reason=completion.finish_reason,
-                usage=completion.usage,
-                cost_usd=completion.cost_usd,
-                cost_basis="OpenRouter reported generation cost (USD); excludes retrieval embeddings"
-                if completion.cost_usd is not None
-                else None,
+        snapshot.update(jsonable_encoder(trace.updates))
+        answer = result["answer"]
+        if result["finish_reason"] != "stop":
+            raise generation.GenerationError(
+                "OpenRouter generation did not finish normally (output limit or filtering). Try a shorter question or adjust output capacity."
             )
-            if completion.finish_reason != "stop":
-                raise generation.GenerationError(
-                    "OpenRouter generation did not finish normally (output limit or filtering). Try a shorter question or adjust output capacity."
-                )
         run.answer = answer
         run.status = (
             "insufficient_evidence"
             if answer.startswith("INSUFFICIENT_EVIDENCE")
             else "succeeded"
         )
-        snapshot["citations"] = validate_citations(answer, sources)
     except (generation.GenerationError, EmbeddingError) as exc:
         run.status, run.error = "failed", str(exc)
     except Exception:
@@ -203,8 +211,8 @@ def finish(session, run, *, before_provider=None):
             "failed",
             "Query execution failed. Retry or check server configuration.",
         )
-    if stage:
-        snapshot[stage] = round((monotonic() - stage_start) * 1000, 3)
+    if trace is not None:
+        snapshot.update(jsonable_encoder(trace.updates))
     snapshot["total_ms"] = round((monotonic() - started) * 1000, 3)
     run.snapshot = dict(snapshot)
     session.commit()

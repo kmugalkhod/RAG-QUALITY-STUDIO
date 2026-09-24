@@ -49,6 +49,13 @@ def test_persistence_citations_scope(query_api):
     run = response.json()
     assert run["status"] == "succeeded"
     s = run["snapshot"]
+    assert s["execution_engine"] == {
+        "framework": "langchain",
+        "langchain_version": "1.4.0",
+        "langchain_core_version": "1.6.2",
+        "composition": "LCEL RunnableSequence",
+        "node_order": ["question", "retriever", "prompt", "llm", "answer"],
+    }
     assert s["citations"]["valid"] == ["S1"] and s["citations"]["invalid"] == ["S99"]
     assert s["evidence"][0]["text"] == "abcd"
     assert s["messages"] == provider.call_args.args[0]

@@ -354,8 +354,8 @@ def test_cancel_during_retrieval_prevents_generation(experiment_api):
     run, _, _ = submitted(experiment_api)
     original = indexes.retrieve
 
-    def retrieve(*args):
-        result = original(*args)
+    def retrieve(*args, **kwargs):
+        result = original(*args, **kwargs)
         c.post(f"/api/projects/{p}/experiments/{run['id']}/cancel").raise_for_status()
         return result
 

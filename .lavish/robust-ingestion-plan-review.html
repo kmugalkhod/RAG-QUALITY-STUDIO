@@ -1,0 +1,568 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Robust ingestion implementation plan review</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #17191f;
+        --fg: #eceef3;
+        --raised: #20242b;
+        --sunken: #14171c;
+        --muted: #adb6c4;
+        --border: #343b45;
+        --accent: #a49bd8;
+        --sage: #9fb69a;
+        --ochre: #c7a66a;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--fg);
+        font:
+          15px/1.55 Inter,
+          ui-sans-serif,
+          system-ui,
+          sans-serif;
+      }
+      main {
+        width: min(1160px, calc(100% - 28px));
+        margin: auto;
+        padding: 40px 0 70px;
+      }
+      h1 {
+        max-width: 850px;
+        margin: 0 0 14px;
+        font-size: clamp(2rem, 5vw, 4rem);
+        line-height: 1.02;
+        letter-spacing: -0.05em;
+      }
+      h2 {
+        margin: 0 0 16px;
+        font-size: clamp(1.3rem, 3vw, 2rem);
+        letter-spacing: -0.025em;
+      }
+      h3,
+      p {
+        margin-top: 0;
+      }
+      section {
+        margin-top: 48px;
+      }
+      code {
+        color: #d8d2f2;
+        overflow-wrap: anywhere;
+      }
+      .eyebrow {
+        color: var(--accent);
+        font-size: 0.74rem;
+        font-weight: 800;
+        letter-spacing: 0.13em;
+        text-transform: uppercase;
+      }
+      .lede,
+      .muted {
+        color: var(--muted);
+      }
+      .lede {
+        max-width: 850px;
+        font-size: 1.08rem;
+      }
+      .banner {
+        margin: 26px 0;
+        padding: 18px;
+        border: 1px solid color-mix(in srgb, var(--accent) 55%, var(--border));
+        border-radius: 12px;
+        background: color-mix(in srgb, var(--accent) 7%, var(--raised));
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(12, minmax(0, 1fr));
+        gap: 14px;
+      }
+      .card {
+        min-width: 0;
+        padding: 18px;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: var(--raised);
+      }
+      .span4 {
+        grid-column: span 4;
+      }
+      .span6 {
+        grid-column: span 6;
+      }
+      .span12 {
+        grid-column: span 12;
+      }
+      .pill {
+        display: inline-block;
+        margin-bottom: 10px;
+        padding: 3px 8px;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        color: var(--accent);
+        background: var(--sunken);
+        font-size: 0.7rem;
+        font-weight: 800;
+        text-transform: uppercase;
+      }
+      .diagram {
+        padding: 14px;
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        background: var(--sunken);
+        overflow: hidden;
+      }
+      svg {
+        display: block;
+        width: 100%;
+        height: auto;
+      }
+      .node {
+        fill: var(--raised);
+        stroke: var(--border);
+        stroke-width: 1.5;
+      }
+      .hot {
+        stroke: var(--accent);
+      }
+      .edge {
+        fill: none;
+        stroke: var(--accent);
+        stroke-width: 2;
+        marker-end: url(#arrow);
+      }
+      .label {
+        fill: var(--fg);
+        font:
+          600 15px Inter,
+          sans-serif;
+      }
+      .small {
+        fill: var(--muted);
+        font:
+          12px Inter,
+          sans-serif;
+      }
+      .table-wrap {
+        overflow-x: auto;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+      }
+      table {
+        width: 100%;
+        min-width: 920px;
+        border-collapse: collapse;
+        background: var(--raised);
+      }
+      th,
+      td {
+        padding: 13px 15px;
+        border-bottom: 1px solid var(--border);
+        text-align: left;
+        vertical-align: top;
+      }
+      th {
+        color: var(--muted);
+        background: var(--sunken);
+        font-size: 0.72rem;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+      }
+      tr:last-child td {
+        border-bottom: 0;
+      }
+      td:first-child {
+        color: var(--accent);
+        font-weight: 800;
+        white-space: nowrap;
+      }
+      ul {
+        margin-bottom: 0;
+        padding-left: 1.2rem;
+      }
+      li + li {
+        margin-top: 6px;
+      }
+      footer {
+        margin-top: 48px;
+        padding-top: 18px;
+        border-top: 1px solid var(--border);
+        color: var(--muted);
+      }
+      @media (max-width: 780px) {
+        main {
+          padding-top: 24px;
+        }
+        .span4,
+        .span6 {
+          grid-column: span 12;
+        }
+        .card {
+          padding: 15px;
+        }
+        .diagram {
+          padding: 6px;
+        }
+        .diagram svg {
+          width: 760px;
+          max-width: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <p class="eyebrow">Review surface · source of truth is Markdown</p>
+      <h1>Robust ingestion, delivered without breaking history.</h1>
+      <p class="lede">
+        The complete plan lives at <code>docs/robust-ingestion-plan.md</code>.
+        This view summarizes the architectural decision, delivery order and
+        phase gates for annotation.
+      </p>
+      <div class="banner">
+        <strong>Primary decision:</strong> keep schema-v1 execution immutable;
+        introduce schema v2, a canonical block-level document representation,
+        and an explicit <strong>Upgrade as draft</strong> workflow.
+      </div>
+
+      <section>
+        <p class="eyebrow">Processing model</p>
+        <h2>One structured path after every connector</h2>
+        <div class="diagram">
+          <svg viewBox="0 0 1080 270" role="img" aria-labelledby="title desc">
+            <title id="title">Target robust ingestion flow</title>
+            <desc id="desc">
+              Raw artifacts are converted to a canonical extracted document,
+              deterministically cleaned, quality checked, chunked, embedded and
+              atomically published.
+            </desc>
+            <defs>
+              <marker
+                id="arrow"
+                viewBox="0 0 10 10"
+                refX="8"
+                refY="5"
+                markerWidth="6"
+                markerHeight="6"
+                orient="auto"
+              >
+                <path d="M0 0L10 5L0 10z" fill="var(--accent)" />
+              </marker>
+            </defs>
+            <rect
+              id="raw"
+              class="node"
+              x="18"
+              y="94"
+              width="125"
+              height="76"
+              rx="11"
+            >
+              <title>Immutable source artifact</title>
+            </rect>
+            <text class="label" x="80" y="124" text-anchor="middle">Raw</text>
+            <text class="small" x="80" y="148" text-anchor="middle">
+              artifact
+            </text>
+            <rect
+              id="extract"
+              class="node"
+              x="180"
+              y="94"
+              width="140"
+              height="76"
+              rx="11"
+            >
+              <title>Native, layout-aware or OCR extraction</title>
+            </rect>
+            <text class="label" x="250" y="124" text-anchor="middle">
+              Extract
+            </text>
+            <text class="small" x="250" y="148" text-anchor="middle">
+              native · layout · OCR
+            </text>
+            <rect
+              id="ir"
+              class="node hot"
+              x="357"
+              y="69"
+              width="180"
+              height="126"
+              rx="11"
+            >
+              <title>Application-owned canonical structured document</title>
+            </rect>
+            <text class="label" x="447" y="106" text-anchor="middle">
+              ExtractedDocument
+            </text>
+            <text class="small" x="447" y="132" text-anchor="middle">
+              pages · typed blocks
+            </text>
+            <text class="small" x="447" y="154" text-anchor="middle">
+              tables · spans · findings
+            </text>
+            <text class="small" x="447" y="176" text-anchor="middle">
+              heading paths · bbox
+            </text>
+            <rect
+              id="clean"
+              class="node"
+              x="574"
+              y="94"
+              width="135"
+              height="76"
+              rx="11"
+            >
+              <title>Ordered deterministic transforms</title>
+            </rect>
+            <text class="label" x="641" y="124" text-anchor="middle">
+              Clean
+            </text>
+            <text class="small" x="641" y="148" text-anchor="middle">
+              audited transforms
+            </text>
+            <rect
+              id="quality"
+              class="node"
+              x="746"
+              y="30"
+              width="145"
+              height="70"
+              rx="11"
+            >
+              <title>Versioned quality policy</title>
+            </rect>
+            <text class="label" x="818" y="59" text-anchor="middle">
+              Quality
+            </text>
+            <text class="small" x="818" y="81" text-anchor="middle">
+              pass · warn · exclude · fail
+            </text>
+            <rect
+              id="chunk"
+              class="node"
+              x="746"
+              y="131"
+              width="145"
+              height="70"
+              rx="11"
+            >
+              <title>Structure-aware chunking profiles</title>
+            </rect>
+            <text class="label" x="818" y="160" text-anchor="middle">
+              Chunk
+            </text>
+            <text class="small" x="818" y="182" text-anchor="middle">
+              section · parent/child
+            </text>
+            <rect
+              id="publish"
+              class="node"
+              x="928"
+              y="94"
+              width="135"
+              height="76"
+              rx="11"
+            >
+              <title>Embedding and atomic immutable publication</title>
+            </rect>
+            <text class="label" x="995" y="124" text-anchor="middle">
+              Publish
+            </text>
+            <text class="small" x="995" y="148" text-anchor="middle">
+              immutable index
+            </text>
+            <path class="edge" d="M143 132H180" />
+            <path class="edge" d="M320 132H357" />
+            <path class="edge" d="M537 132H574" />
+            <path class="edge" d="M709 132C730 132 730 65 746 65" />
+            <path class="edge" d="M709 132C730 132 730 166 746 166" />
+            <path class="edge" d="M891 166C915 166 910 132 928 132" />
+          </svg>
+        </div>
+      </section>
+
+      <section>
+        <p class="eyebrow">Delivery plan</p>
+        <h2>Nine bounded phases</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Phase</th>
+                <th>Outcome</th>
+                <th>Major functionality</th>
+                <th>Must be true before moving on</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr id="p0">
+                <td>0 · Correctness</td>
+                <td>Truthful shared current path</td>
+                <td>
+                  Freeze v1, schema v2 envelope, shared cleaners, Existing Files
+                  clean execution, upgrade-as-draft
+                </td>
+                <td>v1 unchanged; connector parity; real node execution</td>
+              </tr>
+              <tr id="p1">
+                <td>1 · Canonical IR</td>
+                <td>Structured immutable derivations</td>
+                <td>
+                  Pages, blocks, tables, spans, hashes, block-to-chunk lineage
+                  and bounded inspectors
+                </td>
+                <td>Every v2 chunk traces to exact source blocks</td>
+              </tr>
+              <tr id="p2">
+                <td>2 · Layout + OCR</td>
+                <td>Complex and scanned PDFs</td>
+                <td>
+                  Native/layout/auto profiles, page OCR fallback, languages,
+                  rotation, deskew, tables and quality measurements
+                </td>
+                <td>Mixed PDF succeeds; low quality cannot silently publish</td>
+              </tr>
+              <tr id="p3">
+                <td>3 · Cleaning</td>
+                <td>Audited deterministic transforms</td>
+                <td>
+                  Unicode, reflow, dehyphenation, headers/footers, web chrome,
+                  selectors and protected structures
+                </td>
+                <td>Every change attributable to one saved rule</td>
+              </tr>
+              <tr id="p4">
+                <td>4 · Chunking</td>
+                <td>Structure-aware passages</td>
+                <td>
+                  Section-token, parent/child, table rows, tokenizer bounds and
+                  separate embedding/evidence text
+                </td>
+                <td>
+                  Exact spans; citation-safe evidence; reusable snapshot
+                  variants
+                </td>
+              </tr>
+              <tr id="p5">
+                <td>5 · Quality UX</td>
+                <td>Inspect before embedding</td>
+                <td>
+                  Policies, async preview, Raw/Extracted/Cleaned/Chunks
+                  inspector, metrics, warnings and cost
+                </td>
+                <td>Preview never changes durable retrieval state</td>
+              </tr>
+              <tr id="p6">
+                <td>6 · Dedupe + language</td>
+                <td>Less redundant, correctly routed content</td>
+                <td>
+                  Exact/near duplicates, canonical source, language
+                  detection/allowlist and OCR packs
+                </td>
+                <td>Every exclusion is explainable and reproducible</td>
+              </tr>
+              <tr id="p7">
+                <td>7 · Extensions</td>
+                <td>Approved sensitive-data and formats</td>
+                <td>
+                  Redaction policy; Markdown/HTML, DOCX, PPTX, CSV/TSV, XLSX,
+                  optional Tika boundary
+                </td>
+                <td>Each feature passes full end-to-end/security gates</td>
+              </tr>
+              <tr id="p8">
+                <td>8 · Evaluation</td>
+                <td>Measured release and operations</td>
+                <td>
+                  Golden corpus, OCR/layout/table/clean/chunk metrics, retrieval
+                  comparison, backup/restore and rollback
+                </td>
+                <td>Published thresholds pass on a clean isolated stack</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section>
+        <p class="eyebrow">Engineering guardrails</p>
+        <h2>What keeps the implementation maintainable</h2>
+        <div class="grid">
+          <article class="card span4">
+            <span class="pill">Compatibility</span>
+            <h3>Never rewrite history</h3>
+            <p class="muted">
+              V1 stays executable. New extraction, cleaning or chunking settings
+              always create new immutable derivations and index versions.
+            </p>
+          </article>
+          <article class="card span4">
+            <span class="pill">Boundaries</span>
+            <h3>Own contracts, adapt engines</h3>
+            <p class="muted">
+              Docling, OCRmyPDF or Tika never become the persisted domain model.
+              Registry adapters normalize into application types.
+            </p>
+          </article>
+          <article class="card span4">
+            <span class="pill">Correctness</span>
+            <h3>Evidence stays faithful</h3>
+            <p class="muted">
+              Heading enrichment belongs only in embedding text. Citation text
+              and exact source spans remain separately stored.
+            </p>
+          </article>
+          <article class="card span6">
+            <span class="pill">Safety</span>
+            <h3>Untrusted parsing is isolated and bounded</h3>
+            <p class="muted">
+              Workers enforce pages, pixels, memory, disk, time, blocks and
+              output limits; logs and errors never contain raw source text.
+            </p>
+          </article>
+          <article class="card span6">
+            <span class="pill">Verification</span>
+            <h3>Quality is measured, not asserted</h3>
+            <p class="muted">
+              Reviewed fixtures measure text, reading order, OCR, tables,
+              boilerplate, source spans and downstream retrieval with failures
+              included.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <section>
+        <p class="eyebrow">Recommended start</p>
+        <h2>Implement Phase 0 only</h2>
+        <div class="card">
+          <ul>
+            <li>It fixes current semantic gaps before adding dependencies.</li>
+            <li>It creates the shared boundary every later phase needs.</li>
+            <li>It proves backward compatibility and connector parity.</li>
+            <li>
+              It intentionally excludes OCR, Docling, new derivation tables,
+              semantic chunking, near-duplicate detection and PII.
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <footer>
+        Visual design follows the repository’s charcoal/periwinkle tokens in
+        <code>DESIGN.md</code>. Full implementation detail, migrations, APIs,
+        tests, security, rollout, risks and thresholds are in
+        <code>docs/robust-ingestion-plan.md</code>.
+      </footer>
+    </main>
+  </body>
+</html>

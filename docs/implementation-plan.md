@@ -1242,3 +1242,43 @@ mobile views measured 390 px document width with no horizontal overflow. The
 route-split production build completed without the earlier chunk-size advisory. The
 design detector reported only the two established Inter-font warnings required by
 `DESIGN.md`; no new warning class was introduced.
+
+## LangChain answer-runtime migration — 2026-09-24
+
+Acceptance criteria: compile the supported frontend-authored Question → Retriever →
+Prompt → LLM → Answer graph with current LangChain runnable composition; retain strict
+server graph validation, project/index isolation and immutable versions; bridge the
+existing bounded OpenRouter embedding and generation providers into LangChain's native
+interfaces; keep pgvector, hybrid/keyword retrieval, evidence provenance, citations,
+insufficient-evidence handling, checkpointing, latency, usage and cost behavior; persist
+runtime versions/node order; leave ingestion and RAGAS evaluation boundaries intact;
+and verify direct queries, saved versions, previews, retrieval modes and failures with
+real PostgreSQL/pgvector tests and deterministic provider doubles.
+
+Implementation: `pipelines/langchain_rag.py` now compiles an LCEL
+`RunnableSequence`. Application bridges implement `Embeddings`, `BaseRetriever` and
+`BaseChatModel`, while `ChatPromptTemplate` renders the existing fixed system policy and
+JSON evidence payload. The pgvector retriever continues through the project-scoped
+`indexes.retrieve` service, with LangChain query embeddings injected only for vector
+branches. Query execution reparses persisted pipeline execution as the authoritative
+source for retrieval, prompt and node identity. Evidence is still committed before a
+potentially billable generation request, provider retries remain disabled, and every
+accepted run records pinned LangChain/runtime identity. Standalone Playground queries
+use the same compiled default sequence. Ingestion execution and RAGAS evaluator
+adapters are unchanged.
+
+Verification: the complete isolated PostgreSQL/pgvector backend suite passed with
+**260 tests passed and 4 opt-in live-provider tests skipped**. This includes query,
+pipeline preview/versioning, vector/keyword/hybrid retrieval, experiment cancellation,
+ingestion and evaluator regressions. Focused local checks passed with 36 tests and 35
+expected database skips. Backend Ruff lint and format checks, lock consistency,
+`git diff --check`, and a clean Docker backend image build from the exported lock all
+passed. The existing Starlette/AnyIO deprecation warning remains.
+
+The persistent backend, worker and dispatcher were rebuilt on that image. One bounded
+live run then executed the existing saved schema-v2 frontend graph against its ready
+61-chunk index through LangChain 1.4.0/core 1.6.2. It succeeded with five pgvector
+results, three evidence items retained by the context budget, one valid citation and no
+invalid citations. The saved snapshot included retrieval/generation/total latency,
+1,214 reported tokens and the provider-reported generation cost; no evaluation request
+was made.

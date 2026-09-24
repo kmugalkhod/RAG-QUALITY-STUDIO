@@ -11,7 +11,15 @@ from app.providers import embeddings
 from app.schemas.retrieval import algorithm_snapshot
 
 
-def search(session, project_id, index, request, config):
+def search(
+    session,
+    project_id,
+    index,
+    request,
+    config,
+    *,
+    query_embeddings=None,
+):
     settings = request.retrieval
     base = (
         select(Chunk, ProcessingRun, Document, SourceItem)
@@ -46,9 +54,14 @@ def search(session, project_id, index, request, config):
             continue
         started = monotonic()
         if branch == "vector":
-            provider = embeddings.provider_for(config)
             vector = embeddings.validate_vectors(
-                provider.embed([request.query]), 1, index.dimensions
+                (
+                    [query_embeddings.embed_query(request.query)]
+                    if query_embeddings is not None
+                    else embeddings.provider_for(config).embed([request.query])
+                ),
+                1,
+                index.dimensions,
             )[0]
             score = IndexChunk.embedding.cosine_distance(vector)
             query = base.add_columns(score).where(IndexChunk.embedding.is_not(None))
