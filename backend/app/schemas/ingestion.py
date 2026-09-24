@@ -9,7 +9,14 @@ from datetime import datetime
 from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import AnyHttpUrl, BaseModel, ConfigDict, Field, model_validator
+from pydantic import (
+    AnyHttpUrl,
+    BaseModel,
+    ConfigDict,
+    Field,
+    RootModel,
+    model_validator,
+)
 
 
 class Strict(BaseModel):
@@ -314,13 +321,13 @@ class SourceNode(NodeBase):
     config: SourceConfig
 
 
-class ExtractNode(NodeBase):
+class LegacyExtractNode(NodeBase):
     type: Literal["extract"]
     strategy: Literal["media_type_registry"] = "media_type_registry"
     config_version: str = Field(default="1", min_length=1, max_length=40)
 
 
-class CleanNode(NodeBase):
+class LegacyCleanNode(NodeBase):
     type: Literal["clean"]
     normalize_whitespace: bool = True
     repeated_boilerplate: list[str] = Field(default_factory=list, max_length=50)
@@ -337,7 +344,7 @@ class CleanNode(NodeBase):
         return self
 
 
-class ChunkNode(NodeBase):
+class LegacyChunkNode(NodeBase):
     type: Literal["chunk"]
     algorithm: Literal["character_window"] = "character_window"
     unit: Literal["characters"] = "characters"
@@ -373,8 +380,56 @@ class PublishIndexNode(NodeBase):
         return self
 
 
-IngestionNode = Annotated[
-    SourceNode | ExtractNode | CleanNode | ChunkNode | EmbedNode | PublishIndexNode,
+LegacyIngestionNode = Annotated[
+    SourceNode
+    | LegacyExtractNode
+    | LegacyCleanNode
+    | LegacyChunkNode
+    | EmbedNode
+    | PublishIndexNode,
+    Field(discriminator="type"),
+]
+
+
+class ExtractNodeV2(NodeBase):
+    type: Literal["extract"]
+    strategy: Literal["native_text"] = "native_text"
+    config_version: Literal["native-text-v1"] = "native-text-v1"
+
+
+class CleanNodeV2(LegacyCleanNode):
+    profile: Literal["standard-v1"] = "standard-v1"
+    config_version: Literal["deterministic-clean-v1"] = "deterministic-clean-v1"
+
+    @model_validator(mode="after")
+    def nonblank_boilerplate(self):
+        if any(not value.strip() for value in self.repeated_boilerplate):
+            raise ValueError("Boilerplate values cannot contain only whitespace.")
+        return self
+
+
+class ChunkNodeV2(NodeBase):
+    type: Literal["chunk"]
+    algorithm: Literal["character_window"] = "character_window"
+    unit: Literal["characters"] = "characters"
+    size: int = Field(strict=True, ge=100, le=10000)
+    overlap: int = Field(strict=True, ge=0, le=9999)
+    config_version: Literal["character-window-v1"] = "character-window-v1"
+
+    @model_validator(mode="after")
+    def overlap_smaller_than_size(self):
+        if self.overlap >= self.size:
+            raise ValueError("Chunk overlap must be smaller than chunk size.")
+        return self
+
+
+IngestionNodeV2 = Annotated[
+    SourceNode
+    | ExtractNodeV2
+    | CleanNodeV2
+    | ChunkNodeV2
+    | EmbedNode
+    | PublishIndexNode,
     Field(discriminator="type"),
 ]
 
@@ -384,43 +439,82 @@ class IngestionEdge(Strict):
     target: str = Field(min_length=1, max_length=80)
 
 
-class IngestionExecution(Strict):
+def _validate_supported_graph(nodes, edges):
+    node_ids = [node.id for node in nodes]
+    if len(set(node_ids)) != len(node_ids):
+        raise ValueError("Every ingestion node ID must be unique.")
+    sources = [node for node in nodes if node.type == "source"]
+    if not 1 <= len(sources) <= 10:
+        raise ValueError("Require between one and ten source nodes.")
+    required = ["extract", "clean", "chunk", "embed", "publish_index"]
+    by_type = {kind: [node for node in nodes if node.type == kind] for kind in required}
+    if any(len(by_type[kind]) != 1 for kind in required):
+        raise ValueError(
+            "Require exactly one Extract, Clean, Chunk, Embed and Publish index node."
+        )
+    extract = by_type["extract"][0].id
+    clean = by_type["clean"][0].id
+    chunk = by_type["chunk"][0].id
+    embed = by_type["embed"][0].id
+    publish = by_type["publish_index"][0].id
+    expected = {(node.id, extract) for node in sources}
+    expected.update(
+        {(extract, clean), (clean, chunk), (chunk, embed), (embed, publish)}
+    )
+    actual = {(edge.source, edge.target) for edge in edges}
+    if len(actual) != len(edges) or actual != expected:
+        raise ValueError(
+            "Connect every source to Extract, followed by Clean → Chunk → Embed → Publish index only."
+        )
+
+
+class IngestionExecutionV1(Strict):
     schema_version: Literal[1]
-    nodes: list[IngestionNode] = Field(min_length=6, max_length=15)
+    nodes: list[LegacyIngestionNode] = Field(min_length=6, max_length=15)
     edges: list[IngestionEdge] = Field(min_length=5, max_length=14)
 
     @model_validator(mode="after")
     def supported_graph(self):
-        node_ids = [node.id for node in self.nodes]
-        if len(set(node_ids)) != len(node_ids):
-            raise ValueError("Every ingestion node ID must be unique.")
-        sources = [node for node in self.nodes if node.type == "source"]
-        if not 1 <= len(sources) <= 10:
-            raise ValueError("Require between one and ten source nodes.")
-        required = ["extract", "clean", "chunk", "embed", "publish_index"]
-        by_type = {
-            kind: [node for node in self.nodes if node.type == kind]
-            for kind in required
-        }
-        if any(len(by_type[kind]) != 1 for kind in required):
-            raise ValueError(
-                "Require exactly one Extract, Clean, Chunk, Embed and Publish index node."
-            )
-        extract = by_type["extract"][0].id
-        clean = by_type["clean"][0].id
-        chunk = by_type["chunk"][0].id
-        embed = by_type["embed"][0].id
-        publish = by_type["publish_index"][0].id
-        expected = {(node.id, extract) for node in sources}
-        expected.update(
-            {(extract, clean), (clean, chunk), (chunk, embed), (embed, publish)}
-        )
-        actual = {(edge.source, edge.target) for edge in self.edges}
-        if len(actual) != len(self.edges) or actual != expected:
-            raise ValueError(
-                "Connect every source to Extract, followed by Clean → Chunk → Embed → Publish index only."
-            )
+        _validate_supported_graph(self.nodes, self.edges)
         return self
+
+
+class IngestionExecutionV2(Strict):
+    schema_version: Literal[2]
+    nodes: list[IngestionNodeV2] = Field(min_length=6, max_length=15)
+    edges: list[IngestionEdge] = Field(min_length=5, max_length=14)
+
+    @model_validator(mode="after")
+    def supported_graph(self):
+        _validate_supported_graph(self.nodes, self.edges)
+        return self
+
+
+class IngestionExecution(
+    RootModel[
+        Annotated[
+            IngestionExecutionV1 | IngestionExecutionV2,
+            Field(discriminator="schema_version"),
+        ]
+    ]
+):
+    @property
+    def schema_version(self):
+        return self.root.schema_version
+
+    @property
+    def nodes(self):
+        return self.root.nodes
+
+    @property
+    def edges(self):
+        return self.root.edges
+
+
+# Public legacy aliases remain stable for callers and schema-v1 regression tests.
+ExtractNode = LegacyExtractNode
+CleanNode = LegacyCleanNode
+ChunkNode = LegacyChunkNode
 
 
 class IngestionPosition(Strict):
@@ -621,6 +715,7 @@ class ExistingIngestionRunItemRead(Strict):
     status: Literal["processing", "ready", "succeeded", "failed", "cancelled"]
     chunk_count: int
     error: str | None
+    processing_versions: dict[str, str] | None = None
     updated_at: datetime
 
 
@@ -640,6 +735,7 @@ class WebsiteIngestionRunItemRead(Strict):
     reason: str
     chunk_count: int
     error: str | None
+    processing_versions: dict[str, str] | None = None
     updated_at: datetime
 
 
@@ -659,6 +755,7 @@ class S3IngestionRunItemRead(Strict):
     reason: str
     chunk_count: int
     error: str | None
+    processing_versions: dict[str, str] | None = None
     updated_at: datetime
 
 

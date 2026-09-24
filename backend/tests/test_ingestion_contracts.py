@@ -1,4 +1,5 @@
 from copy import deepcopy
+from types import SimpleNamespace
 import pytest
 from pydantic import TypeAdapter, ValidationError
 
@@ -10,6 +11,7 @@ from app.connectors.base import (
     SourceConnector,
 )
 from app.schemas.ingestion import IngestionPipelineSave
+from app.ingestion_content import CleanSemantics, DeterministicCleaner
 from connector_fixtures import DeterministicConnector
 
 
@@ -113,6 +115,39 @@ def test_ingestion_graph_accepts_one_to_ten_sources_only():
     )
     with pytest.raises(ValidationError):
         IngestionPipelineSave.model_validate(ingestion_draft(source_count=11))
+
+
+def test_v2_envelope_is_strict_and_v1_output_contract_remains_separate():
+    value = ingestion_draft()
+    value["execution"]["schema_version"] = 2
+    extract, clean, chunk = value["execution"]["nodes"][1:4]
+    extract.update(strategy="native_text", config_version="native-text-v1")
+    clean.update(profile="standard-v1", config_version="deterministic-clean-v1")
+    chunk["config_version"] = "character-window-v1"
+    parsed = IngestionPipelineSave.model_validate(value)
+    assert parsed.execution.schema_version == 2
+    assert parsed.execution.model_dump(mode="json")["schema_version"] == 2
+
+    invalid = deepcopy(value)
+    invalid["execution"]["nodes"][1]["strategy"] = "media_type_registry"
+    with pytest.raises(ValidationError):
+        IngestionPipelineSave.model_validate(invalid)
+
+
+def test_cleaner_v2_preserves_whitespace_when_disabled_and_v1_stays_legacy():
+    settings = SimpleNamespace(
+        normalize_whitespace=False,
+        repeated_boilerplate=["REMOVE"],
+    )
+    source = "  alpha\nREMOVE\t beta  "
+    assert (
+        DeterministicCleaner(CleanSemantics.STANDARD_V1).clean(source, settings)
+        == "  alpha\n\t beta  "
+    )
+    assert (
+        DeterministicCleaner(CleanSemantics.LEGACY_V1).clean(source, settings)
+        == "alpha beta"
+    )
 
 
 def test_deterministic_connector_contract_supports_changed_and_unchanged():

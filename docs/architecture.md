@@ -322,6 +322,32 @@ The dispatcher refreshes terminal outcomes, recovers claims older than 60 second
 
 Schedules start paused and never alter their saved pipeline version. Immediate schedule execution uses the same destination lock but leaves the automatic due time unchanged. Credentialed versions retain the local Host/Origin and encrypted-vault gates. There is intentionally no delete or retention endpoint: pausing prevents future automatic runs while schedules, immutable revisions, indexes and historical evidence remain available.
 
+## Robust ingestion processing boundary (Phase 0, 2026-09-24)
+
+Schema-v1 and schema-v2 ingestion executions are intentionally separate discriminated
+contracts. Historical v1 JSON remains readable and executable through the unchanged
+parser/character-window path. New drafts use v2. The editor never rewrites a selected
+v1 version: **Upgrade as draft** clones it, maps explicit v2 runtime/profile versions
+and leaves the immutable source version untouched.
+
+`app.ingestion_content` is the application-owned current-behavior boundary. It owns
+native TXT/PDF extraction, deterministic cleaning, character-window chunking, typed
+stage errors and canonical processing identities. Connector modules still own safe
+fetching and provider-native extraction/provenance, but Website, S3, Notion and
+Confluence no longer carry independent general-purpose cleaners or window loops. The
+cleaner takes an explicit semantic version: legacy mode preserves the historical final
+collapse-and-trim behavior, while v2 standard mode makes `normalize_whitespace=false`
+preserve source whitespace except for configured literal removal.
+
+Migration `0020` adds nullable canonical processing configuration, its SHA-256 and a
+deterministic output hash to `processing_runs`. Null is meaningful legacy lineage, not
+an inferred version. Existing Files v2 reuses any successful run with the exact
+configuration hash; changes to Extract, Clean or Chunk create a new immutable run.
+Runtime extractor/cleaner/chunker versions are exposed from persisted configuration in
+run items. Remote synthetic processing runs store the same identity that their source
+revision already uses. No canonical block IR, derivation table, OCR, layout engine,
+semantic chunker, near-duplicate or sensitive-data policy is introduced at this phase.
+
 ## Frontend organization
 
 Ingestion runs also persist one `ingestion_run_nodes` row for every node in the

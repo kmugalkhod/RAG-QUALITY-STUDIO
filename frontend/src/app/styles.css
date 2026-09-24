@@ -3924,6 +3924,14 @@ summary {
 .app-shell .ingestion-results p {
   color: var(--muted-foreground);
 }
+.app-shell .legacy-upgrade-note {
+  margin: 0;
+  padding: 9px 24px;
+  border-bottom: 1px solid var(--border);
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 1.5;
+}
 .app-shell .ingestion-results {
   scroll-margin-top: 72px;
   margin: 24px;
@@ -3965,13 +3973,19 @@ summary {
 }
 .app-shell .ingestion-results .project-list li > div {
   min-width: 0;
+  max-width: 100%;
 }
 .app-shell .ingestion-results .project-list li {
+  min-width: 0;
+  max-width: 100%;
   padding-inline: 4px;
 }
-.app-shell .ingestion-results .project-list p {
+.app-shell .ingestion-results .project-list p,
+.app-shell .ingestion-results .project-list small,
+.app-shell .ingestion-results .project-list strong {
   margin: 5px 0 0;
   overflow-wrap: anywhere;
+  word-break: break-word;
 }
 @media (max-width: 1100px) {
   .app-shell .ingestion-editor .pipeline-fields {

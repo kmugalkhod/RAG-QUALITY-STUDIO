@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.connectors.existing_files import ExistingFilesConnector
-from app.models.document import ProcessingRun
+from app.models.document import Chunk, ProcessingRun
 from app.models.index import IndexChunk, IndexVersion
 from app.models.ingestion import IngestionRun, IngestionRunItem, IngestionRunNode
 from app.models.pipeline import Pipeline, PipelineVersion
@@ -24,20 +24,53 @@ from test_documents import documents_api, start, upload  # noqa: F401
 from test_indexes import ProviderDouble
 
 
-def ingestion_draft(document_ids, config, *, name="Existing files", size=100):
+def ingestion_draft(
+    document_ids,
+    config,
+    *,
+    name="Existing files",
+    size=100,
+    schema_version=1,
+    normalize_whitespace=True,
+    repeated_boilerplate=None,
+):
     nodes = [
         {
             "id": "source",
             "type": "source",
             "config": {"kind": "existing_files", "document_ids": document_ids},
         },
-        {"id": "extract", "type": "extract"},
-        {"id": "clean", "type": "clean"},
+        {
+            "id": "extract",
+            "type": "extract",
+            **(
+                {"strategy": "native_text", "config_version": "native-text-v1"}
+                if schema_version == 2
+                else {}
+            ),
+        },
+        {
+            "id": "clean",
+            "type": "clean",
+            "normalize_whitespace": normalize_whitespace,
+            "repeated_boilerplate": repeated_boilerplate or [],
+            **(
+                {
+                    "profile": "standard-v1",
+                    "config_version": "deterministic-clean-v1",
+                }
+                if schema_version == 2
+                else {}
+            ),
+        },
         {
             "id": "chunk",
             "type": "chunk",
             "size": size,
             "overlap": 10,
+            **(
+                {"config_version": "character-window-v1"} if schema_version == 2 else {}
+            ),
         },
         {
             "id": "embed",
@@ -57,7 +90,7 @@ def ingestion_draft(document_ids, config, *, name="Existing files", size=100):
         "kind": "ingestion",
         "name": name,
         "execution": {
-            "schema_version": 1,
+            "schema_version": schema_version,
             "nodes": nodes,
             "edges": [
                 {"source": left["id"], "target": right["id"]}
@@ -319,6 +352,78 @@ def test_mismatched_processing_is_fenced_and_cancellable(ingestion_api):
             session.get(ProcessingRun, UUID(item["processing_run_id"])).status
             == "cancelled"
         )
+
+
+def test_v2_existing_files_executes_clean_config_and_reuses_exact_identity(
+    ingestion_api,
+):
+    client, engine, project_id, _, config, _ = ingestion_api
+    content = ("REMOVE  alpha\n\t beta   " * 10).encode()
+    document = upload(client, project_id, content=content, name="v2-clean.txt")
+    initial = start(client, project_id, document["id"], size=100, overlap=10)
+    process(UUID(initial["id"]), engine)
+    payload = ingestion_draft(
+        [document["id"]],
+        config,
+        name="V2 cleaned",
+        schema_version=2,
+        normalize_whitespace=False,
+        repeated_boilerplate=["REMOVE"],
+    )
+    version = client.post(f"/api/projects/{project_id}/pipelines", json=payload).json()
+    accepted = client.post(
+        f"/api/projects/{project_id}/pipelines/{version['pipeline_id']}"
+        f"/versions/{version['id']}/ingestion-runs"
+    )
+    assert accepted.status_code == 202, accepted.text
+    item = client.get(
+        f"/api/projects/{project_id}/ingestion-runs/{accepted.json()['id']}/items"
+    ).json()["items"][0]
+    assert item["processing_created"] is True
+    process(UUID(item["processing_run_id"]), engine)
+
+    with Session(engine) as session:
+        processing = session.get(ProcessingRun, UUID(item["processing_run_id"]))
+        chunks = session.scalars(
+            select(Chunk.text)
+            .where(Chunk.run_id == processing.id)
+            .order_by(Chunk.ordinal)
+        ).all()
+        assert processing.status == "succeeded"
+        assert processing.processing_config["versions"] == {
+            "extractor": processing.parser_version,
+            "cleaner": "deterministic-clean-v1",
+            "chunker": "character-window-v1",
+        }
+        assert processing.processing_config_hash
+        assert processing.output_hash
+        assert "REMOVE" not in "".join(chunks)
+        assert "\n\t beta" in "".join(chunks)
+
+    client.post(
+        f"/api/projects/{project_id}/ingestion-runs/{accepted.json()['id']}/cancel"
+    )
+    reuse_payload = ingestion_draft(
+        [document["id"]],
+        config,
+        name="V2 exact reuse",
+        schema_version=2,
+        normalize_whitespace=False,
+        repeated_boilerplate=["REMOVE"],
+    )
+    reuse_version = client.post(
+        f"/api/projects/{project_id}/pipelines", json=reuse_payload
+    ).json()
+    reused = client.post(
+        f"/api/projects/{project_id}/pipelines/{reuse_version['pipeline_id']}"
+        f"/versions/{reuse_version['id']}/ingestion-runs"
+    ).json()
+    reused_item = client.get(
+        f"/api/projects/{project_id}/ingestion-runs/{reused['id']}/items"
+    ).json()["items"][0]
+    assert reused_item["processing_created"] is False
+    assert reused_item["processing_run_id"] == item["processing_run_id"]
+    assert reused_item["processing_versions"]["cleaner"] == "deterministic-clean-v1"
 
 
 def test_existing_file_discovery_order_and_stale_recovery(ingestion_api):

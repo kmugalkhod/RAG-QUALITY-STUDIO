@@ -200,6 +200,94 @@ def test_milestone_two_a_upgrade_preserves_chunks(database):
         session.commit()
 
 
+def test_processing_identity_migration_preserves_legacy_runs_and_chunks(database):
+    from uuid import uuid4
+
+    engine, env = database
+    subprocess.run(
+        [sys.executable, "-m", "alembic", "upgrade", "head"], env=env, check=True
+    )
+    project_id, document_id, run_id = uuid4(), uuid4(), uuid4()
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "INSERT INTO projects (id,name,description) "
+                "VALUES (:id,'Phase 0 migration','Legacy preservation')"
+            ),
+            {"id": project_id},
+        )
+        connection.execute(
+            text(
+                "INSERT INTO documents "
+                "(id,project_id,filename,storage_name,media_type,content_hash,size_bytes,origin_kind) "
+                "VALUES (:id,:project,'legacy.txt',:storage,'text/plain',:hash,4,'upload')"
+            ),
+            {
+                "id": document_id,
+                "project": project_id,
+                "storage": uuid4().hex,
+                "hash": "a" * 64,
+            },
+        )
+        connection.execute(
+            text(
+                "INSERT INTO processing_runs "
+                "(id,document_id,version,chunk_size,overlap,config_version,parser_version,"
+                "processing_config,processing_config_hash,output_hash,status,attempts,progress,chunk_count) "
+                "VALUES (:id,:document,1,100,10,'characters-v1','legacy',NULL,NULL,NULL,"
+                "'succeeded',1,100,1)"
+            ),
+            {"id": run_id, "document": document_id},
+        )
+        connection.execute(
+            text(
+                "INSERT INTO chunks "
+                "(run_id,ordinal,page_number,start_char,end_char,text,provenance) "
+                "VALUES (:run,0,NULL,0,4,'kept','{}')"
+            ),
+            {"run": run_id},
+        )
+    subprocess.run(
+        [sys.executable, "-m", "alembic", "downgrade", "0019"],
+        env=env,
+        check=True,
+    )
+    with engine.connect() as connection:
+        assert (
+            connection.scalar(
+                text("SELECT status FROM processing_runs WHERE id=:id"), {"id": run_id}
+            )
+            == "succeeded"
+        )
+        assert (
+            connection.scalar(
+                text("SELECT text FROM chunks WHERE run_id=:id"), {"id": run_id}
+            )
+            == "kept"
+        )
+    subprocess.run(
+        [sys.executable, "-m", "alembic", "upgrade", "head"], env=env, check=True
+    )
+    with engine.begin() as connection:
+        assert (
+            connection.scalar(
+                text("SELECT processing_config_hash FROM processing_runs WHERE id=:id"),
+                {"id": run_id},
+            )
+            is None
+        )
+        connection.execute(text("DELETE FROM chunks WHERE run_id=:id"), {"id": run_id})
+        connection.execute(
+            text("DELETE FROM processing_runs WHERE id=:id"), {"id": run_id}
+        )
+        connection.execute(
+            text("DELETE FROM documents WHERE id=:id"), {"id": document_id}
+        )
+        connection.execute(
+            text("DELETE FROM projects WHERE id=:id"), {"id": project_id}
+        )
+
+
 def test_pipeline_kind_upgrade_backfills_existing_rows(database):
     import json
     from uuid import uuid4

@@ -1,13 +1,18 @@
 """Persist immutable Notion revisions with block-level chunk provenance."""
 
 import hashlib
-import re
 
 from sqlalchemy.orm import Session
 
 from app.connectors.notion import NotionArtifact
+from app.ingestion_content import (
+    CharacterWindowChunker,
+    ExtractedSegment,
+    cleaner_for_node,
+    processing_identity,
+)
 from app.models.source import SourceRevision
-from app.pipelines.parsing import MAX_CHUNKS, PARSER_VERSION, ProcessingError, windows
+from app.pipelines.parsing import MAX_CHUNKS, PARSER_VERSION, ProcessingError
 from app.pipelines.web_content import CLEANER_VERSION
 from app.services.source_artifacts import (
     SourceArtifactSpec,
@@ -16,25 +21,25 @@ from app.services.source_artifacts import (
 )
 
 
-_SPACE = re.compile(r"\s+")
-
-
 def processing_configuration(chunk, clean):
-    value = {
-        "extractor": f"notion-blocks-{PARSER_VERSION}",
-        "cleaner": CLEANER_VERSION,
-        "clean": clean.model_dump(mode="json"),
-        "chunk": chunk.model_dump(mode="json"),
-    }
-    return value, config_hash(value)
-
-
-def _clean(value: str, clean):
-    if clean.normalize_whitespace:
-        value = _SPACE.sub(" ", value).strip()
-    for repeated in clean.repeated_boilerplate:
-        value = value.replace(repeated.strip(), " ")
-    return _SPACE.sub(" ", value).strip()
+    if getattr(clean, "profile", None) is None:
+        value = {
+            "extractor": f"notion-blocks-{PARSER_VERSION}",
+            "cleaner": CLEANER_VERSION,
+            "clean": clean.model_dump(mode="json"),
+            "chunk": chunk.model_dump(mode="json"),
+        }
+        return value, config_hash(value)
+    cleaner = cleaner_for_node(clean)
+    return processing_identity(
+        schema_version=2 if getattr(clean, "profile", None) else 1,
+        extractor_version=f"notion-blocks-{PARSER_VERSION}",
+        cleaner_version=cleaner.version,
+        chunker_version=CharacterWindowChunker.version,
+        extract={"strategy": "notion_blocks"},
+        clean=clean.model_dump(mode="json", exclude={"id", "type"}),
+        chunk=chunk.model_dump(mode="json", exclude={"id", "type"}),
+    )
 
 
 def _chunks(artifact: NotionArtifact, chunk, clean, phase_callback=None):
@@ -45,45 +50,45 @@ def _chunks(artifact: NotionArtifact, chunk, clean, phase_callback=None):
     chunk_started = False
     if phase_callback is not None:
         phase_callback("extract")
+    cleaner = cleaner_for_node(clean)
+    chunker = CharacterWindowChunker()
     for segment in artifact.segments:
         if phase_callback is not None and not clean_started:
             phase_callback("clean")
             clean_started = True
-        text = _clean(segment.text, clean)
+        text = cleaner.clean(segment.text, clean)
         if not text:
             continue
         if phase_callback is not None and not chunk_started:
             phase_callback("chunk")
             chunk_started = True
         extracted.append(text)
-        for start, end, value in windows(text, chunk.size, chunk.overlap):
+        prepared_chunks = chunker.chunk_segment(
+            ExtractedSegment(text=text),
+            chunk,
+            first_ordinal=len(values),
+            provenance={
+                "notion_page_id": artifact.item.external_id,
+                "notion_block_id": segment.block_id,
+                "notion_block_type": segment.block_type,
+                "notion_block_depth": segment.depth,
+                "section_path": list(segment.section_path),
+            },
+        )
+        for prepared in prepared_chunks:
             if len(values) >= MAX_CHUNKS:
                 raise ProcessingError(
                     "Notion page exceeds the 50,000 chunk limit. Increase chunk size."
                 )
-            total += len(value)
+            total += len(prepared.text)
             if total > 10_000_000:
                 raise ProcessingError("Notion page exceeds the chunk-output limit.")
-            values.append(
-                {
-                    "ordinal": len(values),
-                    "page_number": None,
-                    "start_char": start,
-                    "end_char": end,
-                    "text": value,
-                    "provenance": {
-                        "notion_page_id": artifact.item.external_id,
-                        "notion_block_id": segment.block_id,
-                        "notion_block_type": segment.block_type,
-                        "notion_block_depth": segment.depth,
-                        "section_path": list(segment.section_path),
-                    },
-                }
-            )
+            values.append(prepared.as_record())
     combined = "\n".join(extracted)
-    if len(combined) < clean.minimum_text_chars:
+    length_violation = cleaner.length_violation(len(combined), clean)
+    if length_violation == "too_short":
         raise ProcessingError("Notion page contains too little extractable text.")
-    if len(combined) > clean.maximum_text_chars:
+    if length_violation == "too_long":
         raise ProcessingError("Notion page exceeds the configured cleaned-text limit.")
     if not values:
         raise ProcessingError("Notion page contains no chunkable text.")

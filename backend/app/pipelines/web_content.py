@@ -4,7 +4,12 @@ import re
 from dataclasses import dataclass
 from html.parser import HTMLParser
 
-from app.pipelines.parsing import MAX_CHUNKS, ProcessingError, windows
+from app.ingestion_content import (
+    CharacterWindowChunker,
+    ExtractedSegment,
+    cleaner_for_node,
+)
+from app.pipelines.parsing import MAX_CHUNKS, ProcessingError
 
 
 EXTRACTOR_VERSION = "html-main-v2"
@@ -31,8 +36,9 @@ class Section:
 
 
 class _Content(HTMLParser):
-    def __init__(self):
+    def __init__(self, preserve_whitespace: bool = False):
         super().__init__(convert_charrefs=True)
+        self.preserve_whitespace = preserve_whitespace
         self.ignored = 0
         self.main_depth = 0
         self.heading_level: int | None = None
@@ -42,7 +48,10 @@ class _Content(HTMLParser):
         self.buffer: list[str] = []
 
     def flush(self):
-        value = _SPACE.sub(" ", " ".join(self.buffer)).strip()
+        raw = (
+            "".join(self.buffer) if self.preserve_whitespace else " ".join(self.buffer)
+        )
+        value = raw if self.preserve_whitespace else _SPACE.sub(" ", raw).strip()
         if value:
             self.entries.append((self.main_depth > 0, tuple(self.headings), value))
         self.buffer.clear()
@@ -96,7 +105,8 @@ class _Content(HTMLParser):
 
 
 def extract_sections(content: bytes, clean, phase_callback=None) -> list[Section]:
-    parser = _Content()
+    standard = getattr(clean, "profile", None) == "standard-v1"
+    parser = _Content(preserve_whitespace=standard and not clean.normalize_whitespace)
     parser.feed(content.decode("utf-8", errors="replace"))
     parser.flush()
     entries = parser.entries
@@ -105,20 +115,17 @@ def extract_sections(content: bytes, clean, phase_callback=None) -> list[Section
         entries = main
     if phase_callback is not None:
         phase_callback("clean")
-    boilerplate = tuple(value.strip() for value in clean.repeated_boilerplate)
+    cleaner = cleaner_for_node(clean)
     sections = []
     for _, path, value in entries:
-        if clean.normalize_whitespace:
-            value = _SPACE.sub(" ", value).strip()
-        for repeated in boilerplate:
-            value = value.replace(repeated, " ")
-        value = _SPACE.sub(" ", value).strip()
+        value = cleaner.clean(value, clean)
         if value:
             sections.append(Section(path=path, text=value))
     combined = "\n\n".join(section.text for section in sections)
-    if len(combined) < clean.minimum_text_chars:
+    length_violation = cleaner.length_violation(len(combined), clean)
+    if length_violation == "too_short":
         raise ProcessingError("Website page contains too little extractable main text.")
-    if len(combined) > clean.maximum_text_chars:
+    if length_violation == "too_long":
         raise ProcessingError("Website page exceeds the configured cleaned-text limit.")
     return sections
 
@@ -154,21 +161,18 @@ def chunk_sections(sections: list[Section], size: int, overlap: int):
         return prefix
 
     chunks = []
-    for start, end, text in windows(combined, size, overlap):
+    chunker = CharacterWindowChunker()
+    settings = type("Settings", (), {"size": size, "overlap": overlap})()
+    for prepared in chunker.chunk_segment(ExtractedSegment(text=combined), settings):
         if len(chunks) >= MAX_CHUNKS:
             raise ProcessingError(
                 "Website page exceeds the 50,000 chunk limit. Increase chunk size."
             )
-        chunks.append(
-            {
-                "ordinal": len(chunks),
-                "page_number": None,
-                "start_char": start,
-                "end_char": end,
-                "text": text,
-                "provenance": {"section_path": shared_path(start, end)},
-            }
-        )
+        value = prepared.as_record()
+        value["provenance"] = {
+            "section_path": shared_path(prepared.start_char, prepared.end_char)
+        }
+        chunks.append(value)
     if not chunks:
         raise ProcessingError("Website page contains no chunkable text.")
     return chunks

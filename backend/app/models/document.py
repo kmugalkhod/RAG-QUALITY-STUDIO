@@ -72,6 +72,9 @@ class ProcessingRun(Base):
     overlap: Mapped[int]
     config_version: Mapped[str] = mapped_column(String(32), default="characters-v1")
     parser_version: Mapped[str] = mapped_column(String(64))
+    processing_config: Mapped[dict | None] = mapped_column(JSONB)
+    processing_config_hash: Mapped[str | None] = mapped_column(String(64))
+    output_hash: Mapped[str | None] = mapped_column(String(64))
     status: Mapped[str] = mapped_column(String(16), default="queued")
     attempts: Mapped[int] = mapped_column(default=0)
     execution_token: Mapped[uuid.UUID | None]

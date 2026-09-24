@@ -84,7 +84,7 @@ export type IngestionNode =
     })
   | (NodeBase & {
       type: 'extract';
-      strategy?: 'media_type_registry';
+      strategy?: 'media_type_registry' | 'native_text';
       config_version?: string;
     })
   | (NodeBase & {
@@ -94,6 +94,8 @@ export type IngestionNode =
       minimum_text_chars?: number;
       maximum_text_chars?: number;
       exact_content_deduplication?: boolean;
+      profile?: 'standard-v1';
+      config_version?: string;
     })
   | (NodeBase & {
       type: 'chunk';
@@ -120,7 +122,7 @@ export type IngestionPipelineDraft = {
   kind: 'ingestion';
   name: string;
   execution: {
-    schema_version: 1;
+    schema_version: 1 | 2;
     nodes: IngestionNode[];
     edges: { source: string; target: string }[];
   };
@@ -223,6 +225,7 @@ export type ExistingIngestionRunItem = {
   status: 'processing' | 'ready' | 'succeeded' | 'failed' | 'cancelled';
   chunk_count: number;
   error: string | null;
+  processing_versions: Record<string, string> | null;
   updated_at: string;
 };
 
@@ -240,6 +243,7 @@ export type WebsiteIngestionRunItem = {
   reason: string;
   chunk_count: number;
   error: string | null;
+  processing_versions: Record<string, string> | null;
   updated_at: string;
 };
 

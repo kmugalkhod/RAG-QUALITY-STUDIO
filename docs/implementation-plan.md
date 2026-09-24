@@ -1,5 +1,69 @@
 # Implementation plan
 
+## Robust ingestion roadmap — Phase 0 acceptance criteria (2026-09-24)
+
+Status: **Phase 0 complete on 2026-09-24** on
+`codex/robust-ingestion-roadmap`; Phase 1 is next.
+
+- Freeze schema-v1 TXT, PDF, Website, S3, Notion and Confluence extraction/cleaning/
+  character-window output before refactoring. Historical schema-v1 pipeline versions
+  must remain readable and executable without changing their persisted JSON or output.
+- Introduce application-owned current-behavior extractor, cleaner and chunker
+  interfaces with stable runtime versions and typed, safe stage errors. Connector code
+  may retain discovery, identity and source-specific extraction/provenance, but it may
+  not own a separate general-purpose whitespace/boilerplate cleaner or character
+  window loop.
+- Add a strict schema-v2 ingestion envelope. New pipelines use v2, while a saved v1
+  version remains labelled **Legacy character extraction** and changes to v2 only
+  through an explicit **Upgrade as draft** action that does not mutate or save the
+  historical version.
+- Define `normalize_whitespace=false` for v2 as preserving source whitespace exactly
+  except for explicitly configured literal boilerplate removal. V1 retains its
+  historical collapse-and-trim behavior for reproducibility. The same selected
+  semantics must apply to every connector.
+- Execute v2 Existing Files through the saved Extract, Clean and Chunk nodes. Changing
+  any v2 extraction, cleaning or chunk setting creates a new immutable processing run;
+  an exact compatible successful run may be reused.
+- Include extractor, cleaner and chunker runtime versions plus canonical configuration
+  in deterministic processing hashes. Persist and expose the exact versions used by
+  completed v2 processing/run items without fabricating lineage for v1 history.
+- Make v2 Clean controls keyboard-accessible and editable, map server validation to
+  actionable draft errors, retain dirty-navigation behavior, and keep unsupported
+  layout/OCR controls absent.
+- Verify focused contracts and parity, Existing Files execution, remote connector
+  regressions, duplicate delivery, cancellation, stale recovery, project isolation,
+  clean/populated migration and downgrade preservation, Ruff, frontend formatting/
+  lint/typecheck/Vitest/build, existing answer/Playground/experiment regressions, and
+  Agent Browser desktop/narrow/mobile journeys at the canonical Vite URL.
+
+Phase 0 does not add Docling, OCR, layout extraction, derivation tables, semantic or
+parent/child chunking, near-duplicate detection, sensitive-data processing, new source
+formats, or live paid/provider calls.
+
+Implementation and verification evidence:
+
+- Schema-v1 and schema-v2 are separate strict backend contracts. New drafts use v2;
+  historical v1 JSON remains unchanged and is explicitly upgraded only in a detached
+  unsaved draft.
+- One application-owned module now owns native TXT/PDF extraction, deterministic
+  versioned cleaning, character windows, processing identity and safe stage errors.
+  Website, S3, Notion and Confluence retain source-specific extraction/provenance but
+  consume the shared cleaner and chunker.
+- Existing Files v2 now executes its saved Clean settings, preserves whitespace when
+  normalization is disabled, persists canonical configuration/runtime versions and
+  output hashes, and reuses only an exact successful processing identity. V1 retains
+  its prior parser/chunker execution path.
+- Migration `0020` adds nullable processing identity/output metadata. Clean migration,
+  downgrade to `0019`, legacy row/chunk preservation and re-upgrade were verified.
+- Backend Ruff lint and format passed. The isolated PostgreSQL/pgvector suite passed
+  **264 tests with 4 opt-in live tests skipped**. Frontend formatting, structure/ESLint,
+  strict TypeScript, all **104 Vitest tests across 28 files**, and the production build
+  passed.
+- Agent Browser verified new-v2 and legacy-upgrade workflows at 1440, 1024 and 390
+  pixels. A long-provenance mobile overflow found during the pass was fixed and
+  rechecked at an exact 390-pixel viewport; application errors were empty and console
+  output contained only Vite/React development messages.
+
 ## Evidence-first workspace refinement — 2026-09-24
 
 Status: implemented; final verification recorded below.

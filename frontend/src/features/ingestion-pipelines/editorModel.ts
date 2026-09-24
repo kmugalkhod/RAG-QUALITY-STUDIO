@@ -105,7 +105,12 @@ export function defaultIngestionDraft(
 ): IngestionPipelineDraft {
   const nodes: IngestionNode[] = [
     { id: 'source', type: 'source', config: { kind: 'existing_files', document_ids: documentIds } },
-    { id: 'extract', type: 'extract', strategy: 'media_type_registry', config_version: '1' },
+    {
+      id: 'extract',
+      type: 'extract',
+      strategy: 'native_text',
+      config_version: 'native-text-v1',
+    },
     {
       id: 'clean',
       type: 'clean',
@@ -114,6 +119,8 @@ export function defaultIngestionDraft(
       minimum_text_chars: 1,
       maximum_text_chars: 2_000_000,
       exact_content_deduplication: true,
+      profile: 'standard-v1',
+      config_version: 'deterministic-clean-v1',
     },
     {
       id: 'chunk',
@@ -122,7 +129,7 @@ export function defaultIngestionDraft(
       unit: 'characters',
       size: 1000,
       overlap: 100,
-      config_version: '1',
+      config_version: 'character-window-v1',
     },
     {
       id: 'embed',
@@ -138,7 +145,7 @@ export function defaultIngestionDraft(
     kind: 'ingestion',
     name: 'Untitled ingestion pipeline',
     execution: {
-      schema_version: 1,
+      schema_version: 2,
       nodes,
       edges: nodes.slice(1).map((node, index) => ({ source: nodes[index].id, target: node.id })),
     },
@@ -219,4 +226,34 @@ export function editableIngestionVersion(
     execution: structuredClone(version.execution),
     layout: structuredClone(version.layout),
   };
+}
+
+export function upgradeIngestionDraft(draft: IngestionPipelineDraft): IngestionPipelineDraft {
+  if (draft.execution.schema_version === 2) {
+    return structuredClone(draft);
+  }
+  const upgraded = structuredClone(draft);
+  upgraded.execution.schema_version = 2;
+  upgraded.execution.nodes = upgraded.execution.nodes.map((node) => {
+    if (node.type === 'extract') {
+      return { ...node, strategy: 'native_text', config_version: 'native-text-v1' };
+    }
+    if (node.type === 'clean') {
+      return {
+        ...node,
+        normalize_whitespace: node.normalize_whitespace ?? true,
+        repeated_boilerplate: node.repeated_boilerplate ?? [],
+        minimum_text_chars: node.minimum_text_chars ?? 1,
+        maximum_text_chars: node.maximum_text_chars ?? 2_000_000,
+        exact_content_deduplication: node.exact_content_deduplication ?? true,
+        profile: 'standard-v1',
+        config_version: 'deterministic-clean-v1',
+      };
+    }
+    if (node.type === 'chunk') {
+      return { ...node, config_version: 'character-window-v1' };
+    }
+    return node;
+  });
+  return upgraded;
 }

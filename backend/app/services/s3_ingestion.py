@@ -1,19 +1,23 @@
 """S3 immutable revision persistence and deterministic TXT/PDF extraction."""
 
 import hashlib
-import re
 from pathlib import PurePosixPath
 
 from sqlalchemy.orm import Session
 
 from app.connectors.s3 import S3Artifact
+from app.ingestion_content import (
+    CharacterWindowChunker,
+    ExtractedSegment,
+    cleaner_for_node,
+    processing_identity,
+)
 from app.models.source import SourceRevision
 from app.pipelines.parsing import (
     MAX_CHUNKS,
     PARSER_VERSION,
     ProcessingError,
     pages,
-    windows,
 )
 from app.pipelines.web_content import CLEANER_VERSION
 from app.services.source_artifacts import (
@@ -23,25 +27,25 @@ from app.services.source_artifacts import (
 )
 
 
-_SPACE = re.compile(r"\s+")
-
-
 def processing_configuration(chunk, clean):
-    value = {
-        "extractor": PARSER_VERSION,
-        "cleaner": CLEANER_VERSION,
-        "clean": clean.model_dump(mode="json"),
-        "chunk": chunk.model_dump(mode="json"),
-    }
-    return value, config_hash(value)
-
-
-def _clean(value: str, clean) -> str:
-    if clean.normalize_whitespace:
-        value = _SPACE.sub(" ", value).strip()
-    for repeated in clean.repeated_boilerplate:
-        value = value.replace(repeated.strip(), " ")
-    return _SPACE.sub(" ", value).strip()
+    if getattr(clean, "profile", None) is None:
+        value = {
+            "extractor": PARSER_VERSION,
+            "cleaner": CLEANER_VERSION,
+            "clean": clean.model_dump(mode="json"),
+            "chunk": chunk.model_dump(mode="json"),
+        }
+        return value, config_hash(value)
+    cleaner = cleaner_for_node(clean)
+    return processing_identity(
+        schema_version=2 if getattr(clean, "profile", None) else 1,
+        extractor_version=PARSER_VERSION,
+        cleaner_version=cleaner.version,
+        chunker_version=CharacterWindowChunker.version,
+        extract={"strategy": "media_type_registry"},
+        clean=clean.model_dump(mode="json", exclude={"id", "type"}),
+        chunk=chunk.model_dump(mode="json", exclude={"id", "type"}),
+    )
 
 
 def _chunks(path, media_type, source_key, chunk, clean, phase_callback=None):
@@ -52,41 +56,41 @@ def _chunks(path, media_type, source_key, chunk, clean, phase_callback=None):
     chunk_started = False
     if phase_callback is not None:
         phase_callback("extract")
+    cleaner = cleaner_for_node(clean)
+    chunker = CharacterWindowChunker()
     for page_number, value, _, _ in pages(path, media_type):
         if phase_callback is not None and not clean_started:
             phase_callback("clean")
             clean_started = True
-        cleaned = _clean(value, clean)
+        cleaned = cleaner.clean(value, clean)
         if not cleaned:
             continue
         if phase_callback is not None and not chunk_started:
             phase_callback("chunk")
             chunk_started = True
         extracted.append(cleaned)
-        for start, end, text in windows(cleaned, chunk.size, chunk.overlap):
+        chunks = chunker.chunk_segment(
+            ExtractedSegment(text=cleaned, page_number=page_number),
+            chunk,
+            first_ordinal=len(values),
+            provenance={"s3_key": source_key},
+        )
+        for prepared in chunks:
             if len(values) >= MAX_CHUNKS:
                 raise ProcessingError(
                     "S3 object exceeds the 50,000 chunk limit. Increase chunk size."
                 )
-            total_characters += len(text)
+            total_characters += len(prepared.text)
             if total_characters > 10_000_000:
                 raise ProcessingError(
                     "S3 object exceeds the cleaned chunk-output limit."
                 )
-            values.append(
-                {
-                    "ordinal": len(values),
-                    "page_number": page_number,
-                    "start_char": start,
-                    "end_char": end,
-                    "text": text,
-                    "provenance": {"s3_key": source_key},
-                }
-            )
+            values.append(prepared.as_record())
     combined = "\n\n".join(extracted)
-    if len(combined) < clean.minimum_text_chars:
+    length_violation = cleaner.length_violation(len(combined), clean)
+    if length_violation == "too_short":
         raise ProcessingError("S3 object contains too little extractable text.")
-    if len(combined) > clean.maximum_text_chars:
+    if length_violation == "too_long":
         raise ProcessingError("S3 object exceeds the configured cleaned-text limit.")
     if not values:
         raise ProcessingError("S3 object contains no chunkable text.")

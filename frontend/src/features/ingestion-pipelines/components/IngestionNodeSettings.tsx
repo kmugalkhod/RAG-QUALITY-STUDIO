@@ -4,6 +4,7 @@ import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
 import { Label } from '../../../components/ui/label';
 import { NativeSelect, NativeSelectOption } from '../../../components/ui/native-select';
+import { Textarea } from '../../../components/ui/textarea';
 import type { ConnectionSettings, SourceConnection } from '../../connections/model';
 import type { Document, KnowledgeSet } from '../../documents/model';
 import { ingestionStageLabels as labels } from '../editorModel';
@@ -25,6 +26,7 @@ export function IngestionNodeSettings({
   documents,
   knowledgeSets,
   websiteSource,
+  schemaVersion,
   updateNode,
   changeSourceKind,
 }: {
@@ -40,6 +42,7 @@ export function IngestionNodeSettings({
   documents: Document[];
   knowledgeSets: KnowledgeSet[];
   websiteSource: boolean;
+  schemaVersion: 1 | 2;
   updateNode: (id: string, update: (node: IngestionNode) => IngestionNode) => void;
   changeSourceKind: (nodeId: string, kind: SourceKind) => void;
 }) {
@@ -353,7 +356,11 @@ export function IngestionNodeSettings({
             </p>
             <dl className="ingestion-stage-facts">
               <dt>Strategy</dt>
-              <dd>{selected.strategy ?? 'media_type_registry'}</dd>
+              <dd>
+                {schemaVersion === 1
+                  ? 'Legacy character extraction'
+                  : (selected.strategy ?? 'native_text')}
+              </dd>
               <dt>Configuration version</dt>
               <dd>{selected.config_version ?? '1'}</dd>
             </dl>
@@ -365,18 +372,110 @@ export function IngestionNodeSettings({
               Prepare extracted text before splitting it into searchable passages. These settings
               are recorded with the saved version.
             </p>
-            <dl className="ingestion-stage-facts">
-              <dt>Normalize whitespace</dt>
-              <dd>{selected.normalize_whitespace === false ? 'Off' : 'On'}</dd>
-              <dt>Exact-content deduplication</dt>
-              <dd>{selected.exact_content_deduplication === false ? 'Off' : 'On'}</dd>
-              <dt>Minimum text length</dt>
-              <dd>{selected.minimum_text_chars ?? 1} characters</dd>
-              <dt>Maximum text length</dt>
-              <dd>{(selected.maximum_text_chars ?? 2_000_000).toLocaleString()} characters</dd>
-              <dt>Boilerplate rules</dt>
-              <dd>{selected.repeated_boilerplate?.length ?? 0}</dd>
-            </dl>
+            {schemaVersion === 1 ? (
+              <dl className="ingestion-stage-facts">
+                <dt>Normalize whitespace</dt>
+                <dd>{selected.normalize_whitespace === false ? 'Off' : 'On'}</dd>
+                <dt>Exact-content deduplication</dt>
+                <dd>{selected.exact_content_deduplication === false ? 'Off' : 'On'}</dd>
+                <dt>Minimum text length</dt>
+                <dd>{selected.minimum_text_chars ?? 1} characters</dd>
+                <dt>Maximum text length</dt>
+                <dd>{(selected.maximum_text_chars ?? 2_000_000).toLocaleString()} characters</dd>
+                <dt>Boilerplate rules</dt>
+                <dd>{selected.repeated_boilerplate?.length ?? 0}</dd>
+              </dl>
+            ) : (
+              <>
+                <label className="ingestion-document-option">
+                  <input
+                    type="checkbox"
+                    checked={selected.normalize_whitespace !== false}
+                    onChange={(event) =>
+                      updateNode(selected.id, (node) =>
+                        node.type === 'clean'
+                          ? { ...node, normalize_whitespace: event.target.checked }
+                          : node,
+                      )
+                    }
+                  />
+                  <span>
+                    <strong>Normalize whitespace</strong>
+                    <small>When off, source whitespace is preserved except literal removals.</small>
+                  </span>
+                </label>
+                <label className="ingestion-document-option">
+                  <input
+                    type="checkbox"
+                    checked={selected.exact_content_deduplication !== false}
+                    onChange={(event) =>
+                      updateNode(selected.id, (node) =>
+                        node.type === 'clean'
+                          ? { ...node, exact_content_deduplication: event.target.checked }
+                          : node,
+                      )
+                    }
+                  />
+                  <span>
+                    <strong>Exact-content deduplication</strong>
+                    <small>
+                      Skip an extracted segment only when its cleaned text is identical.
+                    </small>
+                  </span>
+                </label>
+                <Label>
+                  Minimum cleaned text (characters)
+                  <Input
+                    type="number"
+                    min={1}
+                    max={100000}
+                    value={selected.minimum_text_chars ?? 1}
+                    onChange={(event) =>
+                      updateNode(selected.id, (node) =>
+                        node.type === 'clean'
+                          ? { ...node, minimum_text_chars: Number(event.target.value) }
+                          : node,
+                      )
+                    }
+                  />
+                </Label>
+                <Label>
+                  Maximum cleaned text (characters)
+                  <Input
+                    type="number"
+                    min={1}
+                    max={2_000_000}
+                    value={selected.maximum_text_chars ?? 2_000_000}
+                    onChange={(event) =>
+                      updateNode(selected.id, (node) =>
+                        node.type === 'clean'
+                          ? { ...node, maximum_text_chars: Number(event.target.value) }
+                          : node,
+                      )
+                    }
+                  />
+                </Label>
+                <Label>
+                  Literal boilerplate removals
+                  <Textarea
+                    value={(selected.repeated_boilerplate ?? []).join('\n')}
+                    placeholder="One exact literal per line"
+                    onChange={(event) =>
+                      updateNode(selected.id, (node) =>
+                        node.type === 'clean'
+                          ? {
+                              ...node,
+                              repeated_boilerplate: event.target.value
+                                .split('\n')
+                                .filter((value) => value.length > 0),
+                            }
+                          : node,
+                      )
+                    }
+                  />
+                </Label>
+              </>
+            )}
           </div>
         )}
         {selected?.type === 'embed' && (

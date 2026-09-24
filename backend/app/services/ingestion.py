@@ -11,7 +11,13 @@ from app.models.document import Document, ProcessingRun
 from app.models.index import IndexVersion, KnowledgeSet
 from app.models.ingestion import IngestionRun, IngestionRunItem, IngestionRunNode
 from app.models.project import Project
-from app.models.source import WebsiteRunItem
+from app.models.source import SourceRevision, WebsiteRunItem
+from app.ingestion_content import (
+    CHARACTER_CHUNKER_VERSION,
+    STANDARD_CLEANER_VERSION,
+    NativeTextExtractor,
+    processing_identity,
+)
 from app.pipelines.parsing import PARSER_VERSION
 from app.providers import embeddings
 from app.schemas.document import ProcessingConfig
@@ -48,6 +54,48 @@ def _document_selection(execution: IngestionExecution):
             422, "A document can appear in only one Existing Files source node."
         )
     return selected, chunk, publish
+
+
+def _processing_spec(execution: IngestionExecution):
+    if execution.schema_version == 1:
+        return None
+    extract = next(node for node in execution.nodes if node.type == "extract")
+    clean = next(node for node in execution.nodes if node.type == "clean")
+    chunk = next(node for node in execution.nodes if node.type == "chunk")
+    return processing_identity(
+        schema_version=execution.schema_version,
+        extractor_version=NativeTextExtractor.version,
+        cleaner_version=STANDARD_CLEANER_VERSION,
+        chunker_version=CHARACTER_CHUNKER_VERSION,
+        extract=extract.model_dump(mode="json", exclude={"id", "type"}),
+        clean=clean.model_dump(mode="json", exclude={"id", "type"}),
+        chunk=chunk.model_dump(mode="json", exclude={"id", "type"}),
+    )
+
+
+def _compatible_processing(
+    session: Session,
+    document_id: UUID,
+    execution: IngestionExecution,
+    latest: ProcessingRun,
+):
+    chunk = next(node for node in execution.nodes if node.type == "chunk")
+    spec = _processing_spec(execution)
+    if spec is None:
+        return (
+            latest if _processing_matches(latest, chunk.size, chunk.overlap) else None
+        )
+    _, config_hash = spec
+    return session.scalar(
+        select(ProcessingRun)
+        .where(
+            ProcessingRun.document_id == document_id,
+            ProcessingRun.status == "succeeded",
+            ProcessingRun.processing_config_hash == config_hash,
+        )
+        .order_by(ProcessingRun.version.desc())
+        .limit(1)
+    )
 
 
 def _knowledge_set(session, project_id, publish, *, create: bool):
@@ -124,6 +172,7 @@ def preview(session: Session, project_id: UUID, execution: IngestionExecution):
             .order_by(ProcessingRun.version.desc())
             .limit(1)
         )
+        compatible = None
         included = latest is not None and latest.status == "succeeded"
         if latest is None:
             reason = "Process this file successfully before ingestion."
@@ -131,8 +180,10 @@ def preview(session: Session, project_id: UUID, execution: IngestionExecution):
             reason = "Wait for the active processing run to finish."
         elif latest.status != "succeeded":
             reason = "The latest processing run did not succeed. Retry it first."
-        elif _processing_matches(latest, chunk.size, chunk.overlap):
-            reason = f"Ready; processing version {latest.version} will be reused."
+        elif compatible := _compatible_processing(
+            session, document.id, execution, latest
+        ):
+            reason = f"Ready; processing version {compatible.version} will be reused."
         else:
             reason = (
                 "Ready; ingestion will create a new processing version with "
@@ -149,9 +200,23 @@ def preview(session: Session, project_id: UUID, execution: IngestionExecution):
                 size_bytes=int(discovered.metadata["size_bytes"]),
                 included=included,
                 reason=reason,
-                processing_run_id=latest.id if latest else None,
-                processing_version=latest.version if latest else None,
-                chunk_count=latest.chunk_count if latest else 0,
+                processing_run_id=(
+                    compatible.id if compatible else latest.id if latest else None
+                ),
+                processing_version=(
+                    compatible.version
+                    if compatible
+                    else latest.version
+                    if latest
+                    else None
+                ),
+                chunk_count=(
+                    compatible.chunk_count
+                    if compatible
+                    else latest.chunk_count
+                    if latest
+                    else 0
+                ),
             )
         )
     included_count = sum(item.included for item in items)
@@ -395,20 +460,31 @@ def start_run(
             raise HTTPException(
                 409, f"Retry {document.filename}'s failed processing run first."
             )
-        processing_created = not _processing_matches(latest, chunk.size, chunk.overlap)
+        compatible = _compatible_processing(session, document.id, execution, latest)
+        processing_created = compatible is None
         if processing_created:
+            spec = _processing_spec(execution)
             processing = ProcessingRun(
                 document_id=document.id,
                 version=latest.version + 1,
                 **ProcessingConfig(
                     chunk_size=chunk.size, overlap=chunk.overlap
                 ).model_dump(),
-                parser_version=PARSER_VERSION,
+                parser_version=(
+                    NativeTextExtractor.version
+                    if execution.schema_version == 2
+                    else PARSER_VERSION
+                ),
+                config_version=(
+                    "ingestion-v2" if execution.schema_version == 2 else "characters-v1"
+                ),
+                processing_config=spec[0] if spec else None,
+                processing_config_hash=spec[1] if spec else None,
             )
             session.add(processing)
             session.flush()
         else:
-            processing = latest
+            processing = compatible
         item_values.append(
             dict(
                 project_id=project_id,
@@ -571,6 +647,20 @@ def list_items(
         )
         total = session.scalar(select(func.count()).select_from(query.subquery()))
         rows = session.scalars(query.limit(limit).offset(offset)).all()
+        revisions = {
+            revision.id: revision
+            for revision in session.scalars(
+                select(SourceRevision).where(
+                    SourceRevision.id.in_(
+                        [
+                            item.source_revision_id
+                            for item in rows
+                            if item.source_revision_id
+                        ]
+                    )
+                )
+            ).all()
+        }
         return dict(
             items=[
                 {
@@ -580,6 +670,13 @@ def list_items(
                         for column in WebsiteRunItem.__table__.columns
                         if column.name not in ("run_id", "project_id", "created_at")
                     },
+                    "processing_versions": (
+                        revisions[item.source_revision_id].extraction_config.get(
+                            "versions"
+                        )
+                        if item.source_revision_id in revisions
+                        else None
+                    ),
                 }
                 for item in rows
             ],
@@ -614,6 +711,11 @@ def list_items(
                 status=item.status,
                 chunk_count=item.chunk_count,
                 error=item.error,
+                processing_versions=(
+                    processing.processing_config.get("versions")
+                    if processing.processing_config
+                    else None
+                ),
                 updated_at=item.updated_at,
             )
             for item, document, processing in rows

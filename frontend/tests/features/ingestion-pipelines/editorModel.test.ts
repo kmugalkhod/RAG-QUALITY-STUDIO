@@ -2,6 +2,7 @@ import {
   defaultIngestionDraft,
   describeCadence,
   describeIngestionNode,
+  upgradeIngestionDraft,
 } from '../../../src/features/ingestion-pipelines/editorModel';
 
 describe('ingestion editor model', () => {
@@ -25,6 +26,11 @@ describe('ingestion editor model', () => {
       'embed',
       'publish_index',
     ]);
+    expect(draft.execution.schema_version).toBe(2);
+    expect(draft.execution.nodes.find((node) => node.type === 'extract')).toMatchObject({
+      strategy: 'native_text',
+      config_version: 'native-text-v1',
+    });
     expect(draft.execution.edges).toEqual([
       { source: 'source', target: 'extract' },
       { source: 'extract', target: 'clean' },
@@ -37,6 +43,33 @@ describe('ingestion editor model', () => {
       model: 'embedding-v1',
       dimensions: 3,
       config_version: 'revision-2',
+    });
+  });
+
+  test('upgrades a legacy version only in a detached draft', () => {
+    const legacy = defaultIngestionDraft(
+      {
+        provider: 'test',
+        model: 'embedding-v1',
+        dimensions: 3,
+        revision: '1',
+        endpoint_id: 'endpoint-1',
+      },
+      ['document-1'],
+    );
+    legacy.execution.schema_version = 1;
+    const extract = legacy.execution.nodes.find((node) => node.type === 'extract')!;
+    if (extract.type === 'extract') {
+      extract.strategy = 'media_type_registry';
+      extract.config_version = '1';
+    }
+
+    const upgraded = upgradeIngestionDraft(legacy);
+    expect(legacy.execution.schema_version).toBe(1);
+    expect(upgraded.execution.schema_version).toBe(2);
+    expect(upgraded.execution.nodes.find((node) => node.type === 'clean')).toMatchObject({
+      profile: 'standard-v1',
+      config_version: 'deterministic-clean-v1',
     });
   });
 

@@ -8,6 +8,11 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.connectors.website import WebsiteArtifact
+from app.ingestion_content import (
+    CharacterWindowChunker,
+    cleaner_for_node,
+    processing_identity,
+)
 from app.models.document import ProcessingRun
 from app.models.source import SourceRevision, WebsiteRunItem
 from app.pipelines.web_content import (
@@ -40,12 +45,27 @@ def persist_artifact(
     phase_callback=None,
 ):
     content_hash = hashlib.sha256(artifact.content).hexdigest()
-    processing_config = {
-        "extractor": EXTRACTOR_VERSION,
-        "cleaner": CLEANER_VERSION,
-        "clean": clean.model_dump(mode="json"),
-        "chunk": chunk.model_dump(mode="json"),
-    }
+    cleaner = cleaner_for_node(clean)
+    if getattr(clean, "profile", None) is None:
+        processing_config = {
+            "extractor": EXTRACTOR_VERSION,
+            "cleaner": CLEANER_VERSION,
+            "clean": clean.model_dump(mode="json"),
+            "chunk": chunk.model_dump(mode="json"),
+        }
+        processing_config_hash = config_hash(processing_config)
+        parser_version = f"{EXTRACTOR_VERSION}/{CLEANER_VERSION}"
+    else:
+        processing_config, processing_config_hash = processing_identity(
+            schema_version=2,
+            extractor_version=EXTRACTOR_VERSION,
+            cleaner_version=cleaner.version,
+            chunker_version=CharacterWindowChunker.version,
+            extract={"strategy": "html_main"},
+            clean=clean.model_dump(mode="json", exclude={"id", "type"}),
+            chunk=chunk.model_dump(mode="json", exclude={"id", "type"}),
+        )
+        parser_version = f"{EXTRACTOR_VERSION}/{cleaner.version}"
 
     def prepare(_stored_path):
         if phase_callback is not None:
@@ -72,8 +92,8 @@ def persist_artifact(
             document_media_type="text/html",
             revision_media_type=artifact.media_type,
             processing_config=processing_config,
-            processing_config_hash=config_hash(processing_config),
-            parser_version=f"{EXTRACTOR_VERSION}/{CLEANER_VERSION}",
+            processing_config_hash=processing_config_hash,
+            parser_version=parser_version,
             chunk_size=chunk.size,
             chunk_overlap=chunk.overlap,
             chunk_config_version=chunk.config_version,

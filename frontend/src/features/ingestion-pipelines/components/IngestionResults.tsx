@@ -160,6 +160,13 @@ export function IngestionRunResults({
                     {item.outcome} · {item.status} · {item.chunk_count} chunks · {item.reason}
                   </p>
                   {item.canonical_location && <small>{item.canonical_location}</small>}
+                  {item.processing_versions && (
+                    <small>
+                      Extractor {item.processing_versions.extractor} · cleaner{' '}
+                      {item.processing_versions.cleaner} · chunker{' '}
+                      {item.processing_versions.chunker}
+                    </small>
+                  )}
                 </>
               ) : (
                 <>
@@ -168,6 +175,13 @@ export function IngestionRunResults({
                     {item.status} · processing v{item.processing_version} · {item.chunk_count}{' '}
                     chunks · {item.content_hash.slice(0, 12)}
                   </p>
+                  {item.processing_versions && (
+                    <small>
+                      Extractor {item.processing_versions.extractor} · cleaner{' '}
+                      {item.processing_versions.cleaner} · chunker{' '}
+                      {item.processing_versions.chunker}
+                    </small>
+                  )}
                 </>
               )}
             </div>

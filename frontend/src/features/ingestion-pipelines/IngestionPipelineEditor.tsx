@@ -38,6 +38,7 @@ import {
   ingestionStageLabels as labels,
   requestErrorMessage as message,
   terminalIngestionStatuses as terminal,
+  upgradeIngestionDraft,
 } from './editorModel';
 import { ingestionNodeExecutionStates, ingestionRunDisplayStatus } from './executionState';
 import {
@@ -496,6 +497,17 @@ export function IngestionPipelineEditor({
     ) {
       reasons.push('Chunk size must be 100–10,000 and overlap must be smaller.');
     }
+    const clean = draft.execution.nodes.find((node) => node.type === 'clean');
+    if (
+      draft.execution.schema_version === 2 &&
+      clean?.type === 'clean' &&
+      ((clean.minimum_text_chars ?? 1) < 1 ||
+        (clean.minimum_text_chars ?? 1) > 100000 ||
+        (clean.maximum_text_chars ?? 2_000_000) < (clean.minimum_text_chars ?? 1) ||
+        (clean.maximum_text_chars ?? 2_000_000) > 2_000_000)
+    ) {
+      reasons.push('Cleaned-text limits must be valid and the minimum cannot exceed the maximum.');
+    }
     return reasons;
   }, [connectionSettings, draft, source]);
 
@@ -770,8 +782,16 @@ export function IngestionPipelineEditor({
             <span className={`draft-status ${dirty ? 'is-dirty' : ''}`} role="status">
               {dirty ? 'Unsaved changes' : saved ? `Saved version ${saved.version}` : 'Not saved'}
             </span>
+            {draft.execution.schema_version === 1 && (
+              <span className="draft-status">Legacy character extraction</span>
+            )}
           </div>
           <div className="ingestion-toolbar-actions">
+            {draft.execution.schema_version === 1 && (
+              <Button variant="outline" onClick={() => setDraft(upgradeIngestionDraft(draft))}>
+                Upgrade as draft
+              </Button>
+            )}
             <Button
               variant={dirty ? 'default' : 'outline'}
               onClick={save}
@@ -841,6 +861,13 @@ export function IngestionPipelineEditor({
             )}
           </div>
         </div>
+        {draft.execution.schema_version === 1 && (
+          <p className="legacy-upgrade-note" role="note">
+            Upgrade mapping: current source extraction becomes native-text-v1, saved Clean values
+            move to standard-v1, and character windows become character-window-v1. The saved legacy
+            version is not changed.
+          </p>
+        )}
         {saved && automaticSyncOpen && (
           <section
             id="automatic-sync-panel"
@@ -1092,6 +1119,7 @@ export function IngestionPipelineEditor({
             documents={documents}
             knowledgeSets={knowledgeSets}
             websiteSource={websiteSource}
+            schemaVersion={draft.execution.schema_version}
             updateNode={updateNode}
             changeSourceKind={changeSourceKind}
           />

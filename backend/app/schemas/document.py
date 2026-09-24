@@ -25,6 +25,9 @@ class RunRead(BaseModel):
     overlap: int
     config_version: str
     parser_version: str
+    processing_config: dict | None
+    processing_config_hash: str | None
+    output_hash: str | None
     status: Literal["queued", "running", "succeeded", "failed", "cancelled"]
     attempts: int
     progress: int
