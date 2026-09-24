@@ -10,11 +10,11 @@ from sqlalchemy.orm import Session
 from app.connectors.website import WebsiteArtifact
 from app.ingestion_content import (
     CanonicalInputSegment,
-    CharacterWindowChunker,
     build_extracted_document,
     chunk_cleaned_document,
     clean_document,
     cleaner_for_node,
+    chunker_version_for_node,
     processing_identity,
 )
 from app.ingestion_content.contracts import ExtractedDocumentV1
@@ -175,7 +175,7 @@ def persist_artifact(
             schema_version=2,
             extractor_version=EXTRACTOR_VERSION,
             cleaner_version=cleaner.version,
-            chunker_version=CharacterWindowChunker.version,
+            chunker_version=chunker_version_for_node(chunk),
             extract={
                 "strategy": "html_main",
                 "pipeline": (
@@ -242,6 +242,7 @@ def persist_artifact(
         ),
         prior_revision,
         prepare,
+        reuse_stage=phase_callback,
     )
 
 

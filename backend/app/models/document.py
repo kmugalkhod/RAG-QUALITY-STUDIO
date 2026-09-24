@@ -5,6 +5,7 @@ from sqlalchemy import (
     CheckConstraint,
     DateTime,
     ForeignKey,
+    ForeignKeyConstraint,
     Index,
     String,
     Text,
@@ -57,7 +58,12 @@ class ProcessingRun(Base):
             name="ck_run_status",
         ),
         CheckConstraint("attempts BETWEEN 0 AND 3", name="ck_run_attempts"),
+        CheckConstraint(
+            "derivation_config_hash IS NULL OR length(derivation_config_hash) = 64",
+            name="ck_processing_run_derivation_hash",
+        ),
         Index("ix_runs_status_updated", "status", "updated_at"),
+        Index("ix_runs_derivation_config", "document_id", "derivation_config_hash"),
         Index(
             "uq_run_active_document",
             "document_id",
@@ -74,6 +80,10 @@ class ProcessingRun(Base):
     parser_version: Mapped[str] = mapped_column(String(64))
     processing_config: Mapped[dict | None] = mapped_column(JSONB)
     processing_config_hash: Mapped[str | None] = mapped_column(String(64))
+    derivation_config_hash: Mapped[str | None] = mapped_column(String(64))
+    reused_from_processing_run_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("processing_runs.id")
+    )
     output_hash: Mapped[str | None] = mapped_column(String(64))
     status: Mapped[str] = mapped_column(String(16), default="queued")
     attempts: Mapped[int] = mapped_column(default=0)
@@ -98,6 +108,27 @@ class Chunk(Base):
         CheckConstraint(
             "start_char >= 0 AND end_char > start_char", name="ck_chunk_offsets"
         ),
+        CheckConstraint(
+            "chunk_role IN ('leaf','parent','child')", name="ck_chunk_role"
+        ),
+        CheckConstraint(
+            "(chunk_role = 'child' AND parent_ordinal IS NOT NULL) OR "
+            "(chunk_role <> 'child' AND parent_ordinal IS NULL)",
+            name="ck_chunk_parent_role",
+        ),
+        CheckConstraint(
+            "token_count IS NULL OR token_count > 0", name="ck_chunk_token_count"
+        ),
+        CheckConstraint(
+            "embedding_token_count IS NULL OR embedding_token_count > 0",
+            name="ck_chunk_embedding_token_count",
+        ),
+        ForeignKeyConstraint(
+            ["run_id", "parent_ordinal"],
+            ["chunks.run_id", "chunks.ordinal"],
+            name="fk_chunk_parent",
+        ),
+        Index("ix_chunks_parent", "run_id", "parent_ordinal"),
     )
     run_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("processing_runs.id"), primary_key=True
@@ -107,6 +138,12 @@ class Chunk(Base):
     start_char: Mapped[int]
     end_char: Mapped[int]
     text: Mapped[str] = mapped_column(Text)
+    embedding_text: Mapped[str | None] = mapped_column(Text)
+    token_count: Mapped[int | None]
+    embedding_token_count: Mapped[int | None]
+    chunk_role: Mapped[str] = mapped_column(String(16), default="leaf")
+    parent_ordinal: Mapped[int | None]
+    findings: Mapped[list] = mapped_column(JSONB, default=list)
     provenance: Mapped[dict] = mapped_column(JSONB, default=dict)
 
 

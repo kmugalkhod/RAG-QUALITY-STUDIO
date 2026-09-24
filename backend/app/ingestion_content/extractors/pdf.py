@@ -146,6 +146,7 @@ def installed_ocr_languages() -> list[str]:
 
 def extraction_capabilities() -> dict[str, Any]:
     from app.ingestion_content.cleaning import default_structure_steps
+    from app.ingestion_content.tokenizers import tokenizer_capabilities
 
     languages = installed_ocr_languages()
     return {
@@ -174,6 +175,50 @@ def extraction_capabilities() -> dict[str, Any]:
                 "config_version": "structure-clean-v1",
                 "steps": default_structure_steps(),
             }
+        ],
+        "tokenizers": tokenizer_capabilities(),
+        "chunking_profiles": [
+            {
+                "id": "section_token",
+                "name": "Section-aware tokens",
+                "description": "Keeps headings and compatible blocks together with a strict token ceiling.",
+                "recommended": True,
+                "settings": {
+                    "tokenizer_version": "utf8-byte-v1",
+                    "target_tokens": 600,
+                    "maximum_tokens": 800,
+                    "overlap_tokens": 80,
+                    "add_heading_context": True,
+                    "config_version": "section-token-v1",
+                },
+            },
+            {
+                "id": "parent_child",
+                "name": "Parent and child",
+                "description": "Embeds focused child chunks and supplies their larger saved parent as evidence.",
+                "recommended": False,
+                "settings": {
+                    "tokenizer_version": "utf8-byte-v1",
+                    "child_target_tokens": 240,
+                    "child_maximum_tokens": 320,
+                    "child_overlap_tokens": 40,
+                    "parent_target_tokens": 900,
+                    "parent_maximum_tokens": 1200,
+                    "add_heading_context": True,
+                    "config_version": "parent-child-v1",
+                },
+            },
+            {
+                "id": "character_window",
+                "name": "Character window (compatibility)",
+                "description": "Preserves the historical fixed-character window behavior.",
+                "recommended": False,
+                "settings": {
+                    "size": 800,
+                    "overlap": 120,
+                    "config_version": "character-window-v1",
+                },
+            },
         ],
     }
 

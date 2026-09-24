@@ -12,7 +12,8 @@ from typing import Any
 from uuid import UUID
 from uuid import uuid4
 
-from sqlalchemy import insert, select
+from pydantic import TypeAdapter
+from sqlalchemy import func, insert, select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -23,7 +24,11 @@ from app.ingestion_content.contracts import (
     CleanedDocumentV1,
     ExtractedDocumentV1,
 )
+from app.ingestion_content import chunk_cleaned_document, derivation_hash_from_config
 from app.services.derivations import persist_derivations
+from app.services.derivations import link_reused_derivations, reusable_cleaned_document
+from app.schemas.ingestion import ChunkNodeV2
+from app.pipelines.parsing import MAX_CHUNKS, ProcessingError
 
 
 ChunkValues = list[dict[str, Any]]
@@ -40,6 +45,7 @@ class PreparedArtifact:
 
 
 PrepareArtifact = Callable[[Path], tuple[ChunkValues, str] | PreparedArtifact]
+ReuseStage = Callable[[str], None]
 
 
 @dataclass(frozen=True)
@@ -104,6 +110,7 @@ def persist_source_artifact(
     spec: SourceArtifactSpec,
     prior_revision: SourceRevision | None,
     prepare: PrepareArtifact,
+    reuse_stage: ReuseStage | None = None,
 ) -> tuple[SourceItem, SourceRevision, str, str, Path | None]:
     """Reuse or atomically stage one connector artifact and its derived chunks.
 
@@ -150,6 +157,139 @@ def persist_source_artifact(
         )
         return source_item, revision, outcome, revision.extracted_hash, None
 
+    derivation_hash = None
+    if spec.processing_config.get("schema_version") == 2:
+        derivation_hash = derivation_hash_from_config(spec.processing_config)
+    reusable_revision = None
+    if derivation_hash is not None:
+        reusable_revision = session.scalar(
+            select(SourceRevision)
+            .join(
+                ProcessingRun,
+                ProcessingRun.id == SourceRevision.processing_run_id,
+            )
+            .where(
+                SourceRevision.source_item_id == source_item.id,
+                SourceRevision.content_hash == spec.content_hash,
+                ProcessingRun.derivation_config_hash == derivation_hash,
+                ProcessingRun.status == "succeeded",
+            )
+            .order_by(SourceRevision.created_at.desc(), SourceRevision.id.desc())
+        )
+    if reusable_revision is not None:
+        if reuse_stage is not None:
+            reuse_stage("chunk")
+        cleaned, _ = reusable_cleaned_document(
+            session, reusable_revision.processing_run_id
+        )
+        chunk_config = TypeAdapter(ChunkNodeV2).validate_python(
+            {
+                "id": "chunk",
+                "type": "chunk",
+                **(spec.processing_config.get("chunk") or {}),
+            }
+        )
+        chunking = chunk_cleaned_document(
+            cleaned,
+            chunk_config,
+            provenance={
+                **spec.provenance,
+                "processing_versions": spec.processing_config.get("versions", {}),
+            },
+            join_blocks=True,
+        )
+        if not chunking.chunks:
+            raise ProcessingError("The reusable source snapshot has no chunkable text.")
+        if len(chunking.chunks) > MAX_CHUNKS:
+            raise ProcessingError(
+                "The reusable source snapshot exceeds the 50,000 chunk limit."
+            )
+        if sum(len(item.text) for item in chunking.chunks) > 10_000_000:
+            raise ProcessingError(
+                "The reusable source snapshot exceeds the chunk-output limit."
+            )
+        values = [item.as_record() for item in chunking.chunks]
+        encoded = json.dumps(
+            values,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=True,
+        ).encode("utf-8")
+        output_hash = hashlib.sha256(encoded).hexdigest()
+        source_run = session.get(ProcessingRun, reusable_revision.processing_run_id)
+        document = session.get(Document, reusable_revision.document_id)
+        if source_run is None or document is None or document.project_id != project_id:
+            raise ValueError("The reusable source snapshot is no longer available.")
+        next_version = (
+            session.scalar(
+                select(func.max(ProcessingRun.version)).where(
+                    ProcessingRun.document_id == document.id
+                )
+            )
+            or 0
+        ) + 1
+        processing = ProcessingRun(
+            document_id=document.id,
+            version=next_version,
+            chunk_size=spec.chunk_size,
+            overlap=spec.chunk_overlap,
+            config_version=spec.chunk_config_version,
+            parser_version=spec.parser_version,
+            processing_config=spec.processing_config,
+            processing_config_hash=spec.processing_config_hash,
+            derivation_config_hash=derivation_hash,
+            reused_from_processing_run_id=source_run.id,
+            output_hash=output_hash,
+            status="succeeded",
+            attempts=1,
+            progress=100,
+            chunk_count=len(values),
+            started_at=current_time,
+            finished_at=current_time,
+            updated_at=current_time,
+        )
+        session.add(processing)
+        session.flush()
+        session.execute(
+            insert(Chunk),
+            [dict(run_id=processing.id, **value) for value in values],
+        )
+        link_reused_derivations(
+            session,
+            processing_run_id=processing.id,
+            source_processing_run_id=source_run.id,
+            document_id=document.id,
+            project_id=project_id,
+            spans=chunking.spans,
+        )
+        revision = SourceRevision(
+            project_id=project_id,
+            source_item_id=source_item.id,
+            document_id=document.id,
+            processing_run_id=processing.id,
+            content_hash=spec.content_hash,
+            extracted_hash=reusable_revision.extracted_hash,
+            processing_config_hash=spec.processing_config_hash,
+            media_type=spec.revision_media_type,
+            size_bytes=document.size_bytes,
+            artifact_storage_name=reusable_revision.artifact_storage_name,
+            etag=spec.etag,
+            last_modified=spec.last_modified,
+            provider_revision=spec.provider_revision,
+            fetched_at=spec.fetched_at,
+            extraction_config=spec.processing_config,
+            provenance=spec.provenance,
+        )
+        session.add(revision)
+        session.flush()
+        return (
+            source_item,
+            revision,
+            "new" if prior_revision is None else "changed",
+            reusable_revision.extracted_hash,
+            None,
+        )
+
     stored_path: Path | None = None
     try:
         storage_name, stored_path = store(spec.content)
@@ -179,6 +319,7 @@ def persist_source_artifact(
             parser_version=spec.parser_version,
             processing_config=spec.processing_config,
             processing_config_hash=spec.processing_config_hash,
+            derivation_config_hash=derivation_hash,
             output_hash=extracted_hash,
             status="succeeded",
             attempts=1,

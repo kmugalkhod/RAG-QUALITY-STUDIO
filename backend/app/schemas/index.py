@@ -73,6 +73,13 @@ class IndexRecordRead(BaseModel):
     start_char: int
     end_char: int
     text: str
+    embedding_text: str
+    token_count: int | None = None
+    embedding_token_count: int | None = None
+    chunk_role: Literal["leaf", "child"]
+    parent_ordinal: int | None = None
+    findings: list[dict] = Field(default_factory=list)
+    embedding_prefix: str = ""
     source_url: str | None = None
     section_path: list[str] = Field(default_factory=list)
     dimensions: int
@@ -102,12 +109,17 @@ class Evidence(BaseModel):
     run_id: UUID
     processing_version: int
     ordinal: int
+    matched_chunk_ordinal: int
+    matched_text: str
+    supplied_parent_ordinal: int | None = None
     page_number: int | None
     start_char: int
     end_char: int
     text: str
     source_url: str | None = None
     section_path: list[str] = Field(default_factory=list)
+    chunk_role: Literal["leaf", "child"]
+    token_count: int | None = None
     cosine_distance: float | None = None
     lexical_score: float | None = None
     fusion_score: float | None = None

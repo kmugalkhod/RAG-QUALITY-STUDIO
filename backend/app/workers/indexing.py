@@ -39,7 +39,11 @@ def process_index(index_id: UUID, db_engine=engine):
         provider = embeddings.provider_for(config)
         with Session(db_engine) as session:
             candidates = session.execute(
-                select(IndexChunk.run_id, IndexChunk.ordinal, Chunk.text)
+                select(
+                    IndexChunk.run_id,
+                    IndexChunk.ordinal,
+                    func.coalesce(Chunk.embedding_text, Chunk.text).label("text"),
+                )
                 .join(
                     Chunk,
                     (Chunk.run_id == IndexChunk.run_id)
@@ -75,7 +79,8 @@ def process_index(index_id: UUID, db_engine=engine):
                         Document.project_id == project_id,
                         IndexVersion.embedding_config == config.model_dump(),
                         IndexChunk.embedding.is_not(None),
-                        old_chunk.text == value,
+                        func.coalesce(old_chunk.embedding_text, old_chunk.text)
+                        == value,
                     )
                     .limit(1)
                 )

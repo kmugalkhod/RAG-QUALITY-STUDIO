@@ -155,7 +155,10 @@ def create_index_from_processing_runs(
         raise HTTPException(409, "Only successful processing runs can be indexed.")
     members = session.execute(
         select(Chunk.run_id, Chunk.ordinal)
-        .where(Chunk.run_id.in_(processing_run_ids))
+        .where(
+            Chunk.run_id.in_(processing_run_ids),
+            Chunk.chunk_role != "parent",
+        )
         .order_by(Chunk.run_id, Chunk.ordinal)
         .limit(MAX_INDEX_CHUNKS + 1)
     ).all()
@@ -381,6 +384,13 @@ def list_index_records(session, project_id, index_id, limit, offset):
                 start_char=chunk.start_char,
                 end_char=chunk.end_char,
                 text=chunk.text,
+                embedding_text=chunk.embedding_text or chunk.text,
+                token_count=chunk.token_count,
+                embedding_token_count=chunk.embedding_token_count,
+                chunk_role=chunk.chunk_role,
+                parent_ordinal=chunk.parent_ordinal,
+                findings=chunk.findings or [],
+                embedding_prefix=provenance.get("embedding_prefix") or "",
                 source_url=provenance.get("canonical_url"),
                 section_path=provenance.get("section_path") or [],
                 dimensions=member.dimensions,

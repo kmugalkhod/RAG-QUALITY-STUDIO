@@ -77,6 +77,43 @@ export type ConfluenceConfig = {
 
 type NodeBase = { id: string };
 
+export type CharacterChunkNode = NodeBase & {
+  type: 'chunk';
+  algorithm?: 'character_window';
+  unit?: 'characters';
+  size: number;
+  overlap: number;
+  config_version?: string;
+};
+
+export type SectionTokenChunkNode = NodeBase & {
+  type: 'chunk';
+  algorithm: 'section_token';
+  unit?: 'tokens';
+  tokenizer_version?: 'utf8-byte-v1';
+  target_tokens: number;
+  maximum_tokens: number;
+  overlap_tokens: number;
+  add_heading_context: boolean;
+  config_version?: string;
+};
+
+export type ParentChildChunkNode = NodeBase & {
+  type: 'chunk';
+  algorithm: 'parent_child';
+  unit?: 'tokens';
+  tokenizer_version?: 'utf8-byte-v1';
+  child_target_tokens: number;
+  child_maximum_tokens: number;
+  child_overlap_tokens: number;
+  parent_target_tokens: number;
+  parent_maximum_tokens: number;
+  add_heading_context: boolean;
+  config_version?: string;
+};
+
+export type ChunkNode = CharacterChunkNode | SectionTokenChunkNode | ParentChildChunkNode;
+
 export type CleaningTransform =
   | {
       id: string;
@@ -170,14 +207,7 @@ export type IngestionNode =
       config_version?: string;
       steps?: CleaningTransform[];
     })
-  | (NodeBase & {
-      type: 'chunk';
-      algorithm?: 'character_window';
-      unit?: 'characters';
-      size: number;
-      overlap: number;
-      config_version?: string;
-    })
+  | ChunkNode
   | (NodeBase & {
       type: 'embed';
       provider: string;
@@ -425,6 +455,66 @@ export type ExtractionCapabilities = {
     config_version: 'structure-clean-v1';
     steps: CleaningTransform[];
   }[];
+  tokenizers?: {
+    id: 'utf8_byte';
+    version: 'utf8-byte-v1';
+    unit: string;
+  }[];
+  chunking_profiles?: {
+    id: 'character_window' | 'section_token' | 'parent_child';
+    name: string;
+    description: string;
+    recommended: boolean;
+    settings: Record<string, string | number | boolean>;
+  }[];
+};
+
+export type ChunkBlockSpan = {
+  run_id: string;
+  chunk_ordinal: number;
+  span_ordinal: number;
+  derivation_id: string;
+  derivation_kind: 'cleaned';
+  block_ordinal: number;
+  block_start_char: number;
+  block_end_char: number;
+  chunk_start_char: number;
+  chunk_end_char: number;
+};
+
+export type ChunkInspection = {
+  run_id: string;
+  ordinal: number;
+  page_number: number | null;
+  start_char: number;
+  end_char: number;
+  evidence_text: string;
+  embedding_text: string;
+  embedding_prefix: string;
+  token_count: number | null;
+  embedding_token_count: number | null;
+  chunk_role: 'leaf' | 'parent' | 'child';
+  parent_ordinal: number | null;
+  section_path: string[];
+  findings: { code: string; message: string }[];
+  spans: ChunkBlockSpan[];
+};
+
+export type ChunkInspectionPage = {
+  items: ChunkInspection[];
+  total: number;
+  limit: number;
+  offset: number;
+  summary: {
+    minimum: number | null;
+    median: number | null;
+    p95: number | null;
+    maximum: number | null;
+    indexed_count: number;
+    stored_count: number;
+    parent_count: number;
+    oversize_finding_count: number;
+  };
 };
 
 export type CleaningDiff = {

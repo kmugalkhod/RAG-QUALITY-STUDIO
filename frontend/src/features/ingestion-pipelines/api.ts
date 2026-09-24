@@ -9,6 +9,7 @@ import type {
   ContentBlock,
   ContentDerivation,
   CleaningDiff,
+  ChunkInspectionPage,
   ExtractionCapabilities,
   SourcePreview,
   SourcePreviewItem,
@@ -163,6 +164,16 @@ export function listCleaningDiff(
 ): Promise<Page<CleaningDiff>> {
   return request<Page<CleaningDiff>>(
     `/projects/${encodeURIComponent(projectId)}/processing-runs/${encodeURIComponent(processingRunId)}/cleaning-diff?offset=${offset}`,
+  );
+}
+
+export function listProcessingChunks(
+  projectId: string,
+  processingRunId: string,
+  offset = 0,
+): Promise<ChunkInspectionPage> {
+  return request<ChunkInspectionPage>(
+    `/projects/${encodeURIComponent(projectId)}/processing-runs/${encodeURIComponent(processingRunId)}/chunks?offset=${offset}`,
   );
 }
 

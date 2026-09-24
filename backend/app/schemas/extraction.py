@@ -1,6 +1,6 @@
 """Safe extraction capability discovery contracts."""
 
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict
 
@@ -32,6 +32,20 @@ class CleaningProfileCapability(Strict):
     steps: list[CleaningTransform]
 
 
+class TokenizerCapability(Strict):
+    id: Literal["utf8_byte"]
+    version: Literal["utf8-byte-v1"]
+    unit: str
+
+
+class ChunkingProfileCapability(Strict):
+    id: Literal["character_window", "section_token", "parent_child"]
+    name: str
+    description: str
+    recommended: bool
+    settings: dict[str, Any]
+
+
 class ExtractionCapabilities(Strict):
     schema_version: Literal[1]
     media_types: list[Literal["application/pdf", "text/plain"]]
@@ -40,3 +54,5 @@ class ExtractionCapabilities(Strict):
     table_modes: list[Literal["preserve", "markdown", "plain_text"]]
     quality_policies: list[Literal["default-v1", "strict-v1", "warn-v1"]]
     cleaning_profiles: list[CleaningProfileCapability]
+    tokenizers: list[TokenizerCapability]
+    chunking_profiles: list[ChunkingProfileCapability]

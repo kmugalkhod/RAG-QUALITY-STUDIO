@@ -22,6 +22,8 @@ LEGACY_CLEANER_VERSION = "legacy-whitespace-boilerplate-v1"
 STANDARD_CLEANER_VERSION = "deterministic-clean-v1"
 STRUCTURE_CLEANER_VERSION = "structure-clean-v1"
 CHARACTER_CHUNKER_VERSION = "character-window-v1"
+SECTION_TOKEN_CHUNKER_VERSION = "section-token-v1"
+PARENT_CHILD_CHUNKER_VERSION = "parent-child-v1"
 _SPACE = re.compile(r"\s+")
 
 
@@ -68,6 +70,12 @@ class PreparedChunk:
     start_char: int
     end_char: int
     text: str
+    embedding_text: str | None = None
+    token_count: int | None = None
+    embedding_token_count: int | None = None
+    chunk_role: Literal["leaf", "parent", "child"] = "leaf"
+    parent_ordinal: int | None = None
+    findings: tuple[dict[str, Any], ...] = ()
     provenance: dict[str, Any] = field(default_factory=dict)
 
     def as_record(self) -> dict[str, Any]:
@@ -77,6 +85,12 @@ class PreparedChunk:
             "start_char": self.start_char,
             "end_char": self.end_char,
             "text": self.text,
+            "embedding_text": self.embedding_text,
+            "token_count": self.token_count,
+            "embedding_token_count": self.embedding_token_count,
+            "chunk_role": self.chunk_role,
+            "parent_ordinal": self.parent_ordinal,
+            "findings": list(self.findings),
             "provenance": self.provenance,
         }
 
@@ -183,6 +197,18 @@ class CharacterWindowChunker:
         ]
 
 
+def chunker_version_for_node(settings) -> str:
+    versions = {
+        "character_window": CHARACTER_CHUNKER_VERSION,
+        "section_token": SECTION_TOKEN_CHUNKER_VERSION,
+        "parent_child": PARENT_CHILD_CHUNKER_VERSION,
+    }
+    try:
+        return versions[getattr(settings, "algorithm", "character_window")]
+    except KeyError as exc:
+        raise ValueError("Unsupported chunk algorithm.") from exc
+
+
 def cleaner_for_node(
     clean: CleanSettings,
 ) -> DeterministicCleaner | StructureAwareCleaner:
@@ -223,3 +249,47 @@ def processing_identity(
         value, sort_keys=True, separators=(",", ":"), ensure_ascii=True
     ).encode("utf-8")
     return value, hashlib.sha256(encoded).hexdigest()
+
+
+def derivation_identity(
+    *,
+    schema_version: int,
+    extractor_version: str,
+    cleaner_version: str,
+    extract: dict[str, Any],
+    clean: dict[str, Any],
+) -> str:
+    """Hash only extraction and cleaning identity for safe derivation reuse."""
+
+    value = {
+        "schema_version": schema_version,
+        "versions": {
+            "extractor": extractor_version,
+            "cleaner": cleaner_version,
+        },
+        "extract": extract,
+        "clean": clean,
+    }
+    encoded = json.dumps(
+        value, sort_keys=True, separators=(",", ":"), ensure_ascii=True
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def derivation_hash_from_config(configuration: dict[str, Any]) -> str:
+    """Return the extraction/cleaning identity from a saved schema-v2 config."""
+
+    if configuration.get("schema_version") != 2:
+        raise ValueError("Derivation reuse requires a schema-v2 processing config.")
+    versions = configuration.get("versions") or {}
+    extractor_version = versions.get("extractor")
+    cleaner_version = versions.get("cleaner")
+    if not isinstance(extractor_version, str) or not isinstance(cleaner_version, str):
+        raise ValueError("The processing config is missing saved engine versions.")
+    return derivation_identity(
+        schema_version=2,
+        extractor_version=extractor_version,
+        cleaner_version=cleaner_version,
+        extract=configuration.get("extract") or {},
+        clean=configuration.get("clean") or {},
+    )

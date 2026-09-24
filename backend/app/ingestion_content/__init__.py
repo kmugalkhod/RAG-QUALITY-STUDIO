@@ -3,6 +3,8 @@
 from app.ingestion_content.processing import (
     CHARACTER_CHUNKER_VERSION,
     LEGACY_CLEANER_VERSION,
+    PARENT_CHILD_CHUNKER_VERSION,
+    SECTION_TOKEN_CHUNKER_VERSION,
     STANDARD_CLEANER_VERSION,
     STRUCTURE_CLEANER_VERSION,
     CharacterWindowChunker,
@@ -13,6 +15,9 @@ from app.ingestion_content.processing import (
     NativeTextExtractor,
     PreparedChunk,
     cleaner_for_node,
+    chunker_version_for_node,
+    derivation_identity,
+    derivation_hash_from_config,
     processing_identity,
 )
 from app.ingestion_content.canonical import (
@@ -33,6 +38,8 @@ from app.ingestion_content.contracts import (
 __all__ = [
     "CHARACTER_CHUNKER_VERSION",
     "LEGACY_CLEANER_VERSION",
+    "PARENT_CHILD_CHUNKER_VERSION",
+    "SECTION_TOKEN_CHUNKER_VERSION",
     "STANDARD_CLEANER_VERSION",
     "STRUCTURE_CLEANER_VERSION",
     "CharacterWindowChunker",
@@ -43,6 +50,9 @@ __all__ = [
     "NativeTextExtractor",
     "PreparedChunk",
     "cleaner_for_node",
+    "chunker_version_for_node",
+    "derivation_identity",
+    "derivation_hash_from_config",
     "processing_identity",
     "CanonicalBlock",
     "CanonicalChunkingResult",

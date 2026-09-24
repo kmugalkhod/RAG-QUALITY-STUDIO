@@ -195,3 +195,67 @@ test('shows a reconstructed cleaning diff with transform attribution', async () 
   expect(screen.getByText(/dehyphenate → remove_literal_boilerplate/)).toBeVisible();
   expect(api.listCleaningDiff).toHaveBeenCalledWith('project-1', 'processing-1');
 });
+
+test('inspects evidence text, embedding prefix, spans, and parent links', async () => {
+  vi.mocked(api.listContentDerivations).mockResolvedValue({ items: [derivation], total: 1 });
+  vi.mocked(api.listContentBlocks).mockResolvedValue({ items: [], total: 0, limit: 20, offset: 0 });
+  vi.mocked(api.listProcessingChunks).mockResolvedValue({
+    items: [
+      {
+        run_id: 'processing-1',
+        ordinal: 1,
+        page_number: 1,
+        start_char: 0,
+        end_char: 13,
+        evidence_text: 'Faithful text',
+        embedding_text: 'Section: Guide\n\nFaithful text',
+        embedding_prefix: 'Section: Guide\n\n',
+        token_count: 13,
+        embedding_token_count: 29,
+        chunk_role: 'child',
+        parent_ordinal: 0,
+        section_path: ['Guide'],
+        findings: [],
+        spans: [
+          {
+            run_id: 'processing-1',
+            chunk_ordinal: 1,
+            span_ordinal: 0,
+            derivation_id: 'derivation-1',
+            derivation_kind: 'cleaned',
+            block_ordinal: 0,
+            block_start_char: 0,
+            block_end_char: 13,
+            chunk_start_char: 0,
+            chunk_end_char: 13,
+          },
+        ],
+      },
+    ],
+    summary: {
+      minimum: 13,
+      median: 13,
+      p95: 13,
+      maximum: 13,
+      indexed_count: 1,
+      stored_count: 2,
+      parent_count: 1,
+      oversize_finding_count: 0,
+    },
+    total: 1,
+    limit: 20,
+    offset: 0,
+  });
+
+  render(<IngestionRunResults projectId="project-1" run={run} items={[item]} />);
+  fireEvent.click(screen.getByRole('button', { name: 'Inspect content' }));
+  await screen.findByRole('tab', { name: 'Extracted' });
+  fireEvent.click(screen.getByRole('tab', { name: 'Chunks' }));
+
+  expect(await screen.findByText('Faithful text')).toBeVisible();
+  expect(screen.getByText('Section: Guide')).toBeVisible();
+  expect(screen.getByText('Supplies saved parent 1')).toBeVisible();
+  expect(screen.getByText(/1 source span/)).toBeVisible();
+  expect(screen.getByText('13 min · 13 median · 13 p95 · 13 max')).toBeVisible();
+  expect(api.listProcessingChunks).toHaveBeenCalledWith('project-1', 'processing-1');
+});

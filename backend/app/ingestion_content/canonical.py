@@ -247,6 +247,16 @@ def chunk_cleaned_document(
     connector-specific joins remain a legacy-v1 compatibility concern.
     """
 
+    if getattr(settings, "algorithm", "character_window") != "character_window":
+        from app.ingestion_content.chunking import chunk_structured_document
+
+        chunks, spans = chunk_structured_document(
+            cleaned,
+            settings,
+            provenance=provenance,
+        )
+        return CanonicalChunkingResult(chunks=chunks, spans=spans)
+
     chunker = CharacterWindowChunker()
     if join_blocks:
         combined = separator.join(block.text for block in cleaned.blocks)

@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ReadModel(BaseModel):
@@ -71,6 +71,43 @@ class ChunkBlockSpanRead(ReadModel):
 class ChunkBlockSpanList(ReadModel):
     items: list[ChunkBlockSpanRead]
     total: int
+
+
+class ChunkInspectionRead(ReadModel):
+    run_id: UUID
+    ordinal: int
+    page_number: int | None
+    start_char: int
+    end_char: int
+    evidence_text: str
+    embedding_text: str
+    embedding_prefix: str
+    token_count: int | None
+    embedding_token_count: int | None
+    chunk_role: Literal["leaf", "parent", "child"]
+    parent_ordinal: int | None
+    section_path: list[str] = Field(default_factory=list)
+    findings: list[dict[str, Any]] = Field(default_factory=list)
+    spans: list[ChunkBlockSpanRead] = Field(default_factory=list)
+
+
+class ChunkDistributionRead(ReadModel):
+    minimum: int | None
+    median: float | None
+    p95: int | None
+    maximum: int | None
+    indexed_count: int
+    stored_count: int
+    parent_count: int
+    oversize_finding_count: int
+
+
+class ChunkInspectionPage(ReadModel):
+    items: list[ChunkInspectionRead]
+    summary: ChunkDistributionRead
+    total: int
+    limit: int
+    offset: int
 
 
 class CleaningDiffRead(ReadModel):

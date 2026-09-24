@@ -1,9 +1,78 @@
 # Implementation plan
 
+## Robust ingestion roadmap — Phase 4 acceptance criteria (2026-09-24)
+
+Status: **Phase 4 complete on 2026-09-24** on
+`codex/robust-ingestion-roadmap`; Phase 5 is next.
+
+- Preserve schema-v1, `character_window` and every historical chunk/index/evidence row.
+  Add separately versioned `section_token` and `parent_child` chunk profiles with strict
+  discriminated settings and stable registered tokenizer identities.
+- Validate target, hard maximum and overlap token bounds on the server. Group compatible
+  blocks by saved heading structure, split at deterministic paragraph/sentence/token
+  boundaries, avoid overlap-only tails and split protected lists/code/table rows only
+  when required by the hard limit.
+- Keep small tables whole and split large tables into deterministic row groups with
+  title/header context. Every hard-limit exception must be an explicit bounded finding.
+- Persist faithful citation `evidence_text` separately from optional heading-enriched
+  `embedding_text`, token counts, block spans, chunk role and parent/child relationships.
+  Vector generation may consume only embedding text; answer evidence may consume only
+  faithful evidence text.
+- For parent/child retrieval, index and match children while returning the exact stored
+  parent as supplied evidence. Preserve both identities and texts in retrieval snapshots
+  so historical answers remain reproducible.
+- Changing only chunk settings must reuse the exact compatible cleaned derivation and,
+  for remote sources, the immutable source snapshot without refetch/re-extract. Publish
+  each variant as a separate immutable index version.
+- Expose algorithm-specific accessible settings, chunk/evidence/embedding-prefix/token/
+  span/parent inspection, min/median/p95/max distribution and oversize findings, plus an
+  explicit same-snapshot index-variant workflow.
+- Verify hard boundaries, multilingual/long-word/protected/table cases, exact non-overlap
+  coverage, embedding/evidence separation, parent retrieval, historical compatibility,
+  no-refetch reuse, retrieval regression measurements and real Agent Browser desktop/
+  tablet/mobile journeys.
+
+Phase 4 does not add the Phase 5 generalized asynchronous processing preview and quality
+aggregation, Phase 6 near-duplicate/language policy or Phase 7 sensitive-data controls.
+
+Implementation and verification evidence:
+
+- Added the registered `utf8-byte-v1` tokenizer and versioned `section-token-v1` and
+  `parent-child-v1` chunkers while retaining historical schema-v1 and character-window
+  execution. Server validation owns every target, maximum and overlap bound.
+- Section-aware chunking groups canonical cleaned blocks by heading path and splits at
+  deterministic paragraph, sentence and token boundaries. Protected lists, code and
+  tables remain intact when possible; required hard-limit splits carry bounded findings.
+  Evidence text remains faithful while optional heading context is stored separately as
+  embedding-only text.
+- Parent/child processing saves both roles and exact span membership, embeds only child
+  rows and supplies the persisted parent as retrieval evidence. Retrieval snapshots keep
+  matched-child and supplied-parent identities, so historical answers remain reproducible.
+- Added immutable processing-derivation membership. A chunk-only change can reference
+  the exact compatible extracted and cleaned derivations and, for a source snapshot,
+  skips connector construction and network fetch. Parent chunks never enter an index;
+  atomic publication and the prior-ready pointer retain their existing guarantees.
+- The ingestion editor exposes three algorithm-specific, keyboard-labelled settings
+  profiles. The completed-run inspector pages chunks and shows indexed/parent counts,
+  min/median/p95/max token distribution, faithful evidence, embedding-only prefixes,
+  spans, parent relationships and oversize findings. Source history names the explicit
+  **Create an index variant from this snapshot** workflow and its no-refetch behavior.
+- Migration `0022` was verified on a clean database and through downgrade/re-upgrade of
+  the populated development database. Backend formatting/lint and the full isolated
+  PostgreSQL/pgvector suite passed (**301 passed, 4 skipped opt-in tests**). Frontend
+  formatting, structure/ESLint, strict TypeScript, **114 Vitest tests across 31 files**
+  and the production build passed.
+- Agent Browser drove the real local application and provider end to end: it saved and
+  ran a parent/child pipeline, visibly reused source/extraction/cleaning, embedded one
+  child, retained one parent, published immutable index version 4 and returned the saved
+  parent evidence from a live vector retrieval. The chunk inspector and snapshot-variant
+  form were inspected at 1440 px, 1024 px and 390 px with no horizontal overflow,
+  browser errors or application console failures.
+
 ## Robust ingestion roadmap — Phase 3 acceptance criteria (2026-09-24)
 
 Status: **Phase 3 complete on 2026-09-24** on
-`codex/robust-ingestion-roadmap`; Phase 4 is next.
+`codex/robust-ingestion-roadmap`; the Phase 4 result is recorded above.
 
 - Preserve `standard-v1` cleaning and every schema-v1/schema-v2 historical version.
   Add a separately versioned `structure-aware-v1` profile whose ordered steps are a

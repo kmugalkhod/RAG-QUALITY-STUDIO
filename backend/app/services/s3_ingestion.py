@@ -12,6 +12,7 @@ from app.ingestion_content import (
     chunk_cleaned_document,
     clean_document,
     cleaner_for_node,
+    chunker_version_for_node,
     processing_identity,
 )
 from app.ingestion_content.extractors import (
@@ -54,7 +55,7 @@ def processing_configuration(chunk, clean, extract=None):
         schema_version=2 if getattr(clean, "profile", None) else 1,
         extractor_version=extractor_version_for_settings(extract),
         cleaner_version=cleaner.version,
-        chunker_version=CharacterWindowChunker.version,
+        chunker_version=chunker_version_for_node(chunk),
         extract=extract.model_dump(mode="json", exclude={"id", "type"}),
         clean=clean.model_dump(mode="json", exclude={"id", "type"}),
         chunk=chunk.model_dump(mode="json", exclude={"id", "type"}),
@@ -247,4 +248,5 @@ def persist_artifact(
         ),
         prior_revision,
         prepare,
+        reuse_stage=phase_callback,
     )

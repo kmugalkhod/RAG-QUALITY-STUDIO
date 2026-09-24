@@ -13,6 +13,7 @@ from app.ingestion_content import (
     chunk_cleaned_document,
     clean_document,
     cleaner_for_node,
+    chunker_version_for_node,
     processing_identity,
 )
 from app.models.source import SourceRevision
@@ -40,7 +41,7 @@ def processing_configuration(chunk, clean, extract=None):
         schema_version=2 if getattr(clean, "profile", None) else 1,
         extractor_version=f"notion-blocks-{PARSER_VERSION}",
         cleaner_version=cleaner.version,
-        chunker_version=CharacterWindowChunker.version,
+        chunker_version=chunker_version_for_node(chunk),
         extract={
             "strategy": "notion_blocks",
             "pipeline": (
@@ -247,4 +248,5 @@ def persist_artifact(
         ),
         prior_revision,
         prepare,
+        reuse_stage=phase_callback,
     )

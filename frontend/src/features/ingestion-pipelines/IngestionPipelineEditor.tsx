@@ -505,11 +505,37 @@ export function IngestionPipelineEditor({
       }
     }
     const chunk = draft.execution.nodes.find((node) => node.type === 'chunk');
-    if (
-      chunk?.type === 'chunk' &&
-      (chunk.size < 100 || chunk.size > 10000 || chunk.overlap < 0 || chunk.overlap >= chunk.size)
-    ) {
-      reasons.push('Chunk size must be 100–10,000 and overlap must be smaller.');
+    if (chunk?.type === 'chunk' && (chunk.algorithm ?? 'character_window') === 'character_window') {
+      if (
+        'size' in chunk &&
+        (chunk.size < 100 || chunk.size > 10000 || chunk.overlap < 0 || chunk.overlap >= chunk.size)
+      ) {
+        reasons.push('Chunk size must be 100–10,000 and overlap must be smaller.');
+      }
+    }
+    if (chunk?.type === 'chunk' && chunk.algorithm === 'section_token') {
+      if (
+        chunk.target_tokens < 64 ||
+        chunk.target_tokens > chunk.maximum_tokens ||
+        chunk.maximum_tokens > 16384 ||
+        chunk.overlap_tokens < 0 ||
+        chunk.overlap_tokens >= chunk.target_tokens
+      ) {
+        reasons.push('Section token target, hard maximum and overlap limits are invalid.');
+      }
+    }
+    if (chunk?.type === 'chunk' && chunk.algorithm === 'parent_child') {
+      if (
+        chunk.child_target_tokens < 64 ||
+        chunk.child_target_tokens > chunk.child_maximum_tokens ||
+        chunk.child_overlap_tokens < 0 ||
+        chunk.child_overlap_tokens >= chunk.child_target_tokens ||
+        chunk.parent_target_tokens < 128 ||
+        chunk.parent_target_tokens > chunk.parent_maximum_tokens ||
+        chunk.child_maximum_tokens > chunk.parent_maximum_tokens
+      ) {
+        reasons.push('Parent and child token targets, maxima and overlap limits are invalid.');
+      }
     }
     const clean = draft.execution.nodes.find((node) => node.type === 'clean');
     if (

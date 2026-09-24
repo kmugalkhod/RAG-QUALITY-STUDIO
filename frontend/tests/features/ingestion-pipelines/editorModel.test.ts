@@ -114,12 +114,33 @@ describe('ingestion editor model', () => {
             ],
           },
         ],
+        tokenizers: [{ id: 'utf8_byte', version: 'utf8-byte-v1', unit: 'UTF-8 bytes' }],
+        chunking_profiles: [
+          {
+            id: 'section_token',
+            name: 'Section-aware tokens',
+            description: 'Recommended',
+            recommended: true,
+            settings: {
+              target_tokens: 512,
+              maximum_tokens: 700,
+              overlap_tokens: 64,
+              add_heading_context: true,
+            },
+          },
+        ],
       },
     );
     expect(draft.execution.nodes.find((node) => node.type === 'clean')).toMatchObject({
       profile: 'structure-aware-v1',
       config_version: 'structure-clean-v1',
       steps: [{ type: 'validate_useful_content' }],
+    });
+    expect(draft.execution.nodes.find((node) => node.type === 'chunk')).toMatchObject({
+      algorithm: 'section_token',
+      target_tokens: 512,
+      maximum_tokens: 700,
+      overlap_tokens: 64,
     });
   });
 
@@ -140,7 +161,7 @@ describe('ingestion editor model', () => {
 
     expect(describeIngestionNode(source, [])).toBe('1 selected document');
     expect(describeIngestionNode(extract, [])).toBe('Auto · OCR off');
-    expect(describeIngestionNode(chunk, [])).toBe('1000 characters · 100 overlap');
+    expect(describeIngestionNode(chunk, [])).toBe('Section-aware · 600 target · 800 max tokens');
   });
 
   test('describes interval and daily schedules without changing cadence data', () => {

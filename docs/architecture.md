@@ -444,6 +444,37 @@ ordered attribution. See the
 [reviewed cleaning baseline](cleaning-corpus-baseline.md) for measured precision, recall
 and corpus limits.
 
+## Structure-aware chunking and derivation reuse (robust ingestion Phase 4, 2026-09-24)
+
+Schema-v2 ingestion selects one versioned chunking profile. Historical
+`character-window-v1` execution remains unchanged. `section-token-v1` and
+`parent-child-v1` use the registered `utf8-byte-v1` tokenizer, whose identity is saved
+with the processing configuration so a future tokenizer change cannot silently alter an
+old pipeline version. Target sizes guide grouping, while validated hard maxima are
+authoritative.
+
+The chunker consumes immutable cleaned blocks rather than reparsing concatenated text.
+Section paths, block types and exact source spans survive grouping and deterministic
+paragraph/sentence/token splitting. Faithful evidence is stored in `chunks.text`;
+optional heading enrichment is stored in `chunks.embedding_text`. Provider input uses
+the latter, while retrieval and generation evidence use the former. Findings make any
+required hard split of protected content explicit.
+
+Parent/child processing persists a parent row and its retrieval-child rows under the
+same project, document and processing-run ownership constraints. Index membership
+contains children only. Retrieval matches a child vector but outer-joins its immutable
+parent and supplies the parent text as evidence; matched-child identity and text remain
+in the retrieval snapshot. Legacy rows without a parent continue to supply themselves.
+
+`processing_derivations` maps a processing run to the exact immutable extracted and
+cleaned derivations it consumes. This separates extraction/cleaning identity from the
+full processing hash: a chunk-only variant can reuse compatible derivations without
+mutating their source run. A source-snapshot variant resolves the exact stored revision
+membership and never constructs the connector, so no source request occurs. New chunks,
+embeddings and index membership are still written under a new immutable run/index, and
+atomic publication advances the current-ready pointer only after all required children
+are embedded.
+
 ## Frontend organization
 
 Ingestion runs also persist one `ingestion_run_nodes` row for every node in the

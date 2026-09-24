@@ -18,6 +18,7 @@ from app.schemas.ingestion import (
 from app.schemas.derivation import (
     CleaningDiffPage,
     ChunkBlockSpanList,
+    ChunkInspectionPage,
     ContentBlockPage,
     ContentDerivationList,
 )
@@ -181,6 +182,22 @@ def list_cleaning_diff(
     offset: Offset = 0,
 ):
     return derivations.list_cleaning_diff(
+        session, project_id, processing_run_id, limit, offset
+    )
+
+
+@router.get(
+    "/processing-runs/{processing_run_id}/chunks",
+    response_model=ChunkInspectionPage,
+)
+def list_content_chunks(
+    project_id: UUID,
+    processing_run_id: UUID,
+    session: Database,
+    limit: Limit = 20,
+    offset: Offset = 0,
+):
+    return derivations.list_chunks(
         session, project_id, processing_run_id, limit, offset
     )
 

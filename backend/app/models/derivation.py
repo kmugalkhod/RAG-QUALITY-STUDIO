@@ -26,6 +26,13 @@ class ContentDerivation(Base):
         UniqueConstraint(
             "id", "processing_run_id", name="uq_content_derivation_processing"
         ),
+        UniqueConstraint("id", "kind", name="uq_content_derivation_id_kind"),
+        UniqueConstraint(
+            "id",
+            "document_id",
+            "project_id",
+            name="uq_content_derivation_document_project",
+        ),
         UniqueConstraint(
             "id",
             "processing_run_id",
@@ -126,13 +133,13 @@ class ChunkBlockSpan(Base):
             ondelete="CASCADE",
         ),
         ForeignKeyConstraint(
-            ["derivation_id", "run_id", "derivation_kind"],
+            ["run_id", "derivation_kind", "derivation_id"],
             [
-                "content_derivations.id",
-                "content_derivations.processing_run_id",
-                "content_derivations.kind",
+                "processing_derivations.processing_run_id",
+                "processing_derivations.kind",
+                "processing_derivations.derivation_id",
             ],
-            name="fk_chunk_block_span_derivation_run",
+            name="fk_chunk_span_processing_derivation",
             ondelete="CASCADE",
         ),
         ForeignKeyConstraint(
@@ -166,3 +173,48 @@ class ChunkBlockSpan(Base):
     block_end_char: Mapped[int]
     chunk_start_char: Mapped[int]
     chunk_end_char: Mapped[int]
+
+
+class ProcessingDerivation(Base):
+    __tablename__ = "processing_derivations"
+    __table_args__ = (
+        UniqueConstraint(
+            "processing_run_id",
+            "kind",
+            "derivation_id",
+            name="uq_processing_derivation_reference",
+        ),
+        ForeignKeyConstraint(
+            ["processing_run_id", "document_id"],
+            ["processing_runs.id", "processing_runs.document_id"],
+            name="fk_processing_derivation_run_document",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["document_id", "project_id"],
+            ["documents.id", "documents.project_id"],
+            name="fk_processing_derivation_document_project",
+        ),
+        ForeignKeyConstraint(
+            ["derivation_id", "document_id", "project_id"],
+            [
+                "content_derivations.id",
+                "content_derivations.document_id",
+                "content_derivations.project_id",
+            ],
+            name="fk_processing_derivation_content",
+            ondelete="RESTRICT",
+        ),
+        CheckConstraint(
+            "kind IN ('extracted','cleaned')", name="ck_processing_derivation_kind"
+        ),
+    )
+    processing_run_id: Mapped[uuid.UUID] = mapped_column(primary_key=True)
+    kind: Mapped[str] = mapped_column(String(16), primary_key=True)
+    derivation_id: Mapped[uuid.UUID]
+    document_id: Mapped[uuid.UUID]
+    project_id: Mapped[uuid.UUID]
+    reused: Mapped[bool] = mapped_column(default=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )

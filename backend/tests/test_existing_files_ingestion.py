@@ -39,6 +39,7 @@ def ingestion_draft(
     normalize_whitespace=True,
     repeated_boilerplate=None,
     clean_steps=None,
+    chunk_settings=None,
 ):
     nodes = [
         {
@@ -74,15 +75,21 @@ def ingestion_draft(
                 else {}
             ),
         },
-        {
-            "id": "chunk",
-            "type": "chunk",
-            "size": size,
-            "overlap": 10,
-            **(
-                {"config_version": "character-window-v1"} if schema_version == 2 else {}
-            ),
-        },
+        (
+            {"id": "chunk", "type": "chunk", **chunk_settings}
+            if chunk_settings is not None
+            else {
+                "id": "chunk",
+                "type": "chunk",
+                "size": size,
+                "overlap": 10,
+                **(
+                    {"config_version": "character-window-v1"}
+                    if schema_version == 2
+                    else {}
+                ),
+            }
+        ),
         {
             "id": "embed",
             "type": "embed",
@@ -852,6 +859,145 @@ def test_v2_structure_cleaning_persists_audits_and_reconstructs_scoped_diff(
             f"{item['processing_run_id']}/cleaning-diff"
         ).status_code
         == 404
+    )
+
+
+def test_chunk_only_variant_reuses_derivations_and_parent_retrieval(ingestion_api):
+    from app.ingestion_content.cleaning import default_structure_steps
+
+    client, engine, project_id, _, config, provider = ingestion_api
+    document = upload(
+        client,
+        project_id,
+        content=(
+            "Operational evidence remains faithful and inspectable. " * 24
+        ).encode(),
+        name="chunk-variant.txt",
+    )
+    section_payload = ingestion_draft(
+        [document["id"]],
+        config,
+        name="Section chunk source",
+        schema_version=2,
+        clean_steps=default_structure_steps(),
+        chunk_settings={
+            "algorithm": "section_token",
+            "target_tokens": 64,
+            "maximum_tokens": 96,
+            "overlap_tokens": 0,
+            "add_heading_context": True,
+            "config_version": "section-token-v1",
+        },
+    )
+    section_version = client.post(
+        f"/api/projects/{project_id}/pipelines", json=section_payload
+    ).json()
+    section_ingestion = client.post(
+        f"/api/projects/{project_id}/pipelines/{section_version['pipeline_id']}"
+        f"/versions/{section_version['id']}/ingestion-runs"
+    ).json()
+    section_item = client.get(
+        f"/api/projects/{project_id}/ingestion-runs/{section_ingestion['id']}/items"
+    ).json()["items"][0]
+    process(UUID(section_item["processing_run_id"]), engine)
+    section_derivations = client.get(
+        f"/api/projects/{project_id}/processing-runs/"
+        f"{section_item['processing_run_id']}/derivations"
+    ).json()["items"]
+    client.post(
+        f"/api/projects/{project_id}/ingestion-runs/{section_ingestion['id']}/cancel"
+    )
+
+    parent_payload = ingestion_draft(
+        [document["id"]],
+        config,
+        name="Parent child variant",
+        schema_version=2,
+        clean_steps=default_structure_steps(),
+        chunk_settings={
+            "algorithm": "parent_child",
+            "child_target_tokens": 64,
+            "child_maximum_tokens": 96,
+            "child_overlap_tokens": 0,
+            "parent_target_tokens": 192,
+            "parent_maximum_tokens": 256,
+            "add_heading_context": True,
+            "config_version": "parent-child-v1",
+        },
+    )
+    parent_version = client.post(
+        f"/api/projects/{project_id}/pipelines", json=parent_payload
+    ).json()
+    parent_ingestion = client.post(
+        f"/api/projects/{project_id}/pipelines/{parent_version['pipeline_id']}"
+        f"/versions/{parent_version['id']}/ingestion-runs"
+    ).json()
+    parent_item = client.get(
+        f"/api/projects/{project_id}/ingestion-runs/{parent_ingestion['id']}/items"
+    ).json()["items"][0]
+    assert parent_item["processing_created"] is True
+    process(UUID(parent_item["processing_run_id"]), engine)
+
+    parent_derivations = client.get(
+        f"/api/projects/{project_id}/processing-runs/"
+        f"{parent_item['processing_run_id']}/derivations"
+    ).json()["items"]
+    assert {item["id"] for item in parent_derivations} == {
+        item["id"] for item in section_derivations
+    }
+    chunks = client.get(
+        f"/api/projects/{project_id}/processing-runs/"
+        f"{parent_item['processing_run_id']}/chunks?limit=100"
+    )
+    assert chunks.status_code == 200, chunks.text
+    inspected = chunks.json()
+    parents = {
+        item["ordinal"]: item
+        for item in inspected["items"]
+        if item["chunk_role"] == "parent"
+    }
+    children = [item for item in inspected["items"] if item["chunk_role"] == "child"]
+    assert parents and children
+    assert inspected["summary"]["parent_count"] == len(parents)
+    assert inspected["summary"]["indexed_count"] == len(children)
+    assert all(item["parent_ordinal"] in parents for item in children)
+    assert all(item["spans"] for item in inspected["items"])
+    with Session(engine) as session:
+        parent_run = session.get(ProcessingRun, UUID(parent_item["processing_run_id"]))
+        assert parent_run.reused_from_processing_run_id == UUID(
+            section_item["processing_run_id"]
+        )
+
+    client.post(
+        f"/api/projects/{project_id}/ingestion-runs/{parent_ingestion['id']}/cancel"
+    )
+    index_response = client.post(f"/api/projects/{project_id}/indexes")
+    assert index_response.status_code == 202, index_response.text
+    index = index_response.json()
+    assert index["chunk_count"] == len(children)
+    provider.calls.clear()
+    process_index(UUID(index["id"]), engine)
+    process_index(UUID(index["id"]), engine)
+    assert 0 < sum(len(call) for call in provider.calls) <= len(children)
+    embedded_inputs = {text for call in provider.calls for text in call}
+    assert embedded_inputs <= {item["embedding_text"] for item in children}
+    assert not embedded_inputs.intersection(
+        {item["embedding_text"] for item in parents.values()}
+        - {item["embedding_text"] for item in children}
+    )
+    retrieval = client.post(
+        f"/api/projects/{project_id}/retrieval",
+        json={"index_id": index["id"], "query": "abcd", "top_k": 1},
+    )
+    assert retrieval.status_code == 200, retrieval.text
+    evidence = retrieval.json()["items"][0]
+    assert evidence["chunk_role"] == "child"
+    assert evidence["matched_chunk_ordinal"] == evidence["ordinal"]
+    assert evidence["supplied_parent_ordinal"] in parents
+    assert evidence["matched_text"] in evidence["text"]
+    assert (
+        evidence["text"]
+        == parents[evidence["supplied_parent_ordinal"]]["evidence_text"]
     )
 
 

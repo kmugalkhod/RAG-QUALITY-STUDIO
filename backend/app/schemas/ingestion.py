@@ -660,7 +660,7 @@ class CleanNodeV2(LegacyCleanNode):
         return self
 
 
-class ChunkNodeV2(NodeBase):
+class CharacterChunkNodeV2(NodeBase):
     type: Literal["chunk"]
     algorithm: Literal["character_window"] = "character_window"
     unit: Literal["characters"] = "characters"
@@ -675,15 +675,79 @@ class ChunkNodeV2(NodeBase):
         return self
 
 
-IngestionNodeV2 = Annotated[
+class SectionTokenChunkNodeV2(NodeBase):
+    type: Literal["chunk"]
+    algorithm: Literal["section_token"]
+    unit: Literal["tokens"] = "tokens"
+    tokenizer_version: Literal["utf8-byte-v1"] = "utf8-byte-v1"
+    target_tokens: int = Field(default=600, strict=True, ge=64, le=8192)
+    maximum_tokens: int = Field(default=800, strict=True, ge=64, le=16384)
+    overlap_tokens: int = Field(default=80, strict=True, ge=0, le=4096)
+    add_heading_context: bool = True
+    config_version: Literal["section-token-v1"] = "section-token-v1"
+
+    @property
+    def size(self):
+        return self.maximum_tokens
+
+    @property
+    def overlap(self):
+        return self.overlap_tokens
+
+    @model_validator(mode="after")
+    def token_bounds(self):
+        if self.target_tokens > self.maximum_tokens:
+            raise ValueError("Target tokens cannot exceed the hard maximum.")
+        if self.overlap_tokens >= self.target_tokens:
+            raise ValueError("Token overlap must be smaller than the target.")
+        return self
+
+
+class ParentChildChunkNodeV2(NodeBase):
+    type: Literal["chunk"]
+    algorithm: Literal["parent_child"]
+    unit: Literal["tokens"] = "tokens"
+    tokenizer_version: Literal["utf8-byte-v1"] = "utf8-byte-v1"
+    child_target_tokens: int = Field(default=240, strict=True, ge=64, le=4096)
+    child_maximum_tokens: int = Field(default=320, strict=True, ge=64, le=8192)
+    child_overlap_tokens: int = Field(default=40, strict=True, ge=0, le=2048)
+    parent_target_tokens: int = Field(default=900, strict=True, ge=128, le=16384)
+    parent_maximum_tokens: int = Field(default=1200, strict=True, ge=128, le=32768)
+    add_heading_context: bool = True
+    config_version: Literal["parent-child-v1"] = "parent-child-v1"
+
+    @property
+    def size(self):
+        return self.child_maximum_tokens
+
+    @property
+    def overlap(self):
+        return self.child_overlap_tokens
+
+    @model_validator(mode="after")
+    def token_bounds(self):
+        if self.child_target_tokens > self.child_maximum_tokens:
+            raise ValueError("Child target tokens cannot exceed the child maximum.")
+        if self.child_overlap_tokens >= self.child_target_tokens:
+            raise ValueError("Child overlap must be smaller than the child target.")
+        if self.parent_target_tokens > self.parent_maximum_tokens:
+            raise ValueError("Parent target tokens cannot exceed the parent maximum.")
+        if self.child_maximum_tokens > self.parent_maximum_tokens:
+            raise ValueError("Child maximum tokens cannot exceed the parent maximum.")
+        return self
+
+
+ChunkNodeV2 = CharacterChunkNodeV2 | SectionTokenChunkNodeV2 | ParentChildChunkNodeV2
+
+
+IngestionNodeV2 = (
     SourceNode
     | ExtractNodeV2
     | CleanNodeV2
     | ChunkNodeV2
     | EmbedNode
-    | PublishIndexNode,
-    Field(discriminator="type"),
-]
+    | PublishIndexNode
+)
 
 
 class IngestionEdge(Strict):

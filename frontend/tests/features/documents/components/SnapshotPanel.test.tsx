@@ -73,6 +73,8 @@ test('opens an answer pipeline with the current published index already selected
   expect(
     await screen.findByRole('link', { name: 'Use current index in answer pipeline' }),
   ).toHaveAttribute('href', '#/projects/project-1/pipelines/new?index=index-1');
-  expect(screen.getByRole('heading', { name: 'Create another index version' })).toBeVisible();
+  expect(
+    screen.getByRole('heading', { name: 'Create an index variant from this snapshot' }),
+  ).toBeVisible();
   expect(screen.getByText(/This is optional/)).toBeVisible();
 });

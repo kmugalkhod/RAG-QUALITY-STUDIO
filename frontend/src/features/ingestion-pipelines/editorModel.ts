@@ -1,6 +1,7 @@
 import type { Document, EmbeddingConfig } from '../documents/model';
 import type {
   ExtractionCapabilities,
+  ChunkNode,
   ConfluenceConfig,
   IngestionNode,
   IngestionPipelineDraft,
@@ -100,6 +101,34 @@ export const defaultConfluence = (connectionId = ''): ConfluenceConfig => ({
   request_timeout_seconds: 30,
 });
 
+function numberSetting(
+  settings: Record<string, string | number | boolean> | undefined,
+  key: string,
+  fallback: number,
+) {
+  const value = settings?.[key];
+  return typeof value === 'number' ? value : fallback;
+}
+
+function defaultChunk(capabilities?: ExtractionCapabilities): ChunkNode {
+  const settings = capabilities?.chunking_profiles?.find(
+    (profile) => profile.id === 'section_token' && profile.recommended,
+  )?.settings;
+  return {
+    id: 'chunk',
+    type: 'chunk',
+    algorithm: 'section_token',
+    unit: 'tokens',
+    tokenizer_version: 'utf8-byte-v1',
+    target_tokens: numberSetting(settings, 'target_tokens', 600),
+    maximum_tokens: numberSetting(settings, 'maximum_tokens', 800),
+    overlap_tokens: numberSetting(settings, 'overlap_tokens', 80),
+    add_heading_context:
+      typeof settings?.add_heading_context === 'boolean' ? settings.add_heading_context : true,
+    config_version: 'section-token-v1',
+  };
+}
+
 export function defaultIngestionDraft(
   embedding: EmbeddingConfig,
   documentIds: string[],
@@ -137,15 +166,7 @@ export function defaultIngestionDraft(
       config_version: cleaningProfile?.config_version ?? 'deterministic-clean-v1',
       steps: structuredClone(cleaningProfile?.steps ?? []),
     },
-    {
-      id: 'chunk',
-      type: 'chunk',
-      algorithm: 'character_window',
-      unit: 'characters',
-      size: 1000,
-      overlap: 100,
-      config_version: 'character-window-v1',
-    },
+    defaultChunk(capabilities),
     {
       id: 'embed',
       type: 'embed',
@@ -212,6 +233,12 @@ export function describeIngestionNode(node: IngestionNode, documents: Document[]
     return `Confluence · ${scope}`;
   }
   if (node.type === 'chunk') {
+    if (node.algorithm === 'section_token') {
+      return `Section-aware · ${node.target_tokens} target · ${node.maximum_tokens} max tokens`;
+    }
+    if (node.algorithm === 'parent_child') {
+      return `Parent/child · ${node.child_target_tokens} child · ${node.parent_target_tokens} parent`;
+    }
     return `${node.size} characters · ${node.overlap} overlap`;
   }
   if (node.type === 'embed') {
@@ -277,7 +304,9 @@ export function upgradeIngestionDraft(draft: IngestionPipelineDraft): IngestionP
       };
     }
     if (node.type === 'chunk') {
-      return { ...node, config_version: 'character-window-v1' };
+      return (node.algorithm ?? 'character_window') === 'character_window'
+        ? { ...node, config_version: 'character-window-v1' }
+        : node;
     }
     return node;
   });

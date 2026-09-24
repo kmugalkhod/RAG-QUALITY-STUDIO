@@ -67,7 +67,6 @@ class SourceRevision(Base):
             "processing_config_hash",
             name="uq_source_revision_content",
         ),
-        UniqueConstraint("document_id", name="uq_source_revision_document"),
         UniqueConstraint("processing_run_id", name="uq_source_revision_processing"),
         ForeignKeyConstraint(
             ["source_item_id", "project_id"],
@@ -107,7 +106,7 @@ class SourceRevision(Base):
     processing_config_hash: Mapped[str] = mapped_column(String(64))
     media_type: Mapped[str] = mapped_column(String(200))
     size_bytes: Mapped[int] = mapped_column(BigInteger)
-    artifact_storage_name: Mapped[str] = mapped_column(String(40), unique=True)
+    artifact_storage_name: Mapped[str] = mapped_column(String(40))
     etag: Mapped[str | None] = mapped_column(String(500))
     last_modified: Mapped[str | None] = mapped_column(String(200))
     provider_revision: Mapped[str | None] = mapped_column(String(1000))

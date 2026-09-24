@@ -12,6 +12,7 @@ import type {
   ContentBlock,
   ContentDerivation,
   CleaningDiff,
+  ChunkInspectionPage,
   IngestionRun,
   IngestionRunItem,
   SourcePreview,
@@ -159,9 +160,10 @@ export function IngestionRunResults({
 }) {
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [derivations, setDerivations] = useState<ContentDerivation[]>([]);
-  const [kind, setKind] = useState<'extracted' | 'cleaned' | 'diff'>('extracted');
+  const [kind, setKind] = useState<'extracted' | 'cleaned' | 'diff' | 'chunks'>('extracted');
   const [blocks, setBlocks] = useState<Page<ContentBlock> | null>(null);
   const [diff, setDiff] = useState<Page<CleaningDiff> | null>(null);
+  const [chunks, setChunks] = useState<ChunkInspectionPage | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedPage, setSelectedPage] = useState<number | null>(null);
@@ -176,6 +178,7 @@ export function IngestionRunResults({
     setError(null);
     setBlocks(null);
     setDiff(null);
+    setChunks(null);
     setSelectedPage(null);
     setSelectedBlockId(null);
     api
@@ -259,6 +262,35 @@ export function IngestionRunResults({
     };
   }, [kind, projectId, selectedRunId]);
 
+  useEffect(() => {
+    if (!selectedRunId || kind !== 'chunks') {
+      return;
+    }
+    let current = true;
+    setBusy(true);
+    setError(null);
+    api
+      .listProcessingChunks(projectId, selectedRunId)
+      .then((result) => {
+        if (current) {
+          setChunks(result);
+        }
+      })
+      .catch((reason: Error) => {
+        if (current) {
+          setError(reason.message);
+        }
+      })
+      .finally(() => {
+        if (current) {
+          setBusy(false);
+        }
+      });
+    return () => {
+      current = false;
+    };
+  }, [kind, projectId, selectedRunId]);
+
   const visiblePages = Array.from(
     new Set(blocks?.items.flatMap((block) => (block.page_number ? [block.page_number] : [])) ?? []),
   ).sort((left, right) => left - right);
@@ -291,6 +323,21 @@ export function IngestionRunResults({
     setError(null);
     try {
       setDiff(await api.listCleaningDiff(projectId, selectedRunId, offset));
+    } catch (reason) {
+      setError((reason as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function pageChunks(offset: number) {
+    if (!selectedRunId) {
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      setChunks(await api.listProcessingChunks(projectId, selectedRunId, offset));
     } catch (reason) {
       setError((reason as Error).message);
     } finally {
@@ -429,7 +476,7 @@ export function IngestionRunResults({
               <h3>Extracted and cleaned content</h3>
             </div>
             <div className="content-derivation-tabs" role="tablist" aria-label="Content stage">
-              {(['extracted', 'cleaned', 'diff'] as const).map((value) => (
+              {(['extracted', 'cleaned', 'diff', 'chunks'] as const).map((value) => (
                 <Button
                   key={value}
                   role="tab"
@@ -440,13 +487,16 @@ export function IngestionRunResults({
                     setKind(value);
                     setBlocks(null);
                     setDiff(null);
+                    setChunks(null);
                   }}
                 >
                   {value === 'extracted'
                     ? 'Extracted'
                     : value === 'cleaned'
                       ? 'Cleaned'
-                      : 'Changes'}
+                      : value === 'diff'
+                        ? 'Changes'
+                        : 'Chunks'}
                 </Button>
               ))}
             </div>
@@ -703,6 +753,77 @@ export function IngestionRunResults({
                 busy={busy}
                 label="Cleaning diff pages"
                 onChange={pageDiff}
+              />
+            </>
+          )}
+          {kind === 'chunks' && chunks && (
+            <>
+              <dl className="ingestion-stage-facts content-quality-summary">
+                <dt>Indexed chunks</dt>
+                <dd>{chunks.summary.indexed_count}</dd>
+                <dt>Saved parents</dt>
+                <dd>{chunks.summary.parent_count}</dd>
+                <dt>Token distribution</dt>
+                <dd>
+                  {chunks.summary.minimum ?? '—'} min · {chunks.summary.median ?? '—'} median ·{' '}
+                  {chunks.summary.p95 ?? '—'} p95 · {chunks.summary.maximum ?? '—'} max
+                </dd>
+                <dt>Oversize findings</dt>
+                <dd>{chunks.summary.oversize_finding_count}</dd>
+              </dl>
+              <ol className="content-block-list chunk-inspection-list">
+                {chunks.items.map((chunk) => (
+                  <li key={chunk.ordinal}>
+                    <div>
+                      <strong>
+                        Chunk {chunk.ordinal + 1} · {chunk.chunk_role} ·{' '}
+                        {chunk.token_count ?? 'legacy'} tokens
+                      </strong>
+                      {chunk.parent_ordinal !== null && (
+                        <small>Supplies saved parent {chunk.parent_ordinal + 1}</small>
+                      )}
+                      {chunk.section_path.length > 0 && (
+                        <small>{chunk.section_path.join(' / ')}</small>
+                      )}
+                      <small>
+                        {chunk.spans.length} source span{chunk.spans.length === 1 ? '' : 's'}
+                        {chunk.page_number ? ` · page ${chunk.page_number}` : ''}
+                      </small>
+                    </div>
+                    <section aria-label={`Chunk ${chunk.ordinal + 1} evidence text`}>
+                      <small>Evidence text</small>
+                      <pre>{chunk.evidence_text}</pre>
+                    </section>
+                    {chunk.embedding_prefix && (
+                      <section aria-label={`Chunk ${chunk.ordinal + 1} embedding prefix`}>
+                        <small>
+                          Embedding-only prefix · {chunk.embedding_token_count ?? 'unknown'} total
+                          tokens
+                        </small>
+                        <pre>{chunk.embedding_prefix}</pre>
+                      </section>
+                    )}
+                    {chunk.findings.length > 0 && (
+                      <ul className="content-quality-findings">
+                        {chunk.findings.map((finding, index) => (
+                          <li key={`${finding.code}-${index}`}>
+                            <strong>{finding.code.replaceAll('_', ' ')}</strong>
+                            <span>{finding.message}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </li>
+                ))}
+              </ol>
+              {chunks.total === 0 && <p>This processing version contains no chunks.</p>}
+              <Pagination
+                offset={chunks.offset}
+                total={chunks.total}
+                pageSize={chunks.limit}
+                busy={busy}
+                label="Chunk inspector pages"
+                onChange={pageChunks}
               />
             </>
           )}

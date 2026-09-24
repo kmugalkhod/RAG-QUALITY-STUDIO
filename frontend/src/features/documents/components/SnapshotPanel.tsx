@@ -356,7 +356,7 @@ export function SnapshotPanel({ projectId }: { projectId: string }) {
                     </div>
                   )}
                   <form className="snapshot-build-form" onSubmit={build}>
-                    <h3>Create another index version</h3>
+                    <h3>Create an index variant from this snapshot</h3>
                     <p>
                       This is optional. Reprocess this exact snapshot only when you need different
                       processing or embedding settings. The existing ready index remains available,
@@ -377,7 +377,11 @@ export function SnapshotPanel({ projectId }: { projectId: string }) {
                     </label>
                     {chunk?.type === 'chunk' && (
                       <p className="muted">
-                        Chunk size {chunk.size}, overlap {chunk.overlap}
+                        {chunk.algorithm === 'section_token'
+                          ? `Section-aware tokens · ${chunk.target_tokens} target · ${chunk.maximum_tokens} hard maximum · ${chunk.overlap_tokens} overlap`
+                          : chunk.algorithm === 'parent_child'
+                            ? `Parent/child · ${chunk.child_target_tokens}/${chunk.child_maximum_tokens} child · ${chunk.parent_target_tokens}/${chunk.parent_maximum_tokens} parent`
+                            : `Character window · ${chunk.size} size · ${chunk.overlap} overlap`}
                         {embed?.type === 'embed' ? ` · ${embed.provider}/${embed.model}` : ''}
                       </p>
                     )}
@@ -422,7 +426,7 @@ export function SnapshotPanel({ projectId }: { projectId: string }) {
                       </label>
                     )}
                     <Button type="submit" disabled={busy || !versions.length}>
-                      Reprocess and publish new version
+                      Create index variant
                     </Button>
                   </form>
                 </>

@@ -3,6 +3,7 @@
 from time import monotonic
 
 from sqlalchemy import func, literal_column, select
+from sqlalchemy.orm import aliased
 
 from app.models.document import Chunk, Document, ProcessingRun
 from app.models.index import IndexChunk
@@ -21,8 +22,9 @@ def search(
     query_embeddings=None,
 ):
     settings = request.retrieval
+    parent = aliased(Chunk)
     base = (
-        select(Chunk, ProcessingRun, Document, SourceItem)
+        select(Chunk, parent, ProcessingRun, Document, SourceItem)
         .select_from(IndexChunk)
         .join(
             Chunk,
@@ -30,6 +32,10 @@ def search(
         )
         .join(ProcessingRun, ProcessingRun.id == Chunk.run_id)
         .join(Document, Document.id == ProcessingRun.document_id)
+        .outerjoin(
+            parent,
+            (parent.run_id == Chunk.run_id) & (parent.ordinal == Chunk.parent_ordinal),
+        )
         .outerjoin(SourceRevision, SourceRevision.processing_run_id == ProcessingRun.id)
         .outerjoin(SourceItem, SourceItem.id == SourceRevision.source_item_id)
         .where(IndexChunk.index_id == index.id, Document.project_id == project_id)
@@ -83,8 +89,11 @@ def search(
         rows = session.execute(query.limit(limit)).all()
         diagnostics[f"{branch}_count"] = len(rows)
         diagnostics[f"{branch}_ms"] = round((monotonic() - started) * 1000, 3)
-        for rank, (chunk, run, doc, source_item, score) in enumerate(rows, 1):
+        for rank, (chunk, supplied_parent, run, doc, source_item, score) in enumerate(
+            rows, 1
+        ):
             key = (str(run.id), chunk.ordinal)
+            supplied = supplied_parent or chunk
             item = candidates.setdefault(
                 key,
                 dict(
@@ -94,14 +103,21 @@ def search(
                     run_id=run.id,
                     processing_version=run.version,
                     ordinal=chunk.ordinal,
-                    page_number=chunk.page_number,
-                    start_char=chunk.start_char,
-                    end_char=chunk.end_char,
-                    text=chunk.text,
+                    matched_chunk_ordinal=chunk.ordinal,
+                    matched_text=chunk.text,
+                    supplied_parent_ordinal=(
+                        supplied_parent.ordinal if supplied_parent else None
+                    ),
+                    page_number=supplied.page_number,
+                    start_char=supplied.start_char,
+                    end_char=supplied.end_char,
+                    text=supplied.text,
                     source_url=(
                         source_item.canonical_location if source_item else None
                     ),
-                    section_path=chunk.provenance.get("section_path", []),
+                    section_path=supplied.provenance.get("section_path", []),
+                    chunk_role=chunk.chunk_role,
+                    token_count=supplied.token_count,
                     cosine_distance=None,
                     lexical_score=None,
                     fusion_score=None,

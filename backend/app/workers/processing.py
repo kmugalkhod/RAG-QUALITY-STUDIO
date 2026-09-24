@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from types import SimpleNamespace
 from uuid import UUID, uuid4
 
+from pydantic import TypeAdapter
 from sqlalchemy import insert, select, update
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
@@ -11,23 +12,77 @@ from sqlalchemy.exc import SQLAlchemyError
 from app.core.config import settings
 from app.db.session import engine
 from app.ingestion_content import (
-    CleanSemantics,
-    DeterministicCleaner,
     IngestionStageError,
     chunk_cleaned_document,
     clean_document,
+    cleaner_for_node,
 )
 from app.ingestion_content.extractors import extract_document
 from app.models.document import Chunk, Document, ProcessingRun
 from app.pipelines.parsing import MAX_CHUNKS, ProcessingError, pages, windows
-from app.schemas.ingestion import CleanNodeV2, ExtractNodeV2
+from app.schemas.ingestion import ChunkNodeV2, CleanNodeV2, ExtractNodeV2
 from app.services import ingestion_execution
-from app.services.derivations import persist_derivations
+from app.services.derivations import (
+    link_reused_derivations,
+    persist_derivations,
+    reusable_cleaned_document,
+)
 from app.workers.celery_app import celery
 
 
 def now():
     return datetime.now(timezone.utc)
+
+
+def _chunk_cleaned(job, cleaned, config, on_stage):
+    chunk_config = TypeAdapter(ChunkNodeV2).validate_python(
+        {"id": "chunk", "type": "chunk", **config.get("chunk", {})}
+    )
+    on_stage("chunk")
+    chunking = chunk_cleaned_document(
+        cleaned,
+        chunk_config,
+        provenance={"processing_versions": config.get("versions", {})},
+    )
+    if len(chunking.chunks) > MAX_CHUNKS:
+        raise IngestionStageError(
+            "chunk",
+            "chunk_limit_exceeded",
+            "Processing exceeds the 50,000 chunk limit. Increase chunk size or reduce overlap.",
+        )
+    if sum(len(value.text) for value in chunking.chunks) > 10_000_000:
+        raise IngestionStageError(
+            "chunk",
+            "chunk_output_too_large",
+            "Chunk text exceeds the 10,000,000 character output limit. Reduce overlap.",
+        )
+    chunks = [value.as_record() | {"run_id": job.id} for value in chunking.chunks]
+    if not chunks:
+        raise IngestionStageError(
+            "chunk", "no_text", "The document contains no text after cleaning."
+        )
+    encoded = json.dumps(
+        [
+            {
+                "ordinal": value["ordinal"],
+                "page_number": value["page_number"],
+                "start_char": value["start_char"],
+                "end_char": value["end_char"],
+                "text": value["text"],
+                "embedding_text": value["embedding_text"],
+                "token_count": value["token_count"],
+                "embedding_token_count": value["embedding_token_count"],
+                "chunk_role": value["chunk_role"],
+                "parent_ordinal": value["parent_ordinal"],
+                "findings": value["findings"],
+            }
+            for value in chunks
+        ],
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+    ).encode("utf-8")
+    return chunks, hashlib.sha256(encoded).hexdigest(), chunking.spans
 
 
 def _v2_chunks(job, path, media, title, on_stage, cancelled=None):
@@ -38,8 +93,7 @@ def _v2_chunks(job, path, media, title, on_stage, cancelled=None):
     clean_config = CleanNodeV2.model_validate(
         {"id": "clean", "type": "clean", **config.get("clean", {})}
     )
-    chunk_config = SimpleNamespace(**config.get("chunk", {}))
-    cleaner = DeterministicCleaner(CleanSemantics.STANDARD_V1)
+    cleaner = cleaner_for_node(clean_config)
     extracted, extractor_version = extract_document(
         path,
         media,
@@ -76,50 +130,13 @@ def _v2_chunks(job, path, media, title, on_stage, cancelled=None):
             "text_too_long",
             "Cleaned text exceeds the configured maximum.",
         )
-    on_stage("chunk")
-    chunking = chunk_cleaned_document(
-        cleaned,
-        chunk_config,
-        provenance={"processing_versions": config.get("versions", {})},
-    )
-    if len(chunking.chunks) > MAX_CHUNKS:
-        raise IngestionStageError(
-            "chunk",
-            "chunk_limit_exceeded",
-            "Processing exceeds the 50,000 chunk limit. Increase chunk size or reduce overlap.",
-        )
-    if sum(len(value.text) for value in chunking.chunks) > 10_000_000:
-        raise IngestionStageError(
-            "chunk",
-            "chunk_output_too_large",
-            "Chunk text exceeds the 10,000,000 character output limit. Reduce overlap.",
-        )
-    chunks = [value.as_record() | {"run_id": job.id} for value in chunking.chunks]
-    if not chunks:
-        raise IngestionStageError(
-            "chunk", "no_text", "The document contains no text after cleaning."
-        )
-    encoded = json.dumps(
-        [
-            {
-                "ordinal": value["ordinal"],
-                "page_number": value["page_number"],
-                "start_char": value["start_char"],
-                "end_char": value["end_char"],
-                "text": value["text"],
-            }
-            for value in chunks
-        ],
-        sort_keys=True,
-        separators=(",", ":"),
-        ensure_ascii=True,
-    ).encode("utf-8")
+    chunks, output_hash, spans = _chunk_cleaned(job, cleaned, config, on_stage)
     return (
         chunks,
-        hashlib.sha256(encoded).hexdigest(),
+        output_hash,
         extracted,
         cleaned,
-        chunking.spans,
+        spans,
         extractor_version,
     )
 
@@ -146,6 +163,7 @@ def process(run_id: UUID, db_engine=engine):
         size, overlap = job.chunk_size, job.overlap
         processing_config = job.processing_config
         processing_config_hash = job.processing_config_hash
+        reused_from_processing_run_id = job.reused_from_processing_run_id
         document_id = doc.id
         project_id = doc.project_id
         title = doc.filename
@@ -165,23 +183,45 @@ def process(run_id: UUID, db_engine=engine):
         output_hash = None
         canonical = None
         if processing_config and processing_config.get("schema_version") == 2:
-            chunks, output_hash, extracted, cleaned, spans, extractor_version = (
-                _v2_chunks(
-                    SimpleNamespace(
-                        id=run_id,
-                        processing_config=processing_config,
-                        processing_config_hash=processing_config_hash,
-                    ),
-                    path,
-                    media,
-                    title,
-                    lambda stage: ingestion_execution.transition_for_processing_run(
-                        db_engine, run_id, stage
-                    ),
-                    cancelled,
+
+            def stage(value):
+                ingestion_execution.transition_for_processing_run(
+                    db_engine, run_id, value
                 )
+
+            scoped_job = SimpleNamespace(
+                id=run_id,
+                processing_config=processing_config,
+                processing_config_hash=processing_config_hash,
             )
-            canonical = extracted, cleaned, spans, extractor_version
+            if reused_from_processing_run_id is not None:
+                with Session(db_engine) as session:
+                    cleaned, _ = reusable_cleaned_document(
+                        session, reused_from_processing_run_id
+                    )
+                stage("clean")
+                chunks, output_hash, spans = _chunk_cleaned(
+                    scoped_job, cleaned, processing_config, stage
+                )
+                canonical = ("reused", reused_from_processing_run_id, spans)
+            else:
+                chunks, output_hash, extracted, cleaned, spans, extractor_version = (
+                    _v2_chunks(
+                        scoped_job,
+                        path,
+                        media,
+                        title,
+                        stage,
+                        cancelled,
+                    )
+                )
+                canonical = (
+                    "new",
+                    extracted,
+                    cleaned,
+                    spans,
+                    extractor_version,
+                )
         else:
             chunks = []
             chunk_characters = 0
@@ -247,17 +287,28 @@ def process(run_id: UUID, db_engine=engine):
             for start in range(0, len(chunks), 500):
                 session.execute(insert(Chunk), chunks[start : start + 500])
             if canonical is not None:
-                extracted, cleaned, spans, extractor_version = canonical
-                persist_derivations(
-                    session,
-                    project_id=project_id,
-                    document_id=document_id,
-                    processing_run_id=run_id,
-                    extracted=extracted,
-                    cleaned=cleaned,
-                    extractor_version=extractor_version,
-                    spans=spans,
-                )
+                if canonical[0] == "reused":
+                    _, source_run_id, spans = canonical
+                    link_reused_derivations(
+                        session,
+                        processing_run_id=run_id,
+                        source_processing_run_id=source_run_id,
+                        document_id=document_id,
+                        project_id=project_id,
+                        spans=spans,
+                    )
+                else:
+                    _, extracted, cleaned, spans, extractor_version = canonical
+                    persist_derivations(
+                        session,
+                        project_id=project_id,
+                        document_id=document_id,
+                        processing_run_id=run_id,
+                        extracted=extracted,
+                        cleaned=cleaned,
+                        extractor_version=extractor_version,
+                        spans=spans,
+                    )
             job.status = "succeeded"
             job.chunk_count = len(chunks)
             job.progress = 100

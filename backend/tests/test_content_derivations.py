@@ -20,7 +20,7 @@ from app.ingestion_content import (
 )
 from app.ingestion_content.contracts import BoundingBox, CanonicalBlock
 from app.ingestion_content.cleaning import default_structure_steps
-from app.schemas.ingestion import ChunkNodeV2, CleanNodeV2
+from app.schemas.ingestion import CharacterChunkNodeV2, CleanNodeV2
 from app.services.confluence_ingestion import _canonical_chunks as confluence_chunks
 from app.services.notion_ingestion import _canonical_chunks as notion_chunks
 from app.services.s3_ingestion import _canonical_chunks as s3_chunks
@@ -99,7 +99,7 @@ def test_all_v2_connectors_emit_canonical_ir_and_exact_lineage(tmp_path):
         config_version="structure-clean-v1",
         steps=default_structure_steps(),
     )
-    chunk = ChunkNodeV2(id="chunk", type="chunk", size=100, overlap=10)
+    chunk = CharacterChunkNodeV2(id="chunk", type="chunk", size=100, overlap=10)
     current = datetime.now(UTC)
     content = "Canonical connector content. " * 12
     second_content = "A different canonical section. " * 12

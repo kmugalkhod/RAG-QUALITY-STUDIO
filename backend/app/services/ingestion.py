@@ -13,8 +13,9 @@ from app.models.ingestion import IngestionRun, IngestionRunItem, IngestionRunNod
 from app.models.project import Project
 from app.models.source import SourceRevision, WebsiteRunItem
 from app.ingestion_content import (
-    CHARACTER_CHUNKER_VERSION,
     cleaner_for_node,
+    chunker_version_for_node,
+    derivation_identity,
     processing_identity,
 )
 from app.ingestion_content.extractors import extractor_version_for_settings
@@ -62,14 +63,30 @@ def _processing_spec(execution: IngestionExecution):
     extract = next(node for node in execution.nodes if node.type == "extract")
     clean = next(node for node in execution.nodes if node.type == "clean")
     chunk = next(node for node in execution.nodes if node.type == "chunk")
-    return processing_identity(
+    extract_value = extract.model_dump(mode="json", exclude={"id", "type"})
+    clean_value = clean.model_dump(mode="json", exclude={"id", "type"})
+    chunk_value = chunk.model_dump(mode="json", exclude={"id", "type"})
+    cleaner_version = cleaner_for_node(clean).version
+    extractor_version = extractor_version_for_settings(extract)
+    value, config_hash = processing_identity(
         schema_version=execution.schema_version,
-        extractor_version=extractor_version_for_settings(extract),
-        cleaner_version=cleaner_for_node(clean).version,
-        chunker_version=CHARACTER_CHUNKER_VERSION,
-        extract=extract.model_dump(mode="json", exclude={"id", "type"}),
-        clean=clean.model_dump(mode="json", exclude={"id", "type"}),
-        chunk=chunk.model_dump(mode="json", exclude={"id", "type"}),
+        extractor_version=extractor_version,
+        cleaner_version=cleaner_version,
+        chunker_version=chunker_version_for_node(chunk),
+        extract=extract_value,
+        clean=clean_value,
+        chunk=chunk_value,
+    )
+    return (
+        value,
+        config_hash,
+        derivation_identity(
+            schema_version=execution.schema_version,
+            extractor_version=extractor_version,
+            cleaner_version=cleaner_version,
+            extract=extract_value,
+            clean=clean_value,
+        ),
     )
 
 
@@ -88,13 +105,29 @@ def _compatible_processing(
             and _processing_matches(latest, chunk.size, chunk.overlap)
             else None
         )
-    _, config_hash = spec
+    _, config_hash, _ = spec
     return session.scalar(
         select(ProcessingRun)
         .where(
             ProcessingRun.document_id == document_id,
             ProcessingRun.status == "succeeded",
             ProcessingRun.processing_config_hash == config_hash,
+        )
+        .order_by(ProcessingRun.version.desc())
+        .limit(1)
+    )
+
+
+def _compatible_derivation(session, document_id, spec):
+    if spec is None:
+        return None
+    derivation_hash = spec[2]
+    return session.scalar(
+        select(ProcessingRun)
+        .where(
+            ProcessingRun.document_id == document_id,
+            ProcessingRun.status == "succeeded",
+            ProcessingRun.derivation_config_hash == derivation_hash,
         )
         .order_by(ProcessingRun.version.desc())
         .limit(1)
@@ -482,6 +515,7 @@ def start_run(
         processing_created = compatible is None
         if processing_created:
             spec = _processing_spec(execution)
+            reusable = _compatible_derivation(session, document.id, spec)
             processing = ProcessingRun(
                 document_id=document.id,
                 version=(latest.version if latest is not None else 0) + 1,
@@ -496,6 +530,8 @@ def start_run(
                 ),
                 processing_config=spec[0] if spec else None,
                 processing_config_hash=spec[1] if spec else None,
+                derivation_config_hash=spec[2] if spec else None,
+                reused_from_processing_run_id=(reusable.id if reusable else None),
             )
             session.add(processing)
             session.flush()

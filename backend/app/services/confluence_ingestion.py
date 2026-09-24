@@ -10,6 +10,7 @@ from app.ingestion_content import (
     chunk_cleaned_document,
     clean_document,
     cleaner_for_node,
+    chunker_version_for_node,
     processing_identity,
 )
 from app.pipelines.parsing import MAX_CHUNKS, PARSER_VERSION, ProcessingError
@@ -36,7 +37,7 @@ def processing_configuration(chunk, clean, extract=None):
         schema_version=2 if getattr(clean, "profile", None) else 1,
         extractor_version=f"confluence-storage-{PARSER_VERSION}",
         cleaner_version=cleaner.version,
-        chunker_version=CharacterWindowChunker.version,
+        chunker_version=chunker_version_for_node(chunk),
         extract={
             "strategy": "confluence_storage",
             "pipeline": (
@@ -240,4 +241,5 @@ def persist_artifact(
         ),
         prior_revision,
         prepare,
+        reuse_stage=phase_callback,
     )

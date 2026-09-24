@@ -8,7 +8,7 @@ Pipeline collections accept `kind=answer` or `kind=ingestion`; executable answer
 
 ## Existing Files ingestion
 
-Upload and successfully process PDF/TXT documents first. In **Pipelines → Ingestion pipelines**, select explicit files, choose character chunk settings and a new or existing knowledge set, preview the server decision, save a version, then run that exact version. Matching processing runs are reused; changed chunk settings create new document processing versions. The dispatcher coordinates processing and indexing through the existing Celery worker.
+Upload and successfully process PDF/TXT documents first. In **Pipelines → Ingestion pipelines**, select explicit files, choose a chunking profile and a new or existing knowledge set, preview the server decision, save a version, then run that exact version. Matching processing runs are reused; a chunk-only change reuses compatible immutable extracted and cleaned derivations instead of parsing and cleaning again. The dispatcher coordinates processing and indexing through the existing Celery worker.
 
 Preview uses `POST /api/projects/{project_id}/ingestion-previews`, returns 202 with a durable preview ID and performs no processing or embedding. Poll `GET /api/projects/{project_id}/source-previews/{preview_id}`, page its `/items`, or POST `/cancel`. Existing Files execution starts with `POST /api/projects/{project_id}/pipelines/{pipeline_id}/versions/{version_id}/ingestion-runs`; poll `GET /api/projects/{project_id}/ingestion-runs/{run_id}` and page its `/items`. Run/index execution tokens and snapshots are intentionally absent from API reads.
 
@@ -27,6 +27,31 @@ with bounded pagination. The response is reconstructed from immutable block deri
 and includes the transform chain; it is not an editable or raw-artifact endpoint. Safe
 validation errors identify invalid step ordering and fields. Do not add arbitrary CSS,
 regular expressions, code or secrets to transform settings.
+
+## Structure-aware chunking
+
+New schema-v2 drafts default to **Section-aware tokens**. The registered
+`utf8-byte-v1` tokenizer provides a stable, conservative model-independent bound;
+tokenizer ID and chunker version are saved in processing identity. Section-aware
+chunking respects canonical heading paths and prefers paragraph and sentence boundaries.
+The hard maximum remains authoritative, so an oversized protected list, code block or
+table row is split deterministically and reported as a finding instead of being silently
+oversized.
+
+**Parent and child** stores larger parent evidence alongside smaller retrieval children.
+Only children are embedded and indexed. A matching child supplies its exact persisted
+parent text to generation while the response retains both ordinals and the matched child
+text for auditability. Heading paths may prefix embedding text, but never mutate citation
+evidence. **Character window** remains available for historical compatibility.
+
+Completed runs expose a **Chunks** tab at
+`GET /api/projects/{project_id}/processing-runs/{processing_run_id}/chunks`. It pages
+faithful evidence, embedding-only prefixes, token counts, role/parent linkage, exact
+source spans and bounded findings, with indexed/parent counts and min/median/p95/max
+distribution. Creating an index variant from a ready source snapshot consumes its exact
+immutable revisions and does not invoke the connector or refetch the source. Different
+chunk or embedding settings still create new processing/provider work and a separate
+immutable index version.
 
 ## Website ingestion and refresh
 
