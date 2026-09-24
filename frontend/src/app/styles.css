@@ -3938,6 +3938,92 @@ summary {
 .app-shell .ingestion-results p {
   color: var(--muted-foreground);
 }
+.app-shell .cleaning-profile-heading,
+.app-shell .cleaning-transform-heading,
+.app-shell .cleaning-diff-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.app-shell .cleaning-profile-heading p {
+  margin: 4px 0 0;
+}
+.app-shell .cleaning-transform-list,
+.app-shell .cleaning-audit-list,
+.app-shell .cleaning-diff-list {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.app-shell .cleaning-transform-card,
+.app-shell .cleaning-audit-list li,
+.app-shell .cleaning-diff-list > li {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--muted);
+}
+.app-shell .cleaning-transform-heading > label {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+}
+.app-shell .cleaning-transform-heading > label span,
+.app-shell .cleaning-audit-list li {
+  display: grid;
+  gap: 3px;
+}
+.app-shell .cleaning-transform-heading small,
+.app-shell .cleaning-audit-list small,
+.app-shell .cleaning-diff-list small {
+  color: var(--muted-foreground);
+  overflow-wrap: anywhere;
+}
+.app-shell .cleaning-transform-actions,
+.app-shell .cleaning-transform-add {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.app-shell .cleaning-transform-add select {
+  min-width: 0;
+}
+.app-shell .cleaning-transform-grid,
+.app-shell .cleaning-diff-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.app-shell .cleaning-transform-grid > label,
+.app-shell .cleaning-transform-card > label,
+.app-shell .cleaning-transform-add {
+  display: grid;
+  gap: 7px;
+  font-size: 12px;
+}
+.app-shell .cleaning-diff-columns section {
+  min-width: 0;
+}
+.app-shell .cleaning-diff-columns pre {
+  min-height: 54px;
+  margin: 5px 0 0;
+  padding: 10px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--background);
+  font: inherit;
+}
 .app-shell .legacy-upgrade-note {
   margin: 0;
   padding: 9px 24px;
@@ -4225,6 +4311,21 @@ summary {
     scroll-margin-top: 200px;
   }
   .app-shell .content-page-inspector {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .app-shell .cleaning-profile-heading,
+  .app-shell .cleaning-transform-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .app-shell .cleaning-transform-grid,
+  .app-shell .cleaning-diff-columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .app-shell .cleaning-transform-actions {
+    justify-content: flex-start;
+  }
+  .app-shell .cleaning-transform-add {
     grid-template-columns: minmax(0, 1fr);
   }
   .app-shell .ingestion-published-index {

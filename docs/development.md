@@ -12,6 +12,22 @@ Upload and successfully process PDF/TXT documents first. In **Pipelines → Inge
 
 Preview uses `POST /api/projects/{project_id}/ingestion-previews`, returns 202 with a durable preview ID and performs no processing or embedding. Poll `GET /api/projects/{project_id}/source-previews/{preview_id}`, page its `/items`, or POST `/cancel`. Existing Files execution starts with `POST /api/projects/{project_id}/pipelines/{pipeline_id}/versions/{version_id}/ingestion-runs`; poll `GET /api/projects/{project_id}/ingestion-runs/{run_id}` and page its `/items`. Run/index execution tokens and snapshots are intentionally absent from API reads.
 
+## Structure-aware cleaning
+
+New schema-v2 drafts obtain the named cleaning profile and ordered default transforms
+from the extractor-capabilities response. The Clean node is an immutable execution
+configuration after save: enable, add, remove or move transforms only in a draft, then
+save a new pipeline version. **Reset profile** replaces draft settings with the current
+server profile and never saves automatically. `standard-v1` remains available only for
+existing compatibility versions or explicit upgraded drafts.
+
+Completed schema-v2 run items expose Extracted, Cleaned and Changes tabs. Changes are
+read through `GET /api/projects/{project_id}/processing-runs/{processing_run_id}/cleaning-diff`
+with bounded pagination. The response is reconstructed from immutable block derivations
+and includes the transform chain; it is not an editable or raw-artifact endpoint. Safe
+validation errors identify invalid step ordering and fields. Do not add arbitrary CSS,
+regular expressions, code or secrets to transform settings.
+
 ## Website ingestion and refresh
 
 Choose Website as the source, then select a single URL, URL list, crawl start or sitemap. Configure exact allowed origins and optional include/exclude path prefixes plus page/depth, response/total byte, timeout/deadline, request-rate, concurrency and redirect bounds. robots.txt is enabled by default. Preview reports included, excluded, duplicate and failed canonical URLs without rendering fetched HTML. Public DNS and every redirect are revalidated; private, loopback, link-local, multicast, reserved, unspecified and metadata destinations are rejected.

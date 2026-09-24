@@ -77,6 +77,67 @@ export type ConfluenceConfig = {
 
 type NodeBase = { id: string };
 
+export type CleaningTransform =
+  | {
+      id: string;
+      type: 'preserve_structure';
+      enabled: boolean;
+      block_types: ('table' | 'list_item' | 'code' | 'quote' | 'footnote')[];
+    }
+  | { id: string; type: 'unicode_normalize'; enabled: boolean; form: 'NFC' | 'NFKC' }
+  | { id: string; type: 'remove_control_characters'; enabled: boolean }
+  | {
+      id: string;
+      type: 'reflow_pdf_lines';
+      enabled: boolean;
+      block_types: ('paragraph' | 'unknown')[];
+    }
+  | { id: string; type: 'dehyphenate'; enabled: boolean; mode: 'conservative' }
+  | {
+      id: string;
+      type: 'remove_repeated_headers_footers';
+      enabled: boolean;
+      minimum_page_ratio: number;
+      minimum_pages: number;
+      margin_ratio: number;
+    }
+  | {
+      id: string;
+      type: 'remove_empty_blocks';
+      enabled: boolean;
+      minimum_characters: number;
+    }
+  | {
+      id: string;
+      type: 'remove_literal_boilerplate';
+      enabled: boolean;
+      values: string[];
+      block_types: string[];
+    }
+  | {
+      id: string;
+      type: 'website_selectors';
+      enabled: boolean;
+      include: string[];
+      exclude: string[];
+    }
+  | {
+      id: string;
+      type: 'website_main_content';
+      enabled: boolean;
+      remove_semantic_chrome: boolean;
+      remove_cookie_banners: boolean;
+      remove_repeated_site_chrome: boolean;
+      minimum_page_ratio: number;
+    }
+  | {
+      id: string;
+      type: 'validate_useful_content';
+      enabled: boolean;
+      minimum_characters: number;
+      maximum_characters: number;
+    };
+
 export type IngestionNode =
   | (NodeBase & {
       type: 'source';
@@ -105,8 +166,9 @@ export type IngestionNode =
       minimum_text_chars?: number;
       maximum_text_chars?: number;
       exact_content_deduplication?: boolean;
-      profile?: 'standard-v1';
+      profile?: 'standard-v1' | 'structure-aware-v1';
       config_version?: string;
+      steps?: CleaningTransform[];
     })
   | (NodeBase & {
       type: 'chunk';
@@ -328,6 +390,14 @@ export type ContentDerivation = {
     version: string;
     changed_blocks: number;
     removed_blocks: number;
+    duration_ms?: number;
+    metrics?: Record<string, string | number | boolean>;
+    changes?: {
+      block_id: string;
+      action: 'rewritten' | 'removed' | 'retained';
+      reason: string;
+      count: number;
+    }[];
   }[];
   created_at: string;
 };
@@ -349,6 +419,23 @@ export type ExtractionCapabilities = {
   };
   table_modes: ('preserve' | 'markdown' | 'plain_text')[];
   quality_policies: ('default-v1' | 'strict-v1' | 'warn-v1')[];
+  cleaning_profiles: {
+    id: 'structure-aware-v1';
+    name: string;
+    config_version: 'structure-clean-v1';
+    steps: CleaningTransform[];
+  }[];
+};
+
+export type CleaningDiff = {
+  block_id: string;
+  block_type: string;
+  page_number: number | null;
+  before_text: string;
+  after_text: string | null;
+  action: 'unchanged' | 'rewritten' | 'removed';
+  transforms: string[];
+  reasons: string[];
 };
 
 export type ContentBlock = {

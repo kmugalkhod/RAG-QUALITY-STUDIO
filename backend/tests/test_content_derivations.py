@@ -19,6 +19,7 @@ from app.ingestion_content import (
     clean_document,
 )
 from app.ingestion_content.contracts import BoundingBox, CanonicalBlock
+from app.ingestion_content.cleaning import default_structure_steps
 from app.schemas.ingestion import ChunkNodeV2, CleanNodeV2
 from app.services.confluence_ingestion import _canonical_chunks as confluence_chunks
 from app.services.notion_ingestion import _canonical_chunks as notion_chunks
@@ -91,7 +92,13 @@ def test_canonical_contracts_reject_malformed_geometry_and_metadata():
 
 
 def test_all_v2_connectors_emit_canonical_ir_and_exact_lineage(tmp_path):
-    clean = CleanNodeV2(id="clean", type="clean")
+    clean = CleanNodeV2(
+        id="clean",
+        type="clean",
+        profile="structure-aware-v1",
+        config_version="structure-clean-v1",
+        steps=default_structure_steps(),
+    )
     chunk = ChunkNodeV2(id="chunk", type="chunk", size=100, overlap=10)
     current = datetime.now(UTC)
     content = "Canonical connector content. " * 12

@@ -12,6 +12,7 @@ import {
   listIngestionRunItems,
   listContentBlocks,
   listContentDerivations,
+  listCleaningDiff,
   listSourcePreviewItems,
   listIngestionSchedules,
   previewIngestion,
@@ -94,6 +95,7 @@ test('uses project-scoped canonical content inspection endpoints', async () => {
   await getExtractionCapabilities('project');
   await listContentDerivations('project', 'processing');
   await listContentBlocks('project', 'derivation', 20);
+  await listCleaningDiff('project', 'processing', 40);
 
   expect(fetch).toHaveBeenNthCalledWith(
     1,
@@ -108,6 +110,11 @@ test('uses project-scoped canonical content inspection endpoints', async () => {
   expect(fetch).toHaveBeenNthCalledWith(
     3,
     '/api/projects/project/content-derivations/derivation/blocks?offset=20',
+    expect.anything(),
+  );
+  expect(fetch).toHaveBeenNthCalledWith(
+    4,
+    '/api/projects/project/processing-runs/processing/cleaning-diff?offset=40',
     expect.anything(),
   );
   expect(contentPageThumbnailUrl('project', 'processing', 2)).toBe(

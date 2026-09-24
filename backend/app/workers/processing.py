@@ -20,7 +20,7 @@ from app.ingestion_content import (
 from app.ingestion_content.extractors import extract_document
 from app.models.document import Chunk, Document, ProcessingRun
 from app.pipelines.parsing import MAX_CHUNKS, ProcessingError, pages, windows
-from app.schemas.ingestion import ExtractNodeV2
+from app.schemas.ingestion import CleanNodeV2, ExtractNodeV2
 from app.services import ingestion_execution
 from app.services.derivations import persist_derivations
 from app.workers.celery_app import celery
@@ -35,7 +35,9 @@ def _v2_chunks(job, path, media, title, on_stage, cancelled=None):
     extract_config = ExtractNodeV2.model_validate(
         {"id": "extract", "type": "extract", **config.get("extract", {})}
     )
-    clean_config = SimpleNamespace(**config.get("clean", {}))
+    clean_config = CleanNodeV2.model_validate(
+        {"id": "clean", "type": "clean", **config.get("clean", {})}
+    )
     chunk_config = SimpleNamespace(**config.get("chunk", {}))
     cleaner = DeterministicCleaner(CleanSemantics.STANDARD_V1)
     extracted, extractor_version = extract_document(

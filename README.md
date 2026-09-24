@@ -154,10 +154,20 @@ See [milestone progress](docs/implementation-plan.md) and [architecture](docs/ar
 1. Create/open a project by clicking its name.
 2. Select one PDF or UTF-8 TXT and upload it. The default limit is 20 MiB; `MAX_UPLOAD_BYTES` configures the backend and displayed UI limit (up to 100 MiB).
 3. Set chunk size (1–100,000 characters) and overlap (0 to size minus one), then **Start processing**. A saved version appears in history; status/progress come from PostgreSQL.
-4. Inspect completed chunks. PDF page numbers and page-relative character offsets accompany exact extracted text. Schema-v2 ingestion runs also expose extracted/cleaned blocks, page origin, quality findings, structured tables and safe page overlays. Use the pagination controls for longer documents.
+4. Inspect completed chunks. PDF page numbers and page-relative character offsets accompany exact extracted text. Schema-v2 ingestion runs also expose extracted/cleaned blocks, page origin, quality findings, structured tables, safe page overlays and an attributed before/after cleaning diff. Use the pagination controls for longer documents.
 5. Cancel queued/running work when needed. Failed/cancelled runs can be retried with **Start processing**, preserving the earlier version. Reprocessing a successful document also saves a new version.
 
 Legacy processing still rejects a scanned PDF explicitly. A schema-v2 ingestion pipeline can select bounded Automatic fallback or Always OCR when the configured local language pack is available. Malformed/encrypted PDFs fail in the worker. Empty/invalid UTF-8 TXT, byte/type mismatches and unsupported files fail safely. Duplicate uploads are separate documents. If a response is interrupted, refresh before retrying to avoid accidental duplicates.
+
+New schema-v2 drafts use the named structure-aware cleaning profile. Its transforms run
+in the saved order and can be enabled, configured, moved, added or removed before saving;
+resetting the profile only changes the draft. NFC is the default, while NFKC is explicit.
+PDF line operations stay within compatible paragraph blocks, and table/list/code/quote/
+footnote blocks are protected. Website selectors accept only the documented bounded
+subset. Every visible rewrite/removal is recorded in the completed run; existing
+`standard-v1` and schema-v1 versions retain their historical behavior. The measured
+release sample and caveats are in the
+[cleaning corpus baseline](docs/cleaning-corpus-baseline.md).
 
 Fixed windows are measured in Unicode code points, preserve whitespace, and never cross PDF page boundaries. The final window ends at the source end without adding an overlap-only tail. TXT removes an optional initial BOM. For detailed boundaries, limits and extraction caveats, see [architecture](docs/architecture.md#versioning-and-deterministic-parsing).
 

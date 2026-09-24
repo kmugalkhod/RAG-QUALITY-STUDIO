@@ -75,6 +75,54 @@ describe('ingestion editor model', () => {
     });
   });
 
+  test('uses the named server-supported structure profile for a new draft', () => {
+    const draft = defaultIngestionDraft(
+      {
+        provider: 'test',
+        model: 'embedding-v1',
+        dimensions: 3,
+        revision: '1',
+        endpoint_id: 'endpoint-1',
+      },
+      ['document-1'],
+      {
+        schema_version: 1,
+        media_types: ['application/pdf', 'text/plain'],
+        profiles: [],
+        ocr: {
+          available: false,
+          languages: [],
+          reason: 'Unavailable',
+          max_pages: 100,
+          max_pixels_per_page: 20_000_000,
+        },
+        table_modes: ['preserve'],
+        quality_policies: ['default-v1'],
+        cleaning_profiles: [
+          {
+            id: 'structure-aware-v1',
+            name: 'Structure-aware standard',
+            config_version: 'structure-clean-v1',
+            steps: [
+              {
+                id: 'validate',
+                type: 'validate_useful_content',
+                enabled: true,
+                minimum_characters: 1,
+                maximum_characters: 2_000_000,
+              },
+            ],
+          },
+        ],
+      },
+    );
+    expect(draft.execution.nodes.find((node) => node.type === 'clean')).toMatchObject({
+      profile: 'structure-aware-v1',
+      config_version: 'structure-clean-v1',
+      steps: [{ type: 'validate_useful_content' }],
+    });
+  });
+
   test('keeps concise stage descriptions stable', () => {
     const draft = defaultIngestionDraft(
       {

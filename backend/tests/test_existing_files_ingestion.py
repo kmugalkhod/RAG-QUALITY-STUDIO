@@ -38,6 +38,7 @@ def ingestion_draft(
     schema_version=1,
     normalize_whitespace=True,
     repeated_boilerplate=None,
+    clean_steps=None,
 ):
     nodes = [
         {
@@ -61,8 +62,13 @@ def ingestion_draft(
             "repeated_boilerplate": repeated_boilerplate or [],
             **(
                 {
-                    "profile": "standard-v1",
-                    "config_version": "deterministic-clean-v1",
+                    "profile": ("structure-aware-v1" if clean_steps else "standard-v1"),
+                    "config_version": (
+                        "structure-clean-v1"
+                        if clean_steps
+                        else "deterministic-clean-v1"
+                    ),
+                    **({"steps": clean_steps} if clean_steps else {}),
                 }
                 if schema_version == 2
                 else {}
@@ -767,6 +773,86 @@ def test_v2_existing_files_executes_clean_config_and_reuses_exact_identity(
     assert reused_item["processing_created"] is False
     assert reused_item["processing_run_id"] == item["processing_run_id"]
     assert reused_item["processing_versions"]["cleaner"] == "deterministic-clean-v1"
+
+
+def test_v2_structure_cleaning_persists_audits_and_reconstructs_scoped_diff(
+    ingestion_api,
+):
+    from app.ingestion_content.cleaning import default_structure_steps
+
+    client, engine, project_id, other_project_id, config, _ = ingestion_api
+    content = ("Cafe\u0301\ufeff inter-\nnational REMOVE\n" * 8).encode()
+    document = upload(client, project_id, content=content, name="structure-clean.txt")
+    steps = default_structure_steps()
+    steps.insert(
+        -1,
+        {
+            "id": "literal",
+            "type": "remove_literal_boilerplate",
+            "enabled": True,
+            "values": ["REMOVE"],
+            "block_types": ["unknown"],
+        },
+    )
+    payload = ingestion_draft(
+        [document["id"]],
+        config,
+        name="Structure cleaned",
+        schema_version=2,
+        clean_steps=steps,
+    )
+    version = client.post(f"/api/projects/{project_id}/pipelines", json=payload)
+    assert version.status_code == 201, version.text
+    started = client.post(
+        f"/api/projects/{project_id}/pipelines/{version.json()['pipeline_id']}"
+        f"/versions/{version.json()['id']}/ingestion-runs"
+    )
+    assert started.status_code == 202, started.text
+    item = client.get(
+        f"/api/projects/{project_id}/ingestion-runs/{started.json()['id']}/items"
+    ).json()["items"][0]
+    assert item["processing_versions"]["cleaner"] == "structure-clean-v1"
+    process(UUID(item["processing_run_id"]), engine)
+
+    derivations = client.get(
+        f"/api/projects/{project_id}/processing-runs/"
+        f"{item['processing_run_id']}/derivations"
+    ).json()["items"]
+    cleaned_derivation = next(
+        value for value in derivations if value["kind"] == "cleaned"
+    )
+    assert cleaned_derivation["engine_version"] == "structure-clean-v1"
+    assert [audit["transform"] for audit in cleaned_derivation["transforms"]][0:3] == [
+        "preserve_structure",
+        "unicode_normalize",
+        "remove_control_characters",
+    ]
+    assert any(
+        audit["transform"] == "remove_literal_boilerplate"
+        and audit["changed_blocks"] == 1
+        for audit in cleaned_derivation["transforms"]
+    )
+
+    diff = client.get(
+        f"/api/projects/{project_id}/processing-runs/"
+        f"{item['processing_run_id']}/cleaning-diff?limit=1"
+    )
+    assert diff.status_code == 200, diff.text
+    assert diff.json()["total"] == 1
+    change = diff.json()["items"][0]
+    assert change["action"] == "rewritten"
+    assert "Cafe\u0301" in change["before_text"]
+    assert "Café" in change["after_text"]
+    assert "REMOVE" not in change["after_text"]
+    assert "unicode_normalize" in change["transforms"]
+    assert "remove_literal_boilerplate" in change["transforms"]
+    assert (
+        client.get(
+            f"/api/projects/{other_project_id}/processing-runs/"
+            f"{item['processing_run_id']}/cleaning-diff"
+        ).status_code
+        == 404
+    )
 
 
 def test_existing_file_discovery_order_and_stale_recovery(ingestion_api):

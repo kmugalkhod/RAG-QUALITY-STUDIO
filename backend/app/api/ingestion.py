@@ -16,6 +16,7 @@ from app.schemas.ingestion import (
     SourcePreviewRead,
 )
 from app.schemas.derivation import (
+    CleaningDiffPage,
     ChunkBlockSpanList,
     ContentBlockPage,
     ContentDerivationList,
@@ -166,6 +167,22 @@ def list_content_blocks(
     offset: Offset = 0,
 ):
     return derivations.list_blocks(session, project_id, derivation_id, limit, offset)
+
+
+@router.get(
+    "/processing-runs/{processing_run_id}/cleaning-diff",
+    response_model=CleaningDiffPage,
+)
+def list_cleaning_diff(
+    project_id: UUID,
+    processing_run_id: UUID,
+    session: Database,
+    limit: Limit = 20,
+    offset: Offset = 0,
+):
+    return derivations.list_cleaning_diff(
+        session, project_id, processing_run_id, limit, offset
+    )
 
 
 @router.get(

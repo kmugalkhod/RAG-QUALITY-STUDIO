@@ -8,6 +8,7 @@ import type {
   IngestionSchedule,
   ContentBlock,
   ContentDerivation,
+  CleaningDiff,
   ExtractionCapabilities,
   SourcePreview,
   SourcePreviewItem,
@@ -152,6 +153,16 @@ export function listContentBlocks(
 ): Promise<Page<ContentBlock>> {
   return request<Page<ContentBlock>>(
     `/projects/${encodeURIComponent(projectId)}/content-derivations/${encodeURIComponent(derivationId)}/blocks?offset=${offset}`,
+  );
+}
+
+export function listCleaningDiff(
+  projectId: string,
+  processingRunId: string,
+  offset = 0,
+): Promise<Page<CleaningDiff>> {
+  return request<Page<CleaningDiff>>(
+    `/projects/${encodeURIComponent(projectId)}/processing-runs/${encodeURIComponent(processingRunId)}/cleaning-diff?offset=${offset}`,
   );
 }
 

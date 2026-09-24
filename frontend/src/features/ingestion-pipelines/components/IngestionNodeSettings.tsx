@@ -4,7 +4,6 @@ import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
 import { Label } from '../../../components/ui/label';
 import { NativeSelect, NativeSelectOption } from '../../../components/ui/native-select';
-import { Textarea } from '../../../components/ui/textarea';
 import type { ConnectionSettings, SourceConnection } from '../../connections/model';
 import type { Document, KnowledgeSet } from '../../documents/model';
 import { ingestionStageLabels as labels } from '../editorModel';
@@ -15,6 +14,7 @@ import type {
   IngestionPipelineVersion,
 } from '../model';
 import { ConfluenceSettings, NotionSettings, S3Settings, WebsiteSettings } from './SourceSettings';
+import { CleaningTransformSettings } from './CleaningTransformSettings';
 
 type SourceKind = 'existing_files' | 'website' | 's3' | 'notion' | 'confluence';
 
@@ -649,95 +649,13 @@ export function IngestionNodeSettings({
                 <dd>{selected.repeated_boilerplate?.length ?? 0}</dd>
               </dl>
             ) : (
-              <>
-                <label className="ingestion-document-option">
-                  <input
-                    type="checkbox"
-                    checked={selected.normalize_whitespace !== false}
-                    onChange={(event) =>
-                      updateNode(selected.id, (node) =>
-                        node.type === 'clean'
-                          ? { ...node, normalize_whitespace: event.target.checked }
-                          : node,
-                      )
-                    }
-                  />
-                  <span>
-                    <strong>Normalize whitespace</strong>
-                    <small>When off, source whitespace is preserved except literal removals.</small>
-                  </span>
-                </label>
-                <label className="ingestion-document-option">
-                  <input
-                    type="checkbox"
-                    checked={selected.exact_content_deduplication !== false}
-                    onChange={(event) =>
-                      updateNode(selected.id, (node) =>
-                        node.type === 'clean'
-                          ? { ...node, exact_content_deduplication: event.target.checked }
-                          : node,
-                      )
-                    }
-                  />
-                  <span>
-                    <strong>Exact-content deduplication</strong>
-                    <small>
-                      Skip an extracted segment only when its cleaned text is identical.
-                    </small>
-                  </span>
-                </label>
-                <Label>
-                  Minimum cleaned text (characters)
-                  <Input
-                    type="number"
-                    min={1}
-                    max={100000}
-                    value={selected.minimum_text_chars ?? 1}
-                    onChange={(event) =>
-                      updateNode(selected.id, (node) =>
-                        node.type === 'clean'
-                          ? { ...node, minimum_text_chars: Number(event.target.value) }
-                          : node,
-                      )
-                    }
-                  />
-                </Label>
-                <Label>
-                  Maximum cleaned text (characters)
-                  <Input
-                    type="number"
-                    min={1}
-                    max={2_000_000}
-                    value={selected.maximum_text_chars ?? 2_000_000}
-                    onChange={(event) =>
-                      updateNode(selected.id, (node) =>
-                        node.type === 'clean'
-                          ? { ...node, maximum_text_chars: Number(event.target.value) }
-                          : node,
-                      )
-                    }
-                  />
-                </Label>
-                <Label>
-                  Literal boilerplate removals
-                  <Textarea
-                    value={(selected.repeated_boilerplate ?? []).join('\n')}
-                    placeholder="One exact literal per line"
-                    onChange={(event) =>
-                      updateNode(selected.id, (node) =>
-                        node.type === 'clean'
-                          ? {
-                              ...node,
-                              repeated_boilerplate: event.target.value
-                                .split('\n')
-                                .filter((value) => value.length > 0),
-                            }
-                          : node,
-                      )
-                    }
-                  />
-                </Label>
-              </>
+              <CleaningTransformSettings
+                node={selected}
+                capabilities={extractionCapabilities}
+                update={(value) =>
+                  updateNode(selected.id, (node) => (node.type === 'clean' ? value : node))
+                }
+              />
             )}
           </div>
         )}

@@ -165,7 +165,18 @@ def clean_document(
     *,
     extractor_version: str,
     configuration_hash: str,
+    repeated_site_fingerprints: set[str] | None = None,
 ) -> CleanedDocumentV1:
+    if getattr(settings, "profile", None) == "structure-aware-v1":
+        from app.ingestion_content.cleaning import clean_structure_document
+
+        return clean_structure_document(
+            extracted,
+            settings,
+            extractor_version=extractor_version,
+            configuration_hash=configuration_hash,
+            repeated_site_fingerprints=repeated_site_fingerprints,
+        )
     blocks = []
     seen: set[str] = set()
     changed = 0

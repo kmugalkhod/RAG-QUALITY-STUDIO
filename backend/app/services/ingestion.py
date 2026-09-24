@@ -14,7 +14,7 @@ from app.models.project import Project
 from app.models.source import SourceRevision, WebsiteRunItem
 from app.ingestion_content import (
     CHARACTER_CHUNKER_VERSION,
-    STANDARD_CLEANER_VERSION,
+    cleaner_for_node,
     processing_identity,
 )
 from app.ingestion_content.extractors import extractor_version_for_settings
@@ -65,7 +65,7 @@ def _processing_spec(execution: IngestionExecution):
     return processing_identity(
         schema_version=execution.schema_version,
         extractor_version=extractor_version_for_settings(extract),
-        cleaner_version=STANDARD_CLEANER_VERSION,
+        cleaner_version=cleaner_for_node(clean).version,
         chunker_version=CHARACTER_CHUNKER_VERSION,
         extract=extract.model_dump(mode="json", exclude={"id", "type"}),
         clean=clean.model_dump(mode="json", exclude={"id", "type"}),

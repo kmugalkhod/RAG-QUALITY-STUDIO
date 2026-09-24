@@ -440,14 +440,223 @@ class ExtractNodeV2(NodeBase):
         return self
 
 
-class CleanNodeV2(LegacyCleanNode):
-    profile: Literal["standard-v1"] = "standard-v1"
-    config_version: Literal["deterministic-clean-v1"] = "deterministic-clean-v1"
+class CleaningTransformBase(Strict):
+    id: str = Field(min_length=1, max_length=80, pattern=r"^[a-zA-Z0-9_-]+$")
+    enabled: bool = True
+
+
+class PreserveStructureTransform(CleaningTransformBase):
+    type: Literal["preserve_structure"]
+    block_types: list[Literal["table", "list_item", "code", "quote", "footnote"]] = (
+        Field(
+            default_factory=lambda: ["table", "list_item", "code", "quote", "footnote"],
+            min_length=1,
+            max_length=5,
+        )
+    )
 
     @model_validator(mode="after")
-    def nonblank_boilerplate(self):
+    def unique_types(self):
+        if len(set(self.block_types)) != len(self.block_types):
+            raise ValueError("Protected block types must be unique.")
+        return self
+
+
+class UnicodeNormalizeTransform(CleaningTransformBase):
+    type: Literal["unicode_normalize"]
+    form: Literal["NFC", "NFKC"] = "NFC"
+
+
+class RemoveControlCharactersTransform(CleaningTransformBase):
+    type: Literal["remove_control_characters"]
+
+
+class ReflowPdfLinesTransform(CleaningTransformBase):
+    type: Literal["reflow_pdf_lines"]
+    block_types: list[Literal["paragraph", "unknown"]] = Field(
+        default_factory=lambda: ["paragraph", "unknown"],
+        min_length=1,
+        max_length=2,
+    )
+
+
+class DehyphenateTransform(CleaningTransformBase):
+    type: Literal["dehyphenate"]
+    mode: Literal["conservative"] = "conservative"
+
+
+class RemoveRepeatedHeadersFootersTransform(CleaningTransformBase):
+    type: Literal["remove_repeated_headers_footers"]
+    minimum_page_ratio: float = Field(default=0.6, ge=0.5, le=1)
+    minimum_pages: int = Field(default=3, strict=True, ge=3, le=100)
+    margin_ratio: float = Field(default=0.12, gt=0, le=0.25)
+
+
+class RemoveEmptyBlocksTransform(CleaningTransformBase):
+    type: Literal["remove_empty_blocks"]
+    minimum_characters: int = Field(default=1, strict=True, ge=1, le=100)
+
+
+class RemoveLiteralBoilerplateTransform(CleaningTransformBase):
+    type: Literal["remove_literal_boilerplate"]
+    values: list[str] = Field(min_length=1, max_length=50)
+    block_types: list[
+        Literal[
+            "title",
+            "heading",
+            "paragraph",
+            "list_item",
+            "table",
+            "code",
+            "quote",
+            "image_caption",
+            "footnote",
+            "unknown",
+        ]
+    ] = Field(
+        default_factory=lambda: ["paragraph", "unknown"], min_length=1, max_length=10
+    )
+
+    @model_validator(mode="after")
+    def safe_literals(self):
+        if len(set(self.values)) != len(self.values) or any(
+            not value.strip() or len(value) > 500 for value in self.values
+        ):
+            raise ValueError(
+                "Literal boilerplate values must be unique and contain 1 to 500 visible characters."
+            )
+        if len(set(self.block_types)) != len(self.block_types):
+            raise ValueError("Literal boilerplate block types must be unique.")
+        return self
+
+
+_SAFE_SELECTOR = r"^(?:[a-z][a-z0-9-]*|\.[a-zA-Z0-9_-]+|#[a-zA-Z0-9_-]+|\[role=(?:main|navigation|banner|contentinfo|complementary|dialog|form)\])$"
+
+
+class WebsiteSelectorsTransform(CleaningTransformBase):
+    type: Literal["website_selectors"]
+    include: list[str] = Field(default_factory=list, max_length=20)
+    exclude: list[str] = Field(default_factory=list, max_length=20)
+
+    @model_validator(mode="after")
+    def safe_selectors(self):
+        import re
+
+        values = self.include + self.exclude
+        if not values:
+            raise ValueError(
+                "Website selectors require at least one include or exclude selector."
+            )
+        if len(set(values)) != len(values) or any(
+            len(value) > 80 or re.fullmatch(_SAFE_SELECTOR, value) is None
+            for value in values
+        ):
+            raise ValueError(
+                "Website selectors support only a bounded tag, .class, #id or approved [role=value] selector."
+            )
+        return self
+
+
+class WebsiteMainContentTransform(CleaningTransformBase):
+    type: Literal["website_main_content"]
+    remove_semantic_chrome: bool = True
+    remove_cookie_banners: bool = True
+    remove_repeated_site_chrome: bool = True
+    minimum_page_ratio: float = Field(default=0.6, ge=0.5, le=1)
+
+
+class ValidateUsefulContentTransform(CleaningTransformBase):
+    type: Literal["validate_useful_content"]
+    minimum_characters: int = Field(default=1, strict=True, ge=1, le=100_000)
+    maximum_characters: int = Field(default=2_000_000, strict=True, ge=1, le=2_000_000)
+
+    @model_validator(mode="after")
+    def ordered_bounds(self):
+        if self.minimum_characters > self.maximum_characters:
+            raise ValueError("Minimum useful content cannot exceed the maximum.")
+        return self
+
+
+CleaningTransform = Annotated[
+    PreserveStructureTransform
+    | UnicodeNormalizeTransform
+    | RemoveControlCharactersTransform
+    | ReflowPdfLinesTransform
+    | DehyphenateTransform
+    | RemoveRepeatedHeadersFootersTransform
+    | RemoveEmptyBlocksTransform
+    | RemoveLiteralBoilerplateTransform
+    | WebsiteSelectorsTransform
+    | WebsiteMainContentTransform
+    | ValidateUsefulContentTransform,
+    Field(discriminator="type"),
+]
+
+
+class CleanNodeV2(LegacyCleanNode):
+    profile: Literal["standard-v1", "structure-aware-v1"] = "standard-v1"
+    config_version: Literal["deterministic-clean-v1", "structure-clean-v1"] = (
+        "deterministic-clean-v1"
+    )
+    steps: list[CleaningTransform] = Field(
+        default_factory=list, max_length=20, exclude_if=lambda value: not value
+    )
+
+    @model_validator(mode="after")
+    def valid_profile_and_order(self):
         if any(not value.strip() for value in self.repeated_boilerplate):
             raise ValueError("Boilerplate values cannot contain only whitespace.")
+        if self.profile == "standard-v1":
+            if self.config_version != "deterministic-clean-v1" or self.steps:
+                raise ValueError(
+                    "standard-v1 requires deterministic-clean-v1 and no ordered transforms."
+                )
+            return self
+        if self.config_version != "structure-clean-v1":
+            raise ValueError(
+                "structure-aware-v1 requires the structure-clean-v1 engine."
+            )
+        if not self.steps:
+            raise ValueError(
+                "Structure-aware cleaning requires at least one transform."
+            )
+        ids = [step.id for step in self.steps]
+        types = [step.type for step in self.steps]
+        if len(set(ids)) != len(ids):
+            raise ValueError("Cleaning transform IDs must be unique.")
+        if len(set(types)) != len(types):
+            raise ValueError("Each cleaning transform type may appear only once.")
+        enabled = [step.type for step in self.steps if step.enabled]
+
+        def before(left: str, right: str):
+            if (
+                left in enabled
+                and right in enabled
+                and enabled.index(left) > enabled.index(right)
+            ):
+                raise ValueError(f"{left} must run before {right}.")
+
+        for later in (
+            "remove_control_characters",
+            "reflow_pdf_lines",
+            "dehyphenate",
+            "remove_literal_boilerplate",
+        ):
+            before("unicode_normalize", later)
+        before("preserve_structure", "reflow_pdf_lines")
+        before("preserve_structure", "dehyphenate")
+        before("preserve_structure", "remove_literal_boilerplate")
+        before("preserve_structure", "remove_empty_blocks")
+        before("reflow_pdf_lines", "dehyphenate")
+        before("remove_repeated_headers_footers", "remove_empty_blocks")
+        before("website_selectors", "website_main_content")
+        if (
+            "validate_useful_content" in enabled
+            and enabled[-1] != "validate_useful_content"
+        ):
+            raise ValueError(
+                "validate_useful_content must be the last enabled transform."
+            )
         return self
 
 

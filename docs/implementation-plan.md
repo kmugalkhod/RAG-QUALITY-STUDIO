@@ -1,5 +1,80 @@
 # Implementation plan
 
+## Robust ingestion roadmap — Phase 3 acceptance criteria (2026-09-24)
+
+Status: **Phase 3 complete on 2026-09-24** on
+`codex/robust-ingestion-roadmap`; Phase 4 is next.
+
+- Preserve `standard-v1` cleaning and every schema-v1/schema-v2 historical version.
+  Add a separately versioned `structure-aware-v1` profile whose ordered steps are a
+  strict discriminated union and whose configuration participates in processing identity.
+- Implement deterministic NFC/NFKC normalization, unsupported-control removal,
+  paragraph-only PDF line reflow, conservative line-position dehyphenation, positional
+  repeated header/footer removal, near-empty removal, block-scoped literal boilerplate,
+  bounded Website selectors, semantic/main-content and repeated-site-chrome removal,
+  protected block types and final useful-content bounds.
+- Validate unsafe selectors, duplicate transform IDs/types and incompatible ordering at
+  save time. Execute only enabled transforms in saved order; reset-to-profile remains an
+  unsaved editor action.
+- Keep extracted derivations immutable. Each cleaning transform records bounded block
+  change attribution, counts, metrics and duration; cleaned blocks retain source-block
+  parentage. Reconstruct paginated before/after diffs from immutable extracted/cleaned
+  blocks instead of persisting unbounded duplicate text.
+- Apply identical canonical transform semantics to Existing Files, Website, S3, Notion
+  and Confluence. Website extraction may add bounded non-executable semantic/selector
+  metadata and run-level repeated-site fingerprints, but must never execute HTML or CSS.
+- Expose an accessible ordered transform editor with add/remove/reorder/enable controls,
+  server-safe field validation, a named-profile reset, audit summary counts and a
+  before/after diff with rule attribution.
+- Verify positive/negative transform tables, header/footer precision, protected
+  structures, Unicode/multilingual preservation, ordering/hash rejection, selector
+  security, determinism/no-unlabelled-text/span invariants, connector parity, all
+  regressions and a real Agent Browser desktop/tablet/mobile journey.
+
+Phase 3 does not add Phase 4 token/semantic/parent-child chunking, Phase 5 near-duplicate
+clustering or Phase 6 sensitive-data policy.
+
+Implementation and verification evidence:
+
+- Schema-v2 now has a separately versioned `structure-aware-v1` cleaning profile with
+  strict ordered transform schemas. The engine implements NFC/NFKC normalization,
+  unsupported-control removal, conservative PDF reflow and dehyphenation, positional
+  repeated margins, empty/literal boilerplate removal, bounded Website selectors,
+  semantic/main-content and repeated-site-chrome handling, protected block behavior and
+  final useful-content bounds. Historical schema v1 and `standard-v1` execution remain
+  unchanged.
+- The exact transform order and settings participate in canonical processing identity.
+  Extracted derivations remain immutable; cleaned blocks retain parent IDs, and every
+  enabled transform records bounded changes, metrics and duration. The project-scoped
+  cleaning-diff API reconstructs paginated before/after text and ordered attribution
+  from immutable extracted and cleaned block rows, so no additional migration or
+  unbounded duplicate diff payload was needed.
+- Existing Files, Website, S3, Notion and Confluence route the same profile through the
+  application-owned cleaner. Website HTML becomes inert structured blocks with bounded
+  selector metadata and run-level fingerprints; scripts and styles are never executed.
+  Save-time validation rejects unsupported selectors, duplicate steps and incompatible
+  ordering.
+- The editor provides keyboard-labelled enable, add, remove and move controls, exact
+  profile reset, unsaved-state handling, server-safe settings, transform audit summaries
+  and an attributed Changes tab. New transforms insert before final validation instead
+  of creating an invalid draft.
+- The reviewed corpus removed all **22** labelled PDF/Website boilerplate blocks while
+  retaining all **16** reviewed body/protected blocks: **100% precision** and **100%
+  recall**, exceeding the 99%/90% release thresholds. Scope and limitations are in
+  [the cleaning corpus baseline](cleaning-corpus-baseline.md).
+- Backend Ruff format/lint passed. A fresh isolated PostgreSQL/pgvector run passed
+  **293 tests with 4 opt-in live tests skipped**; the only warning is the existing
+  upstream Starlette multipart deprecation. Frontend formatting, structure/ESLint,
+  strict TypeScript, all **112 Vitest tests across 30 files**, and the production build
+  passed.
+- Agent Browser performed a real upload, preview, immutable save and full live-embedding
+  run, then inspected the persisted audit and before/after diff. It found and drove fixes
+  for invalid add-after-validation ordering and incorrect persisted cleaner-version
+  metadata. A second run published index version 3 from processing version 2 with
+  `structure-clean-v1`; reset remained an unsaved action and discard restored the exact
+  saved version. Desktop (1440 px), tablet (1024 px) and mobile (390 px) had no horizontal
+  overflow or application errors.
+
 ## Robust ingestion roadmap — Phase 2 acceptance criteria (2026-09-24)
 
 Status: **Phase 2 complete on 2026-09-24** on

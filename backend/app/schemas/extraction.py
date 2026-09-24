@@ -4,6 +4,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
+from app.schemas.ingestion import CleaningTransform
+
 
 class Strict(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -23,6 +25,13 @@ class OcrCapability(Strict):
     max_pixels_per_page: int
 
 
+class CleaningProfileCapability(Strict):
+    id: Literal["structure-aware-v1"]
+    name: str
+    config_version: Literal["structure-clean-v1"]
+    steps: list[CleaningTransform]
+
+
 class ExtractionCapabilities(Strict):
     schema_version: Literal[1]
     media_types: list[Literal["application/pdf", "text/plain"]]
@@ -30,3 +39,4 @@ class ExtractionCapabilities(Strict):
     ocr: OcrCapability
     table_modes: list[Literal["preserve", "markdown", "plain_text"]]
     quality_policies: list[Literal["default-v1", "strict-v1", "warn-v1"]]
+    cleaning_profiles: list[CleaningProfileCapability]

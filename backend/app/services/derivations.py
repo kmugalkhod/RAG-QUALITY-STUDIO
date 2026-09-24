@@ -207,6 +207,85 @@ def list_blocks(
     return {"items": rows, "total": total, "limit": limit, "offset": offset}
 
 
+def list_cleaning_diff(
+    session: Session,
+    project_id: UUID,
+    processing_run_id: UUID,
+    limit: int,
+    offset: int,
+):
+    """Reconstruct a bounded diff from immutable block rows and transform audits."""
+
+    _require_run(session, project_id, processing_run_id)
+    derivation_rows = session.scalars(
+        select(ContentDerivation).where(
+            ContentDerivation.project_id == project_id,
+            ContentDerivation.processing_run_id == processing_run_id,
+        )
+    ).all()
+    by_kind = {row.kind: row for row in derivation_rows}
+    extracted = by_kind.get("extracted")
+    cleaned = by_kind.get("cleaned")
+    if extracted is None or cleaned is None:
+        return {"items": [], "total": 0, "limit": limit, "offset": offset}
+    total = session.scalar(
+        select(func.count()).where(ContentBlock.derivation_id == extracted.id)
+    )
+    before = session.scalars(
+        select(ContentBlock)
+        .where(ContentBlock.derivation_id == extracted.id)
+        .order_by(ContentBlock.ordinal)
+        .limit(limit)
+        .offset(offset)
+    ).all()
+    ids = [block.block_id for block in before]
+    after = (
+        session.scalars(
+            select(ContentBlock).where(
+                ContentBlock.derivation_id == cleaned.id,
+                ContentBlock.block_id.in_(ids),
+            )
+        ).all()
+        if ids
+        else []
+    )
+    cleaned_by_id = {block.block_id: block for block in after}
+    attribution: dict[str, list[tuple[str, str]]] = {}
+    for audit in cleaned.transforms or []:
+        transform = audit.get("transform")
+        if not isinstance(transform, str):
+            continue
+        for change in audit.get("changes") or []:
+            block_id = change.get("block_id")
+            reason = change.get("reason")
+            if isinstance(block_id, str) and isinstance(reason, str):
+                attribution.setdefault(block_id, []).append((transform, reason))
+    items = []
+    for block in before:
+        current = cleaned_by_id.get(block.block_id)
+        changes = attribution.get(block.block_id, [])
+        action = (
+            "removed"
+            if current is None
+            else "rewritten"
+            if current.text != block.text
+            else "unchanged"
+        )
+        items.append(
+            {
+                "block_id": block.block_id,
+                "block_type": block.block_type,
+                "page_number": block.page_number,
+                "before_text": block.text,
+                "after_text": current.text if current is not None else None,
+                "action": action,
+                "transforms": list(dict.fromkeys(value[0] for value in changes)),
+                "reasons": list(dict.fromkeys(value[1] for value in changes)),
+            }
+        )
+    return {"items": items, "total": total, "limit": limit, "offset": offset}
+
+
 def list_chunk_spans(
     session: Session,
     project_id: UUID,

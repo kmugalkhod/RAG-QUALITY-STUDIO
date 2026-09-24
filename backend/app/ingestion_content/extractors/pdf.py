@@ -145,6 +145,8 @@ def installed_ocr_languages() -> list[str]:
 
 
 def extraction_capabilities() -> dict[str, Any]:
+    from app.ingestion_content.cleaning import default_structure_steps
+
     languages = installed_ocr_languages()
     return {
         "schema_version": 1,
@@ -165,6 +167,14 @@ def extraction_capabilities() -> dict[str, Any]:
         },
         "table_modes": ["preserve", "markdown", "plain_text"],
         "quality_policies": ["default-v1", "strict-v1", "warn-v1"],
+        "cleaning_profiles": [
+            {
+                "id": "structure-aware-v1",
+                "name": "Structure-aware standard",
+                "config_version": "structure-clean-v1",
+                "steps": default_structure_steps(),
+            }
+        ],
     }
 
 

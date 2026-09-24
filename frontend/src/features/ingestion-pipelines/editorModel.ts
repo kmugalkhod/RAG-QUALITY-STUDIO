@@ -105,6 +105,7 @@ export function defaultIngestionDraft(
   documentIds: string[],
   capabilities?: ExtractionCapabilities,
 ): IngestionPipelineDraft {
+  const cleaningProfile = capabilities?.cleaning_profiles?.[0];
   const nodes: IngestionNode[] = [
     { id: 'source', type: 'source', config: { kind: 'existing_files', document_ids: documentIds } },
     {
@@ -132,8 +133,9 @@ export function defaultIngestionDraft(
       minimum_text_chars: 1,
       maximum_text_chars: 2_000_000,
       exact_content_deduplication: true,
-      profile: 'standard-v1',
-      config_version: 'deterministic-clean-v1',
+      profile: cleaningProfile?.id ?? 'standard-v1',
+      config_version: cleaningProfile?.config_version ?? 'deterministic-clean-v1',
+      steps: structuredClone(cleaningProfile?.steps ?? []),
     },
     {
       id: 'chunk',
@@ -231,7 +233,9 @@ export function describeIngestionNode(node: IngestionNode, documents: Document[]
     return `${strategy} · OCR ${node.ocr?.mode ?? 'off'}`;
   }
   if (node.type === 'clean') {
-    return 'Normalize and deduplicate';
+    return node.profile === 'structure-aware-v1'
+      ? `${node.steps?.filter((step) => step.enabled).length ?? 0} ordered transforms`
+      : 'Normalize and deduplicate';
   }
   return documents.length ? 'Configured' : 'Waiting';
 }

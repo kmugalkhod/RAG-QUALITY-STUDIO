@@ -71,3 +71,21 @@ class ChunkBlockSpanRead(ReadModel):
 class ChunkBlockSpanList(ReadModel):
     items: list[ChunkBlockSpanRead]
     total: int
+
+
+class CleaningDiffRead(ReadModel):
+    block_id: str
+    block_type: str
+    page_number: int | None
+    before_text: str
+    after_text: str | None
+    action: Literal["unchanged", "rewritten", "removed"]
+    transforms: list[str]
+    reasons: list[str]
+
+
+class CleaningDiffPage(ReadModel):
+    items: list[CleaningDiffRead]
+    total: int
+    limit: int
+    offset: int

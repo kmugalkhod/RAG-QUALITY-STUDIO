@@ -161,3 +161,37 @@ test('shows the safe per-item processing failure', () => {
   expect(screen.getAllByRole('alert')).toHaveLength(2);
   expect(screen.getByText(/Review the source and extraction settings/)).toBeVisible();
 });
+
+test('shows a reconstructed cleaning diff with transform attribution', async () => {
+  vi.mocked(api.listContentDerivations).mockResolvedValue({ items: [derivation], total: 1 });
+  vi.mocked(api.listContentBlocks).mockResolvedValue({ items: [], total: 0, limit: 20, offset: 0 });
+  vi.mocked(api.listCleaningDiff).mockResolvedValue({
+    items: [
+      {
+        block_id: 'd'.repeat(16),
+        block_type: 'paragraph',
+        page_number: 1,
+        before_text: 'inter-\nnational REMOVE',
+        after_text: 'international',
+        action: 'rewritten',
+        transforms: ['dehyphenate', 'remove_literal_boilerplate'],
+        reasons: ['dehyphenate', 'remove_literal_boilerplate'],
+      },
+    ],
+    total: 1,
+    limit: 20,
+    offset: 0,
+  });
+
+  render(<IngestionRunResults projectId="project-1" run={run} items={[item]} />);
+  fireEvent.click(screen.getByRole('button', { name: 'Inspect content' }));
+  await screen.findByRole('tab', { name: 'Extracted' });
+  fireEvent.click(screen.getByRole('tab', { name: 'Changes' }));
+
+  expect((await screen.findByLabelText('Before cleaning')).querySelector('pre')).toHaveTextContent(
+    /inter-\s*national REMOVE/,
+  );
+  expect(screen.getByText('international')).toBeVisible();
+  expect(screen.getByText(/dehyphenate → remove_literal_boilerplate/)).toBeVisible();
+  expect(api.listCleaningDiff).toHaveBeenCalledWith('project-1', 'processing-1');
+});

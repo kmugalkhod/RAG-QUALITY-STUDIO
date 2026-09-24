@@ -415,6 +415,35 @@ rows and their deterministic Markdown/plain-text evidence are both bounded. See 
 [reviewed corpus baseline](ingestion-corpus-baseline.md) for the exact release sample,
 thresholds and limitations.
 
+## Deterministic structure-aware cleaning (robust ingestion Phase 3, 2026-09-24)
+
+Schema-v2 cleaning now selects either the compatibility `standard-v1` implementation or
+the separately versioned `structure-aware-v1` profile. Structure-aware configuration is
+a strict ordered discriminated union. Transform IDs, types, settings, enabled state and
+order participate in the canonical processing hash; invalid duplicate or incompatible
+orders are rejected before save. The selected cleaner runtime version is derived from
+that profile and is persisted with the processing run rather than inferred from current
+defaults. Schema-v1 and existing standard-v1 hashes and output remain unchanged.
+
+The application-owned cleaner operates only on canonical blocks. It implements bounded
+Unicode/control cleanup, paragraph-only PDF reflow and dehyphenation, positional repeated
+margin detection, empty/literal removal, safe Website selector tokens, semantic/main and
+cross-page chrome removal, protected structure retention and final useful-content bounds.
+Website HTML is parsed into inert semantic blocks; scripts, styles and arbitrary CSS are
+neither executed nor accepted. Existing Files and every remote connector invoke the same
+engine after connector-specific extraction.
+
+The extracted derivation is immutable. Each enabled transform produces bounded block
+change records, safe aggregate metrics and duration, while rewritten cleaned blocks name
+their parent extracted IDs. Transform audits remain on the existing cleaned-derivation
+JSON column, so Phase 3 requires no schema migration. Project-scoped cleaning-diff reads
+join immutable extracted and cleaned blocks, reconstruct removed/rewritten before and
+after text on demand and paginate the response; they do not persist a second unbounded
+copy of source text. The run inspector exposes the exact engine, transform counts and
+ordered attribution. See the
+[reviewed cleaning baseline](cleaning-corpus-baseline.md) for measured precision, recall
+and corpus limits.
+
 ## Frontend organization
 
 Ingestion runs also persist one `ingestion_run_nodes` row for every node in the

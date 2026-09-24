@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "reviewed_on": "2026-09-24",
+  "pdf_margin_case": {
+    "pages": 5,
+    "header": "RAG Quality Studio · Internal guide",
+    "footer": "Confidential · 2026",
+    "body": [
+      "RAG Quality Studio · Internal guide",
+      "The orchard grows apples.",
+      "Harvest begins in September.",
+      "Tables and code remain evidence.",
+      "The final section is retained."
+    ],
+    "protected_footnote": "1. Reviewed source note"
+  },
+  "website_cases": [
+    {
+      "url": "https://example.com/one",
+      "html": "<header>Product docs</header><nav class='global-nav'>Overview Pricing Support</nav><main><h1>One</h1><p>Unique body one.</p></main><div class='cookie-banner' role='dialog'>Accept cookies</div><footer>Copyright Example</footer>"
+    },
+    {
+      "url": "https://example.com/two",
+      "html": "<header>Product docs</header><nav class='global-nav'>Overview Pricing Support</nav><main><h1>Two</h1><p>Unique body two.</p></main><div class='cookie-banner' role='dialog'>Accept cookies</div><footer>Copyright Example</footer>"
+    },
+    {
+      "url": "https://example.com/three",
+      "html": "<header>Product docs</header><nav class='global-nav'>Overview Pricing Support</nav><main><h1>Three</h1><p>Unique body three.</p></main><div class='cookie-banner' role='dialog'>Accept cookies</div><footer>Copyright Example</footer>"
+    }
+  ]
+}

@@ -11,6 +11,7 @@ import * as api from '../api';
 import type {
   ContentBlock,
   ContentDerivation,
+  CleaningDiff,
   IngestionRun,
   IngestionRunItem,
   SourcePreview,
@@ -64,6 +65,13 @@ function sourceSpanLabel(span: Record<string, unknown>) {
     return `${Array.isArray(span.parent_block_ids) ? span.parent_block_ids.length : 0} parent blocks`;
   }
   return 'Source provenance unavailable';
+}
+
+function transformMetric(derivation: ContentDerivation, transform: string, metric: string): number {
+  const value = derivation.transforms.find((item) => item.transform === transform)?.metrics?.[
+    metric
+  ];
+  return typeof value === 'number' ? value : 0;
 }
 
 export function IngestionPreviewResults({
@@ -151,8 +159,9 @@ export function IngestionRunResults({
 }) {
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [derivations, setDerivations] = useState<ContentDerivation[]>([]);
-  const [kind, setKind] = useState<'extracted' | 'cleaned'>('extracted');
+  const [kind, setKind] = useState<'extracted' | 'cleaned' | 'diff'>('extracted');
   const [blocks, setBlocks] = useState<Page<ContentBlock> | null>(null);
+  const [diff, setDiff] = useState<Page<CleaningDiff> | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedPage, setSelectedPage] = useState<number | null>(null);
@@ -166,6 +175,7 @@ export function IngestionRunResults({
     setBusy(true);
     setError(null);
     setBlocks(null);
+    setDiff(null);
     setSelectedPage(null);
     setSelectedBlockId(null);
     api
@@ -220,6 +230,35 @@ export function IngestionRunResults({
     };
   }, [projectId, selectedDerivation]);
 
+  useEffect(() => {
+    if (!selectedRunId || kind !== 'diff') {
+      return;
+    }
+    let current = true;
+    setBusy(true);
+    setError(null);
+    api
+      .listCleaningDiff(projectId, selectedRunId)
+      .then((result) => {
+        if (current) {
+          setDiff(result);
+        }
+      })
+      .catch((reason: Error) => {
+        if (current) {
+          setError(reason.message);
+        }
+      })
+      .finally(() => {
+        if (current) {
+          setBusy(false);
+        }
+      });
+    return () => {
+      current = false;
+    };
+  }, [kind, projectId, selectedRunId]);
+
   const visiblePages = Array.from(
     new Set(blocks?.items.flatMap((block) => (block.page_number ? [block.page_number] : [])) ?? []),
   ).sort((left, right) => left - right);
@@ -237,6 +276,21 @@ export function IngestionRunResults({
     setError(null);
     try {
       setBlocks(await api.listContentBlocks(projectId, selectedDerivation.id, offset));
+    } catch (reason) {
+      setError((reason as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function pageDiff(offset: number) {
+    if (!selectedRunId) {
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      setDiff(await api.listCleaningDiff(projectId, selectedRunId, offset));
     } catch (reason) {
       setError((reason as Error).message);
     } finally {
@@ -375,7 +429,7 @@ export function IngestionRunResults({
               <h3>Extracted and cleaned content</h3>
             </div>
             <div className="content-derivation-tabs" role="tablist" aria-label="Content stage">
-              {(['extracted', 'cleaned'] as const).map((value) => (
+              {(['extracted', 'cleaned', 'diff'] as const).map((value) => (
                 <Button
                   key={value}
                   role="tab"
@@ -385,9 +439,14 @@ export function IngestionRunResults({
                   onClick={() => {
                     setKind(value);
                     setBlocks(null);
+                    setDiff(null);
                   }}
                 >
-                  {value === 'extracted' ? 'Extracted' : 'Cleaned'}
+                  {value === 'extracted'
+                    ? 'Extracted'
+                    : value === 'cleaned'
+                      ? 'Cleaned'
+                      : 'Changes'}
                 </Button>
               ))}
             </div>
@@ -438,6 +497,50 @@ export function IngestionRunResults({
                     </li>
                   ))}
                 </ul>
+              )}
+              {kind === 'cleaned' && selectedDerivation.transforms.length > 0 && (
+                <>
+                  <dl className="ingestion-stage-facts content-quality-summary">
+                    <dt>Repeated margins removed</dt>
+                    <dd>
+                      {selectedDerivation.transforms.find(
+                        (item) => item.transform === 'remove_repeated_headers_footers',
+                      )?.removed_blocks ?? 0}
+                    </dd>
+                    <dt>Lines joined</dt>
+                    <dd>
+                      {transformMetric(selectedDerivation, 'reflow_pdf_lines', 'change_count')}
+                    </dd>
+                    <dt>Words dehyphenated</dt>
+                    <dd>{transformMetric(selectedDerivation, 'dehyphenate', 'change_count')}</dd>
+                    <dt>Protected blocks retained</dt>
+                    <dd>
+                      {transformMetric(
+                        selectedDerivation,
+                        'remove_empty_blocks',
+                        'protected_blocks_retained',
+                      )}
+                    </dd>
+                  </dl>
+                  <ol className="cleaning-audit-list" aria-label="Cleaning transform audit">
+                    {selectedDerivation.transforms.map((transform, index) => (
+                      <li key={`${transform.transform}-${index}`}>
+                        <strong>
+                          {index + 1}. {transform.transform.replaceAll('_', ' ')}
+                        </strong>
+                        <span>
+                          {transform.changed_blocks} changed · {transform.removed_blocks} removed ·{' '}
+                          {transform.duration_ms ?? 0} ms
+                        </span>
+                        {typeof transform.metrics?.protected_blocks_retained === 'number' && (
+                          <small>
+                            {transform.metrics.protected_blocks_retained} protected blocks retained
+                          </small>
+                        )}
+                      </li>
+                    ))}
+                  </ol>
+                </>
               )}
               {kind === 'extracted' &&
                 selectedDerivation.media_type === 'application/pdf' &&
@@ -554,6 +657,53 @@ export function IngestionRunResults({
                   onChange={pageBlocks}
                 />
               )}
+            </>
+          )}
+          {kind === 'diff' && diff && (
+            <>
+              <p>
+                {diff.items.filter((item) => item.action !== 'unchanged').length} changed or removed
+                blocks on this page · reconstructed from immutable derivations
+              </p>
+              <ol className="cleaning-diff-list">
+                {diff.items.map((item) => (
+                  <li key={item.block_id}>
+                    <div className="cleaning-diff-heading">
+                      <strong>
+                        {item.block_type}
+                        {item.page_number ? ` · page ${item.page_number}` : ''}
+                      </strong>
+                      <span>{item.action}</span>
+                    </div>
+                    <div className="cleaning-diff-columns">
+                      <section aria-label="Before cleaning">
+                        <small>Before</small>
+                        <pre>{item.before_text}</pre>
+                      </section>
+                      <section aria-label="After cleaning">
+                        <small>After</small>
+                        <pre>{item.after_text ?? 'Removed'}</pre>
+                      </section>
+                    </div>
+                    <small>
+                      {item.transforms.length
+                        ? `${item.transforms.join(' → ')} · ${item.reasons.join(', ')}`
+                        : 'No text change'}
+                    </small>
+                  </li>
+                ))}
+              </ol>
+              {diff.total === 0 && (
+                <p>Cleaning changes are unavailable for this legacy processing version.</p>
+              )}
+              <Pagination
+                offset={diff.offset}
+                total={diff.total}
+                pageSize={diff.limit}
+                busy={busy}
+                label="Cleaning diff pages"
+                onChange={pageDiff}
+              />
             </>
           )}
         </section>

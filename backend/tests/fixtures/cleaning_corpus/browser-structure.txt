@@ -1,0 +1,5 @@
+Café inter-
+national REMOVE. Structure-aware cleaning keeps the useful sentence and records every change.
+
+Café inter-
+national REMOVE. This second paragraph verifies deterministic line-boundary handling.

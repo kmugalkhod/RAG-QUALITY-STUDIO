@@ -17,6 +17,7 @@ from app.ingestion_content import (
     cleaner_for_node,
     processing_identity,
 )
+from app.ingestion_content.contracts import ExtractedDocumentV1
 from app.models.document import ProcessingRun
 from app.models.source import SourceRevision, WebsiteRunItem
 from app.pipelines.parsing import MAX_CHUNKS, ProcessingError
@@ -24,6 +25,7 @@ from app.pipelines.web_content import (
     CLEANER_VERSION,
     EXTRACTOR_VERSION,
     chunk_sections,
+    extract_canonical_sections,
     extract_raw_sections,
     extract_sections,
 )
@@ -42,33 +44,47 @@ def _display_name(url: str) -> str:
     return tail[:255]
 
 
-def _canonical_chunks(
-    artifact: WebsiteArtifact,
-    chunk,
-    clean,
-    processing_config_hash,
-    phase_callback=None,
-):
-    if phase_callback is not None:
-        phase_callback("extract")
-    sections = extract_raw_sections(
-        artifact.content,
-        preserve_whitespace=not clean.normalize_whitespace,
+def canonical_extracted_document(
+    artifact: WebsiteArtifact, clean
+) -> ExtractedDocumentV1:
+    structured = getattr(clean, "profile", None) == "structure-aware-v1"
+    sections = (
+        extract_canonical_sections(artifact.content)
+        if structured
+        else extract_raw_sections(
+            artifact.content,
+            preserve_whitespace=not clean.normalize_whitespace,
+        )
     )
-    extracted = build_extracted_document(
+    return build_extracted_document(
         [
             CanonicalInputSegment(
                 text=section.text,
-                block_type="paragraph",
+                block_type=section.block_type,
                 heading_path=section.path,
                 provider="website",
                 external_id=f"{artifact.canonical_location}#section-{ordinal}",
+                attributes=section.attributes,
             )
             for ordinal, section in enumerate(sections)
         ],
         media_type=artifact.media_type,
         title=_display_name(artifact.canonical_location),
     )
+
+
+def _canonical_chunks(
+    artifact: WebsiteArtifact,
+    chunk,
+    clean,
+    processing_config_hash,
+    phase_callback=None,
+    extracted: ExtractedDocumentV1 | None = None,
+    repeated_site_fingerprints: set[str] | None = None,
+):
+    if phase_callback is not None:
+        phase_callback("extract")
+    extracted = extracted or canonical_extracted_document(artifact, clean)
     if phase_callback is not None:
         phase_callback("clean")
     cleaner = cleaner_for_node(clean)
@@ -78,6 +94,7 @@ def _canonical_chunks(
         cleaner,
         extractor_version=EXTRACTOR_VERSION,
         configuration_hash=processing_config_hash,
+        repeated_site_fingerprints=repeated_site_fingerprints,
     )
     combined = "\n\n".join(block.text for block in cleaned.blocks)
     violation = cleaner.length_violation(len(combined), clean)
@@ -139,6 +156,8 @@ def persist_artifact(
     prior_revision: SourceRevision | None,
     phase_callback=None,
     extract=None,
+    extracted: ExtractedDocumentV1 | None = None,
+    repeated_site_fingerprints: set[str] | None = None,
 ):
     content_hash = hashlib.sha256(artifact.content).hexdigest()
     cleaner = cleaner_for_node(clean)
@@ -178,6 +197,8 @@ def persist_artifact(
                 clean,
                 processing_config_hash,
                 phase_callback,
+                extracted,
+                repeated_site_fingerprints,
             )
         if phase_callback is not None:
             phase_callback("extract")

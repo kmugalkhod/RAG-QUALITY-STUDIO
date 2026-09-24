@@ -549,6 +549,34 @@ def _advance_website(run_id, token, db_engine, connector_factory):
     chunk = next(node for node in execution.nodes if node.type == "chunk")
     clean = next(node for node in execution.nodes if node.type == "clean")
     extract = next(node for node in execution.nodes if node.type == "extract")
+    extracted_by_location = {}
+    repeated_site_fingerprints = set()
+    if getattr(clean, "profile", None) == "structure-aware-v1":
+        from app.ingestion_content.cleaning import website_text_fingerprints
+
+        for _, outcomes, artifacts in results:
+            included = {
+                outcome.canonical_location
+                for outcome in outcomes
+                if outcome.status == "included"
+            }
+            for artifact in artifacts:
+                if artifact.canonical_location in included:
+                    extracted_by_location[artifact.canonical_location] = (
+                        website_ingestion.canonical_extracted_document(artifact, clean)
+                    )
+        main_step = next(
+            (
+                step
+                for step in clean.steps
+                if step.enabled and step.type == "website_main_content"
+            ),
+            None,
+        )
+        if main_step is not None and main_step.remove_repeated_site_chrome:
+            repeated_site_fingerprints = website_text_fingerprints(
+                extracted_by_location.values(), main_step.minimum_page_ratio
+            )
 
     def phase_callback(node_type):
         return ingestion_execution.transition(
@@ -612,6 +640,8 @@ def _advance_website(run_id, token, db_engine, connector_factory):
                         prior,
                         phase_callback,
                         extract,
+                        extracted_by_location.get(artifact.canonical_location),
+                        repeated_site_fingerprints,
                     )
                 )
                 if (

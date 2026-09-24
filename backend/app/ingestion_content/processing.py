@@ -20,6 +20,7 @@ from app.pipelines.parsing import PARSER_VERSION, pages, windows
 
 LEGACY_CLEANER_VERSION = "legacy-whitespace-boilerplate-v1"
 STANDARD_CLEANER_VERSION = "deterministic-clean-v1"
+STRUCTURE_CLEANER_VERSION = "structure-clean-v1"
 CHARACTER_CHUNKER_VERSION = "character-window-v1"
 _SPACE = re.compile(r"\s+")
 
@@ -143,6 +144,18 @@ class DeterministicCleaner:
         return None
 
 
+class StructureAwareCleaner:
+    """Identity and shared bounds for the canonical ordered-transform engine."""
+
+    version = STRUCTURE_CLEANER_VERSION
+
+    @staticmethod
+    def length_violation(
+        text_length: int, settings: CleanSettings
+    ) -> Literal["too_short", "too_long"] | None:
+        return DeterministicCleaner.length_violation(text_length, settings)
+
+
 class CharacterWindowChunker:
     version = CHARACTER_CHUNKER_VERSION
 
@@ -170,7 +183,11 @@ class CharacterWindowChunker:
         ]
 
 
-def cleaner_for_node(clean: CleanSettings) -> DeterministicCleaner:
+def cleaner_for_node(
+    clean: CleanSettings,
+) -> DeterministicCleaner | StructureAwareCleaner:
+    if getattr(clean, "profile", None) == "structure-aware-v1":
+        return StructureAwareCleaner()
     semantics = (
         CleanSemantics.STANDARD_V1
         if getattr(clean, "profile", None) == "standard-v1"

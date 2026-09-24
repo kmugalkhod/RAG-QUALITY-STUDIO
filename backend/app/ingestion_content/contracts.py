@@ -211,11 +211,23 @@ class ExtractedDocumentV1(Strict):
         return self
 
 
+class TransformChange(Strict):
+    block_id: str = Field(min_length=16, max_length=64, pattern=r"^[a-f0-9]+$")
+    action: Literal["rewritten", "removed", "retained"]
+    reason: str = Field(min_length=1, max_length=120)
+    count: int = Field(default=1, ge=1, le=2_000_000)
+
+
 class TransformAudit(Strict):
     transform: str = Field(min_length=1, max_length=80)
     version: str = Field(min_length=1, max_length=80)
     changed_blocks: int = Field(ge=0)
     removed_blocks: int = Field(ge=0)
+    duration_ms: int = Field(default=0, ge=0)
+    metrics: dict[str, int | float | str | bool] = Field(
+        default_factory=dict, max_length=30
+    )
+    changes: list[TransformChange] = Field(default_factory=list, max_length=200)
 
 
 class CleanedDocumentV1(Strict):

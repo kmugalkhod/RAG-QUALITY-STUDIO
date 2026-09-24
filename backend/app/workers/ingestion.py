@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.db.session import engine
 from app.connectors.base import ConnectorFailure
+from app.ingestion_content import IngestionStageError
 from app.models.document import ProcessingRun
 from app.models.index import IndexVersion
 from app.models.ingestion import IngestionRun, IngestionRunItem
@@ -246,7 +247,7 @@ def process_ingestion(run_id: UUID, db_engine=engine, connector_factory=None):
             if isinstance(exc, ConnectorFailure)
             else (
                 str(exc)
-                if isinstance(exc, ProcessingError)
+                if isinstance(exc, (ProcessingError, IngestionStageError))
                 else (
                     exc.detail
                     if isinstance(exc, HTTPException) and isinstance(exc.detail, str)
