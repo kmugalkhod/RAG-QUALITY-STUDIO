@@ -15,8 +15,10 @@ import {
   listCleaningDiff,
   listProcessingChunks,
   listSourcePreviewItems,
+  listSourcePreviewRepresentations,
   listIngestionSchedules,
   previewIngestion,
+  retrySourcePreview,
   startIngestionRun,
   runIngestionSchedule,
   updateIngestionSchedule,
@@ -126,6 +128,22 @@ test('uses project-scoped canonical content inspection endpoints', async () => {
   );
   expect(contentPageThumbnailUrl('project', 'processing', 2)).toBe(
     '/api/projects/project/processing-runs/processing/pages/2/thumbnail',
+  );
+});
+
+test('uses project-scoped processing preview retry and representation endpoints', async () => {
+  await retrySourcePreview('project', 'preview');
+  await listSourcePreviewRepresentations('project', 'preview', 3, 'cleaned', 20);
+
+  expect(fetch).toHaveBeenNthCalledWith(
+    1,
+    '/api/projects/project/source-previews/preview/retry',
+    expect.objectContaining({ method: 'POST' }),
+  );
+  expect(fetch).toHaveBeenNthCalledWith(
+    2,
+    '/api/projects/project/source-previews/preview/items/3/representations?stage=cleaned&offset=20',
+    expect.anything(),
   );
 });
 

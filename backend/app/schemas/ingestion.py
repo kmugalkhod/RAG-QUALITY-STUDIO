@@ -6,7 +6,7 @@ connector transports are introduced by later ingestion phases.
 
 import ipaddress
 from datetime import datetime
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 from uuid import UUID
 
 from pydantic import (
@@ -418,12 +418,60 @@ class OcrSettingsV1(Strict):
         return self
 
 
+class QualityThresholdsV1(Strict):
+    maximum_empty_page_ratio: float = Field(default=0.20, ge=0, le=1)
+    maximum_replacement_character_ratio: float = Field(default=0.01, ge=0, le=1)
+    maximum_control_character_ratio: float = Field(default=0.001, ge=0, le=1)
+    minimum_ocr_confidence: float = Field(default=50, ge=0, le=100)
+    fail_on_suspicious_reading_order: bool = False
+    fail_on_malformed_tables: bool = True
+
+
+class DefaultQualityPolicyV1(Strict):
+    id: Literal["default-v1"] = "default-v1"
+    thresholds: QualityThresholdsV1 = Field(default_factory=QualityThresholdsV1)
+    warning_action: Literal["publish", "fail"]
+    failed_item_action: Literal["fail", "exclude"] = "fail"
+
+
+class StrictQualityPolicyV1(Strict):
+    id: Literal["strict-v1"] = "strict-v1"
+    thresholds: QualityThresholdsV1 = Field(
+        default_factory=lambda: QualityThresholdsV1(
+            maximum_empty_page_ratio=0,
+            maximum_replacement_character_ratio=0.001,
+            maximum_control_character_ratio=0,
+            minimum_ocr_confidence=70,
+            fail_on_suspicious_reading_order=True,
+            fail_on_malformed_tables=True,
+        )
+    )
+    warning_action: Literal["publish", "fail"]
+    failed_item_action: Literal["fail", "exclude"] = "fail"
+
+
+class WarnQualityPolicyV1(Strict):
+    id: Literal["warn-v1"] = "warn-v1"
+    thresholds: QualityThresholdsV1 = Field(default_factory=QualityThresholdsV1)
+    warning_action: Literal["publish", "fail"]
+    failed_item_action: Literal["fail", "exclude"] = "exclude"
+
+
+QualityPolicyV1 = Annotated[
+    DefaultQualityPolicyV1 | StrictQualityPolicyV1 | WarnQualityPolicyV1,
+    Field(discriminator="id"),
+]
+LegacyQualityPolicy = Literal["default-v1", "strict-v1", "warn-v1"]
+
+
 class ExtractNodeV2(NodeBase):
     type: Literal["extract"]
     strategy: Literal["native_text", "auto", "native", "layout_aware"] = "native_text"
     ocr: "OcrSettingsV1" = Field(default_factory=lambda: OcrSettingsV1())
     tables: Literal["preserve", "markdown", "plain_text"] = "preserve"
-    quality_policy: Literal["default-v1", "strict-v1", "warn-v1"] = "default-v1"
+    # String profiles are read-only compatibility inputs for saved Phase 2-4 versions.
+    # New drafts persist a typed policy with an explicit warning publication action.
+    quality_policy: QualityPolicyV1 | LegacyQualityPolicy = "default-v1"
     config_version: Literal["native-text-v1", "layout-ocr-v1"] = "native-text-v1"
 
     @model_validator(mode="after")
@@ -886,13 +934,23 @@ class IngestionPreviewRead(Strict):
 class SourcePreviewRead(Strict):
     id: UUID
     project_id: UUID
-    status: Literal["queued", "running", "succeeded", "failed", "cancelled"]
+    status: Literal[
+        "queued", "running", "succeeded", "failed", "cancelled", "expired"
+    ]
     progress: int
     discovered_count: int
     included_count: int
     excluded_count: int
     duplicate_count: int
     failed_count: int
+    pass_count: int
+    warn_count: int
+    exclude_count: int
+    quality_fail_count: int
+    known_compute_ms: int
+    configuration_hash: str
+    fetch_mode: Literal["network", "cached-artifact", "mixed"]
+    cost_basis: dict[str, Any]
     attempts: int
     failures: int
     error: str | None
@@ -900,6 +958,7 @@ class SourcePreviewRead(Strict):
     updated_at: datetime
     started_at: datetime | None
     finished_at: datetime | None
+    expires_at: datetime
 
 
 class SourcePreviewItemRead(Strict):
@@ -915,10 +974,33 @@ class SourcePreviewItemRead(Strict):
     size_bytes: int | None
     depth: int | None
     error_code: str | None
+    quality_decision: Literal["pass", "warn", "exclude", "fail"] | None
+    processing_status: Literal["pending", "succeeded", "failed", "skipped"]
+    fetch_mode: Literal["network", "cached-artifact"]
+    processing_config_hash: str | None
+    findings: list[dict[str, Any]]
+    metrics: dict[str, Any]
+    stage_timings: dict[str, int]
+    cost_basis: dict[str, Any]
 
 
 class SourcePreviewItemPage(Strict):
     items: list[SourcePreviewItemRead]
+    total: int
+    limit: int
+    offset: int
+
+
+class SourcePreviewRepresentationRead(Strict):
+    stage: Literal["raw", "extracted", "cleaned", "diff", "chunks"]
+    ordinal: int
+    block_type: str
+    text: str
+    metadata: dict[str, Any]
+
+
+class SourcePreviewRepresentationPage(Strict):
+    items: list[SourcePreviewRepresentationRead]
     total: int
     limit: int
     offset: int

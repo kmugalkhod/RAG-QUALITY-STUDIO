@@ -8,11 +8,52 @@ import type {
   IngestionPipelineVersion,
   IngestionSchedule,
   NotionConfig,
+  QualityPolicy,
   S3Config,
   WebsiteConfig,
 } from './model';
 
-export const terminalIngestionStatuses = new Set(['succeeded', 'failed', 'cancelled']);
+export const terminalIngestionStatuses = new Set(['succeeded', 'failed', 'cancelled', 'expired']);
+
+export const defaultQualityPolicy: QualityPolicy = {
+  id: 'default-v1',
+  thresholds: {
+    maximum_empty_page_ratio: 0.2,
+    maximum_replacement_character_ratio: 0.01,
+    maximum_control_character_ratio: 0.001,
+    minimum_ocr_confidence: 50,
+    fail_on_suspicious_reading_order: false,
+    fail_on_malformed_tables: true,
+  },
+  warning_action: 'publish',
+  failed_item_action: 'fail',
+};
+
+export function fallbackQualityPolicy(id: QualityPolicy['id']): QualityPolicy {
+  if (id === 'strict-v1') {
+    return {
+      id,
+      thresholds: {
+        maximum_empty_page_ratio: 0,
+        maximum_replacement_character_ratio: 0.001,
+        maximum_control_character_ratio: 0,
+        minimum_ocr_confidence: 70,
+        fail_on_suspicious_reading_order: true,
+        fail_on_malformed_tables: true,
+      },
+      warning_action: 'fail',
+      failed_item_action: 'fail',
+    };
+  }
+  if (id === 'warn-v1') {
+    return {
+      ...structuredClone(defaultQualityPolicy),
+      id,
+      failed_item_action: 'exclude',
+    };
+  }
+  return structuredClone(defaultQualityPolicy);
+}
 
 export const ingestionStageLabels: Record<IngestionNode['type'], string> = {
   source: 'Source',
@@ -151,7 +192,10 @@ export function defaultIngestionDraft(
         timeout_seconds: 30,
       },
       tables: 'preserve',
-      quality_policy: 'default-v1',
+      quality_policy: structuredClone(
+        capabilities?.quality_policies.find((value) => value.id === 'default-v1')?.settings ??
+          defaultQualityPolicy,
+      ),
       config_version: 'layout-ocr-v1',
     },
     {

@@ -13,6 +13,51 @@ from app.ingestion_content.contracts import (
 )
 
 
+def quality_policy_settings(policy) -> dict:
+    """Return one bounded runtime policy for typed and historical saved configs."""
+
+    policy_id = policy if isinstance(policy, str) else policy.id
+    if isinstance(policy, str):
+        strict = policy_id == "strict-v1"
+        return {
+            "id": policy_id,
+            "maximum_empty_page_ratio": 0 if strict else 0.20,
+            "maximum_replacement_character_ratio": 0.001 if strict else 0.01,
+            "maximum_control_character_ratio": 0 if strict else 0.001,
+            "minimum_ocr_confidence": 70 if strict else 50,
+            "fail_on_suspicious_reading_order": strict,
+            "fail_on_malformed_tables": policy_id != "warn-v1",
+            # Historical versions published warnings; preserve that behavior exactly.
+            "warning_action": "publish",
+            "failed_item_action": "exclude" if policy_id == "warn-v1" else "fail",
+            "legacy": True,
+        }
+    thresholds = policy.thresholds
+    return {
+        "id": policy_id,
+        "maximum_empty_page_ratio": thresholds.maximum_empty_page_ratio,
+        "maximum_replacement_character_ratio": (
+            thresholds.maximum_replacement_character_ratio
+        ),
+        "maximum_control_character_ratio": thresholds.maximum_control_character_ratio,
+        "minimum_ocr_confidence": thresholds.minimum_ocr_confidence,
+        "fail_on_suspicious_reading_order": (
+            thresholds.fail_on_suspicious_reading_order
+        ),
+        "fail_on_malformed_tables": thresholds.fail_on_malformed_tables,
+        "warning_action": policy.warning_action,
+        "failed_item_action": policy.failed_item_action,
+        "legacy": False,
+    }
+
+
+def quality_allows_publication(policy, decision: str) -> bool:
+    settings = quality_policy_settings(policy)
+    return decision == "pass" or (
+        decision == "warn" and settings["warning_action"] == "publish"
+    )
+
+
 def _ratio(numerator: int, denominator: int) -> float:
     return numerator / denominator if denominator else 0.0
 
@@ -83,7 +128,7 @@ def measured_document(
 
 def evaluate_quality(
     document: ExtractedDocumentV1,
-    policy: str,
+    policy,
 ) -> ExtractedDocumentV1:
     """Map measurements to a saved decision and safe remediation findings."""
 
@@ -123,11 +168,14 @@ def evaluate_quality(
     empty_pages = [
         page.page_number for page in document.pages if page.character_count == 0
     ]
-    strict = policy == "strict-v1"
-    warn_only = policy == "warn-v1"
+    policy_settings = quality_policy_settings(policy)
+    warn_only = policy_settings["id"] == "warn-v1"
     if empty_pages:
         severity = (
-            "error" if not warn_only and (strict or empty_ratio > 0.20) else "warning"
+            "error"
+            if not warn_only
+            and empty_ratio > policy_settings["maximum_empty_page_ratio"]
+            else "warning"
         )
         add(
             "empty_pages",
@@ -137,7 +185,10 @@ def evaluate_quality(
             remediation="Enable automatic OCR or review the affected pages.",
             count=len(empty_pages),
         )
-    if measurements.replacement_character_ratio > (0.001 if strict else 0.01):
+    if (
+        measurements.replacement_character_ratio
+        > policy_settings["maximum_replacement_character_ratio"]
+    ):
         add(
             "replacement_character_ratio_high",
             "warning" if warn_only else "error",
@@ -151,7 +202,10 @@ def evaluate_quality(
             "Replacement characters were observed in extracted text.",
             remediation="Inspect the affected extraction before publication.",
         )
-    if measurements.control_character_ratio > (0 if strict else 0.001):
+    if (
+        measurements.control_character_ratio
+        > policy_settings["maximum_control_character_ratio"]
+    ):
         add(
             "control_character_ratio_high",
             "warning" if warn_only else "error",
@@ -161,7 +215,9 @@ def evaluate_quality(
     if measurements.suspicious_reading_order_count:
         add(
             "suspicious_reading_order",
-            "error" if strict and not warn_only else "warning",
+            "error"
+            if policy_settings["fail_on_suspicious_reading_order"] and not warn_only
+            else "warning",
             "The layout adapter detected ambiguous reading order.",
             remediation="Inspect block order or select Layout-aware extraction.",
             count=measurements.suspicious_reading_order_count,
@@ -169,13 +225,15 @@ def evaluate_quality(
     if measurements.malformed_table_count:
         add(
             "malformed_tables",
-            "warning" if warn_only else "error",
+            "error"
+            if policy_settings["fail_on_malformed_tables"] and not warn_only
+            else "warning",
             "One or more tables exceeded supported structural bounds.",
             remediation="Inspect the table rendering before publication.",
             count=measurements.malformed_table_count,
         )
     if measurements.ocr_confidence_p05 is not None:
-        limit = 70 if strict else 50
+        limit = policy_settings["minimum_ocr_confidence"]
         if measurements.ocr_confidence_p05 < limit:
             add(
                 "ocr_confidence_low",
@@ -195,7 +253,12 @@ def evaluate_quality(
     has_warnings = any(item.severity == "warning" for item in findings)
     decision = "pass"
     if has_errors:
-        decision = "exclude" if empty_ratio >= 0.75 or not document.blocks else "fail"
+        decision = (
+            "exclude"
+            if policy_settings["legacy"]
+            and (empty_ratio >= 0.75 or not document.blocks)
+            else policy_settings["failed_item_action"]
+        )
     elif has_warnings:
         decision = "warn"
     return document.model_copy(

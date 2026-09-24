@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { expect, test, vi } from 'vitest';
 
 import { CleaningTransformSettings } from '../../../src/features/ingestion-pipelines/components/CleaningTransformSettings';
+import { defaultQualityPolicy } from '../../../src/features/ingestion-pipelines/editorModel';
 import type {
   ExtractionCapabilities,
   IngestionNode,
@@ -30,7 +31,14 @@ const capabilities = {
     max_pixels_per_page: 20_000_000,
   },
   table_modes: ['preserve'],
-  quality_policies: ['default-v1'],
+  quality_policies: [
+    {
+      id: 'default-v1',
+      name: 'Default',
+      description: 'Balanced extraction-quality thresholds.',
+      settings: defaultQualityPolicy,
+    },
+  ],
   cleaning_profiles: [
     {
       id: 'structure-aware-v1',

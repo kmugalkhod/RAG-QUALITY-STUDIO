@@ -2,11 +2,16 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { expect, test, vi } from 'vitest';
 
 import * as api from '../../../src/features/ingestion-pipelines/api';
-import { IngestionRunResults } from '../../../src/features/ingestion-pipelines/components/IngestionResults';
+import {
+  IngestionPreviewResults,
+  IngestionRunResults,
+} from '../../../src/features/ingestion-pipelines/components/IngestionResults';
 import type {
   ContentDerivation,
   IngestionRun,
   IngestionRunItem,
+  SourcePreview,
+  SourcePreviewItem,
 } from '../../../src/features/ingestion-pipelines/model';
 
 vi.mock('../../../src/features/ingestion-pipelines/api');
@@ -79,6 +84,120 @@ const derivation = {
   transforms: [],
   created_at: '2026-09-24T00:00:00Z',
 } satisfies ContentDerivation;
+
+const preview = {
+  id: 'preview-1',
+  project_id: 'project-1',
+  status: 'succeeded',
+  progress: 100,
+  discovered_count: 1,
+  included_count: 1,
+  excluded_count: 0,
+  duplicate_count: 0,
+  failed_count: 0,
+  pass_count: 0,
+  warn_count: 1,
+  exclude_count: 0,
+  quality_fail_count: 0,
+  known_compute_ms: 12,
+  configuration_hash: 'f'.repeat(64),
+  fetch_mode: 'cached-artifact',
+  cost_basis: { known_monetary_cost: null },
+  attempts: 1,
+  failures: 0,
+  error: null,
+  created_at: '2026-09-24T00:00:00Z',
+  updated_at: '2026-09-24T00:00:01Z',
+  started_at: '2026-09-24T00:00:00Z',
+  finished_at: '2026-09-24T00:00:01Z',
+  expires_at: '2026-09-25T00:00:00Z',
+} satisfies SourcePreview;
+
+const previewItem = {
+  ordinal: 0,
+  source_node_id: 'source',
+  external_id: 'guide',
+  display_name: 'guide.txt',
+  canonical_location: 'document://guide',
+  provider_revision: 'revision-1',
+  media_type: 'text/plain',
+  status: 'included',
+  reason: 'Selected for processing preview.',
+  size_bytes: 42,
+  depth: null,
+  error_code: null,
+  quality_decision: 'warn',
+  processing_status: 'succeeded',
+  fetch_mode: 'cached-artifact',
+  processing_config_hash: 'f'.repeat(64),
+  findings: [
+    {
+      code: 'review_order',
+      severity: 'warning',
+      message: 'Review reading order.',
+      remediation: 'Inspect extracted blocks.',
+    },
+  ],
+  metrics: { character_count: 42 },
+  stage_timings: { extract_ms: 4, clean_ms: 3, chunk_ms: 5 },
+  cost_basis: { known_monetary_cost: null },
+} satisfies SourcePreviewItem;
+
+test('shows quality, cached mode, and synchronized processing representations', async () => {
+  vi.mocked(api.listSourcePreviewRepresentations).mockResolvedValue({
+    items: [
+      {
+        stage: 'raw',
+        ordinal: 0,
+        block_type: 'text',
+        text: '<script>not executed</script> source',
+        metadata: {},
+      },
+    ],
+    total: 1,
+    limit: 20,
+    offset: 0,
+  });
+
+  render(
+    <IngestionPreviewResults
+      projectId="project-1"
+      preview={preview}
+      page={{ items: [previewItem], total: 1, limit: 20, offset: 0 }}
+      busy={false}
+      onCancel={vi.fn()}
+      onRetry={vi.fn()}
+      onPageChange={vi.fn()}
+    />,
+  );
+
+  expect(screen.getByText(/Quality: 0 pass · 1 warn/)).toBeVisible();
+  expect(screen.getAllByText(/cached artifact/).length).toBeGreaterThan(0);
+  expect(screen.getByText(/monetary cost unknown/)).toBeVisible();
+  expect(screen.getByText(/Review reading order/)).toBeVisible();
+  fireEvent.click(screen.getByRole('button', { name: 'Inspect stages' }));
+  expect(await screen.findByText('<script>not executed</script> source')).toBeVisible();
+  expect(document.querySelector('script')).toBeNull();
+  expect(screen.getByRole('tab', { name: 'Raw' })).toHaveAttribute('aria-selected', 'true');
+});
+
+test('offers retry for an expired preview without requesting expired representations', () => {
+  const retry = vi.fn();
+  render(
+    <IngestionPreviewResults
+      projectId="project-1"
+      preview={{ ...preview, status: 'expired' }}
+      page={{ items: [previewItem], total: 1, limit: 20, offset: 0 }}
+      busy={false}
+      onCancel={vi.fn()}
+      onRetry={retry}
+      onPageChange={vi.fn()}
+    />,
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Retry preview' }));
+  expect(retry).toHaveBeenCalledOnce();
+  expect(screen.queryByRole('button', { name: 'Inspect stages' })).not.toBeInTheDocument();
+});
 
 test('loads the immutable extracted content inspector for a run item', async () => {
   vi.mocked(api.contentPageThumbnailUrl).mockReturnValue('/api/thumbnail');

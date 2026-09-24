@@ -8,6 +8,7 @@ from sqlalchemy import (
     BigInteger,
     DateTime,
     ForeignKey,
+    ForeignKeyConstraint,
     Index,
     Integer,
     String,
@@ -27,7 +28,7 @@ class SourcePreview(Base):
     __table_args__ = (
         UniqueConstraint("id", "project_id", name="uq_source_preview_project"),
         CheckConstraint(
-            "status IN ('queued','running','succeeded','failed','cancelled')",
+            "status IN ('queued','running','succeeded','failed','cancelled','expired')",
             name="ck_source_preview_status",
         ),
         CheckConstraint(
@@ -39,6 +40,15 @@ class SourcePreview(Base):
             "AND failed_count >= 0 AND included_count + excluded_count + "
             "duplicate_count + failed_count = discovered_count",
             name="ck_source_preview_counts",
+        ),
+        CheckConstraint(
+            "pass_count >= 0 AND warn_count >= 0 AND exclude_count >= 0 "
+            "AND quality_fail_count >= 0 AND pass_count + warn_count + "
+            "exclude_count + quality_fail_count <= included_count",
+            name="ck_source_preview_quality_counts",
+        ),
+        CheckConstraint(
+            "known_compute_ms >= 0", name="ck_source_preview_known_compute"
         ),
         CheckConstraint(
             "attempts BETWEEN 0 AND 10000 AND failures BETWEEN 0 AND 3",
@@ -73,10 +83,18 @@ class SourcePreview(Base):
     excluded_count: Mapped[int] = mapped_column(default=0)
     duplicate_count: Mapped[int] = mapped_column(default=0)
     failed_count: Mapped[int] = mapped_column(default=0)
+    pass_count: Mapped[int] = mapped_column(default=0)
+    warn_count: Mapped[int] = mapped_column(default=0)
+    exclude_count: Mapped[int] = mapped_column(default=0)
+    quality_fail_count: Mapped[int] = mapped_column(default=0)
+    known_compute_ms: Mapped[int] = mapped_column(BigInteger, default=0)
     attempts: Mapped[int] = mapped_column(default=0)
     failures: Mapped[int] = mapped_column(default=0)
     execution_token: Mapped[uuid.UUID | None]
     execution: Mapped[dict] = mapped_column(JSONB)
+    configuration_hash: Mapped[str] = mapped_column(String(64))
+    fetch_mode: Mapped[str] = mapped_column(String(24), default="network")
+    cost_basis: Mapped[dict] = mapped_column(JSONB, default=dict)
     error: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
@@ -86,6 +104,7 @@ class SourcePreview(Base):
     )
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     dispatched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
@@ -100,6 +119,14 @@ class SourcePreviewItem(Base):
         CheckConstraint(
             "size_bytes IS NULL OR size_bytes >= 0",
             name="ck_source_preview_item_size",
+        ),
+        CheckConstraint(
+            "quality_decision IS NULL OR quality_decision IN ('pass','warn','exclude','fail')",
+            name="ck_source_preview_item_quality",
+        ),
+        CheckConstraint(
+            "processing_status IN ('pending','succeeded','failed','skipped')",
+            name="ck_source_preview_item_processing_status",
         ),
         Index("ix_source_preview_items_status", "preview_id", "status", "ordinal"),
     )
@@ -118,6 +145,45 @@ class SourcePreviewItem(Base):
     size_bytes: Mapped[int | None] = mapped_column(BigInteger)
     depth: Mapped[int | None]
     error_code: Mapped[str | None] = mapped_column(String(80))
+    quality_decision: Mapped[str | None] = mapped_column(String(16))
+    processing_status: Mapped[str] = mapped_column(String(16), default="pending")
+    fetch_mode: Mapped[str] = mapped_column(String(24), default="network")
+    processing_config_hash: Mapped[str | None] = mapped_column(String(64))
+    findings: Mapped[list] = mapped_column(JSONB, default=list)
+    metrics: Mapped[dict] = mapped_column(JSONB, default=dict)
+    stage_timings: Mapped[dict] = mapped_column(JSONB, default=dict)
+    cost_basis: Mapped[dict] = mapped_column(JSONB, default=dict)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
+
+
+class SourcePreviewRepresentation(Base):
+    __tablename__ = "source_preview_representations"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["preview_id", "item_ordinal"],
+            ["source_preview_items.preview_id", "source_preview_items.ordinal"],
+            ondelete="CASCADE",
+            name="fk_source_preview_representation_item",
+        ),
+        CheckConstraint(
+            "stage IN ('raw','extracted','cleaned','diff','chunks')",
+            name="ck_source_preview_representation_stage",
+        ),
+        CheckConstraint("ordinal >= 0", name="ck_source_preview_representation_ordinal"),
+        Index(
+            "ix_source_preview_representations_stage",
+            "preview_id",
+            "item_ordinal",
+            "stage",
+            "ordinal",
+        ),
+    )
+    preview_id: Mapped[uuid.UUID] = mapped_column(primary_key=True)
+    item_ordinal: Mapped[int] = mapped_column(Integer, primary_key=True)
+    stage: Mapped[str] = mapped_column(String(16), primary_key=True)
+    ordinal: Mapped[int] = mapped_column(Integer, primary_key=True)
+    block_type: Mapped[str] = mapped_column(String(40))
+    text: Mapped[str] = mapped_column(Text)
+    metadata_json: Mapped[dict] = mapped_column("metadata", JSONB, default=dict)

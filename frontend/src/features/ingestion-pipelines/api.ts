@@ -13,6 +13,7 @@ import type {
   ExtractionCapabilities,
   SourcePreview,
   SourcePreviewItem,
+  SourcePreviewRepresentation,
 } from './model';
 
 export function getExtractionCapabilities(projectId: string): Promise<ExtractionCapabilities> {
@@ -90,6 +91,25 @@ export function cancelSourcePreview(projectId: string, previewId: string): Promi
   return request<SourcePreview>(
     `/projects/${encodeURIComponent(projectId)}/source-previews/${encodeURIComponent(previewId)}/cancel`,
     { method: 'POST' },
+  );
+}
+
+export function retrySourcePreview(projectId: string, previewId: string): Promise<SourcePreview> {
+  return request<SourcePreview>(
+    `/projects/${encodeURIComponent(projectId)}/source-previews/${encodeURIComponent(previewId)}/retry`,
+    { method: 'POST' },
+  );
+}
+
+export function listSourcePreviewRepresentations(
+  projectId: string,
+  previewId: string,
+  itemOrdinal: number,
+  stage: SourcePreviewRepresentation['stage'],
+  offset = 0,
+): Promise<Page<SourcePreviewRepresentation>> {
+  return request<Page<SourcePreviewRepresentation>>(
+    `/projects/${encodeURIComponent(projectId)}/source-previews/${encodeURIComponent(previewId)}/items/${itemOrdinal}/representations?stage=${encodeURIComponent(stage)}&offset=${offset}`,
   );
 }
 

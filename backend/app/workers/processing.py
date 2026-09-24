@@ -18,6 +18,7 @@ from app.ingestion_content import (
     cleaner_for_node,
 )
 from app.ingestion_content.extractors import extract_document
+from app.ingestion_content.quality import quality_allows_publication
 from app.models.document import Chunk, Document, ProcessingRun
 from app.pipelines.parsing import MAX_CHUNKS, ProcessingError, pages, windows
 from app.schemas.ingestion import ChunkNodeV2, CleanNodeV2, ExtractNodeV2
@@ -101,10 +102,17 @@ def _v2_chunks(job, path, media, title, on_stage, cancelled=None):
         extract_config,
         cancelled=cancelled,
     )
-    if extracted.measurements.quality_decision in {"fail", "exclude"}:
+    if not quality_allows_publication(
+        extract_config.quality_policy, extracted.measurements.quality_decision
+    ):
+        code = (
+            "quality_warning_blocked"
+            if extracted.measurements.quality_decision == "warn"
+            else "quality_rejected"
+        )
         raise IngestionStageError(
             "extract",
-            "quality_rejected",
+            code,
             "Extraction did not satisfy the saved quality policy. Review the source "
             "and extraction settings before retrying.",
         )

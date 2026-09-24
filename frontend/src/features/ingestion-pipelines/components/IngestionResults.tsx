@@ -17,6 +17,7 @@ import type {
   IngestionRunItem,
   SourcePreview,
   SourcePreviewItem,
+  SourcePreviewRepresentation,
 } from '../model';
 
 function blockOrigin(block: ContentBlock): 'Native' | 'Layout' | 'OCR' | null {
@@ -76,18 +77,83 @@ function transformMetric(derivation: ContentDerivation, transform: string, metri
 }
 
 export function IngestionPreviewResults({
+  projectId,
   preview,
   page,
   busy,
   onCancel,
+  onRetry,
   onPageChange,
 }: {
+  projectId: string;
   preview: SourcePreview;
   page: Page<SourcePreviewItem>;
   busy: boolean;
   onCancel: () => void;
+  onRetry: () => void;
   onPageChange: (offset: number) => void;
 }) {
+  const [selectedOrdinal, setSelectedOrdinal] = useState<number | null>(null);
+  const [stage, setStage] = useState<SourcePreviewRepresentation['stage']>('raw');
+  const [representations, setRepresentations] = useState<Page<SourcePreviewRepresentation> | null>(
+    null,
+  );
+  const [inspectionBusy, setInspectionBusy] = useState(false);
+  const [inspectionError, setInspectionError] = useState('');
+  const selectedItem = page.items.find((item) => item.ordinal === selectedOrdinal);
+
+  useEffect(() => {
+    if (selectedOrdinal === null || preview.status === 'expired') {
+      return;
+    }
+    let current = true;
+    setInspectionBusy(true);
+    setInspectionError('');
+    api
+      .listSourcePreviewRepresentations(projectId, preview.id, selectedOrdinal, stage)
+      .then((result) => {
+        if (current) {
+          setRepresentations(result);
+        }
+      })
+      .catch((reason: Error) => {
+        if (current) {
+          setInspectionError(reason.message);
+        }
+      })
+      .finally(() => {
+        if (current) {
+          setInspectionBusy(false);
+        }
+      });
+    return () => {
+      current = false;
+    };
+  }, [projectId, preview.id, preview.status, selectedOrdinal, stage]);
+
+  async function pageRepresentations(offset: number) {
+    if (selectedOrdinal === null) {
+      return;
+    }
+    setInspectionBusy(true);
+    setInspectionError('');
+    try {
+      setRepresentations(
+        await api.listSourcePreviewRepresentations(
+          projectId,
+          preview.id,
+          selectedOrdinal,
+          stage,
+          offset,
+        ),
+      );
+    } catch (reason) {
+      setInspectionError((reason as Error).message);
+    } finally {
+      setInspectionBusy(false);
+    }
+  }
+
   return (
     <section
       id="ingestion-preview"
@@ -96,7 +162,7 @@ export function IngestionPreviewResults({
     >
       <div className="section-heading">
         <div>
-          <p className="eyebrow">Source preview</p>
+          <p className="eyebrow">Processing preview</p>
           <h2>
             {preview.included_count} included · {preview.excluded_count} excluded
           </h2>
@@ -104,11 +170,25 @@ export function IngestionPreviewResults({
             {preview.status} · {preview.progress}% · {preview.duplicate_count} duplicate ·{' '}
             {preview.failed_count} failed
           </p>
+          <p>
+            Quality: {preview.pass_count} pass · {preview.warn_count} warn · {preview.exclude_count}{' '}
+            exclude · {preview.quality_fail_count} fail
+          </p>
+          <small>
+            {preview.fetch_mode.replace('-', ' ')} · exact config{' '}
+            {preview.configuration_hash.slice(0, 12)} · {preview.known_compute_ms} ms known local
+            compute · monetary cost unknown
+          </small>
         </div>
         {!terminalIngestionStatuses.has(preview.status) && (
           <Button variant="outline" onClick={onCancel}>
             <Square size={14} />
             Cancel preview
+          </Button>
+        )}
+        {terminalIngestionStatuses.has(preview.status) && preview.status !== 'succeeded' && (
+          <Button variant="outline" onClick={onRetry}>
+            Retry preview
           </Button>
         )}
       </div>
@@ -130,10 +210,118 @@ export function IngestionPreviewResults({
               </p>
               {item.canonical_location && <small>{item.canonical_location}</small>}
               {item.provider_revision && <small>Provider revision: {item.provider_revision}</small>}
+              <small>
+                {item.fetch_mode.replace('-', ' ')} · processing {item.processing_status}
+                {item.quality_decision ? ` · quality ${item.quality_decision}` : ''}
+              </small>
+              {Object.keys(item.stage_timings).length > 0 && (
+                <small>
+                  Extract {item.stage_timings.extract_ms ?? 0} ms · clean{' '}
+                  {item.stage_timings.clean_ms ?? 0} ms · chunk {item.stage_timings.chunk_ms ?? 0}{' '}
+                  ms
+                </small>
+              )}
+              {item.findings.map((finding, findingIndex) => (
+                <small key={`${finding.code}-${findingIndex}`}>
+                  {finding.severity} · {finding.message}
+                  {finding.remediation ? ` ${finding.remediation}` : ''}
+                </small>
+              ))}
             </div>
+            {item.processing_status !== 'skipped' && preview.status !== 'expired' && (
+              <Button
+                variant="outline"
+                size="sm"
+                aria-pressed={selectedOrdinal === item.ordinal}
+                onClick={() => {
+                  setSelectedOrdinal(item.ordinal);
+                  setStage('raw');
+                  setRepresentations(null);
+                }}
+              >
+                Inspect stages
+              </Button>
+            )}
           </li>
         ))}
       </ul>
+      {selectedItem && (
+        <section className="content-derivation-inspector" aria-busy={inspectionBusy}>
+          <div className="section-heading">
+            <div>
+              <p className="eyebrow">Exact processing preview</p>
+              <h3>{selectedItem.display_name}</h3>
+            </div>
+            <div className="content-derivation-tabs" role="tablist" aria-label="Preview stage">
+              {(['raw', 'extracted', 'cleaned', 'diff', 'chunks'] as const).map((value) => (
+                <Button
+                  key={value}
+                  role="tab"
+                  size="sm"
+                  variant={stage === value ? 'default' : 'outline'}
+                  aria-selected={stage === value}
+                  onClick={() => {
+                    setStage(value);
+                    setRepresentations(null);
+                  }}
+                >
+                  {value === 'diff' ? 'Changes' : value.slice(0, 1).toUpperCase() + value.slice(1)}
+                </Button>
+              ))}
+            </div>
+          </div>
+          {inspectionError && (
+            <p role="alert" className="error-message">
+              {inspectionError}
+            </p>
+          )}
+          {!inspectionBusy && representations?.total === 0 && (
+            <p>No {stage} preview records are available for this item.</p>
+          )}
+          <ol className="content-block-list">
+            {representations?.items.map((item) => (
+              <li key={`${item.stage}-${item.ordinal}`}>
+                <div>
+                  <strong>
+                    {item.ordinal + 1}. {item.block_type}
+                  </strong>
+                  {item.metadata.text_truncated === true && <small>Bounded preview text</small>}
+                </div>
+                {stage === 'diff' && typeof item.metadata.before_text === 'string' && (
+                  <section aria-label={`Preview record ${item.ordinal + 1} before`}>
+                    <small>Before · {String(item.metadata.action)}</small>
+                    <pre>{item.metadata.before_text}</pre>
+                  </section>
+                )}
+                <section aria-label={`Preview record ${item.ordinal + 1} ${stage}`}>
+                  <small>{stage === 'diff' ? 'After' : stage}</small>
+                  <pre>{item.text || 'Binary artifact metadata only'}</pre>
+                </section>
+                {stage === 'chunks' && typeof item.metadata.embedding_prefix === 'string' && (
+                  <small>
+                    {item.metadata.token_count == null
+                      ? 'Legacy size'
+                      : `${String(item.metadata.token_count)} tokens`}
+                    {item.metadata.parent_ordinal == null
+                      ? ''
+                      : ` · parent ${Number(item.metadata.parent_ordinal) + 1}`}
+                  </small>
+                )}
+              </li>
+            ))}
+          </ol>
+          {representations && (
+            <Pagination
+              offset={representations.offset}
+              total={representations.total}
+              pageSize={representations.limit}
+              busy={inspectionBusy}
+              label={`${stage} preview pages`}
+              onChange={pageRepresentations}
+            />
+          )}
+        </section>
+      )}
       {terminalIngestionStatuses.has(preview.status) && page.total === 0 && (
         <p>No preview items were discovered.</p>
       )}

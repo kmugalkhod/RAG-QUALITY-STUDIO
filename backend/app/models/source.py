@@ -137,7 +137,10 @@ class SourceSnapshot(Base):
             name="fk_source_snapshot_run_project",
             use_alter=True,
         ),
-        CheckConstraint("source_kind = 'website'", name="ck_source_snapshot_kind"),
+        CheckConstraint(
+            "source_kind IN ('website','s3','notion','confluence')",
+            name="ck_source_snapshot_kind",
+        ),
         CheckConstraint(
             "status IN ('collecting','ready','failed','cancelled')",
             name="ck_source_snapshot_status",

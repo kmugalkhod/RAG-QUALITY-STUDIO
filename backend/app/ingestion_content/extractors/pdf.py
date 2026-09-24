@@ -167,7 +167,48 @@ def extraction_capabilities() -> dict[str, Any]:
             "max_pixels_per_page": MAX_OCR_PIXELS_PER_PAGE,
         },
         "table_modes": ["preserve", "markdown", "plain_text"],
-        "quality_policies": ["default-v1", "strict-v1", "warn-v1"],
+        "quality_policies": [
+            {
+                "id": "default-v1",
+                "name": "Balanced",
+                "description": "Rejects unsafe extraction and permits explicitly reviewed warnings.",
+                "settings": {
+                    "id": "default-v1",
+                    "warning_action": "publish",
+                    "failed_item_action": "fail",
+                    "thresholds": {},
+                },
+            },
+            {
+                "id": "strict-v1",
+                "name": "Strict",
+                "description": "Uses tighter text, layout and OCR thresholds and blocks warnings.",
+                "settings": {
+                    "id": "strict-v1",
+                    "warning_action": "fail",
+                    "failed_item_action": "fail",
+                    "thresholds": {
+                        "maximum_empty_page_ratio": 0,
+                        "maximum_replacement_character_ratio": 0.001,
+                        "maximum_control_character_ratio": 0,
+                        "minimum_ocr_confidence": 70,
+                        "fail_on_suspicious_reading_order": True,
+                        "fail_on_malformed_tables": True,
+                    },
+                },
+            },
+            {
+                "id": "warn-v1",
+                "name": "Review warnings",
+                "description": "Keeps bounded quality anomalies visible for explicit review.",
+                "settings": {
+                    "id": "warn-v1",
+                    "warning_action": "publish",
+                    "failed_item_action": "exclude",
+                    "thresholds": {},
+                },
+            },
+        ],
         "cleaning_profiles": [
             {
                 "id": "structure-aware-v1",

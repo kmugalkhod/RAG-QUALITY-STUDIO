@@ -133,8 +133,15 @@ export type IndexRecordPage = Page<IndexRecord>;
 export interface SourceSnapshot {
   id: string;
   project_id: string;
-  source_kind: 'website';
-  source_identity: { origins?: string[]; mode?: string };
+  source_kind: 'website' | 's3' | 'notion' | 'confluence';
+  source_identity: {
+    source_kind?: string;
+    mode?: string;
+    origins?: string[];
+    selection_modes?: string[];
+    buckets?: string[];
+    prefixes?: string[];
+  };
   snapshot_number: number;
   status: 'collecting' | 'ready' | 'failed' | 'cancelled';
   discovered_count: number;

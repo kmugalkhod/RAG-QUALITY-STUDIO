@@ -846,7 +846,7 @@ export function IngestionPipelineEditor({
               </Button>
             )}
             <Button variant="outline" onClick={runPreview} disabled={validation.length > 0}>
-              Preview source
+              Preview processing
             </Button>
             {websiteSource && (
               <div className="snapshot-run-choice">
@@ -1168,6 +1168,7 @@ export function IngestionPipelineEditor({
       </fieldset>
       {preview && (
         <IngestionPreviewResults
+          projectId={projectId}
           preview={preview}
           page={previewPage}
           busy={busy}
@@ -1175,6 +1176,12 @@ export function IngestionPipelineEditor({
             void perform(async () =>
               setPreview(await api.cancelSourcePreview(projectId, preview.id)),
             )
+          }
+          onRetry={() =>
+            void perform(async () => {
+              setPreviewPage({ items: [], total: 0, limit: 20, offset: 0 });
+              setPreview(await api.retrySourcePreview(projectId, preview.id));
+            })
           }
           onPageChange={loadPreviewPage}
         />

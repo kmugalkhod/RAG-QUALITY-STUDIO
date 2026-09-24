@@ -27,7 +27,7 @@ def _source_configuration(execution: IngestionExecution) -> list[dict]:
     return [
         {"id": node.id, "config": node.config.model_dump(mode="json")}
         for node in execution.nodes
-        if node.type == "source" and node.config.kind == "website"
+        if node.type == "source" and node.config.kind != "existing_files"
     ]
 
 
@@ -44,12 +44,21 @@ def _safe_origin(value: str) -> str:
 
 
 def _source_identity(configuration: list[dict]) -> dict:
+    if not configuration:
+        return {"source_kind": "unknown"}
+    source_kind = configuration[0]["config"]["kind"]
     origins: set[str] = set()
     modes: list[str] = []
+    buckets: set[str] = set()
+    prefixes: set[str] = set()
     for source in configuration:
         config = source["config"]
         selection = config.get("selection", {})
-        modes.append(selection.get("mode", "unknown"))
+        if selection:
+            modes.append(selection.get("mode", "unknown"))
+        if config.get("bucket"):
+            buckets.add(config["bucket"])
+            prefixes.add(config.get("prefix", ""))
         candidates = [
             selection.get("url"),
             selection.get("start_url"),
@@ -60,7 +69,17 @@ def _source_identity(configuration: list[dict]) -> dict:
         for candidate in candidates:
             if candidate:
                 origins.add(_safe_origin(candidate))
-    return {"origins": sorted(origins), "selection_modes": sorted(set(modes))}
+    if source_kind == "website":
+        return {
+            "origins": sorted(origins),
+            "selection_modes": sorted(set(modes)),
+        }
+    return {
+        "source_kind": source_kind,
+        "selection_modes": sorted(set(modes)),
+        "buckets": sorted(buckets),
+        "prefixes": sorted(prefixes),
+    }
 
 
 def create_collecting(
@@ -70,6 +89,7 @@ def create_collecting(
     execution: IngestionExecution,
 ) -> SourceSnapshot:
     configuration = _source_configuration(execution)
+    source_kind = configuration[0]["config"]["kind"]
     config_hash = _configuration_hash(configuration)
     # Separate destinations may collect the same source concurrently, so allocate
     # the per-source display number while holding the project row lock.
@@ -87,10 +107,11 @@ def create_collecting(
     ) + 1
     snapshot = SourceSnapshot(
         project_id=project_id,
+        source_kind=source_kind,
         source_configuration=configuration,
         source_config_hash=config_hash,
         source_identity=_source_identity(configuration),
-        connector_version="website-v1",
+        connector_version=f"{source_kind}-v1",
         snapshot_number=number,
         creating_ingestion_run_id=run.id,
     )
@@ -199,9 +220,15 @@ def require_compatible(
         raise HTTPException(409, "Only a ready source snapshot can build an index.")
     configuration = _source_configuration(execution)
     if _configuration_hash(configuration) != snapshot.source_config_hash:
+        label = {
+            "website": "Website",
+            "s3": "S3",
+            "notion": "Notion",
+            "confluence": "Confluence",
+        }.get(snapshot.source_kind, "connector")
         raise HTTPException(
             409,
-            "This snapshot was collected with different Website source settings. "
+            f"This snapshot was collected with different {label} source settings. "
             "Choose a compatible snapshot or collect the source again.",
         )
     return snapshot

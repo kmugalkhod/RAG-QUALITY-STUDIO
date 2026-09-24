@@ -19,6 +19,7 @@ from app.ingestion_content.extractors import (
     extract_document,
     extractor_version_for_settings,
 )
+from app.ingestion_content.quality import quality_allows_publication
 from app.schemas.ingestion import ExtractNodeV2
 from app.models.source import SourceRevision
 from app.pipelines.parsing import (
@@ -121,12 +122,15 @@ def _canonical_chunks(
     processing_hash,
     phase_callback=None,
     extract=None,
+    enforce_quality=True,
 ):
     if phase_callback is not None:
         phase_callback("extract")
     extract = _extract_settings(extract)
     extracted, extractor_version = extract_document(path, media_type, title, extract)
-    if extracted.measurements.quality_decision in {"fail", "exclude"}:
+    if enforce_quality and not quality_allows_publication(
+        extract.quality_policy, extracted.measurements.quality_decision
+    ):
         raise ProcessingError("S3 extraction did not satisfy the saved quality policy.")
     if phase_callback is not None:
         phase_callback("clean")
@@ -164,6 +168,22 @@ def _canonical_chunks(
         cleaned=cleaned,
         spans=result.spans,
         extractor_version=extractor_version,
+    )
+
+
+def prepare_preview_artifact(
+    path, media_type, source_key, title, chunk, clean, extract, processing_hash
+):
+    return _canonical_chunks(
+        path,
+        media_type,
+        source_key,
+        title,
+        chunk,
+        clean,
+        processing_hash,
+        extract=extract,
+        enforce_quality=False,
     )
 
 

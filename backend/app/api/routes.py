@@ -40,6 +40,9 @@ def ready(session: Database) -> dict[str, str]:
     )
     session.execute(text("SELECT execution, status FROM source_previews LIMIT 0"))
     session.execute(text("SELECT reason, status FROM source_preview_items LIMIT 0"))
+    session.execute(
+        text("SELECT stage, ordinal FROM source_preview_representations LIMIT 0")
+    )
     session.execute(text("SELECT identity_hash FROM source_items LIMIT 0"))
     session.execute(
         text("SELECT secret_schema_version, status FROM source_connections LIMIT 0")

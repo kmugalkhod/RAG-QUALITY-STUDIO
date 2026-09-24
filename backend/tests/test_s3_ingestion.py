@@ -253,6 +253,28 @@ def test_s3_first_run_incremental_refresh_and_safe_permission_loss(
         for item in retrieval.json()["items"]
     ), retrieval.json()
 
+    snapshot_id = result["source_snapshot_id"]
+    assert snapshot_id is not None
+    offline = start_run(
+        client,
+        project_id,
+        version,
+        source_input={"kind": "snapshot", "source_snapshot_id": snapshot_id},
+        destination={"kind": "new", "name": "Offline S3 variant"},
+    )
+
+    def unexpected_connector(_credentials):
+        raise AssertionError("Stored S3 reprocessing must not call the provider.")
+
+    offline_index = publish(engine, offline["id"], unexpected_connector)
+    offline_result = client.get(
+        f"/api/projects/{project_id}/ingestion-runs/{offline['id']}"
+    ).json()
+    assert offline_result["status"] == "succeeded"
+    assert offline_result["source_snapshot_id"] == snapshot_id
+    assert offline_result["knowledge_set_name"] == "Offline S3 variant"
+    assert offline_index not in (first_index, second_index)
+
     bucket.denied = True
     failed = start_run(client, project_id, version)
     process_ingestion(

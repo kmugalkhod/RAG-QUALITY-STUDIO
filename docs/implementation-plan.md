@@ -1,5 +1,64 @@
 # Implementation plan
 
+## Robust ingestion roadmap — Phase 5 acceptance criteria (2026-09-24)
+
+Status: **Phase 5 complete on 2026-09-24** on
+`codex/robust-ingestion-roadmap`; Phase 6 is next.
+
+- Replace implicit quality-profile behavior for new schema-v2 drafts with versioned,
+  typed thresholds and an explicit warning publication decision while preserving every
+  historical string profile and saved execution.
+- Persist item and preview aggregates for pass, warn, exclude and fail without dropping
+  failed/excluded denominators. Publication must reject fail/exclude and must reject warn
+  unless the exact saved policy permits warning publication.
+- Make preview a fenced, expiring asynchronous execution of the exact unsaved v2
+  extract/clean/chunk configuration. It may read bounded source artifacts and save
+  ephemeral inspection output, but must never embed, publish, create an index, or advance
+  a current-ready pointer.
+- Provide project-scoped, bounded pagination for preview raw/extracted/cleaned blocks,
+  cleaning changes, chunks, findings and metrics. Record fetch mode, immutable source
+  identity, stage timings and known local-compute basis; unknown monetary cost remains
+  explicitly unknown.
+- Expose synchronized Raw, Extracted, Cleaned and Chunks inspection plus quality
+  decision/remediation, cached-artifact versus network mode, loading/empty/partial/
+  failure/cancelled/expired/retry states and exact saved/preview configuration identity.
+- Generalize exact stored-artifact reprocessing to Website, S3, Notion and Confluence
+  snapshots without connector construction when immutable artifacts remain available;
+  preserve connector authorization checks for fresh network collection.
+- Verify policy boundaries and aggregation denominators, warning publication, preview
+  non-publication, expiry/retry/cancellation/stale fencing, response bounds, safe inert
+  rendering and Agent Browser desktop/200%-equivalent/mobile journeys.
+
+Phase 5 does not add Phase 6 near-duplicate/language policy or Phase 7 sensitive-data
+controls and retention decisions.
+
+Implementation and verification evidence:
+
+- Added schema-v2 typed quality policies with explicit pass, warn, exclude and fail
+  decisions, configurable warning/failed-item publication behavior and preserved legacy
+  profile semantics for historical executions.
+- Added fenced, expiring processing previews with exact config identity, retry and
+  cancellation behavior, bounded stage pagination, per-item findings/metrics/timings,
+  cached/network fetch labels and an explicitly unknown monetary-cost state. Preview
+  execution stops before embedding/publication and cannot advance an index pointer.
+- Generalized immutable stored-artifact replay across Website, S3, Notion and Confluence;
+  compatible processing reuses canonical revisions without constructing provider clients,
+  while incompatible extraction/cleaning settings fail with a clear remediation.
+- Added the accessible quality-policy editor and synchronized Raw, Extracted, Cleaned,
+  Changes and Chunks preview inspector, including loading, failure, cancelled, expired and
+  retry states plus connector-general snapshot provenance.
+- Full isolated PostgreSQL backend suite passed: 304 passed, 4 skipped. Ruff lint and
+  formatting passed. Migration 0023 upgraded, downgraded to 0022 and upgraded again on an
+  isolated PostgreSQL database. Frontend formatting, strict type checking, lint, all 117
+  Vitest tests and the production build passed.
+- Agent Browser exercised the real asynchronous preview/worker path and inspected exact
+  cached artifacts, stage tabs and quality controls. Desktop, 720-pixel
+  200%-equivalent and 390-pixel mobile layouts had no horizontal overflow, console errors
+  or browser errors.
+
+Next actionable step: Phase 6 adds reproducible exact/near-duplicate decisions and saved
+language/OCR policy without deleting revisions or silently translating source content.
+
 ## Robust ingestion roadmap — Phase 4 acceptance criteria (2026-09-24)
 
 Status: **Phase 4 complete on 2026-09-24** on

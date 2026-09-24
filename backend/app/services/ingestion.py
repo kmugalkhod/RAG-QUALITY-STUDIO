@@ -326,16 +326,6 @@ def start_run(
     remote_kind = sources[0].config.kind if sources else None
     snapshot_requested = source_input is not None and source_input.kind == "snapshot"
     legacy_reuse = source_input is None and reuse_stored is True
-    if (snapshot_requested or legacy_reuse) and remote_kind != "website":
-        raise HTTPException(
-            422,
-            "Stored-artifact reprocessing is currently supported for Website sources only.",
-        )
-    if destination is not None and remote_kind != "website":
-        raise HTTPException(
-            422,
-            "Destination overrides are currently supported for Website sources only.",
-        )
     if remote_kind in ("website", "s3", "notion", "confluence") and all(
         source.config.kind == remote_kind for source in sources
     ):
@@ -358,7 +348,7 @@ def start_run(
         if legacy_reuse and knowledge_set.current_ready_index_id is None:
             raise HTTPException(
                 409,
-                "Run this Website pipeline once before reprocessing stored pages.",
+                "Run this source pipeline once before reprocessing stored artifacts.",
             )
         prior_index = None
         selected_snapshot = None
@@ -371,10 +361,10 @@ def start_run(
                 if prior_index is not None and prior_index.ingestion_run_id is not None
                 else None
             )
-            if prior_run is None or prior_run.snapshot.get("source_kind") != "website":
+            if prior_run is None or prior_run.snapshot.get("source_kind") != remote_kind:
                 raise HTTPException(
                     409,
-                    "The current index does not contain reusable Website artifacts.",
+                    "The current index does not contain reusable artifacts for this source.",
                 )
             prior_execution = IngestionExecution.model_validate(
                 prior_run.snapshot["execution"]
@@ -390,7 +380,7 @@ def start_run(
             if current_sources != prior_sources:
                 raise HTTPException(
                     409,
-                    "Website source settings changed. Refresh the website before reprocessing stored pages.",
+                    "Source settings changed. Refresh the source before reprocessing stored artifacts.",
                 )
             if prior_index.source_snapshot_id is not None:
                 selected_snapshot = source_snapshots.require_compatible(
@@ -444,13 +434,12 @@ def start_run(
         session.add(run)
         session.flush()
         _add_node_states(session, run, execution)
-        if remote_kind == "website":
-            if selected_snapshot is not None:
-                run.source_snapshot_id = selected_snapshot.id
-            elif legacy_reuse:
-                run.source_snapshot_id = prior_index.source_snapshot_id
-            else:
-                source_snapshots.create_collecting(session, project_id, run, execution)
+        if selected_snapshot is not None:
+            run.source_snapshot_id = selected_snapshot.id
+        elif legacy_reuse:
+            run.source_snapshot_id = prior_index.source_snapshot_id
+        else:
+            source_snapshots.create_collecting(session, project_id, run, execution)
         session.commit()
         session.refresh(run)
         return read_run(session, run)

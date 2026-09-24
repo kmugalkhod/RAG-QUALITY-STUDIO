@@ -19,6 +19,7 @@ from app.connectors.website import (
 from app.core.connection_secrets import ConnectionKeyring
 from app.core.config import settings
 from app.models.ingestion import IngestionRun
+from app.models.document import ProcessingRun
 from app.models.source import (
     IndexSourceRevision,
     SourceItem,
@@ -35,6 +36,7 @@ from app.services import (
     notion_ingestion,
     s3_ingestion,
     source_snapshots,
+    source_artifacts,
     website_ingestion,
 )
 from app.workers.processing import now
@@ -299,6 +301,156 @@ def _discover_credentialed(
     return execution, priors, results
 
 
+def _advance_credentialed_snapshot(
+    run_id,
+    token,
+    db_engine,
+    *,
+    kind,
+    label,
+    persistence,
+):
+    with Session(db_engine) as session:
+        job = session.get(IngestionRun, run_id)
+        execution = IngestionExecution.model_validate(job.snapshot["execution"])
+    for source in [node for node in execution.nodes if node.type == "source"]:
+        if not ingestion_execution.transition(
+            db_engine, run_id, node_id=source.id, execution_token=token
+        ):
+            return
+    chunk = next(node for node in execution.nodes if node.type == "chunk")
+    clean = next(node for node in execution.nodes if node.type == "clean")
+    extract = next(node for node in execution.nodes if node.type == "extract")
+    processing_config, processing_hash = persistence.processing_configuration(
+        chunk, clean, extract
+    )
+
+    def phase_callback(node_type):
+        return ingestion_execution.transition(
+            db_engine,
+            run_id,
+            node_type=node_type,
+            execution_token=token,
+        )
+
+    with Session(db_engine) as session:
+        job = session.scalar(
+            select(IngestionRun).where(IngestionRun.id == run_id).with_for_update()
+        )
+        if job.status != "running" or job.execution_token != token:
+            return
+        if session.scalar(
+            select(WebsiteRunItem.run_id)
+            .where(WebsiteRunItem.run_id == run_id)
+            .limit(1)
+        ):
+            return
+        members = session.execute(
+            select(SourceSnapshotMember.source_node_id, SourceItem, SourceRevision)
+            .select_from(SourceSnapshotMember)
+            .join(SourceItem, SourceItem.id == SourceSnapshotMember.source_item_id)
+            .join(
+                SourceRevision,
+                SourceRevision.id == SourceSnapshotMember.source_revision_id,
+            )
+            .where(
+                SourceSnapshotMember.snapshot_id == job.source_snapshot_id,
+                SourceSnapshotMember.project_id == job.project_id,
+                SourceItem.kind == kind,
+            )
+            .order_by(SourceSnapshotMember.ordinal)
+        ).all()
+        if not members:
+            raise ConnectorFailure(
+                ConnectorIssue(
+                    code="snapshot_members_unavailable",
+                    message=f"The selected source snapshot has no reusable {label}s.",
+                    retryable=False,
+                )
+            )
+        memberships = []
+        for ordinal, (source_node_id, item, revision) in enumerate(members):
+            source_run = session.get(ProcessingRun, revision.processing_run_id)
+            if source_run is None:
+                raise ConnectorFailure(
+                    ConnectorIssue(
+                        code="snapshot_derivation_unavailable",
+                        message="A retained source derivation is unavailable for rebuilding.",
+                        retryable=False,
+                    )
+                )
+            target_revision = source_artifacts.reprocess_source_revision(
+                session,
+                job.project_id,
+                item,
+                revision,
+                processing_config=processing_config,
+                processing_config_hash=processing_hash,
+                parser_version=source_run.parser_version,
+                chunk_size=chunk.size,
+                chunk_overlap=chunk.overlap,
+                chunk_config_version=chunk.config_version,
+                reuse_stage=phase_callback,
+            )
+            classification = (
+                "unchanged" if target_revision.id == revision.id else "changed"
+            )
+            website_ingestion.add_run_item(
+                session,
+                run=job,
+                ordinal=ordinal,
+                source_node_id=source_node_id,
+                outcome=classification,
+                reason=f"Retained {label} artifact reused without a network fetch.",
+                location=item.canonical_location,
+                display_name=item.external_id,
+                media_type=target_revision.media_type,
+                source_item=item,
+                revision=target_revision,
+            )
+            memberships.append((source_node_id, item, target_revision))
+        job.discovered_count = len(memberships)
+        job.processed_count = len(memberships)
+        job.failed_count = 0
+        ingestion_execution.transition(
+            db_engine, run_id, node_type="embed", execution_token=token
+        )
+        processing_ids = list(
+            dict.fromkeys(revision.processing_run_id for _, _, revision in memberships)
+        )
+        index = indexes.create_index_from_processing_runs(
+            session,
+            job.project_id,
+            job.knowledge_set_id,
+            processing_ids,
+            ingestion_run_id=job.id,
+            source_snapshot_id=job.source_snapshot_id,
+            commit=False,
+        )
+        session.execute(
+            insert(IndexSourceRevision),
+            [
+                {
+                    "index_id": index.id,
+                    "source_revision_id": revision.id,
+                    "source_item_id": item.id,
+                    "source_node_id": source_node_id,
+                    "project_id": job.project_id,
+                }
+                for source_node_id, item, revision in memberships
+            ],
+        )
+        job.stage = "indexing"
+        job.chunk_count = index.chunk_count
+        job.progress = 40
+        job.status = "queued"
+        job.execution_token = None
+        job.failures = 0
+        job.dispatched_at = None
+        job.updated_at = now()
+        session.commit()
+
+
 def _advance_credentialed(
     run_id,
     token,
@@ -310,6 +462,19 @@ def _advance_credentialed(
     connector_type,
     persistence,
 ):
+    with Session(db_engine) as session:
+        job = session.get(IngestionRun, run_id)
+        source_input = job.snapshot.get("source_input") or {}
+        reuse_stored = bool(job.snapshot.get("reuse_stored"))
+    if source_input.get("kind") == "snapshot" or reuse_stored:
+        return _advance_credentialed_snapshot(
+            run_id,
+            token,
+            db_engine,
+            kind=kind,
+            label=label,
+            persistence=persistence,
+        )
     execution, prior_revisions, results = _discover_credentialed(
         run_id,
         token,
@@ -468,6 +633,11 @@ def _advance_credentialed(
         ingestion_execution.transition(
             db_engine, run_id, node_type="embed", execution_token=token
         )
+        if (
+            job.source_snapshot_id is not None
+            and (job.snapshot.get("source_input") or {}).get("kind") == "refresh"
+        ):
+            source_snapshots.mark_ready(session, job.source_snapshot_id, memberships)
         processing_ids = list(
             dict.fromkeys(revision.processing_run_id for _, _, revision in memberships)
         )
@@ -477,6 +647,7 @@ def _advance_credentialed(
             job.knowledge_set_id,
             processing_ids,
             ingestion_run_id=job.id,
+            source_snapshot_id=job.source_snapshot_id,
             commit=False,
         )
         session.execute(

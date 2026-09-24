@@ -6,12 +6,14 @@ import { Label } from '../../../components/ui/label';
 import { NativeSelect, NativeSelectOption } from '../../../components/ui/native-select';
 import type { ConnectionSettings, SourceConnection } from '../../connections/model';
 import type { Document, KnowledgeSet } from '../../documents/model';
-import { ingestionStageLabels as labels } from '../editorModel';
+import { fallbackQualityPolicy, ingestionStageLabels as labels } from '../editorModel';
 import type {
   ExistingFilesConfig,
   ExtractionCapabilities,
   IngestionNode,
   IngestionPipelineVersion,
+  QualityPolicy,
+  QualityPolicyId,
 } from '../model';
 import { ConfluenceSettings, NotionSettings, S3Settings, WebsiteSettings } from './SourceSettings';
 import { CleaningTransformSettings } from './CleaningTransformSettings';
@@ -65,6 +67,21 @@ export function IngestionNodeSettings({
           timeout_seconds: 30,
         })
       : null;
+  const selectedQualityId: QualityPolicyId =
+    selected?.type === 'extract'
+      ? typeof selected.quality_policy === 'string'
+        ? selected.quality_policy
+        : (selected.quality_policy?.id ?? 'default-v1')
+      : 'default-v1';
+  const selectedQuality: QualityPolicy =
+    selected?.type === 'extract' &&
+    selected.quality_policy &&
+    typeof selected.quality_policy !== 'string'
+      ? selected.quality_policy
+      : structuredClone(
+          extractionCapabilities?.quality_policies.find((value) => value.id === selectedQualityId)
+            ?.settings ?? fallbackQualityPolicy(selectedQualityId),
+        );
 
   function updateExtract(values: Partial<Extract<IngestionNode, { type: 'extract' }>>) {
     if (selected?.type !== 'extract') {
@@ -589,7 +606,11 @@ export function IngestionNodeSettings({
                           timeout_seconds: 30,
                         },
                         tables: 'preserve',
-                        quality_policy: 'default-v1',
+                        quality_policy: structuredClone(
+                          extractionCapabilities?.quality_policies.find(
+                            (value) => value.id === 'default-v1',
+                          )?.settings ?? fallbackQualityPolicy('default-v1'),
+                        ),
                         config_version: 'layout-ocr-v1',
                       })
                     }
@@ -777,21 +798,196 @@ export function IngestionNodeSettings({
                 <Label>
                   Quality policy
                   <NativeSelect
-                    value={selected.quality_policy ?? 'default-v1'}
+                    value={selectedQualityId}
+                    onChange={(event) => {
+                      const id = event.target.value as QualityPolicyId;
+                      updateExtract({
+                        quality_policy: structuredClone(
+                          extractionCapabilities?.quality_policies.find((value) => value.id === id)
+                            ?.settings ?? fallbackQualityPolicy(id),
+                        ),
+                      });
+                    }}
+                  >
+                    {(extractionCapabilities?.quality_policies ?? []).map((policy) => (
+                      <NativeSelectOption key={policy.id} value={policy.id}>
+                        {policy.name}
+                      </NativeSelectOption>
+                    ))}
+                    {!extractionCapabilities && (
+                      <>
+                        <NativeSelectOption value="default-v1">Balanced</NativeSelectOption>
+                        <NativeSelectOption value="strict-v1">Strict</NativeSelectOption>
+                        <NativeSelectOption value="warn-v1">Review warnings</NativeSelectOption>
+                      </>
+                    )}
+                  </NativeSelect>
+                </Label>
+                <p className="field-hint">
+                  {extractionCapabilities?.quality_policies.find(
+                    (value) => value.id === selectedQualityId,
+                  )?.description ?? 'Saved extraction thresholds control publication.'}
+                </p>
+                <Label>
+                  Warning publication
+                  <NativeSelect
+                    value={selectedQuality.warning_action}
                     onChange={(event) =>
                       updateExtract({
-                        quality_policy: event.target.value as
-                          | 'default-v1'
-                          | 'strict-v1'
-                          | 'warn-v1',
+                        quality_policy: {
+                          ...selectedQuality,
+                          warning_action: event.target.value as 'publish' | 'fail',
+                        },
                       })
                     }
                   >
-                    <NativeSelectOption value="default-v1">Default</NativeSelectOption>
-                    <NativeSelectOption value="strict-v1">Strict</NativeSelectOption>
-                    <NativeSelectOption value="warn-v1">Warn and allow</NativeSelectOption>
+                    <NativeSelectOption value="fail">Block publication</NativeSelectOption>
+                    <NativeSelectOption value="publish">
+                      Publish with visible warning
+                    </NativeSelectOption>
                   </NativeSelect>
                 </Label>
+                <Label>
+                  Failed optional items
+                  <NativeSelect
+                    value={selectedQuality.failed_item_action}
+                    onChange={(event) =>
+                      updateExtract({
+                        quality_policy: {
+                          ...selectedQuality,
+                          failed_item_action: event.target.value as 'fail' | 'exclude',
+                        },
+                      })
+                    }
+                  >
+                    <NativeSelectOption value="fail">Fail the run</NativeSelectOption>
+                    <NativeSelectOption value="exclude">Exclude and report</NativeSelectOption>
+                  </NativeSelect>
+                </Label>
+                <details>
+                  <summary>Quality thresholds</summary>
+                  <div className="field-stack">
+                    <Label>
+                      Maximum empty-page ratio
+                      <Input
+                        type="number"
+                        min={0}
+                        max={1}
+                        step={0.01}
+                        value={selectedQuality.thresholds.maximum_empty_page_ratio}
+                        onChange={(event) =>
+                          updateExtract({
+                            quality_policy: {
+                              ...selectedQuality,
+                              thresholds: {
+                                ...selectedQuality.thresholds,
+                                maximum_empty_page_ratio: Number(event.target.value),
+                              },
+                            },
+                          })
+                        }
+                      />
+                    </Label>
+                    <Label>
+                      Maximum replacement-character ratio
+                      <Input
+                        type="number"
+                        min={0}
+                        max={1}
+                        step={0.0001}
+                        value={selectedQuality.thresholds.maximum_replacement_character_ratio}
+                        onChange={(event) =>
+                          updateExtract({
+                            quality_policy: {
+                              ...selectedQuality,
+                              thresholds: {
+                                ...selectedQuality.thresholds,
+                                maximum_replacement_character_ratio: Number(event.target.value),
+                              },
+                            },
+                          })
+                        }
+                      />
+                    </Label>
+                    <Label>
+                      Maximum control-character ratio
+                      <Input
+                        type="number"
+                        min={0}
+                        max={1}
+                        step={0.0001}
+                        value={selectedQuality.thresholds.maximum_control_character_ratio}
+                        onChange={(event) =>
+                          updateExtract({
+                            quality_policy: {
+                              ...selectedQuality,
+                              thresholds: {
+                                ...selectedQuality.thresholds,
+                                maximum_control_character_ratio: Number(event.target.value),
+                              },
+                            },
+                          })
+                        }
+                      />
+                    </Label>
+                    <Label>
+                      Minimum OCR engine confidence
+                      <Input
+                        type="number"
+                        min={0}
+                        max={100}
+                        value={selectedQuality.thresholds.minimum_ocr_confidence}
+                        onChange={(event) =>
+                          updateExtract({
+                            quality_policy: {
+                              ...selectedQuality,
+                              thresholds: {
+                                ...selectedQuality.thresholds,
+                                minimum_ocr_confidence: Number(event.target.value),
+                              },
+                            },
+                          })
+                        }
+                      />
+                    </Label>
+                    <Label>
+                      <input
+                        type="checkbox"
+                        checked={selectedQuality.thresholds.fail_on_suspicious_reading_order}
+                        onChange={(event) =>
+                          updateExtract({
+                            quality_policy: {
+                              ...selectedQuality,
+                              thresholds: {
+                                ...selectedQuality.thresholds,
+                                fail_on_suspicious_reading_order: event.target.checked,
+                              },
+                            },
+                          })
+                        }
+                      />
+                      Fail on suspicious reading order
+                    </Label>
+                    <Label>
+                      <input
+                        type="checkbox"
+                        checked={selectedQuality.thresholds.fail_on_malformed_tables}
+                        onChange={(event) =>
+                          updateExtract({
+                            quality_policy: {
+                              ...selectedQuality,
+                              thresholds: {
+                                ...selectedQuality.thresholds,
+                                fail_on_malformed_tables: event.target.checked,
+                              },
+                            },
+                          })
+                        }
+                      />
+                      Fail on malformed tables
+                    </Label>
+                  </div>
+                </details>
               </>
             )}
           </div>

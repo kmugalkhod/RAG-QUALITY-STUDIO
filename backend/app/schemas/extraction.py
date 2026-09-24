@@ -4,7 +4,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict
 
-from app.schemas.ingestion import CleaningTransform
+from app.schemas.ingestion import CleaningTransform, QualityPolicyV1
 
 
 class Strict(BaseModel):
@@ -46,13 +46,20 @@ class ChunkingProfileCapability(Strict):
     settings: dict[str, Any]
 
 
+class QualityPolicyCapability(Strict):
+    id: Literal["default-v1", "strict-v1", "warn-v1"]
+    name: str
+    description: str
+    settings: QualityPolicyV1
+
+
 class ExtractionCapabilities(Strict):
     schema_version: Literal[1]
     media_types: list[Literal["application/pdf", "text/plain"]]
     profiles: list[ExtractionProfileCapability]
     ocr: OcrCapability
     table_modes: list[Literal["preserve", "markdown", "plain_text"]]
-    quality_policies: list[Literal["default-v1", "strict-v1", "warn-v1"]]
+    quality_policies: list[QualityPolicyCapability]
     cleaning_profiles: list[CleaningProfileCapability]
     tokenizers: list[TokenizerCapability]
     chunking_profiles: list[ChunkingProfileCapability]

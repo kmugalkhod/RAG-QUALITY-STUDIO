@@ -1,6 +1,7 @@
 """Persist immutable Confluence revisions with element/section provenance."""
 
 import hashlib
+import time
 from app.connectors.confluence import ConfluenceArtifact
 from app.ingestion_content import (
     CanonicalInputSegment,
@@ -12,6 +13,11 @@ from app.ingestion_content import (
     cleaner_for_node,
     chunker_version_for_node,
     processing_identity,
+)
+from app.ingestion_content.quality import (
+    evaluate_quality,
+    measured_document,
+    quality_allows_publication,
 )
 from app.pipelines.parsing import MAX_CHUNKS, PARSER_VERSION, ProcessingError
 from app.pipelines.web_content import CLEANER_VERSION
@@ -116,10 +122,19 @@ def _block_type(element: str):
     }.get(element, "unknown")
 
 
-def _canonical_chunks(artifact, chunk, clean, processing_hash, phase_callback=None):
+def _canonical_chunks(
+    artifact,
+    chunk,
+    clean,
+    processing_hash,
+    phase_callback=None,
+    extract=None,
+    enforce_quality=True,
+):
     if phase_callback is not None:
         phase_callback("extract")
     extractor_version = f"confluence-storage-{PARSER_VERSION}"
+    extraction_started = time.perf_counter()
     extracted = build_extracted_document(
         [
             CanonicalInputSegment(
@@ -135,6 +150,18 @@ def _canonical_chunks(artifact, chunk, clean, processing_hash, phase_callback=No
         media_type="text/plain",
         title=artifact.item.display_name,
     )
+    if extract is not None:
+        extracted = measured_document(
+            extracted,
+            duration_ms=int((time.perf_counter() - extraction_started) * 1000),
+        )
+        extracted = evaluate_quality(extracted, extract.quality_policy)
+        if enforce_quality and not quality_allows_publication(
+            extract.quality_policy, extracted.measurements.quality_decision
+        ):
+            raise ProcessingError(
+                "Confluence extraction did not satisfy the saved quality policy."
+            )
     if phase_callback is not None:
         phase_callback("clean")
     cleaner = cleaner_for_node(clean)
@@ -198,7 +225,7 @@ def persist_artifact(
     def prepare(_stored_path):
         if getattr(clean, "profile", None) is not None:
             return _canonical_chunks(
-                artifact, chunk, clean, processing_hash, phase_callback
+                artifact, chunk, clean, processing_hash, phase_callback, extract
             )
         return _chunks(artifact, chunk, clean, phase_callback)
 
@@ -242,4 +269,15 @@ def persist_artifact(
         prior_revision,
         prepare,
         reuse_stage=phase_callback,
+    )
+
+
+def prepare_preview_artifact(artifact, chunk, clean, extract, processing_hash):
+    return _canonical_chunks(
+        artifact,
+        chunk,
+        clean,
+        processing_hash,
+        extract=extract,
+        enforce_quality=False,
     )

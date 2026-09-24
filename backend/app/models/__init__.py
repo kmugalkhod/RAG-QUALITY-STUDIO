@@ -11,7 +11,11 @@ from app.models.ingestion import (  # noqa: F401
     IngestionRunNode,
     IngestionSchedule,
 )
-from app.models.preview import SourcePreview, SourcePreviewItem  # noqa: F401
+from app.models.preview import (  # noqa: F401
+    SourcePreview,
+    SourcePreviewItem,
+    SourcePreviewRepresentation,
+)
 from app.models.source import (  # noqa: F401
     IndexSourceRevision,
     SourceItem,

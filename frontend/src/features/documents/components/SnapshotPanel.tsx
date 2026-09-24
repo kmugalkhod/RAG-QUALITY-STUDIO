@@ -24,8 +24,12 @@ const formatDate = (value: string | null) =>
         new Date(value),
       )
     : 'In progress';
+const sourceLabel = (kind: SourceSnapshot['source_kind']) =>
+  ({ website: 'Website', s3: 'S3', notion: 'Notion', confluence: 'Confluence' })[kind];
 const origin = (snapshot: SourceSnapshot) =>
-  snapshot.source_identity.origins?.join(', ') || 'Website source';
+  snapshot.source_identity.origins?.join(', ') ||
+  snapshot.source_identity.buckets?.join(', ') ||
+  `${sourceLabel(snapshot.source_kind)} source`;
 
 export function SnapshotPanel({ projectId }: { projectId: string }) {
   const [snapshots, setSnapshots] = useState<SourceSnapshot[]>([]);
@@ -36,7 +40,7 @@ export function SnapshotPanel({ projectId }: { projectId: string }) {
   const [sets, setSets] = useState<KnowledgeSet[]>([]);
   const [versionId, setVersionId] = useState('');
   const [destination, setDestination] = useState<'new' | 'existing'>('new');
-  const [name, setName] = useState('Website index variant');
+  const [name, setName] = useState('Source index variant');
   const [setId, setSetId] = useState('');
   const [run, setRun] = useState<IngestionRun>();
   const [busy, setBusy] = useState(false);
@@ -105,13 +109,12 @@ export function SnapshotPanel({ projectId }: { projectId: string }) {
         }
         setSnapshots(values);
         setSets(knowledgeSets);
-        const websiteVersions = pipelineVersions.filter((version) =>
+        const remoteVersions = pipelineVersions.filter((version) =>
           version.execution.nodes.some(
-            (node) => node.type === 'source' && node.config.kind === 'website',
+            (node) => node.type === 'source' && node.config.kind !== 'existing_files',
           ),
         );
-        setVersions(websiteVersions);
-        setVersionId((current) => current || websiteVersions[0]?.id || '');
+        setVersions(remoteVersions);
         setSetId((current) => current || knowledgeSets[0]?.id || '');
         const linked = new URLSearchParams(window.location.hash.split('?')[1]).get('snapshot');
         setSelected((current) => current ?? values.find((value) => value.id === linked));
@@ -167,9 +170,25 @@ export function SnapshotPanel({ projectId }: { projectId: string }) {
     return () => window.clearTimeout(timer);
   }, [projectId, run]);
 
+  const compatibleVersions = useMemo(
+    () =>
+      versions.filter((version) =>
+        version.execution.nodes.some(
+          (node) => node.type === 'source' && selected && node.config.kind === selected.source_kind,
+        ),
+      ),
+    [selected, versions],
+  );
+  useEffect(() => {
+    setVersionId((current) =>
+      compatibleVersions.some((version) => version.id === current)
+        ? current
+        : compatibleVersions[0]?.id || '',
+    );
+  }, [compatibleVersions]);
   const chosenVersion = useMemo(
-    () => versions.find((value) => value.id === versionId),
-    [versions, versionId],
+    () => compatibleVersions.find((value) => value.id === versionId),
+    [compatibleVersions, versionId],
   );
   const chunk = chosenVersion?.execution.nodes.find((node) => node.type === 'chunk');
   const embed = chosenVersion?.execution.nodes.find((node) => node.type === 'embed');
@@ -250,9 +269,7 @@ export function SnapshotPanel({ projectId }: { projectId: string }) {
       <header className="index-workspace-header">
         <div>
           <h2 id="snapshot-title">Source snapshots</h2>
-          <p>
-            Immutable Website collections that can feed multiple independently configured indexes.
-          </p>
+          <p>Immutable connector collections that can feed independently configured indexes.</p>
         </div>
       </header>
       {error && (
@@ -271,7 +288,7 @@ export function SnapshotPanel({ projectId }: { projectId: string }) {
             <div className="index-detail-empty">
               <Globe2 />
               <h3>No source snapshots yet</h3>
-              <p>Run a Website ingestion pipeline to collect a reusable source snapshot.</p>
+              <p>Run a remote-source ingestion pipeline to collect a reusable source snapshot.</p>
               <Button asChild>
                 <a href={`#/projects/${projectId}/pipelines/new?kind=ingestion`}>
                   Open ingestion pipelines
@@ -297,7 +314,7 @@ export function SnapshotPanel({ projectId }: { projectId: string }) {
                 <span>
                   <StatusBadge status={snapshot.status}>{snapshot.status}</StatusBadge>
                   <small>
-                    {snapshot.included_count} pages · {snapshot.downstream_index_count} indexes
+                    {snapshot.included_count} items · {snapshot.downstream_index_count} indexes
                   </small>
                 </span>
               </button>
@@ -309,7 +326,7 @@ export function SnapshotPanel({ projectId }: { projectId: string }) {
             <div className="index-detail-empty">
               <Globe2 />
               <h2>Select a source snapshot</h2>
-              <p>Inspect captured pages, collection state, and every derived index.</p>
+              <p>Inspect captured items, collection state, and every derived index.</p>
             </div>
           ) : (
             <>
@@ -327,7 +344,7 @@ export function SnapshotPanel({ projectId }: { projectId: string }) {
               {selected.error && <p className="error-message">{selected.error}</p>}
               <dl className="index-detail-stats">
                 <div>
-                  <dt>Included pages</dt>
+                  <dt>Included items</dt>
                   <dd>{selected.included_count}</dd>
                 </div>
                 <div>
@@ -360,7 +377,7 @@ export function SnapshotPanel({ projectId }: { projectId: string }) {
                     <p>
                       This is optional. Reprocess this exact snapshot only when you need different
                       processing or embedding settings. The existing ready index remains available,
-                      and the Website will not be fetched again.
+                      and the remote source will not be fetched again.
                     </p>
                     <label>
                       Ingestion pipeline version
@@ -368,7 +385,7 @@ export function SnapshotPanel({ projectId }: { projectId: string }) {
                         value={versionId}
                         onChange={(event) => setVersionId(event.target.value)}
                       >
-                        {versions.map((version) => (
+                        {compatibleVersions.map((version) => (
                           <option key={version.id} value={version.id}>
                             {version.name} · v{version.version}
                           </option>
@@ -425,7 +442,7 @@ export function SnapshotPanel({ projectId }: { projectId: string }) {
                         </select>
                       </label>
                     )}
-                    <Button type="submit" disabled={busy || !versions.length}>
+                    <Button type="submit" disabled={busy || !compatibleVersions.length}>
                       Create index variant
                     </Button>
                   </form>
@@ -473,7 +490,7 @@ export function SnapshotPanel({ projectId }: { projectId: string }) {
               ) : (
                 <p className="muted">No indexes have been built from this snapshot.</p>
               )}
-              <h3>Captured pages</h3>
+              <h3>Captured items</h3>
               {items.length ? (
                 <div className="snapshot-items">
                   {items.map((item) => (
@@ -486,7 +503,7 @@ export function SnapshotPanel({ projectId }: { projectId: string }) {
                   ))}
                 </div>
               ) : (
-                <p className="muted">No captured pages are available.</p>
+                <p className="muted">No captured items are available.</p>
               )}
             </>
           )}

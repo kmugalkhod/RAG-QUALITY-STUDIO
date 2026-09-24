@@ -1,5 +1,6 @@
 import {
   defaultIngestionDraft,
+  defaultQualityPolicy,
   describeCadence,
   describeIngestionNode,
   upgradeIngestionDraft,
@@ -30,7 +31,7 @@ describe('ingestion editor model', () => {
     expect(draft.execution.nodes.find((node) => node.type === 'extract')).toMatchObject({
       strategy: 'auto',
       ocr: { mode: 'off', languages: ['eng'] },
-      quality_policy: 'default-v1',
+      quality_policy: defaultQualityPolicy,
       config_version: 'layout-ocr-v1',
     });
     expect(draft.execution.edges).toEqual([
@@ -97,7 +98,14 @@ describe('ingestion editor model', () => {
           max_pixels_per_page: 20_000_000,
         },
         table_modes: ['preserve'],
-        quality_policies: ['default-v1'],
+        quality_policies: [
+          {
+            id: 'default-v1',
+            name: 'Default',
+            description: 'Balanced extraction-quality thresholds.',
+            settings: defaultQualityPolicy,
+          },
+        ],
         cleaning_profiles: [
           {
             id: 'structure-aware-v1',

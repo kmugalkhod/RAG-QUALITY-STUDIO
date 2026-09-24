@@ -1,4 +1,5 @@
 from uuid import UUID
+from typing import Literal
 
 from fastapi import APIRouter, Request, Response
 
@@ -13,6 +14,7 @@ from app.schemas.ingestion import (
     IngestionRunRead,
     IngestionRunStart,
     SourcePreviewItemPage,
+    SourcePreviewRepresentationPage,
     SourcePreviewRead,
 )
 from app.schemas.derivation import (
@@ -79,9 +81,44 @@ def preview_items(
     return previews.items(session, project_id, preview_id, limit, offset)
 
 
+@router.get(
+    "/source-previews/{preview_id}/items/{item_ordinal}/representations",
+    response_model=SourcePreviewRepresentationPage,
+)
+def preview_representations(
+    project_id: UUID,
+    preview_id: UUID,
+    item_ordinal: int,
+    stage: Literal["raw", "extracted", "cleaned", "diff", "chunks"],
+    session: Database,
+    limit: Limit = 20,
+    offset: Offset = 0,
+):
+    return previews.representations(
+        session, project_id, preview_id, item_ordinal, stage, limit, offset
+    )
+
+
 @router.post("/source-previews/{preview_id}/cancel", response_model=SourcePreviewRead)
 def cancel_preview(project_id: UUID, preview_id: UUID, session: Database):
     return previews.cancel(session, project_id, preview_id)
+
+
+@router.post(
+    "/source-previews/{preview_id}/retry",
+    response_model=SourcePreviewRead,
+    status_code=202,
+)
+def retry_preview(
+    project_id: UUID,
+    preview_id: UUID,
+    request: Request,
+    session: Database,
+):
+    previous = previews.get(session, project_id, preview_id)
+    execution = IngestionExecution.model_validate(previous.execution)
+    _protect_credentialed_source(request, execution)
+    return previews.retry(session, project_id, preview_id)
 
 
 @router.post(

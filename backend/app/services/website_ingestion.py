@@ -1,6 +1,7 @@
 """Website revision persistence and exact immutable-index preparation."""
 
 import hashlib
+import time
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -16,6 +17,11 @@ from app.ingestion_content import (
     cleaner_for_node,
     chunker_version_for_node,
     processing_identity,
+)
+from app.ingestion_content.quality import (
+    evaluate_quality,
+    measured_document,
+    quality_allows_publication,
 )
 from app.ingestion_content.contracts import ExtractedDocumentV1
 from app.models.document import ProcessingRun
@@ -81,10 +87,25 @@ def _canonical_chunks(
     phase_callback=None,
     extracted: ExtractedDocumentV1 | None = None,
     repeated_site_fingerprints: set[str] | None = None,
+    extract_config=None,
+    enforce_quality=True,
 ):
     if phase_callback is not None:
         phase_callback("extract")
+    extraction_started = time.perf_counter()
     extracted = extracted or canonical_extracted_document(artifact, clean)
+    if extract_config is not None:
+        extracted = measured_document(
+            extracted,
+            duration_ms=int((time.perf_counter() - extraction_started) * 1000),
+        )
+        extracted = evaluate_quality(extracted, extract_config.quality_policy)
+        if enforce_quality and not quality_allows_publication(
+            extract_config.quality_policy, extracted.measurements.quality_decision
+        ):
+            raise ProcessingError(
+                "Website extraction did not satisfy the saved quality policy."
+            )
     if phase_callback is not None:
         phase_callback("clean")
     cleaner = cleaner_for_node(clean)
@@ -199,6 +220,7 @@ def persist_artifact(
                 phase_callback,
                 extracted,
                 repeated_site_fingerprints,
+                extract,
             )
         if phase_callback is not None:
             phase_callback("extract")
@@ -243,6 +265,17 @@ def persist_artifact(
         prior_revision,
         prepare,
         reuse_stage=phase_callback,
+    )
+
+
+def prepare_preview_artifact(artifact, chunk, clean, extract, processing_hash):
+    return _canonical_chunks(
+        artifact,
+        chunk,
+        clean,
+        processing_hash,
+        extract_config=extract,
+        enforce_quality=False,
     )
 
 

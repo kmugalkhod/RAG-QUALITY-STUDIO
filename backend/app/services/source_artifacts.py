@@ -104,6 +104,165 @@ def config_hash(value: dict) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
+def reprocess_source_revision(
+    session: Session,
+    project_id: UUID,
+    source_item: SourceItem,
+    source_revision: SourceRevision,
+    *,
+    processing_config: dict[str, Any],
+    processing_config_hash: str,
+    parser_version: str,
+    chunk_size: int,
+    chunk_overlap: int,
+    chunk_config_version: str,
+    reuse_stage: ReuseStage | None = None,
+) -> SourceRevision:
+    """Create a chunk variant from a retained canonical derivation without refetching.
+
+    Exact processing variants reuse the immutable revision. Changed variants are
+    permitted only when the retained artifact has a compatible canonical cleaned
+    derivation; extraction or cleaning changes require a connector refresh.
+    """
+
+    existing = session.scalar(
+        select(SourceRevision).where(
+            SourceRevision.source_item_id == source_item.id,
+            SourceRevision.content_hash == source_revision.content_hash,
+            SourceRevision.processing_config_hash == processing_config_hash,
+        )
+    )
+    if existing is not None:
+        return existing
+    if processing_config.get("schema_version") != 2:
+        raise ProcessingError(
+            "Stored-artifact variants require a canonical v2 processing run. "
+            "Refresh this connector with schema v2 before changing processing settings."
+        )
+    derivation_hash = derivation_hash_from_config(processing_config)
+    reusable_revision = session.scalar(
+        select(SourceRevision)
+        .join(ProcessingRun, ProcessingRun.id == SourceRevision.processing_run_id)
+        .where(
+            SourceRevision.source_item_id == source_item.id,
+            SourceRevision.content_hash == source_revision.content_hash,
+            ProcessingRun.derivation_config_hash == derivation_hash,
+            ProcessingRun.status == "succeeded",
+        )
+        .order_by(SourceRevision.created_at.desc(), SourceRevision.id.desc())
+    )
+    if reusable_revision is None:
+        raise ProcessingError(
+            "The retained source artifact has no compatible canonical derivation. "
+            "Refresh the connector before changing extraction or cleaning settings."
+        )
+    if reuse_stage is not None:
+        reuse_stage("chunk")
+    cleaned, _ = reusable_cleaned_document(
+        session, reusable_revision.processing_run_id
+    )
+    chunk_config = TypeAdapter(ChunkNodeV2).validate_python(
+        {
+            "id": "chunk",
+            "type": "chunk",
+            **(processing_config.get("chunk") or {}),
+        }
+    )
+    provenance = {
+        **(reusable_revision.provenance or {}),
+        "processing_versions": processing_config.get("versions", {}),
+        "reprocessed_from_source_revision_id": str(reusable_revision.id),
+    }
+    chunking = chunk_cleaned_document(
+        cleaned,
+        chunk_config,
+        provenance=provenance,
+        join_blocks=True,
+    )
+    if not chunking.chunks:
+        raise ProcessingError("The retained source artifact has no chunkable text.")
+    if len(chunking.chunks) > MAX_CHUNKS:
+        raise ProcessingError(
+            "The retained source artifact exceeds the 50,000 chunk limit."
+        )
+    if sum(len(item.text) for item in chunking.chunks) > 10_000_000:
+        raise ProcessingError(
+            "The retained source artifact exceeds the chunk-output limit."
+        )
+    values = [item.as_record() for item in chunking.chunks]
+    encoded = json.dumps(
+        values, sort_keys=True, separators=(",", ":"), ensure_ascii=True
+    ).encode("utf-8")
+    output_hash = hashlib.sha256(encoded).hexdigest()
+    source_run = session.get(ProcessingRun, reusable_revision.processing_run_id)
+    document = session.get(Document, reusable_revision.document_id)
+    if source_run is None or document is None or document.project_id != project_id:
+        raise ProcessingError("The retained source artifact is no longer available.")
+    next_version = (
+        session.scalar(
+            select(func.max(ProcessingRun.version)).where(
+                ProcessingRun.document_id == document.id
+            )
+        )
+        or 0
+    ) + 1
+    current_time = datetime.now(timezone.utc)
+    processing = ProcessingRun(
+        document_id=document.id,
+        version=next_version,
+        chunk_size=chunk_size,
+        overlap=chunk_overlap,
+        config_version=chunk_config_version,
+        parser_version=parser_version,
+        processing_config=processing_config,
+        processing_config_hash=processing_config_hash,
+        derivation_config_hash=derivation_hash,
+        reused_from_processing_run_id=source_run.id,
+        output_hash=output_hash,
+        status="succeeded",
+        attempts=1,
+        progress=100,
+        chunk_count=len(values),
+        started_at=current_time,
+        finished_at=current_time,
+        updated_at=current_time,
+    )
+    session.add(processing)
+    session.flush()
+    session.execute(
+        insert(Chunk), [dict(run_id=processing.id, **value) for value in values]
+    )
+    link_reused_derivations(
+        session,
+        processing_run_id=processing.id,
+        source_processing_run_id=source_run.id,
+        document_id=document.id,
+        project_id=project_id,
+        spans=chunking.spans,
+    )
+    revision = SourceRevision(
+        project_id=project_id,
+        source_item_id=source_item.id,
+        document_id=document.id,
+        processing_run_id=processing.id,
+        content_hash=reusable_revision.content_hash,
+        extracted_hash=reusable_revision.extracted_hash,
+        processing_config_hash=processing_config_hash,
+        media_type=reusable_revision.media_type,
+        size_bytes=reusable_revision.size_bytes,
+        artifact_storage_name=reusable_revision.artifact_storage_name,
+        etag=reusable_revision.etag,
+        last_modified=reusable_revision.last_modified,
+        provider_revision=reusable_revision.provider_revision,
+        fetched_at=reusable_revision.fetched_at,
+        extraction_config=processing_config,
+        provenance=provenance,
+    )
+    session.add(revision)
+    session.flush()
+    return revision
+
+
 def persist_source_artifact(
     session: Session,
     project_id: UUID,

@@ -175,6 +175,22 @@ export type CleaningTransform =
       maximum_characters: number;
     };
 
+export type QualityPolicyId = 'default-v1' | 'strict-v1' | 'warn-v1';
+
+export type QualityPolicy = {
+  id: QualityPolicyId;
+  thresholds: {
+    maximum_empty_page_ratio: number;
+    maximum_replacement_character_ratio: number;
+    maximum_control_character_ratio: number;
+    minimum_ocr_confidence: number;
+    fail_on_suspicious_reading_order: boolean;
+    fail_on_malformed_tables: boolean;
+  };
+  warning_action: 'publish' | 'fail';
+  failed_item_action: 'fail' | 'exclude';
+};
+
 export type IngestionNode =
   | (NodeBase & {
       type: 'source';
@@ -193,7 +209,7 @@ export type IngestionNode =
         timeout_seconds: number;
       };
       tables?: 'preserve' | 'markdown' | 'plain_text';
-      quality_policy?: 'default-v1' | 'strict-v1' | 'warn-v1';
+      quality_policy?: QualityPolicyId | QualityPolicy;
       config_version?: string;
     })
   | (NodeBase & {
@@ -253,18 +269,40 @@ export type SourcePreviewItem = {
   size_bytes: number | null;
   depth: number | null;
   error_code: string | null;
+  quality_decision: 'pass' | 'warn' | 'exclude' | 'fail' | null;
+  processing_status: 'pending' | 'succeeded' | 'failed' | 'skipped';
+  fetch_mode: 'network' | 'cached-artifact';
+  processing_config_hash: string | null;
+  findings: {
+    code: string;
+    severity: 'info' | 'warning' | 'error';
+    message: string;
+    remediation?: string | null;
+    page_numbers?: number[];
+  }[];
+  metrics: Record<string, unknown>;
+  stage_timings: Record<string, number>;
+  cost_basis: Record<string, unknown>;
 };
 
 export type SourcePreview = {
   id: string;
   project_id: string;
-  status: 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled';
+  status: 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled' | 'expired';
   progress: number;
   discovered_count: number;
   included_count: number;
   excluded_count: number;
   duplicate_count: number;
   failed_count: number;
+  pass_count: number;
+  warn_count: number;
+  exclude_count: number;
+  quality_fail_count: number;
+  known_compute_ms: number;
+  configuration_hash: string;
+  fetch_mode: 'network' | 'cached-artifact' | 'mixed';
+  cost_basis: Record<string, unknown>;
   attempts: number;
   failures: number;
   error: string | null;
@@ -272,6 +310,15 @@ export type SourcePreview = {
   updated_at: string;
   started_at: string | null;
   finished_at: string | null;
+  expires_at: string;
+};
+
+export type SourcePreviewRepresentation = {
+  stage: 'raw' | 'extracted' | 'cleaned' | 'diff' | 'chunks';
+  ordinal: number;
+  block_type: string;
+  text: string;
+  metadata: Record<string, unknown>;
 };
 
 export type IngestionRun = {
@@ -448,7 +495,12 @@ export type ExtractionCapabilities = {
     max_pixels_per_page: number;
   };
   table_modes: ('preserve' | 'markdown' | 'plain_text')[];
-  quality_policies: ('default-v1' | 'strict-v1' | 'warn-v1')[];
+  quality_policies: {
+    id: QualityPolicyId;
+    name: string;
+    description: string;
+    settings: QualityPolicy;
+  }[];
   cleaning_profiles: {
     id: 'structure-aware-v1';
     name: string;

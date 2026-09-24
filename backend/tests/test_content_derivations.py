@@ -20,7 +20,17 @@ from app.ingestion_content import (
 )
 from app.ingestion_content.contracts import BoundingBox, CanonicalBlock
 from app.ingestion_content.cleaning import default_structure_steps
-from app.schemas.ingestion import CharacterChunkNodeV2, CleanNodeV2
+from app.ingestion_content.quality import (
+    evaluate_quality,
+    measured_document,
+    quality_allows_publication,
+)
+from app.schemas.ingestion import (
+    CharacterChunkNodeV2,
+    CleanNodeV2,
+    DefaultQualityPolicyV1,
+    WarnQualityPolicyV1,
+)
 from app.services.confluence_ingestion import _canonical_chunks as confluence_chunks
 from app.services.notion_ingestion import _canonical_chunks as notion_chunks
 from app.services.s3_ingestion import _canonical_chunks as s3_chunks
@@ -38,6 +48,49 @@ class Clean:
 class Chunk:
     size = 6
     overlap = 2
+
+
+def test_typed_quality_policy_controls_warning_publication():
+    extracted = build_extracted_document(
+        [CanonicalInputSegment(text=("a" * 499) + "\ufffd")],
+        media_type="text/plain",
+    )
+    measured = measured_document(extracted, duration_ms=7)
+    publish = DefaultQualityPolicyV1(
+        warning_action="publish", failed_item_action="fail"
+    )
+    blocked = DefaultQualityPolicyV1(
+        warning_action="fail", failed_item_action="fail"
+    )
+    reviewed = evaluate_quality(measured, publish)
+
+    assert reviewed.measurements.quality_decision == "warn"
+    assert reviewed.measurements.extraction_duration_ms == 7
+    assert quality_allows_publication(publish, "warn")
+    assert not quality_allows_publication(blocked, "warn")
+    assert quality_allows_publication("default-v1", "warn")
+
+
+def test_typed_quality_policy_controls_failed_item_decision():
+    measured = measured_document(
+        build_extracted_document([], media_type="text/plain"), duration_ms=0
+    )
+    failed = evaluate_quality(
+        measured,
+        DefaultQualityPolicyV1(
+            warning_action="publish", failed_item_action="fail"
+        ),
+    )
+    excluded = evaluate_quality(
+        measured,
+        WarnQualityPolicyV1(
+            warning_action="publish", failed_item_action="exclude"
+        ),
+    )
+
+    assert failed.measurements.quality_decision == "fail"
+    assert excluded.measurements.quality_decision == "exclude"
+    assert not quality_allows_publication("warn-v1", "exclude")
 
 
 def test_canonical_document_and_lineage_are_deterministic():

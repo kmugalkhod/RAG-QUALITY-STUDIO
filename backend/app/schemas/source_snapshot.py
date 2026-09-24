@@ -10,7 +10,7 @@ class SourceSnapshotRead(BaseModel):
 
     id: UUID
     project_id: UUID
-    source_kind: Literal["website"]
+    source_kind: Literal["website", "s3", "notion", "confluence"]
     source_config_hash: str
     source_identity: dict
     connector_version: str

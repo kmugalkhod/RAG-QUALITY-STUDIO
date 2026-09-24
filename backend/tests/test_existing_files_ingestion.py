@@ -18,6 +18,7 @@ from app.models.derivation import ChunkBlockSpan
 from app.models.index import IndexChunk, IndexVersion, KnowledgeSet
 from app.models.ingestion import IngestionRun, IngestionRunItem, IngestionRunNode
 from app.models.pipeline import Pipeline, PipelineVersion
+from app.models.preview import SourcePreview
 from app.providers import embeddings
 from app.services import ingestion_execution
 from app.workers.indexing import process_index
@@ -329,6 +330,7 @@ def test_existing_files_preview_run_publication_and_exact_answer_index(ingestion
     assert items["total"] == 2 and items["items"][0]["status"] == "succeeded"
     assert provider.calls
 
+
     with Session(engine) as session:
         index = session.get(IndexVersion, index_id)
         membership = set(
@@ -376,6 +378,80 @@ def test_existing_files_preview_run_publication_and_exact_answer_index(ingestion
         },
     )
     assert answer.status_code == 201, answer.text
+
+
+def test_processing_preview_is_ephemeral_paged_and_retryable(ingestion_api):
+    client, engine, project_id, _, config, _ = ingestion_api
+    document, _ = prepare(client, engine, project_id, name="preview-v2.txt")
+    payload = ingestion_draft(
+        [document["id"]], config, name="Processing preview", schema_version=2
+    )
+    extract = next(
+        node for node in payload["execution"]["nodes"] if node["type"] == "extract"
+    )
+    extract["quality_policy"] = {
+        "id": "default-v1",
+        "thresholds": {},
+        "warning_action": "publish",
+        "failed_item_action": "fail",
+    }
+    before_indexes = client.get(
+        f"/api/projects/{project_id}/indexes?limit=100"
+    ).json()["total"]
+    accepted = client.post(
+        f"/api/projects/{project_id}/ingestion-previews",
+        json={"execution": payload["execution"]},
+    )
+    assert accepted.status_code == 202, accepted.text
+    preview_id = accepted.json()["id"]
+    process_preview(UUID(preview_id), engine)
+
+    preview = client.get(
+        f"/api/projects/{project_id}/source-previews/{preview_id}"
+    ).json()
+    assert preview["status"] == "succeeded"
+    assert preview["pass_count"] == 1 and preview["known_compute_ms"] >= 0
+    assert preview["fetch_mode"] == "cached-artifact"
+    assert preview["cost_basis"]["known_monetary_cost"] is None
+    item = client.get(
+        f"/api/projects/{project_id}/source-previews/{preview_id}/items"
+    ).json()["items"][0]
+    assert item["quality_decision"] == "pass"
+    assert item["processing_status"] == "succeeded"
+    assert item["processing_config_hash"] == preview["configuration_hash"]
+    for stage in ("raw", "extracted", "cleaned", "diff", "chunks"):
+        page = client.get(
+            f"/api/projects/{project_id}/source-previews/{preview_id}"
+            f"/items/0/representations?stage={stage}&limit=1"
+        )
+        assert page.status_code == 200, page.text
+        assert page.json()["total"] >= 1
+        assert len(page.json()["items"]) == 1
+    assert (
+        client.get(f"/api/projects/{project_id}/indexes?limit=100").json()["total"]
+        == before_indexes
+    )
+
+    with Session(engine) as session:
+        row = session.get(SourcePreview, UUID(preview_id))
+        row.expires_at = now() - timedelta(seconds=1)
+        session.commit()
+    assert (
+        client.get(f"/api/projects/{project_id}/source-previews/{preview_id}")
+        .json()["status"]
+        == "expired"
+    )
+    assert (
+        client.get(
+            f"/api/projects/{project_id}/source-previews/{preview_id}/items"
+        ).status_code
+        == 410
+    )
+    retried = client.post(
+        f"/api/projects/{project_id}/source-previews/{preview_id}/retry"
+    )
+    assert retried.status_code == 202, retried.text
+    assert retried.json()["id"] != preview_id
 
 
 def test_mismatched_processing_is_fenced_and_cancellable(ingestion_api):
