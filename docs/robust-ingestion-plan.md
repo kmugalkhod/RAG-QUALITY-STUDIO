@@ -1,7 +1,7 @@
 # Robust extraction, cleaning and chunking implementation plan
 
-Status: implementation in progress; Phases 0–6 completed by 2026-09-25; Phase 7A decision gate next
-Last updated: 2026-09-24
+Status: **implemented and verified through Phase 8 on 2026-09-25**
+Last updated: 2026-09-25
 Related plans: [ingestion pipeline plan](ingestion-pipeline-plan.md),
 [source snapshot/index variants plan](source-snapshot-index-variants-plan.md)
 
@@ -24,9 +24,10 @@ The target system must:
 - preserve all existing pipeline versions, source revisions, indexes, queries and
   experiments.
 
-This is an implementation plan, not a claim that these capabilities already exist.
-Each phase is an independent delivery boundary. Do not present a later-phase control
-in production until its backend path, persistence, failure behavior and tests exist.
+This document began as an implementation plan. The phase requirements below now describe
+the delivered roadmap; completion evidence and remaining deployment limitations are
+recorded in `docs/implementation-plan.md`, `docs/robust-ingestion-release-baseline.md`
+and `docs/operations.md`.
 
 ## 2. Current implementation and verified gaps
 

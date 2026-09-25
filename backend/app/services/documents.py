@@ -18,6 +18,31 @@ from app.pipelines.parsing import PARSER_VERSION, ProcessingError
 from app.ingestion_content.processing import IngestionStageError
 from app.ingestion_content.extractors.pdf import detect_media_type
 from app.schemas.document import DocumentRead, ProcessingConfig, RunRead
+from app.services import artifact_storage
+from app.ingestion_content.extractors.formats import (
+    CSV,
+    DOCX,
+    HTML,
+    MARKDOWN,
+    PPTX,
+    TSV,
+    XLSX,
+)
+
+
+UPLOAD_MEDIA_TYPES = {
+    ".txt": "text/plain",
+    ".pdf": "application/pdf",
+    ".md": MARKDOWN,
+    ".markdown": MARKDOWN,
+    ".html": HTML,
+    ".htm": HTML,
+    ".csv": CSV,
+    ".tsv": TSV,
+    ".docx": DOCX,
+    ".pptx": PPTX,
+    ".xlsx": XLSX,
+}
 
 
 def project(session: Session, project_id: UUID):
@@ -33,6 +58,19 @@ def document(session: Session, project_id: UUID, document_id: UUID):
             Document.id == document_id,
             Document.project_id == project_id,
             Document.origin_kind == "upload",
+        )
+    )
+    if result is None:
+        raise HTTPException(404, "Document not found in this project.")
+    return result
+
+
+def artifact_document(session: Session, project_id: UUID, document_id: UUID):
+    """Resolve any project artifact, including connector-owned documents."""
+    result = session.scalar(
+        select(Document).where(
+            Document.id == document_id,
+            Document.project_id == project_id,
         )
     )
     if result is None:
@@ -58,13 +96,15 @@ def upload(session: Session, project_id: UUID, file: UploadFile):
     if not filename or len(filename) > 255 or any(ord(c) < 32 for c in filename):
         raise HTTPException(422, "Filename must contain 1–255 printable characters.")
     extension = Path(filename).suffix.lower()
-    if extension not in {".txt", ".pdf"}:
-        raise HTTPException(415, "Upload a PDF or UTF-8 TXT file.")
+    if extension not in UPLOAD_MEDIA_TYPES:
+        raise HTTPException(
+            415,
+            "Upload PDF, TXT, Markdown, HTML, DOCX, PPTX, CSV, TSV or XLSX.",
+        )
     # Content is authoritative; MIME supplied by browsers is not trusted.
     root = settings.storage_path
-    name = uuid4().hex
-    temporary = root / (name + ".part")
-    final = root / name
+    temporary = root / (uuid4().hex + ".part")
+    final = None
     commit_started = False
     try:
         root.mkdir(parents=True, exist_ok=True)
@@ -83,26 +123,23 @@ def upload(session: Session, project_id: UUID, file: UploadFile):
             os.fsync(output.fileno())
         if size == 0:
             raise HTTPException(422, "The uploaded file is empty.")
-        expected_media_type = "text/plain" if extension == ".txt" else "application/pdf"
-        detected_media_type = detect_media_type(temporary)
+        expected_media_type = UPLOAD_MEDIA_TYPES[extension]
+        detected_media_type = detect_media_type(temporary, expected_media_type)
         if detected_media_type != expected_media_type:
             raise HTTPException(
-                422, "The file bytes do not match the selected PDF or TXT filename."
+                422, "The file bytes do not match the selected document filename."
             )
-        os.replace(temporary, final)
-        # Persist the directory entry before committing its database reference.
-        descriptor = os.open(root, os.O_RDONLY)
-        try:
-            os.fsync(descriptor)
-        finally:
-            os.close(descriptor)
+        document_id = uuid4()
+        stored = artifact_storage.store(temporary.read_bytes(), project_id, document_id)
+        final = stored.path
         result = Document(
+            id=document_id,
             project_id=project_id,
             filename=filename,
-            storage_name=name,
             media_type=detected_media_type,
             content_hash=digest.hexdigest(),
             size_bytes=size,
+            **artifact_storage.model_values(stored),
         )
         session.add(result)
         session.flush()
@@ -121,7 +158,10 @@ def upload(session: Session, project_id: UUID, file: UploadFile):
     finally:
         # A failed/ambiguous DB commit can leave an orphan file, never a missing
         # committed file. Remove known pre-commit files; preserve ambiguous commits.
-        for path in [temporary] + ([final] if not commit_started else []):
+        cleanup = [temporary]
+        if final is not None and not commit_started:
+            cleanup.append(final)
+        for path in cleanup:
             try:
                 path.unlink(missing_ok=True)
             except OSError:
@@ -166,6 +206,10 @@ def list_documents(session, project_id, limit, offset):
         items.append(item)
     result["items"] = items
     return result
+
+
+def rewrap_artifact(session: Session, value: Document):
+    return artifact_storage.rewrap(session, value)
 
 
 def remove(session: Session, project_id: UUID, document_id: UUID):

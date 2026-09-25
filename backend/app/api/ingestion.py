@@ -1,9 +1,10 @@
 from uuid import UUID
 from typing import Literal
 
-from fastapi import APIRouter, Request, Response
+from fastapi import APIRouter, Depends, Request, Response
 
 from app.api.connections import require_keyring
+from app.core.auth import CurrentPrincipal, require_project_access
 from app.api.documents import Limit, Offset
 from app.api.routes import Database
 from app.schemas.ingestion import (
@@ -37,7 +38,10 @@ from app.ingestion_content.extractors import extraction_capabilities
 from app.services import pipelines as pipeline_service
 
 
-router = APIRouter(prefix="/api/projects/{project_id}")
+router = APIRouter(
+    prefix="/api/projects/{project_id}",
+    dependencies=[Depends(require_project_access)],
+)
 
 
 @router.get("/ingestion-capabilities", response_model=ExtractionCapabilities)
@@ -75,10 +79,11 @@ def preview_items(
     project_id: UUID,
     preview_id: UUID,
     session: Database,
+    principal: CurrentPrincipal,
     limit: Limit = 20,
     offset: Offset = 0,
 ):
-    return previews.items(session, project_id, preview_id, limit, offset)
+    return previews.items(session, project_id, preview_id, limit, offset, principal)
 
 
 @router.get(
@@ -91,11 +96,19 @@ def preview_representations(
     item_ordinal: int,
     stage: Literal["raw", "extracted", "cleaned", "diff", "chunks"],
     session: Database,
+    principal: CurrentPrincipal,
     limit: Limit = 20,
     offset: Offset = 0,
 ):
     return previews.representations(
-        session, project_id, preview_id, item_ordinal, stage, limit, offset
+        session,
+        project_id,
+        preview_id,
+        item_ordinal,
+        stage,
+        limit,
+        offset,
+        principal,
     )
 
 
@@ -188,9 +201,14 @@ def list_items(
     response_model=ContentDerivationList,
 )
 def list_content_derivations(
-    project_id: UUID, processing_run_id: UUID, session: Database
+    project_id: UUID,
+    processing_run_id: UUID,
+    session: Database,
+    principal: CurrentPrincipal,
 ):
-    return derivations.list_derivations(session, project_id, processing_run_id)
+    return derivations.list_derivations(
+        session, project_id, processing_run_id, principal
+    )
 
 
 @router.get(
@@ -201,10 +219,13 @@ def list_content_blocks(
     project_id: UUID,
     derivation_id: UUID,
     session: Database,
+    principal: CurrentPrincipal,
     limit: Limit = 20,
     offset: Offset = 0,
 ):
-    return derivations.list_blocks(session, project_id, derivation_id, limit, offset)
+    return derivations.list_blocks(
+        session, project_id, derivation_id, limit, offset, principal
+    )
 
 
 @router.get(
@@ -215,11 +236,12 @@ def list_cleaning_diff(
     project_id: UUID,
     processing_run_id: UUID,
     session: Database,
+    principal: CurrentPrincipal,
     limit: Limit = 20,
     offset: Offset = 0,
 ):
     return derivations.list_cleaning_diff(
-        session, project_id, processing_run_id, limit, offset
+        session, project_id, processing_run_id, limit, offset, principal
     )
 
 
@@ -260,11 +282,12 @@ def page_thumbnail(
     processing_run_id: UUID,
     page_number: int,
     session: Database,
+    principal: CurrentPrincipal,
 ):
     if page_number < 1 or page_number > 2_000:
         return Response(status_code=422)
     content = derivations.page_thumbnail(
-        session, project_id, processing_run_id, page_number
+        session, project_id, processing_run_id, page_number, principal
     )
     return Response(
         content=content,

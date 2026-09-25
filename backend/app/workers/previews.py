@@ -1,6 +1,7 @@
 """Fenced execution of bounded source and processing-preview jobs."""
 
 import hashlib
+import json
 import tempfile
 import time
 from pathlib import Path
@@ -10,12 +11,13 @@ from sqlalchemy import delete, insert, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from app.core.artifact_crypto import ArtifactKeyring
+from app.core.config import settings
 from app.connectors.base import ConnectorFailure
 from app.connectors.website import WebsiteConnector
 from app.connectors.s3 import S3Connector
 from app.connectors.notion import NotionConnector
 from app.connectors.confluence import ConfluenceConnector
-from app.core.config import settings
 from app.db.session import engine
 from app.ingestion_content import (
     chunk_cleaned_document,
@@ -40,6 +42,7 @@ from app.services import (
     s3_ingestion,
     website_ingestion,
 )
+from app.services import artifact_storage
 from app.services.source_artifacts import PreparedArtifact
 from app.workers.celery_app import celery
 from app.workers.processing import now
@@ -221,17 +224,17 @@ def _prepare_item(session, item, execution, config_hash):
         document = session.get(Document, item["_document_id"])
         if document is None:
             raise ValueError("The selected project file is unavailable.")
-        path = settings.storage_path / document.storage_name
-        raw = path.read_bytes()
-        prepared = _path_prepared(
-            path,
-            document.media_type,
-            document.filename,
-            extract,
-            clean,
-            chunk,
-            config_hash,
-        )
+        raw = artifact_storage.read(document)
+        with artifact_storage.temporary_plaintext(raw) as path:
+            prepared = _path_prepared(
+                path,
+                document.media_type,
+                document.filename,
+                extract,
+                clean,
+                chunk,
+                config_hash,
+            )
         return prepared, raw
     artifact = item.get("_artifact")
     if artifact is None:
@@ -443,6 +446,9 @@ def _process_outcomes(session, outcomes, execution, config_hash):
             item["findings"] = [
                 value.model_dump(mode="json")
                 for value in prepared.extracted.findings[:100]
+            ] + [
+                value.model_dump(mode="json")
+                for value in prepared.cleaned.sensitive_findings[:100]
             ]
             item["metrics"] = {
                 **prepared.extracted.measurements.model_dump(mode="json"),
@@ -590,6 +596,45 @@ def process_preview(preview_id: UUID, db_engine=engine, connector_factory=None):
                 )
             session.flush()
             if representations:
+                if preview.protected_content:
+                    keyring = ArtifactKeyring.from_settings(settings)
+                    data_key = keyring.unwrap_object_key(
+                        object_kind="source-preview",
+                        wrapped_key=preview.protected_wrapped_key,
+                        wrap_nonce=preview.protected_wrap_nonce,
+                        key_version=preview.protected_key_version,
+                        schema_version=preview.protected_schema,
+                        project_id=preview.project_id,
+                        object_id=preview.id,
+                    )
+                    for value in representations:
+                        if value["stage"] not in {"raw", "extracted", "diff"}:
+                            continue
+                        context = (
+                            f"{value['item_ordinal']}:{value['stage']}:"
+                            f"{value['ordinal']}"
+                        )
+                        payload = json.dumps(
+                            {
+                                "text": value["text"],
+                                "metadata": value.get("metadata_json", {}),
+                            },
+                            sort_keys=True,
+                            separators=(",", ":"),
+                            ensure_ascii=False,
+                        ).encode("utf-8")
+                        ciphertext, nonce = keyring.encrypt_object_payload(
+                            data_key,
+                            payload,
+                            object_kind="source-preview",
+                            project_id=preview.project_id,
+                            object_id=preview.id,
+                            context=context,
+                        )
+                        value["text"] = "[PROTECTED SOURCE CONTENT]"
+                        value["metadata_json"] = {"protected": True}
+                        value["protected_payload"] = ciphertext
+                        value["protected_nonce"] = nonce
                 session.execute(
                     insert(SourcePreviewRepresentation),
                     [{**value, "preview_id": preview.id} for value in representations],

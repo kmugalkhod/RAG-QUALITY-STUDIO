@@ -3,12 +3,19 @@
 import hashlib
 import json
 from datetime import timedelta
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from fastapi import HTTPException
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.orm import Session
 
+from app.core.artifact_crypto import (
+    ArtifactConfigurationError,
+    ArtifactKeyring,
+    ArtifactUnavailableError,
+)
+from app.core.auth import Principal, authorize_sensitive_read
+from app.core.config import settings
 from app.models.preview import (
     SourcePreview,
     SourcePreviewItem,
@@ -43,7 +50,16 @@ def _read(preview: SourcePreview):
     value = {
         column.name: getattr(preview, column.name)
         for column in SourcePreview.__table__.columns
-        if column.name not in ("execution", "execution_token", "dispatched_at")
+        if column.name
+        not in (
+            "execution",
+            "execution_token",
+            "dispatched_at",
+            "protected_schema",
+            "protected_key_version",
+            "protected_wrapped_key",
+            "protected_wrap_nonce",
+        )
     }
     if _expired(preview):
         value["status"] = "expired"
@@ -75,7 +91,36 @@ def start(session: Session, project_id: UUID, execution: IngestionExecution):
         node.config.kind for node in execution.nodes if node.type == "source"
     }
     fetch_mode = "cached-artifact" if source_kinds == {"existing_files"} else "network"
+    protected_content = any(
+        node.type == "clean"
+        and getattr(getattr(node, "sensitive_data_policy", None), "enabled", False)
+        for node in execution.nodes
+    )
+    preview_id = uuid4()
+    envelope_values = {}
+    if protected_content:
+        try:
+            _, wrapped_key, wrap_nonce, key_version = ArtifactKeyring.from_settings(
+                settings
+            ).create_object_key(
+                object_kind="source-preview",
+                project_id=project_id,
+                object_id=preview_id,
+            )
+        except ArtifactConfigurationError:
+            raise HTTPException(
+                503,
+                "Sensitive-data previews require configured raw-artifact encryption.",
+            ) from None
+        envelope_values = {
+            "protected_content": True,
+            "protected_schema": 1,
+            "protected_key_version": key_version,
+            "protected_wrapped_key": wrapped_key,
+            "protected_wrap_nonce": wrap_nonce,
+        }
     preview = SourcePreview(
+        id=preview_id,
         project_id=project_id,
         execution=execution.model_dump(mode="json"),
         configuration_hash=_configuration_hash(execution),
@@ -87,6 +132,7 @@ def start(session: Session, project_id: UUID, execution: IngestionExecution):
             "local_compute_measurement": "duration_ms",
             "excluded_work": ["embedding", "generation", "publication"],
         },
+        **envelope_values,
     )
     session.add(preview)
     session.commit()
@@ -111,11 +157,25 @@ def read(session: Session, project_id: UUID, preview_id: UUID):
 
 
 def items(
-    session: Session, project_id: UUID, preview_id: UUID, limit: int, offset: int
+    session: Session,
+    project_id: UUID,
+    preview_id: UUID,
+    limit: int,
+    offset: int,
+    principal: Principal,
 ):
     preview = get(session, project_id, preview_id)
     if _expired(preview):
         raise HTTPException(410, "This processing preview expired. Retry it.")
+    if preview.protected_content:
+        authorize_sensitive_read(
+            session,
+            project_id,
+            principal,
+            action="sensitive_findings_read",
+            resource_kind="source_preview",
+            resource_id=preview.id,
+        )
     total = session.scalar(
         select(func.count())
         .select_from(SourcePreviewItem)
@@ -151,12 +211,37 @@ def representations(
     stage: str,
     limit: int,
     offset: int,
+    principal: Principal,
 ):
     preview = get(session, project_id, preview_id)
     if _expired(preview):
         raise HTTPException(410, "This processing preview expired. Retry it.")
     if session.get(SourcePreviewItem, (preview.id, item_ordinal)) is None:
         raise HTTPException(404, "Preview item not found in this project.")
+    data_key = None
+    if preview.protected_content and stage in {"raw", "extracted", "diff"}:
+        authorize_sensitive_read(
+            session,
+            project_id,
+            principal,
+            action="preview_protected_read",
+            resource_kind="source_preview",
+            resource_id=preview.id,
+        )
+        try:
+            data_key = ArtifactKeyring.from_settings(settings).unwrap_object_key(
+                object_kind="source-preview",
+                wrapped_key=preview.protected_wrapped_key,
+                wrap_nonce=preview.protected_wrap_nonce,
+                key_version=preview.protected_key_version,
+                schema_version=preview.protected_schema,
+                project_id=project_id,
+                object_id=preview.id,
+            )
+        except (ArtifactConfigurationError, ArtifactUnavailableError):
+            raise HTTPException(
+                503, "Protected preview content is unavailable."
+            ) from None
     condition = (
         (SourcePreviewRepresentation.preview_id == preview.id)
         & (SourcePreviewRepresentation.item_ordinal == item_ordinal)
@@ -172,17 +257,51 @@ def representations(
         .limit(limit)
         .offset(offset)
     ).all()
-    return {
-        "items": [
+    items = []
+    for row in rows:
+        text_value = row.text
+        metadata = row.metadata_json
+        if row.protected_payload is not None:
+            if data_key is None or row.protected_nonce is None:
+                raise HTTPException(503, "Protected preview content is unavailable.")
+            context = f"{row.item_ordinal}:{row.stage}:{row.ordinal}"
+            try:
+                payload = ArtifactKeyring.from_settings(
+                    settings
+                ).decrypt_object_payload(
+                    data_key,
+                    row.protected_payload,
+                    row.protected_nonce,
+                    object_kind="source-preview",
+                    project_id=project_id,
+                    object_id=preview.id,
+                    context=context,
+                )
+                decoded = json.loads(payload)
+                text_value = decoded["text"]
+                metadata = decoded["metadata"]
+            except (
+                ArtifactConfigurationError,
+                ArtifactUnavailableError,
+                KeyError,
+                TypeError,
+                json.JSONDecodeError,
+                UnicodeDecodeError,
+            ):
+                raise HTTPException(
+                    503, "Protected preview content is unavailable."
+                ) from None
+        items.append(
             {
                 "stage": row.stage,
                 "ordinal": row.ordinal,
                 "block_type": row.block_type,
-                "text": row.text,
-                "metadata": row.metadata_json,
+                "text": text_value,
+                "metadata": metadata,
             }
-            for row in rows
-        ],
+        )
+    return {
+        "items": items,
         "total": total,
         "limit": limit,
         "offset": offset,

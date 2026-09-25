@@ -122,6 +122,22 @@ test('edits saved language behavior without offering translation', () => {
   expect(screen.getByText(/never translated/i)).toBeInTheDocument();
 });
 
+test('makes irreversible sensitive-data actions explicit and keyboard-editable', () => {
+  render(<PolicyHarness kind="clean" />);
+  fireEvent.click(screen.getByText('Sensitive-data policy'));
+
+  expect(
+    screen.getByLabelText('Redact sensitive values before chunking and embedding'),
+  ).toBeChecked();
+  expect(screen.getByText(/Redaction is irreversible/)).toBeInTheDocument();
+  expect(screen.getByText(/cannot detect every sensitive value/)).toBeInTheDocument();
+
+  fireEvent.change(screen.getByLabelText('email action'), {
+    target: { value: 'drop_document' },
+  });
+  expect(screen.getByLabelText('email action')).toHaveValue('drop_document');
+});
+
 test('edits exact and near-duplicate decisions with a visible threshold', () => {
   render(<PolicyHarness kind="clean" />);
   fireEvent.click(screen.getByLabelText('Near-duplicate SimHash'));

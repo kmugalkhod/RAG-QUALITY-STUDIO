@@ -3,6 +3,7 @@ import {
   defaultDuplicatePolicy,
   defaultLanguagePolicy,
   defaultQualityPolicy,
+  defaultSensitiveDataPolicy,
   describeCadence,
   describeIngestionNode,
   upgradeIngestionDraft,
@@ -52,6 +53,7 @@ describe('ingestion editor model', () => {
     });
     expect(draft.execution.nodes.find((node) => node.type === 'clean')).toMatchObject({
       duplicate_policy: defaultDuplicatePolicy,
+      sensitive_data_policy: defaultSensitiveDataPolicy,
     });
   });
 

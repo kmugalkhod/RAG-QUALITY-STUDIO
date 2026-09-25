@@ -143,6 +143,47 @@ const previewItem = {
   cost_basis: { known_monetary_cost: null },
 } satisfies SourcePreviewItem;
 
+test('shows protected-preview policy and location-only sensitive findings', () => {
+  render(
+    <IngestionPreviewResults
+      projectId="project-1"
+      preview={{ ...preview, protected_content: true }}
+      page={{
+        items: [
+          {
+            ...previewItem,
+            findings: [
+              {
+                entity_class: 'email',
+                detector: 'email-v1',
+                detector_version: 'deterministic-patterns-v1',
+                action: 'redact',
+                block_ordinal: 0,
+                page_number: 1,
+                start_char: 10,
+                end_char: 28,
+              },
+            ],
+          },
+        ],
+        total: 1,
+        limit: 20,
+        offset: 0,
+      }}
+      busy={false}
+      onCancel={vi.fn()}
+      onRetry={vi.fn()}
+      onPageChange={vi.fn()}
+    />,
+  );
+
+  expect(screen.getByText(/protected stages require owner or admin access/i)).toBeVisible();
+  expect(
+    screen.getByText(/redact · email · deterministic-patterns-v1 · block 1 · page 1/i),
+  ).toBeVisible();
+  expect(document.body).not.toHaveTextContent('alex@example.test');
+});
+
 test('shows quality, cached mode, and synchronized processing representations', async () => {
   vi.mocked(api.listSourcePreviewRepresentations).mockResolvedValue({
     items: [

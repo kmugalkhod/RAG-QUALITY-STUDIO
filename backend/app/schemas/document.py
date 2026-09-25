@@ -46,6 +46,9 @@ class DocumentRead(BaseModel):
     media_type: str
     content_hash: str
     size_bytes: int
+    artifact_state: Literal["legacy_plaintext", "encrypted", "deleting", "deleted"]
+    raw_retained_until: datetime | None
+    raw_deleted_at: datetime | None
     created_at: datetime
     latest_run: RunRead | None = None
 

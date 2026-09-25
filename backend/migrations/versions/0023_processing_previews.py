@@ -194,9 +194,7 @@ def upgrade():
             name="fk_source_preview_representation_item",
             ondelete="CASCADE",
         ),
-        sa.PrimaryKeyConstraint(
-            "preview_id", "item_ordinal", "stage", "ordinal"
-        ),
+        sa.PrimaryKeyConstraint("preview_id", "item_ordinal", "stage", "ordinal"),
     )
     op.create_index(
         "ix_source_preview_representations_stage",

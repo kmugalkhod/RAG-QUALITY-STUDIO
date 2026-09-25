@@ -170,67 +170,80 @@ def clean_document(
     if getattr(settings, "profile", None) == "structure-aware-v1":
         from app.ingestion_content.cleaning import clean_structure_document
 
-        return clean_structure_document(
+        result = clean_structure_document(
             extracted,
             settings,
             extractor_version=extractor_version,
             configuration_hash=configuration_hash,
             repeated_site_fingerprints=repeated_site_fingerprints,
         )
-    blocks = []
-    seen: set[str] = set()
-    changed = 0
-    removed = 0
-    for block in extracted.blocks:
-        value = cleaner.clean(block.text, settings)
-        digest = hashlib.sha256(value.encode("utf-8")).hexdigest()
-        duplicate = settings.exact_content_deduplication and digest in seen
-        if not value or duplicate:
-            removed += 1
-            continue
-        seen.add(digest)
-        changed += value != block.text
-        blocks.append(block.model_copy(update={"ordinal": len(blocks), "text": value}))
-    output_hash = document_hash(blocks)
-    return CleanedDocumentV1(
-        media_type=extracted.media_type,
-        title=extracted.title,
-        language=extracted.language,
-        blocks=blocks,
-        extractor_version=extractor_version,
-        cleaner_version=cleaner.version,
-        configuration_hash=configuration_hash,
-        input_hash=document_hash(extracted.blocks),
-        output_hash=output_hash,
-        transforms=[
-            TransformAudit(
-                transform="deterministic_clean",
-                version=cleaner.version,
-                changed_blocks=changed,
-                removed_blocks=removed,
+    else:
+        blocks = []
+        seen: set[str] = set()
+        changed = 0
+        removed = 0
+        for block in extracted.blocks:
+            value = cleaner.clean(block.text, settings)
+            digest = hashlib.sha256(value.encode("utf-8")).hexdigest()
+            duplicate = settings.exact_content_deduplication and digest in seen
+            if not value or duplicate:
+                removed += 1
+                continue
+            seen.add(digest)
+            changed += value != block.text
+            blocks.append(
+                block.model_copy(update={"ordinal": len(blocks), "text": value})
             )
-        ],
-        measurements=extracted.measurements.model_copy(
-            update={
-                "character_count": sum(len(block.text) for block in blocks),
-                "block_count": len(blocks),
-                "page_count": extracted.measurements.page_count,
-                "page_character_counts": [
-                    sum(
-                        len(block.text)
-                        for block in blocks
-                        if block.page_number == page.page_number
-                    )
-                    for page in extracted.pages
-                ],
-                "page_block_counts": [
-                    sum(1 for block in blocks if block.page_number == page.page_number)
-                    for page in extracted.pages
-                ],
-            }
-        ),
-        findings=extracted.findings,
-    )
+        output_hash = document_hash(blocks)
+        result = CleanedDocumentV1(
+            media_type=extracted.media_type,
+            title=extracted.title,
+            language=extracted.language,
+            blocks=blocks,
+            extractor_version=extractor_version,
+            cleaner_version=cleaner.version,
+            configuration_hash=configuration_hash,
+            input_hash=document_hash(extracted.blocks),
+            output_hash=output_hash,
+            transforms=[
+                TransformAudit(
+                    transform="deterministic_clean",
+                    version=cleaner.version,
+                    changed_blocks=changed,
+                    removed_blocks=removed,
+                )
+            ],
+            measurements=extracted.measurements.model_copy(
+                update={
+                    "character_count": sum(len(block.text) for block in blocks),
+                    "block_count": len(blocks),
+                    "page_count": extracted.measurements.page_count,
+                    "page_character_counts": [
+                        sum(
+                            len(block.text)
+                            for block in blocks
+                            if block.page_number == page.page_number
+                        )
+                        for page in extracted.pages
+                    ],
+                    "page_block_counts": [
+                        sum(
+                            1
+                            for block in blocks
+                            if block.page_number == page.page_number
+                        )
+                        for page in extracted.pages
+                    ],
+                }
+            ),
+            findings=extracted.findings,
+        )
+    policy = getattr(settings, "sensitive_data_policy", None)
+    if policy is not None:
+        from app.ingestion_content.sensitive_data import apply_sensitive_data_policy
+
+        result, _ = apply_sensitive_data_policy(result, policy)
+    return result
 
 
 def chunk_cleaned_document(

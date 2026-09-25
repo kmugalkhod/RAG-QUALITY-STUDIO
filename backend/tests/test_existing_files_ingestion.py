@@ -1,6 +1,8 @@
 from concurrent.futures import ThreadPoolExecutor
+import base64
 from datetime import timedelta
 from io import BytesIO
+from unittest.mock import patch
 from uuid import UUID
 
 import pymupdf
@@ -11,6 +13,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.core.auth import Principal
 from app.connectors.existing_files import ExistingFilesConnector
 from app.ingestion_content.extractors.pdf import installed_ocr_languages
 from app.models.document import Chunk, ProcessingRun
@@ -19,14 +22,24 @@ from app.models.index import IndexChunk, IndexVersion, KnowledgeSet
 from app.models.ingestion import IngestionRun, IngestionRunItem, IngestionRunNode
 from app.models.pipeline import Pipeline, PipelineVersion
 from app.models.preview import SourcePreview
+from app.models.query import QueryRun
+from app.models.security import ProjectMembership, UserIdentity
+from app.providers import generation
 from app.providers import embeddings
+from app.services import derivations as derivation_service
 from app.services import ingestion_execution
 from app.workers.indexing import process_index
 from app.workers.dispatcher import dispatch_ingestion_once
 from app.workers.ingestion import process_ingestion
 from app.workers.processing import now, process
 from app.workers.previews import process_preview
-from test_documents import documents_api, pdf_bytes, start, upload  # noqa: F401
+from test_documents import (  # noqa: F401
+    STRUCTURED_UPLOADS,
+    documents_api,
+    pdf_bytes,
+    start,
+    upload,
+)
 from test_indexes import ProviderDouble
 
 
@@ -145,6 +158,7 @@ def ingestion_api(documents_api, monkeypatch):  # noqa: F811
             IngestionRun.project_id.in_(project_ids)
         )
         pipeline_ids = select(Pipeline.id).where(Pipeline.project_id.in_(project_ids))
+        session.execute(delete(QueryRun).where(QueryRun.project_id.in_(project_ids)))
         session.execute(delete(IndexChunk).where(IndexChunk.index_id.in_(index_ids)))
         session.execute(delete(IndexVersion).where(IndexVersion.id.in_(index_ids)))
         session.execute(
@@ -156,6 +170,211 @@ def ingestion_api(documents_api, monkeypatch):  # noqa: F811
         )
         session.execute(delete(Pipeline).where(Pipeline.id.in_(pipeline_ids)))
         session.commit()
+
+
+def test_all_released_formats_complete_preview_publish_and_answer_workflow(
+    ingestion_api,
+):
+    client, engine, project_id, _, config, _ = ingestion_api
+    documents = [
+        upload(client, project_id, content=content, name=name)
+        for name, content in STRUCTURED_UPLOADS
+    ]
+    payload = ingestion_draft(
+        [document["id"] for document in documents],
+        config,
+        name="All structured formats",
+        schema_version=2,
+    )
+
+    preview = client.post(
+        f"/api/projects/{project_id}/ingestion-previews",
+        json={"execution": payload["execution"]},
+    )
+    assert preview.status_code == 202, preview.text
+    process_preview(UUID(preview.json()["id"]), engine)
+    preview_result = client.get(
+        f"/api/projects/{project_id}/source-previews/{preview.json()['id']}"
+    ).json()
+    assert preview_result["status"] == "succeeded"
+    assert preview_result["included_count"] == len(STRUCTURED_UPLOADS)
+
+    version = client.post(f"/api/projects/{project_id}/pipelines", json=payload).json()
+    run = client.post(
+        f"/api/projects/{project_id}/pipelines/{version['pipeline_id']}"
+        f"/versions/{version['id']}/ingestion-runs"
+    ).json()
+    items = client.get(
+        f"/api/projects/{project_id}/ingestion-runs/{run['id']}/items?limit=100"
+    ).json()["items"]
+    assert len(items) == len(STRUCTURED_UPLOADS)
+    for item in items:
+        process(UUID(item["processing_run_id"]), engine)
+
+    run_id = UUID(run["id"])
+    process_ingestion(run_id, engine)
+    with Session(engine) as session:
+        index = session.scalar(
+            select(IndexVersion).where(IndexVersion.ingestion_run_id == run_id)
+        )
+        assert index is not None
+        index_id = index.id
+    process_index(index_id, engine)
+    process_ingestion(run_id, engine)
+    completed = client.get(f"/api/projects/{project_id}/ingestion-runs/{run_id}").json()
+    assert completed["status"] == "succeeded"
+    assert completed["published_count"] == 1
+    with Session(engine) as session:
+        assert session.scalar(
+            select(text("count(distinct run_id)"))
+            .select_from(IndexChunk)
+            .where(IndexChunk.index_id == index_id)
+        ) == len(STRUCTURED_UPLOADS)
+
+    with patch.object(
+        generation.OpenRouterChat,
+        "generate",
+        return_value=generation.Completion(
+            "The structured sources are indexed [S1].",
+            "test/chat",
+            {"total_tokens": 12},
+            None,
+        ),
+    ):
+        answer = client.post(
+            f"/api/projects/{project_id}/query-runs",
+            json={
+                "index_id": str(index_id),
+                "question": "Which structured sources were prepared?",
+                "top_k": len(STRUCTURED_UPLOADS),
+            },
+        )
+    assert answer.status_code == 201, answer.text
+    result = answer.json()
+    assert result["status"] == "succeeded"
+    evidence = result["snapshot"]["evidence"]
+    assert evidence and any("Prepared" in item["text"] for item in evidence)
+
+
+def test_sensitive_policy_redacts_preview_embedding_and_answer_evidence(
+    ingestion_api, monkeypatch
+):
+    client, engine, project_id, _, config, provider = ingestion_api
+    monkeypatch.setattr(settings, "artifact_encryption_enabled", True)
+    monkeypatch.setattr(settings, "artifact_encryption_mode", "local-keyring")
+    monkeypatch.setattr(settings, "artifact_active_key", "test-v1")
+    monkeypatch.setattr(
+        settings,
+        "artifact_keys",
+        {"test-v1": SecretStr(base64.b64encode(bytes(range(32))).decode())},
+    )
+    sensitive_value = "alex@example.test"
+    document = upload(
+        client,
+        project_id,
+        content=f"Synthetic owner {sensitive_value} approved the policy.".encode(),
+        name="sensitive.txt",
+    )
+    payload = ingestion_draft(
+        [document["id"]], config, name="Redacted evidence", schema_version=2
+    )
+    clean = next(
+        node for node in payload["execution"]["nodes"] if node["type"] == "clean"
+    )
+    clean["sensitive_data_policy"] = {"enabled": True}
+
+    accepted = client.post(
+        f"/api/projects/{project_id}/ingestion-previews",
+        json={"execution": payload["execution"]},
+    )
+    assert accepted.status_code == 202, accepted.text
+    preview_id = UUID(accepted.json()["id"])
+    process_preview(preview_id, engine)
+    preview = client.get(
+        f"/api/projects/{project_id}/source-previews/{preview_id}"
+    ).json()
+    assert preview["protected_content"] is True
+    cleaned = client.get(
+        f"/api/projects/{project_id}/source-previews/{preview_id}"
+        "/items/0/representations?stage=cleaned"
+    ).json()
+    assert sensitive_value not in str(cleaned)
+    assert "[EMAIL]" in str(cleaned)
+
+    version = client.post(f"/api/projects/{project_id}/pipelines", json=payload).json()
+    run = client.post(
+        f"/api/projects/{project_id}/pipelines/{version['pipeline_id']}"
+        f"/versions/{version['id']}/ingestion-runs"
+    ).json()
+    item = client.get(
+        f"/api/projects/{project_id}/ingestion-runs/{run['id']}/items"
+    ).json()["items"][0]
+    process(UUID(item["processing_run_id"]), engine)
+    inspected = client.get(
+        f"/api/projects/{project_id}/processing-runs/"
+        f"{item['processing_run_id']}/derivations"
+    ).json()
+    cleaned_derivation = next(
+        value for value in inspected["items"] if value["kind"] == "cleaned"
+    )
+    assert cleaned_derivation["sensitive_findings"]
+    assert sensitive_value not in str(cleaned_derivation["sensitive_findings"])
+
+    editor_id = UUID("10000000-0000-4000-8000-000000000001")
+    with Session(engine) as session:
+        session.add(UserIdentity(id=editor_id, external_subject="synthetic-editor"))
+        session.flush()
+        session.add(
+            ProjectMembership(
+                project_id=UUID(project_id), user_id=editor_id, role="editor"
+            )
+        )
+        session.commit()
+    try:
+        with Session(engine) as session:
+            ordinary = derivation_service.list_derivations(
+                session,
+                UUID(project_id),
+                UUID(item["processing_run_id"]),
+                Principal(editor_id, "synthetic-editor", None, "oidc"),
+            )
+            assert all(not value.sensitive_findings for value in ordinary["items"])
+    finally:
+        with Session(engine) as session:
+            session.execute(delete(UserIdentity).where(UserIdentity.id == editor_id))
+            session.commit()
+
+    run_id = UUID(run["id"])
+    process_ingestion(run_id, engine)
+    with Session(engine) as session:
+        index = session.scalar(
+            select(IndexVersion).where(IndexVersion.ingestion_run_id == run_id)
+        )
+        assert index is not None
+        index_id = index.id
+    process_index(index_id, engine)
+    process_ingestion(run_id, engine)
+    assert sensitive_value not in str(provider.calls)
+    assert "[EMAIL]" in str(provider.calls)
+
+    with patch.object(
+        generation.OpenRouterChat,
+        "generate",
+        return_value=generation.Completion(
+            "The policy was approved [S1].", "test/chat", None, None
+        ),
+    ):
+        answer = client.post(
+            f"/api/projects/{project_id}/query-runs",
+            json={
+                "index_id": str(index_id),
+                "question": "Who approved the policy?",
+                "top_k": 2,
+            },
+        ).json()
+    assert answer["status"] == "succeeded"
+    assert sensitive_value not in str(answer["snapshot"])
+    assert "[EMAIL]" in str(answer["snapshot"]["evidence"])
 
 
 def prepare(client, engine, project_id, *, name, size=100):

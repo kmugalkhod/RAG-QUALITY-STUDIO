@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from app.db.session import get_session
 from app.schemas.project import ProjectCreate, ProjectPage, ProjectRead
 from app.services import projects
+from app.core.auth import CurrentPrincipal
 
 router = APIRouter(prefix="/api")
 Database = Annotated[Session, Depends(get_session)]
@@ -38,7 +39,12 @@ def ready(session: Database) -> dict[str, str]:
     session.execute(
         text("SELECT processing_run_id, status FROM ingestion_run_items LIMIT 0")
     )
-    session.execute(text("SELECT execution, status FROM source_previews LIMIT 0"))
+    session.execute(
+        text(
+            "SELECT execution, status, protected_content, protected_schema "
+            "FROM source_previews LIMIT 0"
+        )
+    )
     session.execute(text("SELECT reason, status FROM source_preview_items LIMIT 0"))
     session.execute(
         text("SELECT stage, ordinal FROM source_preview_representations LIMIT 0")
@@ -48,6 +54,9 @@ def ready(session: Database) -> dict[str, str]:
         text("SELECT secret_schema_version, status FROM source_connections LIMIT 0")
     )
     session.execute(text("SELECT event_type FROM source_connection_events LIMIT 0"))
+    session.execute(text("SELECT external_subject FROM user_identities LIMIT 0"))
+    session.execute(text("SELECT role FROM project_memberships LIMIT 0"))
+    session.execute(text("SELECT outcome FROM sensitive_access_events LIMIT 0"))
     session.execute(text("SELECT extracted_hash FROM source_revisions LIMIT 0"))
     session.execute(text("SELECT outcome, status FROM website_run_items LIMIT 0"))
     session.execute(
@@ -79,12 +88,13 @@ def ready(session: Database) -> dict[str, str]:
 @router.get("/projects", response_model=ProjectPage)
 def list_projects(
     session: Database,
+    principal: CurrentPrincipal,
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
     offset: Annotated[int, Query(ge=0)] = 0,
 ):
-    return projects.list_projects(session, limit, offset)
+    return projects.list_projects(session, limit, offset, principal)
 
 
 @router.post("/projects", response_model=ProjectRead, status_code=201)
-def create_project(data: ProjectCreate, session: Database):
-    return projects.create_project(session, data)
+def create_project(data: ProjectCreate, session: Database, principal: CurrentPrincipal):
+    return projects.create_project(session, data, principal)

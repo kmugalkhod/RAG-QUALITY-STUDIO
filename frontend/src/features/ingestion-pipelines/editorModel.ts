@@ -11,6 +11,7 @@ import type {
   LanguagePolicy,
   NotionConfig,
   QualityPolicy,
+  SensitiveDataPolicy,
   S3Config,
   WebsiteConfig,
 } from './model';
@@ -34,6 +35,19 @@ export const defaultDuplicatePolicy: DuplicatePolicy = {
   near_duplicate_threshold: 0.92,
   pinned_canonical_locations: [],
   connector_priority: ['existing_files', 'website', 's3', 'notion', 'confluence'],
+};
+
+export const defaultSensitiveDataPolicy: SensitiveDataPolicy = {
+  id: 'sensitive-data-v1',
+  enabled: true,
+  detector_version: 'deterministic-patterns-v1',
+  rules: ['email', 'phone', 'ip_address', 'government_id', 'payment_card', 'api_secret'].map(
+    (entity_class) => ({
+      entity_class: entity_class as SensitiveDataPolicy['rules'][number]['entity_class'],
+      action: 'redact' as const,
+    }),
+  ),
+  government_id_formats: ['us_ssn', 'in_aadhaar'],
 };
 
 export const terminalIngestionStatuses = new Set(['succeeded', 'failed', 'cancelled', 'expired']);
@@ -131,7 +145,7 @@ export const defaultS3 = (connectionId = ''): S3Config => ({
   bucket: '',
   prefix: '',
   expected_bucket_owner: null,
-  allowed_file_types: ['txt', 'pdf'],
+  allowed_file_types: ['txt', 'pdf', 'md', 'html', 'docx', 'pptx', 'csv', 'tsv', 'xlsx'],
   max_objects: 1000,
   max_pages: 10,
   max_object_bytes: 20 * 1024 * 1024,
@@ -234,6 +248,7 @@ export function defaultIngestionDraft(
       config_version: cleaningProfile?.config_version ?? 'deterministic-clean-v1',
       steps: structuredClone(cleaningProfile?.steps ?? []),
       duplicate_policy: structuredClone(defaultDuplicatePolicy),
+      sensitive_data_policy: structuredClone(defaultSensitiveDataPolicy),
     },
     defaultChunk(capabilities),
     {

@@ -27,6 +27,9 @@ class ContentDerivationRead(ReadModel):
     language: dict[str, Any] | None = None
     measurements: dict[str, Any]
     findings: list[dict[str, Any]]
+    sensitive_findings: list[dict[str, Any]] = Field(default_factory=list)
+    sensitive_data_applied: bool = False
+    protected_text: bool = False
     transforms: list[dict[str, Any]]
     created_at: datetime
 

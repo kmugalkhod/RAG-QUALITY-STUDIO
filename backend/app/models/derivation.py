@@ -11,6 +11,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    LargeBinary,
     func,
 )
 from sqlalchemy.dialects.postgresql import JSONB
@@ -84,6 +85,9 @@ class ContentDerivation(Base):
     language: Mapped[dict | None] = mapped_column(JSONB)
     measurements: Mapped[dict] = mapped_column(JSONB)
     findings: Mapped[list] = mapped_column(JSONB)
+    sensitive_findings: Mapped[list] = mapped_column(JSONB, default=list)
+    sensitive_data_applied: Mapped[bool] = mapped_column(default=False)
+    protected_text: Mapped[bool] = mapped_column(default=False)
     transforms: Mapped[list] = mapped_column(JSONB)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
@@ -117,6 +121,8 @@ class ContentBlock(Base):
     block_id: Mapped[str] = mapped_column(String(64))
     block_type: Mapped[str] = mapped_column(String(24))
     text: Mapped[str] = mapped_column(Text)
+    protected_text_ciphertext: Mapped[bytes | None] = mapped_column(LargeBinary)
+    protected_text_nonce: Mapped[bytes | None] = mapped_column(LargeBinary)
     page_number: Mapped[int | None]
     bounding_box: Mapped[dict | None] = mapped_column(JSONB)
     heading_path: Mapped[list] = mapped_column(JSONB)

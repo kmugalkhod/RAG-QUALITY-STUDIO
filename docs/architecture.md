@@ -28,11 +28,11 @@ FastAPI routes delegate project operations to a service using a request-scoped s
 
 Alembic owns the schema. A one-shot migration service must complete before the API starts. PostgreSQL uses a persistent named Compose volume. Migration 0003 enables pgvector and stores versioned index embeddings. Document parsing/chunking is described below.
 
-Liveness does not contact storage. Readiness verifies project, document, processing-run and chunk columns are queryable, catching missing migrations as well as database outages. SQLAlchemy failures become generic 503 responses. Database connection/statement timeouts bound failures. CORS is explicit, and all local published ports bind to loopback. Authentication must precede shared access.
+Liveness does not contact storage. Readiness verifies project, protected-document, authentication, processing-run and chunk columns are queryable, catching missing migrations as well as database outages. SQLAlchemy failures become generic 503 responses. Database connection/statement timeouts bound failures. CORS is explicit, all local published ports bind to loopback and local mode has one owner principal. Shared mode validates OIDC and project roles and requires an external KMS/Vault raw-artifact key boundary.
 
 Unit tests exercise input and outage behavior. Database tests require a separate empty PostgreSQL database ending in `_test`, run migrations rather than create_all, and roll back test writes. Compose tests use tmpfs, never the development volume. Playwright journeys use the actual API and leave their uniquely named verification records in the separate browser-test stack.
 
-Projects own document uploads and processing history. Project deletion is intentionally absent, so no historical evidence can be cascaded away. Celery workers perform parsing/chunking and embedding batches through the OpenRouter adapter; query generation and saved pipeline execution reuse the application RAG service described below. Authentication, backup/restore procedures and public deployment are later release work.
+Projects own document uploads, memberships and processing history. Project deletion is intentionally absent, so no historical evidence can be cascaded away. Celery workers perform parsing/chunking and embedding batches through the OpenRouter adapter; query generation and saved pipeline execution reuse the application RAG service described below. Backup/restore, retention, key rotation, orphan recovery and rollback procedures are defined in [ingestion operations](operations.md); public ingress remains deployment-owned.
 
 Official implementation references: [Vite setup](https://vite.dev/guide/), [FastAPI database session dependencies](https://fastapi.tiangolo.com/tutorial/sql-databases/), [shadcn manual installation](https://ui.shadcn.com/docs/installation/manual).
 
@@ -42,11 +42,11 @@ The Knowledge Base is a project-specific hash route (`#/projects/{id}`), so relo
 
 ### Storage and upload transaction
 
-`documents` records immutable UUID identity, project, original filename, byte size, SHA-256, media type and upload time. Repeated uploads always create separate identities. Browser MIME types are untrusted: the extension and content are checked. TXT is strict UTF-8 (optional leading BOM), nonempty and excludes NUL; PDF must have a PDF signature, then receives full structural/encryption/text validation in the worker. Invalid signed PDFs therefore upload successfully and fail processing explicitly.
+`documents` records immutable UUID identity, project, original filename, byte size, SHA-256, detected media type, artifact envelope/retention state and upload time. Repeated uploads always create separate identities. Browser MIME types are untrusted: bounded bytes and the extension are checked. UTF-8 text formats exclude NUL; PDF and Office packages require their byte signatures/package members, then receive full structural validation in the worker. Invalid signed containers therefore upload only when their outer type is valid and fail extraction with a safe error.
 
 An ASGI body limit bounds multipart spooling to the configured file limit plus 64 KiB overhead, including requests without Content-Length. Exactly one multipart `file` field is accepted. The default file limit is 20 MiB (configurable up to 100 MiB); nginx has a 101 MiB transport ceiling. Original names are metadata only. Bytes are streamed to an exclusive generated `.part` name, hashed and fsynced; an atomic rename and directory fsync precede the database commit. API and workers share the named `document_data` volume.
 
-Known failures before commit remove staged/final files and roll back records. An ambiguous commit or process crash can leave an unreferenced file, but must never trigger deletion of a possibly committed file. This favors referential safety over immediate reclamation. With API uploads stopped, operators can compare `documents.storage_name` against files on the volume and inspect old unreferenced files/`.part` files before removing them. No automatic cleanup deletes persistent data. There is no document/project deletion API or cascade; historical runs/chunks remain attached to their source.
+Known failures before commit remove staged/final files and roll back records. An ambiguous commit or process crash can leave an unreferenced file, but must never trigger deletion of a possibly committed file. This favors referential safety over immediate reclamation. With writers stopped, operators use the [orphan inspection procedure](operations.md#stale-jobs-derivations-and-orphan-storage). Document deletion is blocked by active or historical ingestion/index references. Fenced retention cleanup removes only expired encrypted raw bytes and wrapped keys; redacted derivations, runs, chunks and historical evidence remain.
 
 ### Versioning and deterministic parsing
 
@@ -185,7 +185,7 @@ RAGAS is pinned to 0.4.3. Its collections API is isolated behind the application
 
 Each metric mean uses its own successfully scored denominator. Paired comparisons use only shared successfully scored question ordinals and show both means, B−A and shared count. There is no composite winner. Query timing excludes queue wait and evaluation. Query token/generation cost totals show known sample coverage; unknown is never zero. Evaluation LLM call charges are stored separately. Relevancy's total evaluation cost remains unavailable because the existing embedding adapter does not return billing data. CSV exports prefix spreadsheet-active strings, including leading whitespace and control characters, with an apostrophe.
 
-The workspace adds `#/projects/:projectId/experiments` and `.../experiments/:experimentId`: preview/import, version inspection, one/two pipeline setup, input requirements, persisted polling/cancellation, summaries, paired and per-question comparison, exact evidence and structured judge output. Different indexes receive a visible comparison caveat. Full immutable snapshots are inspectable. Collection APIs retain bounded offset pagination; the local UI loads all pages for selectors/history. Detail responses are bounded by configured dataset limits but can be large because evidence and judge prompts are retained. Local unauthenticated access remains the deployment boundary.
+The workspace adds `#/projects/:projectId/experiments` and `.../experiments/:experimentId`: preview/import, version inspection, one/two pipeline setup, input requirements, persisted polling/cancellation, summaries, paired and per-question comparison, exact evidence and structured judge output. Different indexes receive a visible comparison caveat. Full immutable snapshots are inspectable. Collection APIs retain bounded offset pagination; the local UI loads all pages for selectors/history. Detail responses are bounded by configured dataset limits but can be large because evidence and judge prompts are retained. Project authorization is server enforced; local mode is one loopback owner and shared mode uses OIDC memberships.
 
 Versioned references: [Faithfulness](https://docs.ragas.io/en/v0.4.3/concepts/metrics/available_metrics/faithfulness/), [Response relevancy](https://docs.ragas.io/en/v0.4.3/concepts/metrics/available_metrics/answer_relevance/), [Context recall](https://docs.ragas.io/en/v0.4.3/concepts/metrics/available_metrics/context_recall/). Installed source and custom component abstract interfaces were inspected before implementation; deterministic adapter tests execute the actual three metric classes.
 
@@ -278,7 +278,7 @@ The user selected application-level AES-256-GCM. `cryptography==46.0.3` is pinne
 
 Typed credential envelopes cover S3, Notion and Confluence. The application-owned tester interface receives decrypted values only within the service call, and all three released credentialed sources register real bounded adapters. Connector results map to application-owned safe copy, while arbitrary exceptions and provider text become a generic failure, preventing reflected credentials or response bodies.
 
-Connection routes fail closed unless vault configuration is valid and the request has a loopback Host/Origin. Compose publishes services only on loopback. This protects the current unauthenticated local workspace by refusing credential management on a normal public/shared origin; it is not a substitute for user authentication. Any shared deployment must introduce authenticated server-side project authorization before relaxing the boundary. Frontend credential state is ephemeral, submitted only in POST bodies and cleared after every result; released credentialed source configurations persist only opaque connection IDs.
+Connection routes fail closed unless vault configuration and project authorization are valid. Compose publishes services only on loopback. Local mode additionally requires loopback Host/Origin; shared mode uses OIDC memberships before project-scoped connection access. Frontend credential state is ephemeral, submitted only in POST bodies and cleared after every result; released credentialed source configurations persist only opaque connection IDs.
 
 ## Amazon S3 source revisions (Phase 7A, 2026-09-13)
 
@@ -286,7 +286,7 @@ Migration `0014` widens source/document kinds for S3, adds provider revision to 
 
 The pinned Boto3 client is constructed only from an AES-256-GCM-decrypted project-owned S3 connection; ambient credential discovery is never used. Region, connect/read timeout, standard bounded retry count and optional expected bucket owner are explicit. `ListObjectsV2` pagination, page/object/byte bounds and TXT/PDF/storage-class filters produce inspectable preview outcomes. The canonical location is `s3://bucket/percent-encoded-key`; a VersionId is authoritative when available, otherwise the revision combines opaque ETag, size and last-modified. Fetch uses VersionId or `If-Match`, bounds the body and rejects a changed response.
 
-S3 runs reuse the existing fenced ingestion coordinator and generic remote run-item table. Provider I/O occurs outside database transactions. Changed objects are stored under generated artifact identities and parsed through the established bounded TXT/text-PDF path; source revision and chunk provenance record connection, bucket, key, version, ETag, size and modification time. Refresh membership is exact: compatible unchanged revisions/vectors are reused, missing keys become removed only from the replacement index, and any required failure prevents index creation or current-ready publication. Connection IDs are server references, not credentials, and public Host/Origin requests cannot start S3 previews or runs in the unauthenticated local build.
+S3 runs reuse the existing fenced ingestion coordinator and generic remote run-item table. Provider I/O occurs outside database transactions. Changed objects are stored under generated encrypted artifact identities and parsed through the bounded released-format adapters; source revision and chunk provenance record connection, bucket, key, version, ETag, size and modification time. Refresh membership is exact: compatible unchanged revisions/vectors are reused, missing keys become removed only from the replacement index, and any required failure prevents index creation or current-ready publication. Connection IDs are server references, not credentials, and project authorization gates previews and runs.
 
 ## Notion source revisions (Phase 7B, 2026-09-13)
 
@@ -474,6 +474,56 @@ membership and never constructs the connector, so no source request occurs. New 
 embeddings and index membership are still written under a new immutable run/index, and
 atomic publication advances the current-ready pointer only after all required children
 are embedded.
+
+## Quality, duplicate and language policy (robust ingestion Phases 5–6)
+
+An asynchronous preview saves the exact unsaved schema-v2 execution, uses the same
+extract/clean/chunk engine and persists bounded stage representations, findings,
+decisions, timing and safe cost basis. It never embeds, creates an index or moves a ready
+pointer. Quality aggregation retains pass, warn, exclude and fail denominators. Preview
+expiry/cancellation is fenced, and a retry creates a new preview identity.
+
+Duplicate policy compares project/run-scoped raw and cleaned hashes, normalized sections
+and optional bounded SimHash. Canonical selection is deterministic and persists both the
+retained and excluded identities; no source revision is deleted. Language policy records
+the deterministic detector version, document/page confidence, allowlist and mixed-language
+decision without translating evidence. Duplicate and language decisions remain attached
+to immutable preview/run items.
+
+## Sensitive data, protected artifacts and released formats (robust ingestion Phase 7)
+
+Migration `0025` adds OIDC identities/project memberships, sensitive-access audits,
+artifact envelope/retention state and protected derivation/preview payloads. Local mode
+maps loopback requests to one deterministic owner. Shared mode verifies OIDC tokens and
+enforces owner/admin/editor/viewer membership on every project route; viewer writes are
+denied, and only owner/admin may read protected raw/extracted/diff/thumbnail/finding
+locations. Granted and denied protected accesses store identity/action/resource metadata,
+never source text or detected values.
+
+Each new protected artifact uses a random AES-256-GCM data key and content nonce. The
+data key is envelope-wrapped by a versioned local development key, AWS KMS symmetric key
+with an encryption context, or Vault Transit AEAD key with associated data. Shared mode
+rejects the local keyring and incomplete external configuration. Project/document/purpose
+AAD prevents envelope or protected-block copying. Rewrap changes only the data-key
+envelope; fenced retention cleanup removes expired ciphertext and clears its envelope,
+while redacted derivations/index/query/experiment history remains. Legacy plaintext is
+explicit and is never silently treated as protected.
+
+The saved cleaning policy runs deterministic bounded detectors for email, phone, IP,
+checksum-valid payment cards, supported government IDs and recognizable secrets. Each
+class redacts with an irreversible placeholder or drops the document before chunking and
+provider calls. Persistence contains class/detector/count and bounded locations only—no
+original, reversible map or guessable hash. This reduces exposure but cannot guarantee
+that all sensitive data is detected.
+
+Released Markdown/HTML, DOCX, PPTX, CSV/TSV and XLSX adapters validate bytes/container
+members, archive size/ratio/path/encryption bounds and inert XML/text structure before
+mapping to the canonical IR. HTML scripts/styles are ignored, Office macros and legacy
+binary formats are rejected, and spreadsheet formulas are retained only as text. No
+macro, script, formula, shell content or document action is executed. Apache Tika and
+other formats remain unadvertised because no evaluated Java parser boundary is shipped.
+The [release baseline](robust-ingestion-release-baseline.md) records the exact measured
+corpus and limitations.
 
 ## Frontend organization
 

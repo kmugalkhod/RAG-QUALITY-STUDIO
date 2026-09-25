@@ -63,7 +63,7 @@ test('shows loading, empty state and missing-file validation', async () => {
   await userEvent.click(screen.getByRole('button', { name: 'Add document' }));
   expect(await screen.findByText('No documents yet')).toBeVisible();
   await userEvent.click(screen.getByRole('button', { name: 'Upload document' }));
-  expect(screen.getByRole('alert')).toHaveTextContent('Choose a PDF');
+  expect(screen.getByRole('alert')).toHaveTextContent('Choose a supported document file');
   expect(api.uploadDocument).not.toHaveBeenCalled();
 });
 
@@ -71,8 +71,12 @@ test('uploads and validates chunk settings', async () => {
   vi.mocked(api.uploadDocument).mockResolvedValue(doc);
   render(<KnowledgeBase projectId="p1" />);
   await userEvent.click(screen.getByRole('button', { name: 'Add document' }));
-  const input = screen.getByLabelText('PDF or UTF-8 TXT');
+  const input = screen.getByLabelText('Document file');
   await waitFor(() => expect(input).toBeEnabled());
+  expect(input).toHaveAttribute(
+    'accept',
+    '.pdf,.txt,.md,.markdown,.html,.htm,.docx,.pptx,.csv,.tsv,.xlsx',
+  );
   await userEvent.upload(input, new File(['abcdefghij'], 'source.txt', { type: 'text/plain' }));
   await userEvent.click(screen.getByRole('button', { name: 'Upload document' }));
   expect(await screen.findByRole('heading', { name: 'Process: source.txt' })).toBeVisible();
@@ -92,7 +96,7 @@ test('shows upload progress and storage failure', async () => {
   );
   render(<KnowledgeBase projectId="p1" />);
   await userEvent.click(screen.getByRole('button', { name: 'Add document' }));
-  const input = screen.getByLabelText('PDF or UTF-8 TXT');
+  const input = screen.getByLabelText('Document file');
   await waitFor(() => expect(input).toBeEnabled());
   await userEvent.upload(input, new File(['test'], 'source.txt', { type: 'text/plain' }));
   await userEvent.click(screen.getByRole('button', { name: 'Upload document' }));

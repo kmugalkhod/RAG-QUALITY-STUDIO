@@ -19,7 +19,7 @@ from app.connectors.website import (
 from app.core.connection_secrets import ConnectionKeyring
 from app.core.config import settings
 from app.models.ingestion import IngestionRun
-from app.models.document import Chunk, ProcessingRun
+from app.models.document import Chunk, Document, ProcessingRun
 from app.ingestion_content.duplicates import DuplicateCandidate, classify_duplicates
 from app.models.source import (
     IndexSourceRevision,
@@ -30,6 +30,7 @@ from app.models.source import (
 )
 from app.schemas.ingestion import IngestionExecution
 from app.services import (
+    artifact_storage,
     connections,
     confluence_ingestion,
     ingestion_execution,
@@ -125,9 +126,10 @@ def _website_priors(session, job):
     priors = {}
     for location, (revision, _) in revisions.items():
         try:
-            content = (
-                settings.storage_path / revision.artifact_storage_name
-            ).read_bytes()
+            document = session.get(Document, revision.document_id)
+            if document is None:
+                raise FileNotFoundError
+            content = artifact_storage.read(document)
         except OSError as exc:
             raise ConnectorFailure(
                 ConnectorIssue(
@@ -175,9 +177,10 @@ def _website_snapshot_priors(session, job):
     priors = {}
     for location, (revision, _) in revisions.items():
         try:
-            content = (
-                settings.storage_path / revision.artifact_storage_name
-            ).read_bytes()
+            document = session.get(Document, revision.document_id)
+            if document is None:
+                raise FileNotFoundError
+            content = artifact_storage.read(document)
         except OSError as exc:
             raise ConnectorFailure(
                 ConnectorIssue(

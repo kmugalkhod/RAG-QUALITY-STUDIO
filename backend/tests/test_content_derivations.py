@@ -59,9 +59,7 @@ def test_typed_quality_policy_controls_warning_publication():
     publish = DefaultQualityPolicyV1(
         warning_action="publish", failed_item_action="fail"
     )
-    blocked = DefaultQualityPolicyV1(
-        warning_action="fail", failed_item_action="fail"
-    )
+    blocked = DefaultQualityPolicyV1(warning_action="fail", failed_item_action="fail")
     reviewed = evaluate_quality(measured, publish)
 
     assert reviewed.measurements.quality_decision == "warn"
@@ -77,15 +75,11 @@ def test_typed_quality_policy_controls_failed_item_decision():
     )
     failed = evaluate_quality(
         measured,
-        DefaultQualityPolicyV1(
-            warning_action="publish", failed_item_action="fail"
-        ),
+        DefaultQualityPolicyV1(warning_action="publish", failed_item_action="fail"),
     )
     excluded = evaluate_quality(
         measured,
-        WarnQualityPolicyV1(
-            warning_action="publish", failed_item_action="exclude"
-        ),
+        WarnQualityPolicyV1(warning_action="publish", failed_item_action="exclude"),
     )
 
     assert failed.measurements.quality_decision == "fail"

@@ -55,7 +55,7 @@ class QualityPolicyCapability(Strict):
 
 class ExtractionCapabilities(Strict):
     schema_version: Literal[1]
-    media_types: list[Literal["application/pdf", "text/plain"]]
+    media_types: list[str]
     profiles: list[ExtractionProfileCapability]
     ocr: OcrCapability
     table_modes: list[Literal["preserve", "markdown", "plain_text"]]

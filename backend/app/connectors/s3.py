@@ -54,7 +54,17 @@ NETWORK_ERRORS = (
     EndpointConnectionError,
     ReadTimeoutError,
 )
-MEDIA_TYPES = {"txt": "text/plain", "pdf": "application/pdf"}
+MEDIA_TYPES = {
+    "txt": "text/plain",
+    "pdf": "application/pdf",
+    "md": "text/markdown",
+    "html": "text/html",
+    "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "csv": "text/csv",
+    "tsv": "text/tab-separated-values",
+    "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+}
 ARCHIVED_CLASSES = {"GLACIER", "DEEP_ARCHIVE"}
 
 

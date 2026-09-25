@@ -1,4 +1,6 @@
 from pathlib import Path
+from typing import Literal
+
 from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -32,6 +34,24 @@ class Settings(BaseSettings):
     source_connection_active_key: str = ""
     source_connection_keys: dict[str, SecretStr] = Field(default_factory=dict)
     source_connection_limit_per_project: int = Field(default=50, ge=1, le=500)
+    artifact_encryption_enabled: bool = False
+    artifact_encryption_mode: Literal["local-keyring", "kms", "vault"] = "local-keyring"
+    artifact_active_key: str = ""
+    artifact_keys: dict[str, SecretStr] = Field(default_factory=dict)
+    artifact_key_references: dict[str, str] = Field(default_factory=dict)
+    artifact_kms_region: str = ""
+    artifact_kms_endpoint_url: str = ""
+    artifact_vault_address: str = ""
+    artifact_vault_token: SecretStr = SecretStr("")
+    artifact_vault_mount: str = "transit"
+    artifact_retention_days: int = Field(default=30, ge=1, le=3650)
+    auth_mode: Literal["local", "oidc"] = "local"
+    auth_oidc_issuer: str = ""
+    auth_oidc_audience: str = ""
+    auth_oidc_jwks_url: str = ""
+    auth_oidc_algorithms: list[Literal["RS256", "RS384", "RS512", "ES256"]] = ["RS256"]
+    auth_local_subject: str = "local-owner"
+    auth_local_email: str = "local-owner@localhost.invalid"
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 

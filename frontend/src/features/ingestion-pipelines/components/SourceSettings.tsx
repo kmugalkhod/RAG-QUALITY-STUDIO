@@ -231,8 +231,8 @@ export function S3Settings({
       <div className="website-preview-notice">
         <CircleAlert size={17} />
         <p>
-          S3 reads only the selected bucket and prefix, accepts TXT/PDF, and publishes atomically
-          after every required object succeeds.
+          S3 reads only the selected bucket and prefix, accepts the explicitly selected supported
+          formats, and publishes atomically after every required object succeeds.
         </p>
       </div>
       <Label>
@@ -292,23 +292,25 @@ export function S3Settings({
       </Label>
       <fieldset className="s3-file-types">
         <legend>Allowed file types</legend>
-        {(['txt', 'pdf'] as const).map((kind) => (
-          <label key={kind}>
-            <input
-              type="checkbox"
-              checked={config.allowed_file_types.includes(kind)}
-              onChange={(event) =>
-                update({
-                  ...config,
-                  allowed_file_types: event.target.checked
-                    ? [...config.allowed_file_types, kind]
-                    : config.allowed_file_types.filter((value) => value !== kind),
-                })
-              }
-            />
-            {kind.toUpperCase()}
-          </label>
-        ))}
+        {(['txt', 'pdf', 'md', 'html', 'docx', 'pptx', 'csv', 'tsv', 'xlsx'] as const).map(
+          (kind) => (
+            <label key={kind}>
+              <input
+                type="checkbox"
+                checked={config.allowed_file_types.includes(kind)}
+                onChange={(event) =>
+                  update({
+                    ...config,
+                    allowed_file_types: event.target.checked
+                      ? [...config.allowed_file_types, kind]
+                      : config.allowed_file_types.filter((value) => value !== kind),
+                  })
+                }
+              />
+              {kind.toUpperCase()}
+            </label>
+          ),
+        )}
       </fieldset>
       <div className="website-limit-grid">
         {numberField('max_objects', 'Maximum objects', 1)}

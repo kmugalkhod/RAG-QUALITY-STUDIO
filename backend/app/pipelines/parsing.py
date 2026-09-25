@@ -29,6 +29,35 @@ def validate_text(data: bytes) -> str:
 
 
 def pages(path: Path, media_type: str):
+    # Keep the legacy document-processing API useful for every released upload
+    # format. Schema-v2 ingestion retains the richer block model; this adapter
+    # only flattens those canonical blocks into the historical page contract.
+    if media_type not in {"application/pdf", "text/plain"}:
+        from app.ingestion_content.extractors.formats import (
+            STRUCTURED_MEDIA_TYPES,
+            extract_structured_document,
+        )
+        from app.ingestion_content.processing import IngestionStageError
+
+        if media_type not in STRUCTURED_MEDIA_TYPES:
+            raise ProcessingError("The document format is unsupported.")
+        try:
+            document, _ = extract_structured_document(path, media_type, path.name)
+        except IngestionStageError as exc:
+            raise ProcessingError(str(exc)) from None
+        grouped: dict[int | None, list[str]] = {}
+        for block in document.blocks:
+            grouped.setdefault(block.page_number, []).append(block.text)
+        values = [
+            (page_number, "\n\n".join(blocks))
+            for page_number, blocks in grouped.items()
+            if any(value.strip() for value in blocks)
+        ]
+        if not values:
+            raise ProcessingError("The document contains no text.")
+        for completed, (page_number, value) in enumerate(values, 1):
+            yield page_number, value, completed, len(values)
+        return
     if media_type == "text/plain":
         value = validate_text(path.read_bytes())
         if len(value) > MAX_CHARACTERS:

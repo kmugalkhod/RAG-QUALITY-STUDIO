@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Request
 
 from app.api.documents import Limit, Offset
 from app.api.ingestion import _protect_credentialed_source
@@ -14,9 +14,13 @@ from app.schemas.schedule import (
     ScheduleUpdate,
 )
 from app.services import schedules
+from app.core.auth import require_project_access
 
 
-router = APIRouter(prefix="/api/projects/{project_id}/ingestion-schedules")
+router = APIRouter(
+    prefix="/api/projects/{project_id}/ingestion-schedules",
+    dependencies=[Depends(require_project_access)],
+)
 
 
 @router.get("", response_model=SchedulePage)

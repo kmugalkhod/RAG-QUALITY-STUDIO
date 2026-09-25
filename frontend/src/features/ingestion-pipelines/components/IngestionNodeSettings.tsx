@@ -9,6 +9,7 @@ import type { Document, KnowledgeSet } from '../../documents/model';
 import {
   defaultDuplicatePolicy,
   defaultLanguagePolicy,
+  defaultSensitiveDataPolicy,
   fallbackQualityPolicy,
   ingestionStageLabels as labels,
 } from '../editorModel';
@@ -95,6 +96,10 @@ export function IngestionNodeSettings({
     selected?.type === 'clean'
       ? (selected.duplicate_policy ?? structuredClone(defaultDuplicatePolicy))
       : structuredClone(defaultDuplicatePolicy);
+  const selectedSensitive =
+    selected?.type === 'clean'
+      ? (selected.sensitive_data_policy ?? structuredClone(defaultSensitiveDataPolicy))
+      : structuredClone(defaultSensitiveDataPolicy);
 
   function updateExtract(values: Partial<Extract<IngestionNode, { type: 'extract' }>>) {
     if (selected?.type !== 'extract') {
@@ -1200,6 +1205,78 @@ export function IngestionNodeSettings({
                     <p className="field-hint">
                       Canonical order: pinned source, connector priority, first stable identity,
                       then lexical identity. Overrides are saved in a new pipeline version.
+                    </p>
+                  </div>
+                </details>
+                <details>
+                  <summary>Sensitive-data policy</summary>
+                  <div className="field-stack">
+                    <Label>
+                      <input
+                        type="checkbox"
+                        checked={selectedSensitive.enabled}
+                        onChange={(event) =>
+                          updateNode(selected.id, (node) =>
+                            node.type === 'clean'
+                              ? {
+                                  ...node,
+                                  sensitive_data_policy: {
+                                    ...selectedSensitive,
+                                    enabled: event.target.checked,
+                                  },
+                                }
+                              : node,
+                          )
+                        }
+                      />
+                      Redact sensitive values before chunking and embedding
+                    </Label>
+                    <p className="field-hint">
+                      Redaction is irreversible in cleaned passages, embeddings, retrieval evidence,
+                      and provider requests. Raw artifacts and full diffs are encrypted, retained
+                      for 30 days, and limited to project owners and admins.
+                    </p>
+                    {selectedSensitive.rules.map((rule) => (
+                      <Label key={rule.entity_class}>
+                        {rule.entity_class.replaceAll('_', ' ')}
+                        <NativeSelect
+                          aria-label={`${rule.entity_class.replaceAll('_', ' ')} action`}
+                          disabled={!selectedSensitive.enabled}
+                          value={rule.action}
+                          onChange={(event) =>
+                            updateNode(selected.id, (node) =>
+                              node.type === 'clean'
+                                ? {
+                                    ...node,
+                                    sensitive_data_policy: {
+                                      ...selectedSensitive,
+                                      rules: selectedSensitive.rules.map((value) =>
+                                        value.entity_class === rule.entity_class
+                                          ? {
+                                              ...value,
+                                              action: event.target.value as
+                                                | 'redact'
+                                                | 'drop_document',
+                                            }
+                                          : value,
+                                      ),
+                                    },
+                                  }
+                                : node,
+                            )
+                          }
+                        >
+                          <NativeSelectOption value="redact">Redact value</NativeSelectOption>
+                          <NativeSelectOption value="drop_document">
+                            Drop entire document
+                          </NativeSelectOption>
+                        </NativeSelect>
+                      </Label>
+                    ))}
+                    <p className="field-hint">
+                      Deterministic pattern detectors cover the listed classes but cannot detect
+                      every sensitive value. Review synthetic false-positive and false-negative
+                      cases before relying on this policy.
                     </p>
                   </div>
                 </details>

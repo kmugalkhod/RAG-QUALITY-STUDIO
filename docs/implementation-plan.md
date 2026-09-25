@@ -1,5 +1,131 @@
 # Implementation plan
 
+## Robust ingestion roadmap — Phase 7A acceptance criteria (2026-09-25)
+
+Status: **complete and verified on 2026-09-25** on
+`codex/robust-ingestion-roadmap`.
+
+Material decisions approved on 2026-09-25:
+
+- Threat model: protect raw source content and sensitive-data findings from
+  cross-project access, project members without the explicit sensitive-data permission,
+  database/backup disclosure, browser/log leakage and accidental disclosure to embedding
+  or answer providers. A fully compromised application runtime or authorized
+  infrastructure administrator remains outside the application-layer guarantee.
+- Authorization: use server-enforced, deny-by-default project roles (`owner`, `admin`,
+  `editor`, `viewer`) with a distinct `sensitive_data.read` permission granted to owners
+  and admins by default. Check project ownership on every request. Audit raw-artifact,
+  full-diff and sensitive-finding reads without recording source text or detected values.
+  Local development uses one explicit loopback-only owner principal; shared deployment
+  fails closed until standards-based OIDC authentication is configured.
+- Retention: encrypt new raw artifacts and retain them for 30 days by default, then make
+  them unavailable and securely remove the stored ciphertext through a fenced cleanup
+  operation. Preserve redacted derivations, indexes, provenance and historical execution
+  evidence. Surface the loss of raw reprocessing rather than silently refetching or
+  substituting current source state.
+- Encryption: use per-artifact AES-256-GCM data keys and envelope metadata. Local
+  development may wrap data keys with the existing versioned application keyring;
+  shared deployment requires a configured KMS/Vault-backed key-encryption boundary.
+  Support key identifiers, rotation/rewrap and immediate retirement after compromise;
+  never store plaintext data keys with artifact ciphertext.
+- Sensitive entity scope: deterministic versioned detectors for email addresses, phone
+  numbers, IPv4/IPv6 addresses, payment-card numbers with checksum validation,
+  explicitly supported government-ID formats and recognizable API/secret-token formats.
+  Names, postal addresses and probabilistic NER are not enabled in this phase.
+- Actions: save a typed per-entity `redact` or `drop_document` action. Redaction is
+  irreversible before chunking, embedding, retrieval, evidence display or external model
+  calls. Persist only entity class, detector/version, count and bounded page/block/range
+  locations; never persist the original value, a reversible mapping or a guessable hash.
+  State clearly that detection reduces exposure and cannot guarantee finding all PII.
+
+Acceptance criteria:
+
+- Extend schema-v2 cleaning configuration with an immutable, typed sensitive-data policy
+  and deterministic detector version. Historical saved versions retain their exact
+  behavior; enabling or changing a rule creates a new pipeline version.
+- Detect only against bounded cleaned canonical blocks, resolve overlapping matches
+  deterministically, and apply replacements without changing protected structural
+  metadata. `drop_document` excludes the item before embedding/publication with an
+  inspectable safe reason. Redacted chunks, embeddings, retrieval results, citations and
+  experiment evidence must contain placeholders only.
+- Persist project-scoped aggregate and location-only findings for preview and processing
+  inspection. Raw preview, extracted-before-redaction text, full diffs, thumbnails and
+  finding locations require `sensitive_data.read`; ordinary cleaned/chunk/evidence reads
+  remain redacted and never reconstruct originals.
+- Encrypt every newly stored upload and connector raw artifact, record key/envelope,
+  retention and deletion state, decrypt only inside bounded parser/authorized-inspector
+  boundaries, and preserve duplicate delivery, cancellation and stale-token fences.
+  Existing plaintext artifacts are reported as legacy/unprotected and must be migrated or
+  expire before shared deployment is permitted.
+- Provide an accessible policy editor, explicit irreversible-redaction and detector-limit
+  copy, redacted findings/decisions, permission-denied/expired-artifact states and no
+  sensitive value in DOM, URL, storage, logs or API error bodies.
+- Verify schema bounds, synthetic positive/negative/overlap cases, false-positive guards,
+  every entity/action, safe persistence, worker retries/cancellation, project/role
+  isolation, encryption/tamper/rotation/expiry, migration upgrade/rollback, full backend
+  and frontend gates, and desktop/720-pixel/mobile Agent Browser journeys. Use synthetic
+  data only and make no live provider or paid-model calls.
+
+Implementation and verification evidence:
+
+- Added versioned deterministic detectors for email, phone, IP, checksum-valid payment
+  cards, supported government IDs and recognizable API tokens. Overlap resolution is
+  deterministic; redaction/drop decisions run on bounded canonical blocks before chunks,
+  embeddings, provider requests and evidence. Persisted findings contain only safe class,
+  detector/version and bounded location metadata.
+- Added per-artifact AES-256-GCM data encryption with random data keys and envelope
+  metadata, local versioned-key wrapping, AWS KMS and Vault Transit wrapping adapters,
+  owner/admin-only audited reads, key rewrap without ciphertext rewrite, and fenced raw
+  retention cleanup. Rewrap applies to uploaded and connector artifacts. Shared OIDC mode
+  refuses disabled encryption or the local keyring; local loopback development retains an
+  explicit legacy/unprotected state for migration visibility.
+- Added signed OIDC validation and project roles (`owner`, `admin`, `editor`, `viewer`).
+  Owners/admins may inspect protected raw/extracted/full-diff content and safe findings;
+  editors/viewers receive ordinary redacted derivations with findings removed. Project
+  checks are server enforced across the API.
+- Migration 0025 adds artifact envelope/retention state, protected preview and derivation
+  state, identities, memberships and safe access audit events. Clean migration and model
+  drift/round-trip gates passed in the complete PostgreSQL suite.
+- The accessible editor records the immutable sensitive-data policy and explains the
+  irreversible/limited detector boundary. Browser preview showed only safe `email` and
+  `phone` findings with `deterministic-patterns-v1`; raw synthetic values were absent from
+  the DOM and the published answer evidence contained `[EMAIL]` and `[PHONE]` only.
+
+## Robust ingestion roadmap — Phase 7B and Phase 8 result (2026-09-25)
+
+Status: **complete and verified**.
+
+- Added strict bounded adapters for Markdown, HTML, CSV, TSV, DOCX, PPTX and XLSX on the
+  same canonical extraction/cleaning/chunking path as TXT/PDF and every connector.
+  Package validation rejects encrypted/macro-enabled/legacy binaries, duplicate or unsafe
+  archive members, symlinks, path traversal, excessive members, decompressed size and
+  compression ratios. Spreadsheet formulas remain inert display text.
+- Upload, Existing Files, S3 discovery and the Knowledge Base preparation path expose the
+  released formats consistently. Integration coverage includes each format through upload
+  and preparation plus one combined upload → preview → schema-v2 processing → embedding →
+  atomic publication → answer/evidence journey with deterministic provider doubles.
+- Added `docs/operations.md` and `docs/operations.sql` for health/capacity, backup/restore,
+  artifact retention/key rotation, stale-job recovery, orphan/integrity checks,
+  upgrade/rollback and the shared-auth release gate. The measured reviewed-corpus gate and
+  explicit non-claims live in `docs/robust-ingestion-release-baseline.md`.
+- Final backend gate: **346 passed, 4 skipped** opt-in live-provider checks on a clean
+  PostgreSQL/pgvector Compose stack. Ruff format/lint and dependency-lock checks passed.
+  Final frontend gate: Prettier, structure/ESLint, strict TypeScript, **121 Vitest tests**
+  and the production build passed.
+- Agent Browser, using only the canonical Vite URL `http://127.0.0.1:5273`, created an
+  isolated project, uploaded an encrypted synthetic TXT artifact, completed legacy
+  preparation, saved and previewed a schema-v2 sensitive pipeline, published a ready
+  index, and inspected redacted retrieval evidence. Desktop 1440 px, tablet 720 px and
+  mobile 390 px measured no horizontal overflow; browser errors were empty and the console
+  contained only Vite/React development notices.
+
+Remaining deployment limits: KMS/Vault adapters are covered by deterministic protocol
+doubles but require a deployment-owned live acceptance check against the selected key
+service and IAM/token policy. Existing legacy plaintext artifacts must be migrated or
+expired before shared access. Detector coverage intentionally does not include names,
+postal addresses or probabilistic NER, and no detector can guarantee discovery of every
+sensitive value.
+
 ## Robust ingestion roadmap — Phase 6 acceptance criteria (2026-09-25)
 
 Status: **Phase 6 complete on 2026-09-25** on

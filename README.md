@@ -1,6 +1,6 @@
 # RAG Quality Studio
 
-RAG Quality Studio is a local full-stack workspace for versioned retrieval-augmented generation. Upload PDF/TXT files or ingest bounded Website, Amazon S3, Notion and Confluence sources; preview provenance, publish immutable pgvector indexes, configure answer pipelines, inspect cited evidence and compare saved versions with background RAGAS experiments. PostgreSQL, Celery and Redis retain durable jobs and exact snapshots, while React Flow edits only validated application-owned pipeline templates.
+RAG Quality Studio is a full-stack workspace for versioned retrieval-augmented generation. Upload PDF, TXT, Markdown, HTML, DOCX, PPTX, CSV, TSV or XLSX files, or ingest bounded Website, Amazon S3, Notion and Confluence sources; preview provenance, publish immutable pgvector indexes, configure answer pipelines, inspect cited evidence and compare saved versions with background RAGAS experiments. PostgreSQL, Celery and Redis retain durable jobs and exact snapshots, while React Flow edits only validated application-owned pipeline templates.
 
 ## Start locally
 
@@ -12,7 +12,9 @@ From the repository root:
 
 ```sh
 cp .env.example .env
-# Optionally edit .env: choose a URL-safe local database password before first startup.
+# Edit .env: choose a URL-safe local database password. For encrypted raw
+# artifacts, generate a separate key with `openssl rand -base64 32`, put it in
+# ARTIFACT_KEYS, and set ARTIFACT_ENCRYPTION_ENABLED=true.
 docker compose up --build -d db redis migrate backend worker dispatcher
 cd frontend
 npm ci
@@ -34,9 +36,9 @@ Experiments still compare exact saved answer-pipeline versions. When two candida
 Open:
 
 - Application: http://127.0.0.1:5273
-- API documentation: http://localhost:8000/docs
-- API liveness: http://localhost:8000/api/health
-- Database/schema readiness: http://localhost:8000/api/ready
+- API documentation: http://127.0.0.1:8000/docs
+- API liveness: http://127.0.0.1:8000/api/health
+- Database/schema readiness: http://127.0.0.1:8000/api/ready
 
 ```sh
 docker compose ps
@@ -44,7 +46,7 @@ docker compose logs backend migrate worker dispatcher
 docker compose down
 ```
 
-`down` preserves named `postgres_data`, `document_data` and `redis_data` volumes. Do not use `down -v` for routine cleanup. Changing the password in `.env` after initialization does not change an existing PostgreSQL role's password. All published ports bind to `127.0.0.1`; authentication is not implemented, so keep this workspace local.
+`down` preserves named `postgres_data`, `document_data` and `redis_data` volumes. Do not use `down -v` for routine cleanup. Changing the password in `.env` after initialization does not change an existing PostgreSQL role's password. All published ports bind to `127.0.0.1`. Local mode supplies one loopback-only owner identity; shared access requires OIDC plus an external KMS/Vault artifact-key boundary and must pass the authorization release gate.
 
 Source connections are disabled by default. To enable the local encrypted vault, generate a 32-byte key with `openssl rand -base64 32`, place it in `SOURCE_CONNECTION_KEYS` under a version name, set that version in `SOURCE_CONNECTION_ACTIVE_KEY`, and set `SOURCE_CONNECTIONS_ENABLED=true`. Never commit the populated values. Keep every old key available until its connections have been re-encrypted from Settings; losing a required key makes those credentials unrecoverable. See [deployment guidance](docs/deployment.md#source-connection-vault).
 
@@ -145,19 +147,19 @@ Frontend dependencies are pinned in `package.json` and `package-lock.json`.
 - `GET /api/ready`: database is reachable and project/document/run/chunk schema is present; otherwise 503.
 - Invalid input returns 422; database failures return a generic 503 without connection details or submitted data.
 
-A lost response after creation may mean the project was saved. Refresh before retrying; creation is not idempotent. No shared-user authorization, project/document editing or deletion, or public deployment is included.
+A lost response after creation may mean the project was saved. Refresh before retrying; creation is not idempotent. OIDC deployments enforce project owner/admin/editor/viewer roles; local mode remains a single loopback owner. Public deployment still requires operator-provided ingress/TLS, identity lifecycle, external key management and the documented authorization checks.
 
 See [milestone progress](docs/implementation-plan.md) and [architecture](docs/architecture.md).
 
 ## Knowledge Base workflow
 
 1. Create/open a project by clicking its name.
-2. Select one PDF or UTF-8 TXT and upload it. The default limit is 20 MiB; `MAX_UPLOAD_BYTES` configures the backend and displayed UI limit (up to 100 MiB).
+2. Select one PDF, UTF-8 TXT/Markdown/HTML/CSV/TSV, DOCX, PPTX or XLSX file and upload it. The default limit is 20 MiB; `MAX_UPLOAD_BYTES` configures the backend and displayed UI limit (up to 100 MiB).
 3. Legacy document processing accepts a character size (1–100,000) and overlap (0 to size minus one). Saved schema-v2 ingestion pipelines additionally offer section-aware token and parent/child profiles with server-validated targets, hard maxima and overlap. Save an immutable version before running it; status/progress come from PostgreSQL.
 4. Inspect completed chunks. PDF page numbers and page-relative character offsets accompany exact extracted text. Schema-v2 ingestion runs also expose extracted/cleaned blocks, page origin, quality findings, structured tables, safe page overlays, an attributed before/after cleaning diff, and a paginated chunk view with token distribution, evidence/embedding separation, spans and parent linkage. Use the pagination controls for longer documents.
 5. Cancel queued/running work when needed. Failed/cancelled runs can be retried with **Start processing**, preserving the earlier version. Reprocessing a successful document also saves a new version.
 
-Legacy processing still rejects a scanned PDF explicitly. A schema-v2 ingestion pipeline can select bounded Automatic fallback or Always OCR when the configured local language pack is available. Malformed/encrypted PDFs fail in the worker. Empty/invalid UTF-8 TXT, byte/type mismatches and unsupported files fail safely. Duplicate uploads are separate documents. If a response is interrupted, refresh before retrying to avoid accidental duplicates.
+Legacy processing still rejects a scanned PDF explicitly. A schema-v2 ingestion pipeline can select bounded Automatic fallback or Always OCR when the configured local language pack is available. Malformed/encrypted PDFs and unsafe/macro-enabled Office packages fail safely. Text formats require UTF-8; HTML scripts/styles are ignored, spreadsheet formulas are retained as inert text and never evaluated. Duplicate uploads are separate documents. If a response is interrupted, refresh before retrying to avoid accidental duplicates.
 
 New schema-v2 drafts use the named structure-aware cleaning profile. Its transforms run
 in the saved order and can be enabled, configured, moved, added or removed before saving;
@@ -179,6 +181,7 @@ All paths below start with `/api/projects/{project_id}`; wrong-project document,
 - `GET /upload-settings`: configured file limit.
 - `GET /documents?limit=20&offset=0`: document metadata and latest processing run, newest uploads first.
 - `POST /documents`: multipart with exactly one `file`; 201 returns immutable document metadata.
+- `POST /documents/{document_id}/artifact/rewrap`: owner/admin-only data-key envelope rotation for a retained encrypted artifact; source ciphertext is unchanged and access is audited.
 - `POST /documents/{document_id}/runs`: JSON `{"chunk_size":1000,"overlap":200}`; 202 returns the queued run. An active run returns 409.
 - `GET /documents/{document_id}/runs?limit=20&offset=0`: newest processing versions first.
 - `GET /documents/{document_id}/runs/{run_id}`: authoritative status, progress, settings, attempt count and safe error.
@@ -193,7 +196,7 @@ Cancellation prevents publication, but in-flight parsing can continue until the 
 
 To verify persistence in the isolated browser stack, process a file and record its document/run IDs, then run `docker compose -p rag-studio-e2e -f compose.e2e.yaml restart db redis backend worker dispatcher frontend`. After readiness returns, reopen that project, inspect the original version and start another version from the saved upload. Both PostgreSQL and `document_data` must be retained. For stronger verification, stop/start the stack with `down` and `up -d`, preserving volumes.
 
-Back up database and document volume together while uploads/processing are stopped. Schema changes use Alembic. No deletion API exists. A process crash or ambiguous database commit can leave orphan files; the safe offline inspection procedure is in [storage architecture](docs/architecture.md#storage-and-upload-transaction). There is no automatic persistent-file cleanup. This remains an unauthenticated local workspace; shared access and production backup/restore procedures belong to a later milestone.
+Back up PostgreSQL, the document volume and every referenced connection/artifact wrapping-key version at one recovery point. Encrypted raw artifacts expire through fenced cleanup after their configured retention period while redacted derivations and historical indexes remain. Exact backup/restore, storage queries, stale-job recovery, orphan inspection, key rotation, dependency upgrades and rollback are in [ingestion operations](docs/operations.md). The measured release gates and their corpus limits are in the [robust ingestion baseline](docs/robust-ingestion-release-baseline.md).
 
 
 ## Milestone 2B: indexing and retrieval

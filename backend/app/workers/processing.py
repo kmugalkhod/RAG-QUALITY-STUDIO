@@ -9,7 +9,6 @@ from sqlalchemy import insert, select, update
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.core.config import settings
 from app.db.session import engine
 from app.ingestion_content import (
     IngestionStageError,
@@ -28,6 +27,7 @@ from app.services.derivations import (
     persist_derivations,
     reusable_cleaned_document,
 )
+from app.services import artifact_storage
 from app.workers.celery_app import celery
 
 
@@ -167,7 +167,7 @@ def process(run_id: UUID, db_engine=engine):
         job.error = None
         job.progress = 0
         doc = session.get(Document, job.document_id)
-        path, media = settings.storage_path / doc.storage_name, doc.media_type
+        media = doc.media_type
         size, overlap = job.chunk_size, job.overlap
         processing_config = job.processing_config
         processing_config_hash = job.processing_config_hash
@@ -213,16 +213,24 @@ def process(run_id: UUID, db_engine=engine):
                 )
                 canonical = ("reused", reused_from_processing_run_id, spans)
             else:
-                chunks, output_hash, extracted, cleaned, spans, extractor_version = (
-                    _v2_chunks(
-                        scoped_job,
-                        path,
-                        media,
-                        title,
-                        stage,
-                        cancelled,
-                    )
-                )
+                with Session(db_engine) as session:
+                    source_document = session.get(Document, document_id)
+                    with artifact_storage.materialize(source_document) as path:
+                        (
+                            chunks,
+                            output_hash,
+                            extracted,
+                            cleaned,
+                            spans,
+                            extractor_version,
+                        ) = _v2_chunks(
+                            scoped_job,
+                            path,
+                            media,
+                            title,
+                            stage,
+                            cancelled,
+                        )
                 canonical = (
                     "new",
                     extracted,
@@ -234,52 +242,55 @@ def process(run_id: UUID, db_engine=engine):
             chunks = []
             chunk_characters = 0
             processing_phase_started = False
-            for page, value, completed, total in pages(path, media):
-                if not processing_phase_started:
-                    ingestion_execution.transition_for_processing_run(
-                        db_engine, run_id, "clean"
-                    )
-                    ingestion_execution.transition_for_processing_run(
-                        db_engine, run_id, "chunk"
-                    )
-                    processing_phase_started = True
-                # Cancellation/recovery is observed between pages and bounded windows.
-                for start, end, content in windows(value, size, overlap):
-                    if len(chunks) >= MAX_CHUNKS:
-                        raise ProcessingError(
-                            "Processing exceeds the 50,000 chunk limit. Increase chunk size or reduce overlap."
-                        )
-                    chunk_characters += len(content)
-                    if chunk_characters > 10_000_000:
-                        raise ProcessingError(
-                            "Chunk text exceeds the 10,000,000 character output limit. Reduce overlap."
-                        )
-                    chunks.append(
-                        dict(
-                            run_id=run_id,
-                            ordinal=len(chunks),
-                            page_number=page,
-                            start_char=start,
-                            end_char=end,
-                            text=content,
-                        )
-                    )
-                with Session(db_engine) as session:
-                    changed = session.execute(
-                        update(ProcessingRun)
-                        .where(
-                            ProcessingRun.id == run_id,
-                            ProcessingRun.status == "running",
-                            ProcessingRun.execution_token == token,
-                        )
-                        .values(
-                            progress=min(95, int(95 * completed / total)),
-                            updated_at=now(),
-                        )
-                    )
-                    session.commit()
-                    if changed.rowcount != 1:
-                        return
+            with Session(db_engine) as session:
+                source_document = session.get(Document, document_id)
+                with artifact_storage.materialize(source_document) as path:
+                    for page, value, completed, total in pages(path, media):
+                        if not processing_phase_started:
+                            ingestion_execution.transition_for_processing_run(
+                                db_engine, run_id, "clean"
+                            )
+                            ingestion_execution.transition_for_processing_run(
+                                db_engine, run_id, "chunk"
+                            )
+                            processing_phase_started = True
+                        # Cancellation/recovery is observed between pages and bounded windows.
+                        for start, end, content in windows(value, size, overlap):
+                            if len(chunks) >= MAX_CHUNKS:
+                                raise ProcessingError(
+                                    "Processing exceeds the 50,000 chunk limit. Increase chunk size or reduce overlap."
+                                )
+                            chunk_characters += len(content)
+                            if chunk_characters > 10_000_000:
+                                raise ProcessingError(
+                                    "Chunk text exceeds the 10,000,000 character output limit. Reduce overlap."
+                                )
+                            chunks.append(
+                                dict(
+                                    run_id=run_id,
+                                    ordinal=len(chunks),
+                                    page_number=page,
+                                    start_char=start,
+                                    end_char=end,
+                                    text=content,
+                                )
+                            )
+                        with Session(db_engine) as progress_session:
+                            changed = progress_session.execute(
+                                update(ProcessingRun)
+                                .where(
+                                    ProcessingRun.id == run_id,
+                                    ProcessingRun.status == "running",
+                                    ProcessingRun.execution_token == token,
+                                )
+                                .values(
+                                    progress=min(95, int(95 * completed / total)),
+                                    updated_at=now(),
+                                )
+                            )
+                            progress_session.commit()
+                            if changed.rowcount != 1:
+                                return
         with Session(
             db_engine.execution_options(isolation_level="READ COMMITTED")
         ) as session:

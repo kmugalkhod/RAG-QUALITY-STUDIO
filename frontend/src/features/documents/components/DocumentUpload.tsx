@@ -31,11 +31,15 @@ export function DocumentUpload({
     const file = fileInput.current?.files?.[0];
     setError('');
     if (!file) {
-      setError('Choose a PDF or UTF-8 TXT file.');
+      setError('Choose a supported document file.');
       return;
     }
-    if (!/\.(pdf|txt)$/i.test(file.name) || !file.size || (limit && file.size > limit)) {
-      setError('Choose a nonempty PDF or UTF-8 TXT within the upload limit.');
+    if (
+      !/\.(pdf|txt|md|markdown|html|htm|docx|pptx|csv|tsv|xlsx)$/i.test(file.name) ||
+      !file.size ||
+      (limit && file.size > limit)
+    ) {
+      setError('Choose a nonempty supported document within the upload limit.');
       return;
     }
     setUploading(true);
@@ -59,18 +63,19 @@ export function DocumentUpload({
       <h2 id="upload-title">Add a document</h2>
       <form className="mt-4 flex items-end gap-4" onSubmit={submit} aria-busy={uploading}>
         <div className="min-w-0 flex-1">
-          <Label htmlFor="document-file">PDF or UTF-8 TXT</Label>
+          <Label htmlFor="document-file">Document file</Label>
           <Input
             ref={fileInput}
             id="document-file"
             type="file"
-            accept=".pdf,.txt"
+            accept=".pdf,.txt,.md,.markdown,.html,.htm,.docx,.pptx,.csv,.tsv,.xlsx"
             disabled={uploading || !limit}
             aria-describedby="upload-hint"
           />
           <p className="field-hint" id="upload-hint">
-            One file per upload. {limit ? `Maximum ${bytes(limit)}.` : 'Loading upload limit…'}{' '}
-            Scanned PDFs require OCR and are unsupported.
+            One file per upload. {limit ? `Maximum ${bytes(limit)}.` : 'Loading upload limit…'} PDF,
+            TXT, Markdown, HTML, DOCX, PPTX, CSV, TSV, or XLSX. Scanned PDFs use the saved OCR
+            policy.
           </p>
         </div>
         <Button disabled={uploading || !limit} type="submit">

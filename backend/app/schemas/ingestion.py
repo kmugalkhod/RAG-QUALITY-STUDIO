@@ -139,9 +139,9 @@ class S3Config(Strict):
     )
     prefix: str = Field(default="", max_length=1024)
     expected_bucket_owner: str | None = Field(default=None, pattern=r"^[0-9]{12}$")
-    allowed_file_types: list[Literal["txt", "pdf"]] = Field(
-        default_factory=lambda: ["txt", "pdf"], min_length=1, max_length=2
-    )
+    allowed_file_types: list[
+        Literal["txt", "pdf", "md", "html", "docx", "pptx", "csv", "tsv", "xlsx"]
+    ] = Field(default_factory=lambda: ["txt", "pdf"], min_length=1, max_length=2)
     max_objects: int = Field(default=1000, strict=True, ge=1, le=5000)
     max_pages: int = Field(default=10, strict=True, ge=1, le=100)
     max_object_bytes: int = Field(
@@ -482,6 +482,60 @@ class DuplicatePolicyV1(Strict):
         return self
 
 
+SensitiveEntityClass = Literal[
+    "email",
+    "phone",
+    "ip_address",
+    "government_id",
+    "payment_card",
+    "api_secret",
+]
+
+
+class SensitiveDataRuleV1(Strict):
+    entity_class: SensitiveEntityClass
+    action: Literal["redact", "drop_document"] = "redact"
+
+
+def _default_sensitive_data_rules():
+    return [
+        SensitiveDataRuleV1(entity_class=value)
+        for value in (
+            "email",
+            "phone",
+            "ip_address",
+            "government_id",
+            "payment_card",
+            "api_secret",
+        )
+    ]
+
+
+class SensitiveDataPolicyV1(Strict):
+    id: Literal["sensitive-data-v1"] = "sensitive-data-v1"
+    enabled: bool = False
+    detector_version: Literal["deterministic-patterns-v1"] = "deterministic-patterns-v1"
+    rules: list[SensitiveDataRuleV1] = Field(
+        default_factory=_default_sensitive_data_rules,
+        min_length=1,
+        max_length=6,
+    )
+    government_id_formats: list[Literal["us_ssn", "in_aadhaar"]] = Field(
+        default_factory=lambda: ["us_ssn", "in_aadhaar"],
+        min_length=1,
+        max_length=2,
+    )
+
+    @model_validator(mode="after")
+    def deterministic_rules(self):
+        classes = [rule.entity_class for rule in self.rules]
+        if len(set(classes)) != len(classes):
+            raise ValueError("Sensitive-data entity rules must be unique.")
+        if len(set(self.government_id_formats)) != len(self.government_id_formats):
+            raise ValueError("Government-ID detector formats must be unique.")
+        return self
+
+
 class QualityThresholdsV1(Strict):
     maximum_empty_page_ratio: float = Field(default=0.20, ge=0, le=1)
     maximum_replacement_character_ratio: float = Field(default=0.01, ge=0, le=1)
@@ -715,6 +769,11 @@ class CleanNodeV2(LegacyCleanNode):
         default_factory=list, max_length=20, exclude_if=lambda value: not value
     )
     duplicate_policy: DuplicatePolicyV1 = Field(default_factory=DuplicatePolicyV1)
+    # Missing policy means historical schema-v2 behavior: no sensitive-data transform.
+    # New editor drafts explicitly enable the policy.
+    sensitive_data_policy: SensitiveDataPolicyV1 = Field(
+        default_factory=SensitiveDataPolicyV1
+    )
 
     @model_validator(mode="after")
     def valid_profile_and_order(self):
@@ -1023,6 +1082,7 @@ class SourcePreviewRead(Strict):
     started_at: datetime | None
     finished_at: datetime | None
     expires_at: datetime
+    protected_content: bool = False
 
 
 class SourcePreviewItemRead(Strict):

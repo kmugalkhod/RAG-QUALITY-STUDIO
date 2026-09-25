@@ -1,5 +1,5 @@
 from uuid import UUID
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 from typing import Annotated
 from app.api.routes import Database
 from app.api.documents import Limit, Offset
@@ -15,8 +15,12 @@ from app.schemas.index import (
 )
 from app.services import indexes
 from app.services.documents import project
+from app.core.auth import require_project_access
 
-router = APIRouter(prefix="/api/projects/{project_id}")
+router = APIRouter(
+    prefix="/api/projects/{project_id}",
+    dependencies=[Depends(require_project_access)],
+)
 
 
 @router.get("/embedding-settings")

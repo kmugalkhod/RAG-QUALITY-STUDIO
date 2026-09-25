@@ -35,7 +35,7 @@ export type S3Config = {
   bucket: string;
   prefix?: string;
   expected_bucket_owner?: string | null;
-  allowed_file_types: ('txt' | 'pdf')[];
+  allowed_file_types: ('txt' | 'pdf' | 'md' | 'html' | 'docx' | 'pptx' | 'csv' | 'tsv' | 'xlsx')[];
   max_objects: number;
   max_pages: number;
   max_object_bytes: number;
@@ -221,6 +221,22 @@ export type DuplicateDecision = {
   reason: string;
 };
 
+export type SensitiveEntityClass =
+  | 'email'
+  | 'phone'
+  | 'ip_address'
+  | 'government_id'
+  | 'payment_card'
+  | 'api_secret';
+
+export type SensitiveDataPolicy = {
+  id: 'sensitive-data-v1';
+  enabled: boolean;
+  detector_version: 'deterministic-patterns-v1';
+  rules: { entity_class: SensitiveEntityClass; action: 'redact' | 'drop_document' }[];
+  government_id_formats: ('us_ssn' | 'in_aadhaar')[];
+};
+
 export type IngestionNode =
   | (NodeBase & {
       type: 'source';
@@ -254,6 +270,7 @@ export type IngestionNode =
       config_version?: string;
       steps?: CleaningTransform[];
       duplicate_policy?: DuplicatePolicy;
+      sensitive_data_policy?: SensitiveDataPolicy;
     })
   | ChunkNode
   | (NodeBase & {
@@ -306,11 +323,19 @@ export type SourcePreviewItem = {
   fetch_mode: 'network' | 'cached-artifact';
   processing_config_hash: string | null;
   findings: {
-    code: string;
-    severity: 'info' | 'warning' | 'error';
-    message: string;
+    code?: string;
+    severity?: 'info' | 'warning' | 'error';
+    message?: string;
     remediation?: string | null;
     page_numbers?: number[];
+    entity_class?: SensitiveEntityClass;
+    detector?: string;
+    detector_version?: 'deterministic-patterns-v1';
+    action?: 'redact' | 'drop_document';
+    block_ordinal?: number;
+    page_number?: number | null;
+    start_char?: number;
+    end_char?: number;
   }[];
   metrics: Record<string, unknown>;
   stage_timings: Record<string, number>;
@@ -344,6 +369,7 @@ export type SourcePreview = {
   started_at: string | null;
   finished_at: string | null;
   expires_at: string;
+  protected_content?: boolean;
 };
 
 export type SourcePreviewRepresentation = {
@@ -504,6 +530,18 @@ export type ContentDerivation = {
     page_numbers?: number[];
     remediation?: string | null;
   }[];
+  sensitive_findings?: {
+    entity_class: SensitiveEntityClass;
+    detector: string;
+    detector_version: 'deterministic-patterns-v1';
+    action: 'redact' | 'drop_document';
+    block_ordinal: number;
+    page_number: number | null;
+    start_char: number;
+    end_char: number;
+  }[];
+  sensitive_data_applied?: boolean;
+  protected_text?: boolean;
   transforms: {
     transform: string;
     version: string;
@@ -523,7 +561,7 @@ export type ContentDerivation = {
 
 export type ExtractionCapabilities = {
   schema_version: 1;
-  media_types: ('application/pdf' | 'text/plain')[];
+  media_types: string[];
   profiles: {
     id: 'auto' | 'native' | 'layout_aware';
     available: boolean;

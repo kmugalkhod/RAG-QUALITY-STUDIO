@@ -1,11 +1,15 @@
 from uuid import UUID
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from app.api.routes import Database
 from app.api.documents import Limit, Offset
 from app.schemas.query import QueryRequest, QueryRead, QueryPage
 from app.services import queries
+from app.core.auth import require_project_access
 
-router = APIRouter(prefix="/api/projects/{project_id}/query-runs")
+router = APIRouter(
+    prefix="/api/projects/{project_id}/query-runs",
+    dependencies=[Depends(require_project_access)],
+)
 
 
 @router.post("", response_model=QueryRead, status_code=201)

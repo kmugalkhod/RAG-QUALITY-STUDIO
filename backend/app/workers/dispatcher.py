@@ -427,6 +427,9 @@ def main():
             dispatch_schedules_once()
             dispatch_ingestion_once()
             dispatch_previews_once()
+            from app.services.artifact_storage import cleanup_expired_raw_artifacts
+
+            cleanup_expired_raw_artifacts(engine)
             from app.workers.experiments import dispatch_experiments_once
 
             dispatch_experiments_once()

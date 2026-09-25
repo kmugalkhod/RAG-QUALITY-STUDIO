@@ -32,6 +32,12 @@ from app.ingestion_content.contracts import (
 from app.ingestion_content.processing import IngestionStageError, NativeTextExtractor
 from app.ingestion_content.quality import evaluate_quality, measured_document
 from app.ingestion_content.language import apply_language_policy
+from app.ingestion_content.extractors.formats import (
+    FORMAT_EXTRACTOR_VERSION,
+    STRUCTURED_MEDIA_TYPES,
+    detect_structured_media_type,
+    extract_structured_document,
+)
 from app.pipelines.parsing import (
     MAX_CHARACTERS,
     MAX_PAGES,
@@ -41,7 +47,8 @@ from app.pipelines.parsing import (
 
 
 LAYOUT_OCR_EXTRACTOR_VERSION = (
-    f"pypdf-{pypdf_version}/pymupdf-{pymupdf.VersionBind}/tesseract-cli-v1"
+    f"pypdf-{pypdf_version}/pymupdf-{pymupdf.VersionBind}/tesseract-cli-v1/"
+    f"{FORMAT_EXTRACTOR_VERSION}"
 )
 MAX_OCR_PIXELS_PER_PAGE = 20_000_000
 MAX_OCR_OUTPUT_BYTES = 5_000_000
@@ -70,13 +77,16 @@ class ExtractSettings(Protocol):
     config_version: str
 
 
-def detect_media_type(path: Path) -> str:
+def detect_media_type(path: Path, declared_media_type: str | None = None) -> str:
     """Return the supported media type from bounded bytes, never from a suffix."""
 
     with path.open("rb") as source:
         prefix = source.read(8192)
     if prefix.startswith(b"%PDF-"):
         return "application/pdf"
+    structured = detect_structured_media_type(path, declared_media_type)
+    if structured is not None:
+        return structured
     try:
         validate_text(
             prefix if path.stat().st_size <= len(prefix) else path.read_bytes()
@@ -85,7 +95,7 @@ def detect_media_type(path: Path) -> str:
         raise IngestionStageError(
             "extract",
             "unsupported_media_type",
-            "The artifact bytes are not a supported PDF or UTF-8 TXT document.",
+            "The artifact bytes are not a supported document format.",
         ) from exc
     return "text/plain"
 
@@ -153,7 +163,17 @@ def extraction_capabilities() -> dict[str, Any]:
     languages = installed_ocr_languages()
     return {
         "schema_version": 1,
-        "media_types": ["application/pdf", "text/plain"],
+        "media_types": [
+            "application/pdf",
+            "text/plain",
+            "text/markdown",
+            "text/html",
+            "text/csv",
+            "text/tab-separated-values",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        ],
         "profiles": [
             {"id": "auto", "available": True, "reason": None},
             {"id": "native", "available": True, "reason": None},
@@ -790,7 +810,7 @@ def extract_document(
     """Extract one artifact with exact page-level origin and bounded fallback rules."""
 
     started = time.monotonic()
-    detected = detect_media_type(path)
+    detected = detect_media_type(path, declared_media_type)
     if detected != declared_media_type:
         raise IngestionStageError(
             "extract",
@@ -804,6 +824,12 @@ def extract_document(
         if getattr(settings, "language_policy", None) is not None:
             document = apply_language_policy(document, settings.language_policy)
         return document, NativeTextExtractor.version
+    if detected in STRUCTURED_MEDIA_TYPES:
+        document, version = extract_structured_document(path, detected, title)
+        document = evaluate_quality(document, settings.quality_policy)
+        if getattr(settings, "language_policy", None) is not None:
+            document = apply_language_policy(document, settings.language_policy)
+        return document, version
     if settings.config_version == "native-text-v1":
         try:
             segments = list(NativeTextExtractor().extract(path, detected))

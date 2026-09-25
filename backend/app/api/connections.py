@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from app.api.routes import Database
 from app.core.config import settings
 from app.core.connection_secrets import ConnectionKeyring, SecretConfigurationError
+from app.core.auth import require_project_access
 from app.models.project import Project
 from app.schemas.connection import (
     SourceConnectionCreate,
@@ -64,6 +65,7 @@ def require_keyring(request: Request) -> ConnectionKeyring:
 
 
 Keyring = Annotated[ConnectionKeyring, Depends(require_keyring)]
+ProjectAccess = Annotated[str, Depends(require_project_access)]
 Limit = Annotated[int, Query(ge=1, le=100)]
 Offset = Annotated[int, Query(ge=0)]
 
@@ -80,6 +82,7 @@ def list_connections(
     project_id: UUID,
     session: Database,
     keyring: Keyring,
+    _access: ProjectAccess,
     limit: Limit = 20,
     offset: Offset = 0,
 ):
@@ -92,6 +95,7 @@ def create_connection(
     data: SourceConnectionCreate,
     session: Database,
     keyring: Keyring,
+    _access: ProjectAccess,
 ):
     return connections.create(session, project_id, data, keyring)
 
@@ -102,6 +106,7 @@ def read_connection(
     connection_id: UUID,
     session: Database,
     keyring: Keyring,
+    _access: ProjectAccess,
 ):
     return connections.read(session, project_id, connection_id)
 
@@ -112,6 +117,7 @@ def test_connection(
     connection_id: UUID,
     session: Database,
     keyring: Keyring,
+    _access: ProjectAccess,
 ):
     return connections.test(session, project_id, connection_id, keyring)
 
@@ -123,6 +129,7 @@ def rotate_connection(
     data: SourceConnectionRotate,
     session: Database,
     keyring: Keyring,
+    _access: ProjectAccess,
 ):
     return connections.rotate(session, project_id, connection_id, data, keyring)
 
@@ -133,5 +140,6 @@ def rewrap_connection(
     connection_id: UUID,
     session: Database,
     keyring: Keyring,
+    _access: ProjectAccess,
 ):
     return connections.rewrap(session, project_id, connection_id, keyring)

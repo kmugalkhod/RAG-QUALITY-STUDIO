@@ -24,3 +24,8 @@ from app.models.source import (  # noqa: F401
     SourceSnapshotMember,
     WebsiteRunItem,
 )
+from app.models.security import (  # noqa: F401
+    ProjectMembership,
+    SensitiveAccessEvent,
+    UserIdentity,
+)

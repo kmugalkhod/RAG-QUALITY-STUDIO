@@ -1,7 +1,7 @@
 from uuid import UUID
 from typing import Literal
 
-from fastapi import APIRouter, BackgroundTasks, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, Query
 from app.api.routes import Database
 from app.api.documents import Limit, Offset
 from app.core.config import settings
@@ -17,8 +17,12 @@ from app.schemas.pipeline import (
 )
 from app.schemas.query import QueryRead
 from app.services import pipelines
+from app.core.auth import require_project_access
 
-router = APIRouter(prefix="/api/projects/{project_id}/pipelines")
+router = APIRouter(
+    prefix="/api/projects/{project_id}/pipelines",
+    dependencies=[Depends(require_project_access)],
+)
 
 
 @router.get("/options")

@@ -14,10 +14,28 @@ from app.schemas.document import (
 from app.schemas.project import ProjectRead
 from app.services import documents
 from app.core.config import settings
+from app.core.auth import (
+    CurrentPrincipal,
+    authorize_sensitive_read,
+    project_role,
+    require_project_access,
+)
 
-router = APIRouter(prefix="/api/projects/{project_id}")
+router = APIRouter(
+    prefix="/api/projects/{project_id}",
+    dependencies=[Depends(require_project_access)],
+)
 Limit = Annotated[int, Query(ge=1, le=100)]
 Offset = Annotated[int, Query(ge=0)]
+
+
+@router.get("/access")
+def project_access(project_id: UUID, session: Database, principal: CurrentPrincipal):
+    role = project_role(session, project_id, principal)
+    return {
+        "role": role,
+        "sensitive_data_read": role in {"owner", "admin"},
+    }
 
 
 @router.get("", response_model=ProjectRead)
@@ -65,6 +83,28 @@ def list_documents(
 @router.delete("/documents/{document_id}")
 def remove(project_id: UUID, document_id: UUID, session: Database):
     return documents.remove(session, project_id, document_id)
+
+
+@router.post("/documents/{document_id}/artifact/rewrap")
+def rewrap_artifact(
+    project_id: UUID,
+    document_id: UUID,
+    session: Database,
+    principal: CurrentPrincipal,
+):
+    result = documents.artifact_document(session, project_id, document_id)
+    authorize_sensitive_read(
+        session,
+        project_id,
+        principal,
+        action="artifact_key_rewrap",
+        resource_kind="document",
+        resource_id=result.id,
+    )
+    try:
+        return documents.rewrap_artifact(session, result)
+    except FileNotFoundError:
+        raise HTTPException(410, "The retained raw artifact is unavailable.") from None
 
 
 @router.post("/documents/{document_id}/runs", response_model=RunRead, status_code=202)

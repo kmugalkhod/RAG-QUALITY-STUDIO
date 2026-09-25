@@ -191,6 +191,11 @@ export function IngestionPreviewResults({
             {preview.configuration_hash.slice(0, 12)} · {preview.known_compute_ms} ms known local
             compute · monetary cost unknown
           </small>
+          {preview.protected_content && (
+            <small>
+              Sensitive-data policy active · protected stages require owner or admin access
+            </small>
+          )}
         </div>
         {!terminalIngestionStatuses.has(preview.status) && (
           <Button variant="outline" onClick={onCancel}>
@@ -244,8 +249,12 @@ export function IngestionPreviewResults({
                 </small>
               )}
               {item.findings.map((finding, findingIndex) => (
-                <small key={`${finding.code}-${findingIndex}`}>
-                  {finding.severity} · {finding.message}
+                <small key={`${finding.code ?? finding.entity_class}-${findingIndex}`}>
+                  {finding.entity_class
+                    ? `${finding.action} · ${finding.entity_class.replaceAll('_', ' ')} · ${finding.detector_version ?? 'detector version unavailable'} · block ${
+                        (finding.block_ordinal ?? 0) + 1
+                      }${finding.page_number ? ` · page ${finding.page_number}` : ''}`
+                    : `${finding.severity} · ${finding.message}`}
                   {finding.remediation ? ` ${finding.remediation}` : ''}
                 </small>
               ))}
@@ -772,6 +781,24 @@ export function IngestionRunResults({
                           : ''}
                       </span>
                       {finding.remediation && <small>{finding.remediation}</small>}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {(selectedDerivation.sensitive_findings?.length ?? 0) > 0 && (
+                <ul className="content-quality-findings" aria-label="Sensitive-data findings">
+                  {selectedDerivation.sensitive_findings?.map((finding, index) => (
+                    <li
+                      key={`${finding.entity_class}-${finding.block_ordinal}-${finding.start_char}-${index}`}
+                    >
+                      <strong>
+                        {finding.action} · {finding.entity_class.replaceAll('_', ' ')}
+                      </strong>
+                      <span>
+                        {finding.detector_version} · block {finding.block_ordinal + 1}
+                        {finding.page_number ? ` · page ${finding.page_number}` : ''} · location{' '}
+                        {finding.start_char}–{finding.end_char}
+                      </span>
                     </li>
                   ))}
                 </ul>

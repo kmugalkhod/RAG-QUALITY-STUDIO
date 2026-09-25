@@ -3,7 +3,6 @@
 import hashlib
 import json
 import logging
-import os
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -16,7 +15,6 @@ from pydantic import TypeAdapter
 from sqlalchemy import func, insert, select
 from sqlalchemy.orm import Session
 
-from app.core.config import settings
 from app.models.document import Chunk, Document, ProcessingRun
 from app.models.source import SourceItem, SourceRevision
 from app.ingestion_content.contracts import (
@@ -27,6 +25,7 @@ from app.ingestion_content.contracts import (
 from app.ingestion_content import chunk_cleaned_document, derivation_hash_from_config
 from app.services.derivations import persist_derivations
 from app.services.derivations import link_reused_derivations, reusable_cleaned_document
+from app.services import artifact_storage
 from app.schemas.ingestion import ChunkNodeV2
 from app.pipelines.parsing import MAX_CHUNKS, ProcessingError
 
@@ -72,25 +71,6 @@ class SourceArtifactSpec:
     etag: str | None = None
     last_modified: str | None = None
     provider_revision: str | None = None
-
-
-def store(content: bytes) -> tuple[str, Path]:
-    root = settings.storage_path
-    root.mkdir(parents=True, exist_ok=True)
-    name = uuid4().hex
-    temporary = root / f"{name}.part"
-    final = root / name
-    with temporary.open("xb") as output:
-        output.write(content)
-        output.flush()
-        os.fsync(output.fileno())
-    os.replace(temporary, final)
-    descriptor = os.open(root, os.O_RDONLY)
-    try:
-        os.fsync(descriptor)
-    finally:
-        os.close(descriptor)
-    return name, final
 
 
 def identity_hash(value: str) -> str:
@@ -449,21 +429,25 @@ def persist_source_artifact(
 
     stored_path: Path | None = None
     try:
-        storage_name, stored_path = store(spec.content)
-        prepared = prepare(stored_path)
+        document_id = uuid4()
+        with artifact_storage.temporary_plaintext(spec.content) as prepared_path:
+            prepared = prepare(prepared_path)
         if isinstance(prepared, PreparedArtifact):
             chunk_values = prepared.chunks
             extracted_hash = prepared.extracted_hash
         else:
             chunk_values, extracted_hash = prepared
+        stored = artifact_storage.store(spec.content, project_id, document_id)
+        storage_name, stored_path = stored.storage_name, stored.path
         document = Document(
+            id=document_id,
             project_id=project_id,
             filename=spec.filename,
-            storage_name=storage_name,
             media_type=spec.document_media_type,
             content_hash=spec.content_hash,
             size_bytes=len(spec.content),
             origin_kind=spec.kind,
+            **artifact_storage.model_values(stored),
         )
         session.add(document)
         session.flush()

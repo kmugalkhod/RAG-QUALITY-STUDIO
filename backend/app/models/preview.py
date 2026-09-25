@@ -11,6 +11,7 @@ from sqlalchemy import (
     ForeignKeyConstraint,
     Index,
     Integer,
+    LargeBinary,
     String,
     Text,
     UniqueConstraint,
@@ -106,6 +107,11 @@ class SourcePreview(Base):
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     dispatched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    protected_content: Mapped[bool] = mapped_column(default=False)
+    protected_schema: Mapped[int | None]
+    protected_key_version: Mapped[str | None] = mapped_column(String(32))
+    protected_wrapped_key: Mapped[bytes | None] = mapped_column(LargeBinary)
+    protected_wrap_nonce: Mapped[bytes | None] = mapped_column(LargeBinary)
 
 
 class SourcePreviewItem(Base):
@@ -190,3 +196,5 @@ class SourcePreviewRepresentation(Base):
     block_type: Mapped[str] = mapped_column(String(40))
     text: Mapped[str] = mapped_column(Text)
     metadata_json: Mapped[dict] = mapped_column("metadata", JSONB, default=dict)
+    protected_payload: Mapped[bytes | None] = mapped_column(LargeBinary)
+    protected_nonce: Mapped[bytes | None] = mapped_column(LargeBinary)

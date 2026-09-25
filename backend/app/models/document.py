@@ -10,6 +10,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    LargeBinary,
     func,
     text,
 )
@@ -29,16 +30,46 @@ class Document(Base):
             "origin_kind IN ('upload','website','s3','notion','confluence')",
             name="ck_document_origin_kind",
         ),
+        CheckConstraint(
+            "artifact_state IN ('legacy_plaintext','encrypted','deleting','deleted')",
+            name="ck_document_artifact_state",
+        ),
+        CheckConstraint(
+            "(artifact_state = 'legacy_plaintext' AND artifact_encryption_schema IS NULL "
+            "AND artifact_key_version IS NULL AND artifact_wrapped_key IS NULL "
+            "AND artifact_wrap_nonce IS NULL AND artifact_content_nonce IS NULL) OR "
+            "(artifact_state IN ('encrypted','deleting') "
+            "AND artifact_encryption_schema = 1 "
+            "AND artifact_key_version IS NOT NULL AND artifact_wrapped_key IS NOT NULL "
+            "AND artifact_wrap_nonce IS NOT NULL AND artifact_content_nonce IS NOT NULL) OR "
+            "(artifact_state = 'deleted' AND artifact_encryption_schema IS NULL "
+            "AND artifact_key_version IS NULL AND artifact_wrapped_key IS NULL "
+            "AND artifact_wrap_nonce IS NULL AND artifact_content_nonce IS NULL)",
+            name="ck_document_artifact_envelope",
+        ),
         Index("ix_documents_project_created", "project_id", "created_at", "id"),
+        Index("ix_documents_raw_retention", "artifact_state", "raw_retained_until"),
     )
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     project_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("projects.id"))
     filename: Mapped[str] = mapped_column(String(255))
     storage_name: Mapped[str] = mapped_column(String(40), unique=True)
-    media_type: Mapped[str] = mapped_column(String(32))
+    media_type: Mapped[str] = mapped_column(String(100))
     content_hash: Mapped[str] = mapped_column(String(64))
     size_bytes: Mapped[int]
     origin_kind: Mapped[str] = mapped_column(String(16), default="upload")
+    artifact_state: Mapped[str] = mapped_column(String(24), default="legacy_plaintext")
+    artifact_encryption_schema: Mapped[int | None]
+    artifact_key_version: Mapped[str | None] = mapped_column(String(32))
+    artifact_wrapped_key: Mapped[bytes | None] = mapped_column(LargeBinary)
+    artifact_wrap_nonce: Mapped[bytes | None] = mapped_column(LargeBinary)
+    artifact_content_nonce: Mapped[bytes | None] = mapped_column(LargeBinary)
+    raw_retained_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    raw_deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    raw_deletion_token: Mapped[uuid.UUID | None]
+    raw_deletion_claimed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

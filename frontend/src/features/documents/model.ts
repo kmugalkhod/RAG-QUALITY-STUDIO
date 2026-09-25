@@ -21,6 +21,9 @@ export interface Document {
   size_bytes: number;
   content_hash: string;
   created_at: string;
+  artifact_state?: 'legacy_plaintext' | 'encrypted' | 'deleting' | 'deleted';
+  raw_retained_until?: string | null;
+  raw_deleted_at?: string | null;
   latest_run: Run | null;
 }
 export interface Chunk {

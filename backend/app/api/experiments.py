@@ -1,6 +1,6 @@
 from typing import Annotated
 from uuid import UUID
-from fastapi import APIRouter, File, Form, UploadFile, HTTPException
+from fastapi import APIRouter, Depends, File, Form, UploadFile, HTTPException
 from fastapi.responses import Response
 from app.api.routes import Database
 from app.api.documents import Limit, Offset
@@ -9,8 +9,12 @@ from app.schemas.experiment import DatasetRead, ExperimentCreate, ExperimentRead
 from app.services import datasets, experiments
 from app.services.documents import project
 from app.evaluation import evaluator
+from app.core.auth import require_project_access
 
-router = APIRouter(prefix="/api/projects/{project_id}")
+router = APIRouter(
+    prefix="/api/projects/{project_id}",
+    dependencies=[Depends(require_project_access)],
+)
 
 
 @router.get("/datasets/example.csv")

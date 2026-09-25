@@ -26,6 +26,63 @@ from app.models.document import Chunk, Document, ProcessingRun
 from app.core.config import settings
 from app.ingestion_content.processing import IngestionStageError
 from app.ingestion_content.extractors import render_pdf_thumbnail
+from app.services import artifact_storage
+from app.core.artifact_crypto import (
+    ArtifactConfigurationError,
+    ArtifactKeyring,
+    ArtifactUnavailableError,
+)
+from app.core.auth import Principal, authorize_sensitive_read, project_role
+from app.schemas.derivation import ContentDerivationRead
+
+
+def _protected_derivation_key(
+    session: Session, derivation: ContentDerivation
+) -> tuple[ArtifactKeyring, bytes]:
+    document = session.scalar(
+        select(Document).where(
+            Document.id == derivation.document_id,
+            Document.project_id == derivation.project_id,
+        )
+    )
+    if document is None or document.artifact_state != "encrypted":
+        raise HTTPException(410, "The retained protected source is unavailable.")
+    try:
+        keyring = ArtifactKeyring.from_settings(settings)
+        data_key = keyring.unwrap_key(
+            wrapped_key=document.artifact_wrapped_key,
+            wrap_nonce=document.artifact_wrap_nonce,
+            key_version=document.artifact_key_version,
+            schema_version=document.artifact_encryption_schema,
+            project_id=derivation.project_id,
+            document_id=derivation.document_id,
+        )
+        return keyring, data_key
+    except (ArtifactConfigurationError, ArtifactUnavailableError):
+        raise HTTPException(503, "Protected source text is unavailable.") from None
+
+
+def _block_text(
+    block: ContentBlock,
+    derivation: ContentDerivation,
+    keyring: ArtifactKeyring | None,
+    data_key: bytes | None,
+) -> str:
+    if block.protected_text_ciphertext is None:
+        return block.text
+    if keyring is None or data_key is None or block.protected_text_nonce is None:
+        raise HTTPException(503, "Protected source text is unavailable.")
+    try:
+        return keyring.decrypt_protected_text(
+            data_key,
+            block.protected_text_ciphertext,
+            block.protected_text_nonce,
+            project_id=derivation.project_id,
+            document_id=derivation.document_id,
+            context=f"derivation:{derivation.id}:block:{block.ordinal}",
+        )
+    except ArtifactUnavailableError:
+        raise HTTPException(503, "Protected source text is unavailable.") from None
 
 
 def _derivation_values(
@@ -55,6 +112,17 @@ def _derivation_values(
         ),
         measurements=document.measurements.model_dump(mode="json"),
         findings=[item.model_dump(mode="json") for item in document.findings],
+        sensitive_findings=(
+            [item.model_dump(mode="json") for item in document.sensitive_findings]
+            if isinstance(document, CleanedDocumentV1)
+            else []
+        ),
+        sensitive_data_applied=(
+            document.sensitive_data_applied
+            if isinstance(document, CleanedDocumentV1)
+            else False
+        ),
+        protected_text=False,
         transforms=(
             [item.model_dump(mode="json") for item in document.transforms]
             if isinstance(document, CleanedDocumentV1)
@@ -67,26 +135,54 @@ def _persist_blocks(
     session: Session,
     derivation_id: UUID,
     document: ExtractedDocumentV1 | CleanedDocumentV1,
+    *,
+    protect_text: bool = False,
+    project_id: UUID | None = None,
+    document_id: UUID | None = None,
+    keyring: ArtifactKeyring | None = None,
+    data_key: bytes | None = None,
 ):
-    values = [
-        dict(
-            derivation_id=derivation_id,
-            ordinal=block.ordinal,
-            block_id=block.id,
-            block_type=block.type,
-            text=block.text,
-            page_number=block.page_number,
-            bounding_box=(
-                block.bounding_box.model_dump(mode="json")
-                if block.bounding_box
-                else None
-            ),
-            heading_path=block.heading_path,
-            source_span=block.source_span.model_dump(mode="json"),
-            attributes=block.attributes,
+    values = []
+    for block in document.blocks:
+        ciphertext = None
+        nonce = None
+        text = block.text
+        if protect_text:
+            if (
+                project_id is None
+                or document_id is None
+                or keyring is None
+                or data_key is None
+            ):
+                raise ValueError("Protected derivation encryption is unavailable.")
+            ciphertext, nonce = keyring.encrypt_protected_text(
+                data_key,
+                block.text,
+                project_id=project_id,
+                document_id=document_id,
+                context=f"derivation:{derivation_id}:block:{block.ordinal}",
+            )
+            text = "[PROTECTED SOURCE TEXT]"
+        values.append(
+            dict(
+                derivation_id=derivation_id,
+                ordinal=block.ordinal,
+                block_id=block.id,
+                block_type=block.type,
+                text=text,
+                protected_text_ciphertext=ciphertext,
+                protected_text_nonce=nonce,
+                page_number=block.page_number,
+                bounding_box=(
+                    block.bounding_box.model_dump(mode="json")
+                    if block.bounding_box
+                    else None
+                ),
+                heading_path=block.heading_path,
+                source_span=block.source_span.model_dump(mode="json"),
+                attributes=block.attributes,
+            )
         )
-        for block in document.blocks
-    ]
     for start in range(0, len(values), 500):
         session.execute(insert(ContentBlock), values[start : start + 500])
 
@@ -124,6 +220,25 @@ def persist_derivations(
     if document is None or run is None:
         raise ValueError("Processing ownership is invalid for canonical persistence.")
 
+    protect_extracted = cleaned.sensitive_data_applied
+    keyring = None
+    data_key = None
+    if protect_extracted:
+        if document.artifact_state != "encrypted":
+            raise IngestionStageError(
+                "clean",
+                "raw_artifact_encryption_required",
+                "Sensitive-data processing requires encrypted raw-artifact storage.",
+            )
+        keyring = ArtifactKeyring.from_settings(settings)
+        data_key = keyring.unwrap_key(
+            wrapped_key=document.artifact_wrapped_key,
+            wrap_nonce=document.artifact_wrap_nonce,
+            key_version=document.artifact_key_version,
+            schema_version=document.artifact_encryption_schema,
+            project_id=project_id,
+            document_id=document_id,
+        )
     extracted_hash = cleaned.input_hash
     extracted_row = ContentDerivation(
         **_derivation_values(
@@ -155,9 +270,19 @@ def persist_derivations(
             },
         )
     )
+    extracted_row.protected_text = protect_extracted
     session.add_all([extracted_row, cleaned_row])
     session.flush()
-    _persist_blocks(session, extracted_row.id, extracted)
+    _persist_blocks(
+        session,
+        extracted_row.id,
+        extracted,
+        protect_text=protect_extracted,
+        project_id=project_id,
+        document_id=document_id,
+        keyring=keyring,
+        data_key=data_key,
+    )
     _persist_blocks(session, cleaned_row.id, cleaned)
 
     session.add_all(
@@ -260,6 +385,8 @@ def reusable_cleaned_document(
         transforms=cleaned.transforms,
         measurements=cleaned.measurements,
         findings=cleaned.findings,
+        sensitive_findings=cleaned.sensitive_findings,
+        sensitive_data_applied=cleaned.sensitive_data_applied,
     )
     return document, extracted.engine_version
 
@@ -317,7 +444,12 @@ def link_reused_derivations(
     )
 
 
-def list_derivations(session: Session, project_id: UUID, processing_run_id: UUID):
+def list_derivations(
+    session: Session,
+    project_id: UUID,
+    processing_run_id: UUID,
+    principal: Principal,
+):
     _require_run(session, project_id, processing_run_id)
     rows = session.scalars(
         select(ContentDerivation)
@@ -329,7 +461,21 @@ def list_derivations(session: Session, project_id: UUID, processing_run_id: UUID
         .where(ProcessingDerivation.processing_run_id == processing_run_id)
         .order_by(ContentDerivation.kind)
     ).all()
-    return {"items": rows, "total": len(rows)}
+    protected = any(row.sensitive_data_applied for row in rows)
+    role = project_role(session, project_id, principal)
+    if protected and role in {"owner", "admin"}:
+        authorize_sensitive_read(
+            session,
+            project_id,
+            principal,
+            action="sensitive_findings_read",
+            resource_kind="processing_run",
+            resource_id=processing_run_id,
+        )
+    items = [ContentDerivationRead.model_validate(row) for row in rows]
+    if protected and role not in {"owner", "admin"}:
+        items = [item.model_copy(update={"sensitive_findings": []}) for item in items]
+    return {"items": items, "total": len(items)}
 
 
 def list_blocks(
@@ -338,6 +484,7 @@ def list_blocks(
     derivation_id: UUID,
     limit: int,
     offset: int,
+    principal: Principal,
 ):
     derivation = session.scalar(
         select(ContentDerivation).where(
@@ -352,7 +499,34 @@ def list_blocks(
     rows = session.scalars(
         query.order_by(ContentBlock.ordinal).limit(limit).offset(offset)
     ).all()
-    return {"items": rows, "total": total, "limit": limit, "offset": offset}
+    if not derivation.protected_text:
+        return {"items": rows, "total": total, "limit": limit, "offset": offset}
+    authorize_sensitive_read(
+        session,
+        project_id,
+        principal,
+        action="raw_artifact_read",
+        resource_kind="content_derivation",
+        resource_id=derivation.id,
+    )
+    keyring, data_key = _protected_derivation_key(session, derivation)
+    items = []
+    for block in rows:
+        items.append(
+            {
+                "derivation_id": block.derivation_id,
+                "ordinal": block.ordinal,
+                "block_id": block.block_id,
+                "block_type": block.block_type,
+                "text": _block_text(block, derivation, keyring, data_key),
+                "page_number": block.page_number,
+                "bounding_box": block.bounding_box,
+                "heading_path": block.heading_path,
+                "source_span": block.source_span,
+                "attributes": block.attributes,
+            }
+        )
+    return {"items": items, "total": total, "limit": limit, "offset": offset}
 
 
 def list_cleaning_diff(
@@ -361,6 +535,7 @@ def list_cleaning_diff(
     processing_run_id: UUID,
     limit: int,
     offset: int,
+    principal: Principal,
 ):
     """Reconstruct a bounded diff from immutable block rows and transform audits."""
 
@@ -381,6 +556,17 @@ def list_cleaning_diff(
     cleaned = by_kind.get("cleaned")
     if extracted is None or cleaned is None:
         return {"items": [], "total": 0, "limit": limit, "offset": offset}
+    keyring = data_key = None
+    if extracted.protected_text:
+        authorize_sensitive_read(
+            session,
+            project_id,
+            principal,
+            action="full_diff_read",
+            resource_kind="processing_run",
+            resource_id=processing_run_id,
+        )
+        keyring, data_key = _protected_derivation_key(session, extracted)
     total = session.scalar(
         select(func.count()).where(ContentBlock.derivation_id == extracted.id)
     )
@@ -417,11 +603,12 @@ def list_cleaning_diff(
     for block in before:
         current = cleaned_by_id.get(block.block_id)
         changes = attribution.get(block.block_id, [])
+        before_text = _block_text(block, extracted, keyring, data_key)
         action = (
             "removed"
             if current is None
             else "rewritten"
-            if current.text != block.text
+            if current.text != before_text
             else "unchanged"
         )
         items.append(
@@ -429,7 +616,7 @@ def list_cleaning_diff(
                 "block_id": block.block_id,
                 "block_type": block.block_type,
                 "page_number": block.page_number,
-                "before_text": block.text,
+                "before_text": before_text,
                 "after_text": current.text if current is not None else None,
                 "action": action,
                 "transforms": list(dict.fromkeys(value[0] for value in changes)),
@@ -576,6 +763,7 @@ def page_thumbnail(
     project_id: UUID,
     processing_run_id: UUID,
     page_number: int,
+    principal: Principal,
 ) -> bytes:
     row = session.execute(
         select(Document, ProcessingRun)
@@ -588,11 +776,18 @@ def page_thumbnail(
     if row is None:
         raise HTTPException(404, "Processing run not found.")
     document, _ = row
+    authorize_sensitive_read(
+        session,
+        project_id,
+        principal,
+        action="thumbnail_read",
+        resource_kind="processing_run",
+        resource_id=processing_run_id,
+    )
     if document.media_type != "application/pdf":
         raise HTTPException(404, "Page thumbnails are available only for PDFs.")
     try:
-        return render_pdf_thumbnail(
-            settings.storage_path / document.storage_name, page_number
-        )
+        with artifact_storage.materialize(document) as path:
+            return render_pdf_thumbnail(path, page_number)
     except IngestionStageError as exc:
         raise HTTPException(422, exc.message) from None

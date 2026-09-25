@@ -1,6 +1,6 @@
 # Deployment
 
-The currently verified deployment is the local Docker Compose workspace documented in the [README](../README.md). Its published ports bind to `127.0.0.1`. Authentication and multi-user authorization are not implemented, so do not expose this stack through a public ingress or shared host.
+The default verified deployment is the local Docker Compose workspace documented in the [README](../README.md). Its published ports bind to `127.0.0.1`, and local authentication provides one loopback-only owner. Shared mode requires OIDC signature/issuer/audience validation, project roles and an external AWS KMS or Vault Transit artifact-key boundary; incomplete settings fail startup. Ingress/TLS, identity provisioning and external key-service availability remain operator responsibilities. Follow the [authorization and recovery gate](operations.md) before shared access.
 
 ## PDF extraction and OCR capacity
 
@@ -21,6 +21,32 @@ of the deployed runtime because its evaluated model/runtime footprint did not me
 current deterministic offline and worker-memory gate.
 
 Migration `0018` adds immutable Website source snapshots and exact membership, plus nullable lineage on historical ingestion runs and indexes. Apply it with the normal one-shot migration service before starting updated API/workers. The upgrade backfills only provable one-to-one historical Website lineage; null means unavailable, not an empty snapshot. The downgrade preserves existing indexes, queries, experiments, and artifacts but removes snapshot catalog data, so take a PostgreSQL backup first and roll backend/frontend/worker code together. Snapshot membership references immutable source revisions and raw artifacts; back up PostgreSQL and the document volume at one recovery point. There is no snapshot deletion or automatic retention job.
+
+## Raw artifact encryption, identity and retention
+
+For local development, generate a distinct 32-byte key, enable artifact encryption,
+and configure a short immutable version in `ARTIFACT_ACTIVE_KEY`/`ARTIFACT_KEYS`.
+Connection-vault and artifact keys are separate. New artifacts receive per-artifact
+AES-256-GCM data keys and a retention deadline; the dispatcher performs fenced expiry.
+Use the project document rewrap endpoint after activating a replacement key and retain
+the prior version until the operational key-inventory query reaches zero.
+
+OIDC/shared mode refuses disabled encryption and `local-keyring`. For AWS KMS set
+`ARTIFACT_ENCRYPTION_MODE=kms`, map logical versions to symmetric key IDs/aliases in
+`ARTIFACT_KEY_REFERENCES`, and optionally set the region. Runtime IAM needs only the
+scoped `kms:Encrypt` and `kms:Decrypt` permissions for those keys; encryption context is
+mandatory on both operations. For Vault set `ARTIFACT_ENCRYPTION_MODE=vault`, an HTTPS
+`ARTIFACT_VAULT_ADDRESS`, token, Transit mount and logical-version-to-key-name map. The
+Vault policy needs only Transit encrypt/decrypt on the named key. Do not enable
+convergent encryption; the application supplies authenticated associated data and keeps
+source content out of KMS/Vault. See [AWS KMS encryption contexts](https://docs.aws.amazon.com/kms/latest/developerguide/encrypt_context.html)
+and [Vault Transit HTTP API](https://developer.hashicorp.com/vault/api-docs/secret/transit).
+
+OIDC membership provisioning is application data: project creators become owners;
+owners/admins may inspect protected content, editors may change ordinary project data,
+and viewers are read-only. Audit events record protected access outcomes. Back up OIDC
+subject mappings and memberships with PostgreSQL, and complete the synthetic
+authorization/tamper/retention gate before shared access.
 
 ## Source connection vault
 
@@ -59,6 +85,6 @@ Schedules are disabled until a user explicitly enables each one. Keep exactly on
 
 Before maintenance, pause schedules in each pipeline and wait for queued/running ingestion jobs to finish or cancel them. Back up PostgreSQL and the document volume as one recovery point; the database holds schedule/run/index membership while the volume holds immutable source artifacts. Back up the AES-256-GCM keyring separately and retain every key version referenced by `source_connections`. Restore all three components, apply `alembic upgrade head`, then start the dispatcher; overdue schedules coalesce to one attempt.
 
-Storage grows for every changed source revision and published index. No automatic retention or deletion job exists, so monitor PostgreSQL, the document volume and provider costs. Pausing a schedule stops future automatic runs but does not delete its immutable versions, historical runs, artifacts or indexes. Never use `docker compose down -v` for routine maintenance or backup.
+Storage grows for every changed source revision and published index. Encrypted raw artifacts use the configured retention deadline and fenced cleanup; redacted derivations, immutable versions, historical runs and indexes remain. Legacy plaintext and historical derived data are not automatically deleted. Monitor PostgreSQL, the document volume and provider costs with the [documented queries](operations.sql). Pausing a schedule stops future automatic runs but does not delete history. Never use `docker compose down -v` for routine maintenance or backup.
 
-The released ingestion phases have deterministic end-to-end coverage for every connector, but that does not prove a particular external account, permission set, network path or provider uptime. Treat the bounded live commands in the development guide as explicit, separately authorized operational checks. Do not copy test-provider overrides into a deployment or describe the current unauthenticated loopback stack as production-ready.
+The released ingestion phases have deterministic end-to-end coverage for every connector and file adapter, but that does not prove a particular external account, permission set, network path or provider uptime. Treat bounded live commands as explicit, separately authorized operational checks. Do not copy test-provider overrides into a deployment or describe a local loopback stack as a verified shared production deployment.

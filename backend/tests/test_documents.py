@@ -1,5 +1,6 @@
 from datetime import timedelta
 from io import BytesIO
+from zipfile import ZIP_DEFLATED, ZipFile
 from uuid import UUID, uuid4
 from unittest.mock import patch
 
@@ -45,6 +46,54 @@ def pdf_bytes(texts):
     output = BytesIO()
     writer.write(output)
     return output.getvalue()
+
+
+def package_bytes(files):
+    output = BytesIO()
+    with ZipFile(output, "w", ZIP_DEFLATED) as archive:
+        for name, value in files.items():
+            archive.writestr(name, value)
+    return output.getvalue()
+
+
+STRUCTURED_UPLOADS = [
+    ("guide.md", b"# Guide\n\nPrepared markdown body.\n"),
+    (
+        "page.html",
+        b"<!doctype html><html><body><h1>Guide</h1><p>Prepared HTML body.</p></body></html>",
+    ),
+    ("table.csv", b"name,value\nPrepared CSV,1\n"),
+    ("table.tsv", b"name\tvalue\nPrepared TSV\t1\n"),
+    (
+        "policy.docx",
+        package_bytes(
+            {
+                "[Content_Types].xml": "<Types/>",
+                "word/document.xml": "<w:document xmlns:w='urn:w'><w:body><w:p><w:r><w:t>Prepared DOCX body.</w:t></w:r></w:p></w:body></w:document>",
+            }
+        ),
+    ),
+    (
+        "slides.pptx",
+        package_bytes(
+            {
+                "[Content_Types].xml": "<Types/>",
+                "ppt/presentation.xml": "<p:presentation xmlns:p='urn:p'/>",
+                "ppt/slides/slide1.xml": "<p:sld xmlns:p='urn:p' xmlns:a='urn:a'><p:sp><a:p><a:r><a:t>Prepared PPTX body.</a:t></a:r></a:p></p:sp></p:sld>",
+            }
+        ),
+    ),
+    (
+        "book.xlsx",
+        package_bytes(
+            {
+                "[Content_Types].xml": "<Types/>",
+                "xl/workbook.xml": "<workbook/>",
+                "xl/worksheets/sheet1.xml": "<worksheet xmlns='urn:x'><sheetData><row r='1'><c t='inlineStr'><is><t>Prepared XLSX body.</t></is></c></row></sheetData></worksheet>",
+            }
+        ),
+    ),
+]
 
 
 @pytest.mark.parametrize(
@@ -177,6 +226,24 @@ def test_upload_processing_duplicate_delivery_and_scope(documents_api):
     assert client.get(route + "/chunks").json()["total"] == 3
 
 
+@pytest.mark.parametrize(("name", "content"), STRUCTURED_UPLOADS)
+def test_every_released_structured_upload_can_be_processed(
+    documents_api, name, content
+):
+    client, engine, project_id, _ = documents_api
+    document = upload(client, project_id, content=content, name=name)
+    job = start(client, project_id, document["id"], size=256, overlap=0)
+
+    process(UUID(job["id"]), engine)
+
+    route = f"/api/projects/{project_id}/documents/{document['id']}/runs/{job['id']}"
+    result = client.get(route).json()
+    assert result["status"] == "succeeded", result
+    chunks = client.get(route + "/chunks").json()
+    assert chunks["total"] >= 1
+    assert "Prepared" in "\n".join(item["text"] for item in chunks["items"])
+
+
 def test_delete_document_removes_file_and_unreferenced_processing(documents_api):
     client, engine, p, q = documents_api
     doc = upload(client, p)
@@ -226,7 +293,7 @@ def test_delete_document_removes_unpublished_chunks(documents_api):
         ("space.txt", b" \n", 422),
         ("bad.txt", b"\xff", 422),
         ("null.txt", b"\x00", 422),
-        ("file.csv", b"text", 415),
+        ("file.doc", b"text", 415),
         ("fake.pdf", b"not pdf", 422),
     ],
 )

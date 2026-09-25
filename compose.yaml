@@ -39,6 +39,22 @@ services:
       SOURCE_CONNECTIONS_ENABLED: ${SOURCE_CONNECTIONS_ENABLED:-false}
       SOURCE_CONNECTION_ACTIVE_KEY: ${SOURCE_CONNECTION_ACTIVE_KEY:-}
       SOURCE_CONNECTION_KEYS: '${SOURCE_CONNECTION_KEYS:-{}}'
+      ARTIFACT_ENCRYPTION_ENABLED: ${ARTIFACT_ENCRYPTION_ENABLED:-false}
+      ARTIFACT_ENCRYPTION_MODE: ${ARTIFACT_ENCRYPTION_MODE:-local-keyring}
+      ARTIFACT_ACTIVE_KEY: ${ARTIFACT_ACTIVE_KEY:-}
+      ARTIFACT_KEYS: '${ARTIFACT_KEYS:-{}}'
+      ARTIFACT_KEY_REFERENCES: '${ARTIFACT_KEY_REFERENCES:-{}}'
+      ARTIFACT_KMS_REGION: ${ARTIFACT_KMS_REGION:-}
+      ARTIFACT_KMS_ENDPOINT_URL: ${ARTIFACT_KMS_ENDPOINT_URL:-}
+      ARTIFACT_VAULT_ADDRESS: ${ARTIFACT_VAULT_ADDRESS:-}
+      ARTIFACT_VAULT_TOKEN: ${ARTIFACT_VAULT_TOKEN:-}
+      ARTIFACT_VAULT_MOUNT: ${ARTIFACT_VAULT_MOUNT:-transit}
+      ARTIFACT_RETENTION_DAYS: ${ARTIFACT_RETENTION_DAYS:-30}
+      AUTH_MODE: ${AUTH_MODE:-local}
+      AUTH_OIDC_ISSUER: ${AUTH_OIDC_ISSUER:-}
+      AUTH_OIDC_AUDIENCE: ${AUTH_OIDC_AUDIENCE:-}
+      AUTH_OIDC_JWKS_URL: ${AUTH_OIDC_JWKS_URL:-}
+      AUTH_OIDC_ALGORITHMS: '${AUTH_OIDC_ALGORITHMS:-["RS256"]}'
       REDIS_URL: redis://redis:6379/0
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-rag}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-rag_studio}
     depends_on:
@@ -86,6 +102,8 @@ services:
     build: ./backend
     command: ["python", "-m", "app.workers.dispatcher"]
     environment: *backend-env
+    volumes:
+      - document_data:/data/documents
     restart: unless-stopped
     depends_on:
       migrate:

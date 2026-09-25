@@ -236,6 +236,32 @@ class TransformAudit(Strict):
     changes: list[TransformChange] = Field(default_factory=list, max_length=200)
 
 
+class SensitiveDataFinding(Strict):
+    entity_class: Literal[
+        "email",
+        "phone",
+        "ip_address",
+        "government_id",
+        "payment_card",
+        "api_secret",
+    ]
+    detector: str = Field(min_length=1, max_length=80)
+    detector_version: Literal["deterministic-patterns-v1"] = "deterministic-patterns-v1"
+    subtype: str | None = Field(default=None, max_length=40)
+    action: Literal["redact", "drop_document"]
+    block_id: str = Field(min_length=16, max_length=64, pattern=r"^[a-f0-9]+$")
+    block_ordinal: int = Field(ge=0)
+    page_number: int | None = Field(default=None, ge=1)
+    start_char: int = Field(ge=0)
+    end_char: int = Field(gt=0)
+
+    @model_validator(mode="after")
+    def ordered(self):
+        if self.end_char <= self.start_char:
+            raise ValueError("Sensitive-data finding end must be after its start.")
+        return self
+
+
 class CleanedDocumentV1(Strict):
     schema_version: Literal[1] = 1
     media_type: str = Field(min_length=1, max_length=200)
@@ -250,6 +276,10 @@ class CleanedDocumentV1(Strict):
     transforms: list[TransformAudit] = Field(max_length=100)
     measurements: DocumentMeasurements
     findings: list[QualityFinding] = Field(default_factory=list, max_length=1000)
+    sensitive_findings: list[SensitiveDataFinding] = Field(
+        default_factory=list, max_length=10_000
+    )
+    sensitive_data_applied: bool = False
 
     @model_validator(mode="after")
     def coherent_order(self):
