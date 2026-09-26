@@ -1,6 +1,7 @@
 export type ExistingFilesConfig = {
   kind: 'existing_files';
   document_ids: string[];
+  optional_document_ids?: string[];
 };
 
 export type WebsiteSelection =
@@ -431,7 +432,8 @@ export type ExistingIngestionRunItem = {
   processing_run_id: string;
   processing_version: number;
   processing_created: boolean;
-  status: 'processing' | 'ready' | 'succeeded' | 'failed' | 'cancelled';
+  is_optional?: boolean;
+  status: 'processing' | 'ready' | 'succeeded' | 'excluded' | 'failed' | 'cancelled';
   chunk_count: number;
   error: string | null;
   processing_versions: Record<string, string> | null;
@@ -498,6 +500,16 @@ export type ContentDerivation = {
     confidence: number;
     mixed: boolean;
   } | null;
+  pages: {
+    page_number: number;
+    origin: 'native' | 'layout' | 'ocr';
+    character_count: number;
+    block_count: number;
+    fallback_reason: string | null;
+    rotation_degrees: number;
+    ocr_confidence: number | null;
+    language: { language: string; confidence: number } | null;
+  }[];
   measurements: {
     character_count: number;
     block_count: number;

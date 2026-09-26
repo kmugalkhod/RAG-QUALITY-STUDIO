@@ -83,6 +83,7 @@ class ContentDerivation(Base):
     title: Mapped[str | None] = mapped_column(String(1000))
     media_type: Mapped[str] = mapped_column(String(200))
     language: Mapped[dict | None] = mapped_column(JSONB)
+    pages: Mapped[list] = mapped_column(JSONB, default=list)
     measurements: Mapped[dict] = mapped_column(JSONB)
     findings: Mapped[list] = mapped_column(JSONB)
     sensitive_findings: Mapped[list] = mapped_column(JSONB, default=list)

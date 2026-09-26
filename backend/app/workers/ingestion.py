@@ -32,6 +32,18 @@ from app.workers.remote_ingestion import (
 
 
 def _cancel_unpublished_work(session: Session, run_id: UUID):
+    session.execute(
+        update(IngestionRunItem)
+        .where(
+            IngestionRunItem.run_id == run_id,
+            IngestionRunItem.status.in_(["processing", "ready"]),
+        )
+        .values(
+            status="cancelled",
+            error="Stopped because the parent ingestion run failed.",
+            updated_at=now(),
+        )
+    )
     created = select(IngestionRunItem.processing_run_id).where(
         IngestionRunItem.run_id == run_id,
         IngestionRunItem.processing_created.is_(True),
@@ -137,6 +149,14 @@ def process_ingestion(run_id: UUID, db_engine=engine, connector_factory=None):
                 .where(IngestionRunItem.run_id == run_id)
                 .order_by(IngestionRunItem.document_id)
             ).all()
+            execution = IngestionExecution.model_validate(job.snapshot["execution"])
+            extract_node = next(
+                node for node in execution.nodes if node.type == "extract"
+            )
+            quality_policy = getattr(extract_node, "quality_policy", None)
+            exclude_optional = (
+                getattr(quality_policy, "failed_item_action", "fail") == "exclude"
+            )
             failed = []
             waiting = []
             for item in items:
@@ -146,17 +166,28 @@ def process_ingestion(run_id: UUID, db_engine=engine, connector_factory=None):
                     item.chunk_count = processing.chunk_count
                     item.error = None
                 elif processing.status in ("failed", "cancelled"):
-                    item.status = "failed"
+                    item.status = (
+                        "excluded"
+                        if processing.status == "failed"
+                        and (
+                            processing.error_code == "language_excluded"
+                            or (item.is_optional and exclude_optional)
+                        )
+                        else "failed"
+                    )
                     item.error = (
                         processing.error or "Document processing did not complete."
                     )
-                    failed.append(item)
+                    if item.status == "failed":
+                        failed.append(item)
                 else:
                     item.status = "processing"
                     waiting.append(item)
                 item.updated_at = now()
             job.processed_count = sum(item.status == "ready" for item in items)
-            job.failed_count = len(failed)
+            job.failed_count = sum(
+                item.status in ("failed", "excluded") for item in items
+            )
             job.chunk_count = sum(
                 item.chunk_count for item in items if item.status == "ready"
             )
@@ -180,14 +211,21 @@ def process_ingestion(run_id: UUID, db_engine=engine, connector_factory=None):
                 session.commit()
                 return
 
-            execution = IngestionExecution.model_validate(job.snapshot["execution"])
             clean_node = next(node for node in execution.nodes if node.type == "clean")
             duplicate_policy = getattr(clean_node, "duplicate_policy", None)
-            retained_items = list(items)
+            retained_items = [item for item in items if item.status == "ready"]
+            if not retained_items:
+                fail_run(
+                    session,
+                    job,
+                    "No selected files passed processing; no index was published.",
+                )
+                session.commit()
+                return
             if duplicate_policy is not None:
                 candidates = []
                 by_identity = {}
-                for item in items:
+                for item in retained_items:
                     document = session.get(Document, item.document_id)
                     cleaned = session.scalar(
                         select(ContentDerivation)
@@ -280,13 +318,14 @@ def process_ingestion(run_id: UUID, db_engine=engine, connector_factory=None):
                 session.commit()
                 return
             for item in items:
-                item.status = "succeeded"
-                item.updated_at = now()
+                if item.status == "ready":
+                    item.status = "succeeded"
+                    item.updated_at = now()
             job.status = "succeeded"
             job.stage = "complete"
             job.progress = 100
-            job.processed_count = job.discovered_count
-            job.failed_count = 0
+            job.processed_count = sum(item.status == "succeeded" for item in items)
+            job.failed_count = sum(item.status == "excluded" for item in items)
             job.chunk_count = index.chunk_count
             job.embedded_count = index.embedded_count
             job.published_count = 1

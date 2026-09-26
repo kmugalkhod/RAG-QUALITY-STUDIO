@@ -8,6 +8,7 @@ import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { NativeSelect, NativeSelectOption } from '../../components/ui/native-select';
 import { allPages, type Page } from '../../lib/pagination';
+import { ApiError } from '../../lib/api';
 import { listDocuments } from '../documents/api';
 import {
   getEmbeddingSettings,
@@ -72,6 +73,7 @@ export function IngestionPipelineEditor({
   versionId?: string;
 }) {
   const [draft, setDraft] = useState<IngestionPipelineDraft>();
+  const [serverFieldErrors, setServerFieldErrors] = useState<Record<string, string>>({});
   const [baseline, setBaseline] = useState('');
   const [versions, setVersions] = useState<IngestionPipelineVersion[]>([]);
   const [saved, setSaved] = useState<IngestionPipelineVersion>();
@@ -552,6 +554,7 @@ export function IngestionPipelineEditor({
   }, [connectionSettings, draft, source]);
 
   function updateNode(id: string, update: (node: IngestionNode) => IngestionNode) {
+    setServerFieldErrors({});
     setDraft((current) =>
       current
         ? {
@@ -626,10 +629,24 @@ export function IngestionPipelineEditor({
     setBusy(true);
     runRestoreGeneration.current += 1;
     setError('');
+    setServerFieldErrors({});
     try {
       await work();
     } catch (cause) {
       setError(message(cause));
+      if (cause instanceof ApiError && cause.status === 422) {
+        setServerFieldErrors(
+          Object.fromEntries(
+            cause.issues.flatMap((issue) => {
+              const ocr = issue.loc.lastIndexOf('ocr');
+              const field = String(issue.loc[ocr + 1]);
+              return ocr >= 0 && ['dpi', 'max_pages', 'timeout_seconds'].includes(field)
+                ? [[`ocr.${field}`, issue.msg]]
+                : [];
+            }),
+          ),
+        );
+      }
     } finally {
       setBusy(false);
     }
@@ -1154,6 +1171,7 @@ export function IngestionPipelineEditor({
             dirty={dirty}
             saved={saved}
             validation={validation}
+            serverFieldErrors={serverFieldErrors}
             connectionSettings={connectionSettings}
             connections={connections}
             documents={documents}

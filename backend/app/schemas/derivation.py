@@ -25,6 +25,7 @@ class ContentDerivationRead(ReadModel):
     title: str | None
     media_type: str
     language: dict[str, Any] | None = None
+    pages: list[dict[str, Any]] = Field(default_factory=list)
     measurements: dict[str, Any]
     findings: list[dict[str, Any]]
     sensitive_findings: list[dict[str, Any]] = Field(default_factory=list)

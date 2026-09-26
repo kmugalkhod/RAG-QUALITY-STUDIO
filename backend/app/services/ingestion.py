@@ -467,6 +467,9 @@ def start_run(
 
     item_values = []
     processing_snapshot = []
+    optional_by_source = {
+        source.id: set(source.config.optional_document_ids) for source in sources
+    }
     for source_node_id, document_id in sorted(selected, key=lambda value: value[1]):
         document = session.scalar(
             select(Document)
@@ -536,6 +539,7 @@ def start_run(
                 source_node_id=source_node_id,
                 processing_run_id=processing.id,
                 processing_created=processing_created,
+                is_optional=document.id in optional_by_source[source_node_id],
                 status="processing" if processing_created else "ready",
                 chunk_count=0 if processing_created else processing.chunk_count,
             )
@@ -547,6 +551,7 @@ def start_run(
                 "processing_run_id": str(processing.id),
                 "processing_version": processing.version,
                 "processing_created": processing_created,
+                "is_optional": document.id in optional_by_source[source_node_id],
             }
         )
     ready = [item for item in item_values if item["status"] == "ready"]
@@ -757,6 +762,7 @@ def list_items(
                 processing_run_id=processing.id,
                 processing_version=processing.version,
                 processing_created=item.processing_created,
+                is_optional=item.is_optional,
                 status=item.status,
                 chunk_count=item.chunk_count,
                 error=item.error,

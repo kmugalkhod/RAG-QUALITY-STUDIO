@@ -26,11 +26,16 @@ class Strict(BaseModel):
 class ExistingFilesConfig(Strict):
     kind: Literal["existing_files"]
     document_ids: list[UUID] = Field(min_length=1, max_length=1000)
+    optional_document_ids: list[UUID] = Field(default_factory=list, max_length=1000)
 
     @model_validator(mode="after")
     def unique_documents(self):
         if len(set(self.document_ids)) != len(self.document_ids):
             raise ValueError("Existing-files document IDs must be unique.")
+        if len(set(self.optional_document_ids)) != len(self.optional_document_ids):
+            raise ValueError("Optional document IDs must be unique.")
+        if not set(self.optional_document_ids).issubset(self.document_ids):
+            raise ValueError("Optional document IDs must be selected source documents.")
         return self
 
 
@@ -910,17 +915,21 @@ class ParentChildChunkNodeV2(NodeBase):
         return self
 
 
-ChunkNodeV2 = CharacterChunkNodeV2 | SectionTokenChunkNodeV2 | ParentChildChunkNodeV2
+ChunkNodeV2 = Annotated[
+    CharacterChunkNodeV2 | SectionTokenChunkNodeV2 | ParentChildChunkNodeV2,
+    Field(discriminator="algorithm"),
+]
 
 
-IngestionNodeV2 = (
+IngestionNodeV2 = Annotated[
     SourceNode
     | ExtractNodeV2
     | CleanNodeV2
     | ChunkNodeV2
     | EmbedNode
-    | PublishIndexNode
-)
+    | PublishIndexNode,
+    Field(discriminator="type"),
+]
 
 
 class IngestionEdge(Strict):
@@ -972,6 +981,23 @@ class IngestionExecutionV2(Strict):
     schema_version: Literal[2]
     nodes: list[IngestionNodeV2] = Field(min_length=6, max_length=15)
     edges: list[IngestionEdge] = Field(min_length=5, max_length=14)
+
+    @model_validator(mode="before")
+    @classmethod
+    def legacy_character_chunks(cls, value):
+        if not isinstance(value, dict) or not isinstance(value.get("nodes"), list):
+            return value
+        return {
+            **value,
+            "nodes": [
+                {**node, "algorithm": "character_window"}
+                if isinstance(node, dict)
+                and node.get("type") == "chunk"
+                and "algorithm" not in node
+                else node
+                for node in value["nodes"]
+            ],
+        }
 
     @model_validator(mode="after")
     def supported_graph(self):
@@ -1235,7 +1261,10 @@ class ExistingIngestionRunItemRead(Strict):
     processing_run_id: UUID
     processing_version: int
     processing_created: bool
-    status: Literal["processing", "ready", "succeeded", "failed", "cancelled"]
+    is_optional: bool = False
+    status: Literal[
+        "processing", "ready", "succeeded", "excluded", "failed", "cancelled"
+    ]
     chunk_count: int
     error: str | None
     processing_versions: dict[str, str] | None = None

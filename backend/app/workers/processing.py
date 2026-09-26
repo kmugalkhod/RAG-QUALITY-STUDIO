@@ -105,16 +105,29 @@ def _v2_chunks(job, path, media, title, on_stage, cancelled=None):
     if not quality_allows_publication(
         extract_config.quality_policy, extracted.measurements.quality_decision
     ):
-        code = (
-            "quality_warning_blocked"
-            if extracted.measurements.quality_decision == "warn"
-            else "quality_rejected"
+        decision = extracted.measurements.quality_decision
+        language_excluded = (
+            decision == "exclude"
+            and extract_config.language_policy.disallowed_action == "exclude"
+            and any(
+                finding.code == "language_not_allowed" for finding in extracted.findings
+            )
+        )
+        code = {
+            "warn": "quality_warning_blocked",
+        }.get(decision, "quality_rejected")
+        if language_excluded:
+            code = "language_excluded"
+        message = (
+            "Excluded by the saved language policy. Review the source or allowlist before retrying."
+            if language_excluded
+            else "Extraction did not satisfy the saved quality policy. Review the source "
+            "and extraction settings before retrying."
         )
         raise IngestionStageError(
             "extract",
             code,
-            "Extraction did not satisfy the saved quality policy. Review the source "
-            "and extraction settings before retrying.",
+            message,
         )
     on_stage("clean")
     cleaned = clean_document(
@@ -165,6 +178,7 @@ def process(run_id: UUID, db_engine=engine):
         job.execution_token = token
         job.started_at = job.updated_at = now()
         job.error = None
+        job.error_code = None
         job.progress = 0
         doc = session.get(Document, job.document_id)
         media = doc.media_type
@@ -355,6 +369,7 @@ def process(run_id: UUID, db_engine=engine):
                 return
             job.status = "queued" if transient and job.attempts < 3 else "failed"
             job.error = message
+            job.error_code = exc.code if isinstance(exc, IngestionStageError) else None
             job.execution_token = None
             job.updated_at = now()
             job.dispatched_at = now()  # dispatcher waits at least 30s before retry

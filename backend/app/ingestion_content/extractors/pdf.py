@@ -47,7 +47,7 @@ from app.pipelines.parsing import (
 
 
 LAYOUT_OCR_EXTRACTOR_VERSION = (
-    f"pypdf-{pypdf_version}/pymupdf-{pymupdf.VersionBind}/tesseract-cli-v1/"
+    f"pypdf-{pypdf_version}/pymupdf-{pymupdf.VersionBind}/tesseract-cli-v2/"
     f"{FORMAT_EXTRACTOR_VERSION}"
 )
 MAX_OCR_PIXELS_PER_PAGE = 20_000_000

@@ -105,6 +105,11 @@ def _identity(session: Session, subject: str, email: str | None) -> UserIdentity
         raise HTTPException(401, "The authentication token is invalid.")
     if email is not None and len(email) > 320:
         email = None
+    existing = session.scalar(
+        select(UserIdentity).where(UserIdentity.external_subject == subject)
+    )
+    if existing is not None and existing.email == email:
+        return existing
     identity_id = (
         uuid5(NAMESPACE_URL, "rag-quality-studio/local-owner")
         if settings.auth_mode == "local"
@@ -195,7 +200,8 @@ def audit_sensitive_access(
     # Local mode has no membership write on ordinary requests, so materialize its
     # deterministic identity only when an audited access is actually recorded.
     if principal.auth_mode == "local":
-        _identity(session, principal.subject, principal.email)
+        if session.get(UserIdentity, principal.user_id) is None:
+            _identity(session, principal.subject, principal.email)
     session.add(
         SensitiveAccessEvent(
             project_id=project_id,

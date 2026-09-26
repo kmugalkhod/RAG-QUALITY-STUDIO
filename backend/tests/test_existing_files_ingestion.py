@@ -199,7 +199,9 @@ def test_all_released_formats_complete_preview_publish_and_answer_workflow(
     assert preview_result["status"] == "succeeded"
     assert preview_result["included_count"] == len(STRUCTURED_UPLOADS)
 
-    version = client.post(f"/api/projects/{project_id}/pipelines", json=payload).json()
+    saved_response = client.post(f"/api/projects/{project_id}/pipelines", json=payload)
+    assert saved_response.status_code == 201, saved_response.text
+    version = saved_response.json()
     run = client.post(
         f"/api/projects/{project_id}/pipelines/{version['pipeline_id']}"
         f"/versions/{version['id']}/ingestion-runs"
@@ -992,6 +994,268 @@ def test_quality_rejection_preserves_previous_ready_index(ingestion_api):
             )
             is None
         )
+
+
+def test_optional_quality_failure_excludes_only_selected_file(ingestion_api):
+    client, engine, project_id, _, config, _ = ingestion_api
+    good = upload(
+        client, project_id, b"The archive contains seven lanterns. " * 20, "good.txt"
+    )
+    bad = upload(
+        client,
+        project_id,
+        ("The archive contains seven lanterns. " * 20 + "\ufffd").encode(),
+        "optional-warning.txt",
+    )
+    payload = robust_extract(
+        ingestion_draft(
+            [good["id"], bad["id"]],
+            config,
+            name="Optional quality set",
+            schema_version=2,
+        ),
+        ocr_mode="off",
+    )
+    source = next(
+        node for node in payload["execution"]["nodes"] if node["type"] == "source"
+    )
+    source["config"]["optional_document_ids"] = [bad["id"]]
+    extract = next(
+        node for node in payload["execution"]["nodes"] if node["type"] == "extract"
+    )
+    extract["quality_policy"] = {
+        "id": "strict-v1",
+        "warning_action": "publish",
+        "failed_item_action": "exclude",
+    }
+    saved_response = client.post(f"/api/projects/{project_id}/pipelines", json=payload)
+    assert saved_response.status_code == 201, saved_response.text
+    saved = saved_response.json()
+    run_response = client.post(
+        f"/api/projects/{project_id}/pipelines/{saved['pipeline_id']}"
+        f"/versions/{saved['id']}/ingestion-runs"
+    )
+    assert run_response.status_code == 202, run_response.text
+    run = run_response.json()
+    items_url = f"/api/projects/{project_id}/ingestion-runs/{run['id']}/items"
+    items = client.get(items_url).json()["items"]
+    for item in items:
+        process(UUID(item["processing_run_id"]), engine)
+    process_ingestion(UUID(run["id"]), engine)
+    items = client.get(items_url).json()["items"]
+    assert {
+        (item["filename"], item["status"], item["is_optional"]) for item in items
+    } == {
+        ("good.txt", "ready", False),
+        ("optional-warning.txt", "excluded", True),
+    }, client.get(f"/api/projects/{project_id}/ingestion-runs/{run['id']}").json()
+    with Session(engine) as session:
+        index = session.scalar(
+            select(IndexVersion).where(IndexVersion.ingestion_run_id == UUID(run["id"]))
+        )
+        assert index is not None
+        index_id = index.id
+    process_index(index_id, engine)
+    process_ingestion(UUID(run["id"]), engine)
+    result = client.get(f"/api/projects/{project_id}/ingestion-runs/{run['id']}").json()
+    assert result["status"] == "succeeded", result
+    assert result["failed_count"] == 1
+    items = client.get(items_url).json()["items"]
+    assert {item["filename"]: item["status"] for item in items} == {
+        "good.txt": "succeeded",
+        "optional-warning.txt": "excluded",
+    }
+    with Session(engine) as session:
+        members = session.scalars(
+            select(IndexChunk.run_id).where(IndexChunk.index_id == index_id).distinct()
+        ).all()
+        assert members == [
+            UUID(
+                next(
+                    item["processing_run_id"]
+                    for item in items
+                    if item["filename"] == "good.txt"
+                )
+            )
+        ]
+
+
+def test_disallowed_language_excludes_required_file_and_publishes_good_file(
+    ingestion_api,
+):
+    client, engine, project_id, _, config, _ = ingestion_api
+    good = upload(
+        client,
+        project_id,
+        b"The archive contains seven lanterns and the guide confirms this count. " * 8,
+        "english.txt",
+    )
+    disallowed = upload(
+        client,
+        project_id,
+        (
+            "Le guide de la route et la carte de la ville sont pour la marche avec le groupe. "
+            * 8
+        ).encode(),
+        "french.txt",
+    )
+    payload = robust_extract(
+        ingestion_draft(
+            [good["id"], disallowed["id"]],
+            config,
+            name="Language exclusion set",
+            schema_version=2,
+        ),
+        ocr_mode="off",
+    )
+    extract = next(
+        node for node in payload["execution"]["nodes"] if node["type"] == "extract"
+    )
+    extract["language_policy"] = {
+        "allowlist": ["en"],
+        "disallowed_action": "exclude",
+    }
+    saved_response = client.post(f"/api/projects/{project_id}/pipelines", json=payload)
+    assert saved_response.status_code == 201, saved_response.text
+    saved = saved_response.json()
+    run_response = client.post(
+        f"/api/projects/{project_id}/pipelines/{saved['pipeline_id']}"
+        f"/versions/{saved['id']}/ingestion-runs"
+    )
+    assert run_response.status_code == 202, run_response.text
+    run = run_response.json()
+    items_url = f"/api/projects/{project_id}/ingestion-runs/{run['id']}/items"
+    items = client.get(items_url).json()["items"]
+    for item in items:
+        process(UUID(item["processing_run_id"]), engine)
+    with Session(engine) as session:
+        failed = session.get(
+            ProcessingRun,
+            UUID(
+                next(
+                    item["processing_run_id"]
+                    for item in items
+                    if item["filename"] == "french.txt"
+                )
+            ),
+        )
+        assert failed.status == "failed"
+        assert failed.error_code == "language_excluded"
+    process_ingestion(UUID(run["id"]), engine)
+    items = client.get(items_url).json()["items"]
+    assert {
+        item["filename"]: (item["status"], item["is_optional"]) for item in items
+    } == {
+        "english.txt": ("ready", False),
+        "french.txt": ("excluded", False),
+    }
+    with Session(engine) as session:
+        index = session.scalar(
+            select(IndexVersion).where(IndexVersion.ingestion_run_id == UUID(run["id"]))
+        )
+        assert index is not None
+        index_id = index.id
+    process_index(index_id, engine)
+    process_ingestion(UUID(run["id"]), engine)
+    result = client.get(f"/api/projects/{project_id}/ingestion-runs/{run['id']}").json()
+    assert result["status"] == "succeeded", result
+    assert result["failed_count"] == 1
+    items = client.get(items_url).json()["items"]
+    assert {item["filename"]: item["status"] for item in items} == {
+        "english.txt": "succeeded",
+        "french.txt": "excluded",
+    }
+
+
+def test_save_rejects_unavailable_ocr_pack_and_reports_only_dpi_error(ingestion_api):
+    client, _, project_id, _, config, _ = ingestion_api
+    document = upload(
+        client, project_id, b"The archive contains seven lanterns.", "validation.txt"
+    )
+    payload = robust_extract(
+        ingestion_draft([document["id"]], config, schema_version=2),
+        ocr_mode="auto",
+    )
+    extract = next(
+        node for node in payload["execution"]["nodes"] if node["type"] == "extract"
+    )
+    extract["ocr"]["languages"] = ["fra"]
+    unavailable = client.post(f"/api/projects/{project_id}/pipelines", json=payload)
+    assert unavailable.status_code == 422
+    assert "fra" in unavailable.json()["detail"]
+
+    extract["ocr"]["languages"] = ["eng"]
+    extract["ocr"]["dpi"] = 149
+    invalid_dpi = client.post(f"/api/projects/{project_id}/pipelines", json=payload)
+    assert invalid_dpi.status_code == 422
+    issues = invalid_dpi.json()["detail"]
+    relevant = [issue for issue in issues if issue["loc"][-2:] == ["ocr", "dpi"]]
+    assert len(relevant) == 1
+    assert (
+        len(
+            [
+                issue
+                for issue in issues
+                if any("ingestion" in str(part).lower() for part in issue["loc"])
+            ]
+        )
+        == 1
+    )
+
+
+def test_required_quality_failure_cancels_waiting_item(ingestion_api):
+    client, engine, project_id, _, config, _ = ingestion_api
+    good = upload(
+        client, project_id, b"The archive contains seven lanterns. " * 20, "waiting.txt"
+    )
+    bad = upload(
+        client,
+        project_id,
+        ("The archive contains seven lanterns. " * 20 + "\ufffd").encode(),
+        "required-warning.txt",
+    )
+    payload = robust_extract(
+        ingestion_draft(
+            [good["id"], bad["id"]],
+            config,
+            name="Required quality set",
+            schema_version=2,
+        ),
+        ocr_mode="off",
+    )
+    extract = next(
+        node for node in payload["execution"]["nodes"] if node["type"] == "extract"
+    )
+    extract["quality_policy"] = {
+        "id": "strict-v1",
+        "warning_action": "publish",
+        "failed_item_action": "exclude",
+    }
+    saved = client.post(f"/api/projects/{project_id}/pipelines", json=payload).json()
+    run = client.post(
+        f"/api/projects/{project_id}/pipelines/{saved['pipeline_id']}"
+        f"/versions/{saved['id']}/ingestion-runs"
+    ).json()
+    items_url = f"/api/projects/{project_id}/ingestion-runs/{run['id']}/items"
+    items = client.get(items_url).json()["items"]
+    process(
+        UUID(
+            next(
+                item["processing_run_id"]
+                for item in items
+                if item["filename"] == "required-warning.txt"
+            )
+        ),
+        engine,
+    )
+    process_ingestion(UUID(run["id"]), engine)
+    result = client.get(f"/api/projects/{project_id}/ingestion-runs/{run['id']}").json()
+    assert result["status"] == "failed"
+    items = client.get(items_url).json()["items"]
+    assert {item["filename"]: item["status"] for item in items} == {
+        "waiting.txt": "cancelled",
+        "required-warning.txt": "failed",
+    }
 
 
 def test_v2_existing_files_executes_clean_config_and_reuses_exact_identity(

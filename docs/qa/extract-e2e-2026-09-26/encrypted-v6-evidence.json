@@ -1,0 +1,77 @@
+{
+  "index": {
+    "chunk_count": 9,
+    "embedded_count": 9,
+    "id": "07f54505-6cc2-41cb-a459-6bc3ebd3a5cc",
+    "ingestion_pipeline_version": 6,
+    "is_current": true,
+    "processing_run_count": 2,
+    "status": "succeeded",
+    "version": 1
+  },
+  "pipeline": {
+    "id": "58a6769d-20a8-4b4f-9ec7-73887697c0fa",
+    "source_document_ids": [
+      "53f09c8b-6ed7-4058-a4f2-23e00d3ce2cf",
+      "80c1c4e4-19ea-4920-bfc5-291a1934bcbb"
+    ],
+    "version": 6,
+    "version_id": "6c28891a-f779-4fb6-b2aa-a0a54d7341e8"
+  },
+  "preview": {
+    "error": null,
+    "excluded_count": 0,
+    "failed_count": 0,
+    "id": "97bdd5d7-532d-452c-b41c-118c03c67b06",
+    "included_count": 2,
+    "progress": 100,
+    "status": "succeeded"
+  },
+  "qa_project_id": "5a4a3af4-f2d3-43bc-ac4a-4b717c874054",
+  "run": {
+    "chunk_count": 9,
+    "discovered_count": 2,
+    "embedded_count": 9,
+    "error": null,
+    "failed_count": 0,
+    "id": "2e077f38-0539-4e86-a2de-f05941c64dcc",
+    "pipeline_version_id": "6c28891a-f779-4fb6-b2aa-a0a54d7341e8",
+    "processed_count": 2,
+    "progress": 100,
+    "published_count": 1,
+    "published_index_id": "07f54505-6cc2-41cb-a459-6bc3ebd3a5cc",
+    "published_index_version": 1,
+    "stage": "complete",
+    "status": "succeeded"
+  },
+  "run_items": [
+    {
+      "chunk_count": 1,
+      "document_id": "80c1c4e4-19ea-4920-bfc5-291a1934bcbb",
+      "error": null,
+      "processing_version": 1,
+      "status": "succeeded"
+    },
+    {
+      "chunk_count": 8,
+      "document_id": "53f09c8b-6ed7-4058-a4f2-23e00d3ce2cf",
+      "error": null,
+      "processing_version": 1,
+      "status": "succeeded"
+    }
+  ],
+  "uploads": [
+    {
+      "artifact_state": "encrypted",
+      "content_hash": "5e5ef2e8e0338c4879087ef9e378f883b8bcde6053c2ad5de4050f0d72f89f5a",
+      "filename": "qa-source-encrypted.txt",
+      "id": "80c1c4e4-19ea-4920-bfc5-291a1934bcbb"
+    },
+    {
+      "artifact_state": "encrypted",
+      "content_hash": "4bde2a134b283ce0776b02c155044299469ed6bf2a931dd6dd09d6bec85720c7",
+      "filename": "qa-text-encrypted.pdf",
+      "id": "53f09c8b-6ed7-4058-a4f2-23e00d3ce2cf"
+    }
+  ]
+}

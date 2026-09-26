@@ -34,6 +34,7 @@ export function IngestionNodeSettings({
   dirty,
   saved,
   validation,
+  serverFieldErrors = {},
   connectionSettings,
   connections,
   documents,
@@ -51,6 +52,7 @@ export function IngestionNodeSettings({
   dirty: boolean;
   saved?: IngestionPipelineVersion;
   validation: string[];
+  serverFieldErrors?: Record<string, string>;
   connectionSettings?: ConnectionSettings;
   connections: SourceConnection[];
   documents: Document[];
@@ -260,7 +262,8 @@ export function IngestionNodeSettings({
                           : 'Will process with saved extraction settings'
                         : `Processing ${document.latest_run?.status ?? 'required'}`;
                   return (
-                    <label className="ingestion-document-option" key={document.id}>
+                    <div key={document.id}>
+                      <label className="ingestion-document-option">
                       <input
                         type="checkbox"
                         checked={checked}
@@ -277,6 +280,11 @@ export function IngestionNodeSettings({
                                       : node.config.document_ids.filter(
                                           (id: string) => id !== document.id,
                                         ),
+                                    optional_document_ids: event.target.checked
+                                      ? node.config.optional_document_ids ?? []
+                                      : (node.config.optional_document_ids ?? []).filter(
+                                          (id: string) => id !== document.id,
+                                        ),
                                   },
                                 }
                               : node,
@@ -287,7 +295,40 @@ export function IngestionNodeSettings({
                         <strong>{document.filename}</strong>
                         <small>{statusCopy}</small>
                       </span>
-                    </label>
+                      </label>
+                      {schemaVersion === 2 && checked && (
+                        <label className="ingestion-document-option">
+                        <input
+                          type="checkbox"
+                          checked={(sourceConfig.optional_document_ids ?? []).includes(document.id)}
+                          onChange={(event) =>
+                            updateNode(selected.id, (node) =>
+                              node.type === 'source' && node.config.kind === 'existing_files'
+                                ? {
+                                    ...node,
+                                    config: {
+                                      ...node.config,
+                                      optional_document_ids: event.target.checked
+                                        ? [...(node.config.optional_document_ids ?? []), document.id]
+                                        : (node.config.optional_document_ids ?? []).filter(
+                                            (id: string) => id !== document.id,
+                                          ),
+                                    },
+                                  }
+                                : node,
+                            )
+                          }
+                        />
+                          <span>
+                            <strong>Optional source for {document.filename}</strong>
+                            <small>
+                              Exclude this file after a processing failure only when the saved
+                              quality policy permits it.
+                            </small>
+                          </span>
+                        </label>
+                      )}
+                    </div>
                   );
                 })}
                 {documents.length === 0 && (
@@ -758,6 +799,7 @@ export function IngestionNodeSettings({
                         type="number"
                         min={150}
                         max={300}
+                        aria-invalid={!!serverFieldErrors['ocr.dpi']}
                         value={selectedOcr.dpi}
                         onChange={(event) =>
                           updateExtract({
@@ -765,6 +807,9 @@ export function IngestionNodeSettings({
                           })
                         }
                       />
+                      {serverFieldErrors['ocr.dpi'] && (
+                        <small role="alert" className="error-message">{serverFieldErrors['ocr.dpi']}</small>
+                      )}
                     </Label>
                     <Label>
                       Maximum OCR pages
@@ -772,6 +817,7 @@ export function IngestionNodeSettings({
                         type="number"
                         min={1}
                         max={extractionCapabilities?.ocr.max_pages ?? 100}
+                        aria-invalid={!!serverFieldErrors['ocr.max_pages']}
                         value={selectedOcr.max_pages}
                         onChange={(event) =>
                           updateExtract({
@@ -779,6 +825,9 @@ export function IngestionNodeSettings({
                           })
                         }
                       />
+                      {serverFieldErrors['ocr.max_pages'] && (
+                        <small role="alert" className="error-message">{serverFieldErrors['ocr.max_pages']}</small>
+                      )}
                     </Label>
                     <Label>
                       Per-page timeout (seconds)
@@ -786,6 +835,7 @@ export function IngestionNodeSettings({
                         type="number"
                         min={5}
                         max={60}
+                        aria-invalid={!!serverFieldErrors['ocr.timeout_seconds']}
                         value={selectedOcr.timeout_seconds}
                         onChange={(event) =>
                           updateExtract({
@@ -796,6 +846,11 @@ export function IngestionNodeSettings({
                           })
                         }
                       />
+                      {serverFieldErrors['ocr.timeout_seconds'] && (
+                        <small role="alert" className="error-message">
+                          {serverFieldErrors['ocr.timeout_seconds']}
+                        </small>
+                      )}
                     </Label>
                   </>
                 )}

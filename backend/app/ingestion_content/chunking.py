@@ -205,9 +205,11 @@ def _sections(
     tokenizer: Utf8ByteTokenizer,
 ) -> list[list[_Piece]]:
     result: list[list[_Piece]] = []
-    key: tuple[str, ...] | None = None
+    key: tuple[tuple[str, ...], int | None] | None = None
     for block in document.blocks:
-        block_key = _section_path(block)
+        # A chunk is cited by one page number. Keep page boundaries even when
+        # adjacent pages share the same heading path.
+        block_key = (_section_path(block), block.page_number)
         if key != block_key:
             result.append([])
             key = block_key

@@ -60,6 +60,23 @@ validate = validate_answer
 
 
 def validate_ingestion(session, project_id, execution: IngestionExecution):
+    from app.ingestion_content.extractors.pdf import installed_ocr_languages
+
+    requested_ocr = {
+        language
+        for node in execution.nodes
+        if node.type == "extract" and hasattr(node, "ocr") and node.ocr.mode != "off"
+        for language in node.ocr.languages
+    }
+    if requested_ocr:
+        unavailable = requested_ocr - set(installed_ocr_languages())
+        if unavailable:
+            raise HTTPException(
+                422,
+                "OCR language packs are unavailable on this server: "
+                + ", ".join(sorted(unavailable))
+                + ". Choose installed languages before saving or running.",
+            )
     document_ids = {
         document_id
         for node in execution.nodes

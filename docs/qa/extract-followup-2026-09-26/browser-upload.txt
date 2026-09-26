@@ -1,0 +1,1 @@
+QA browser upload checkpoint 2026-09-26. This isolated source verifies the file picker, browser submit, API persistence, and worker preparation.

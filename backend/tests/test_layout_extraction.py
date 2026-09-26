@@ -429,7 +429,7 @@ def test_packaged_ocr_extracts_reviewed_scan(tmp_path):
     assert document.pages[0].origin == "ocr"
     assert document.pages[0].ocr_confidence is not None
     assert document.measurements.quality_decision in {"pass", "warn"}
-    assert "tesseract-cli-v1" in version
+    assert "tesseract-cli-v2" in version
 
 
 def test_reviewed_extraction_corpus_meets_phase_two_thresholds(tmp_path):

@@ -60,6 +60,16 @@ const derivation = {
   output_hash: 'c'.repeat(64),
   title: 'guide.txt',
   media_type: 'application/pdf',
+  pages: [{
+    page_number: 1,
+    origin: 'layout',
+    character_count: 30,
+    block_count: 2,
+    fallback_reason: 'table_detected',
+    rotation_degrees: 0,
+    ocr_confidence: null,
+    language: null,
+  }],
   measurements: {
     character_count: 30,
     block_count: 2,

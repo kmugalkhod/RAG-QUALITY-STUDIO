@@ -430,11 +430,13 @@ export function IngestionRunResults({
     }
     let current = true;
     setBusy(true);
+    setError(null);
     api
       .listContentBlocks(projectId, selectedDerivation.id)
       .then((result) => {
         if (current) {
           setBlocks(result);
+          setError(null);
         }
       })
       .catch((reason: Error) => {
@@ -510,10 +512,13 @@ export function IngestionRunResults({
     };
   }, [kind, projectId, selectedRunId]);
 
-  const visiblePages = Array.from(
-    new Set(blocks?.items.flatMap((block) => (block.page_number ? [block.page_number] : [])) ?? []),
-  ).sort((left, right) => left - right);
+  const visiblePages = selectedDerivation?.pages.length
+    ? selectedDerivation.pages.map((page) => page.page_number)
+    : Array.from(
+        new Set(blocks?.items.flatMap((block) => (block.page_number ? [block.page_number] : [])) ?? []),
+      ).sort((left, right) => left - right);
   const previewPage = selectedPage ?? visiblePages[0] ?? null;
+  const pageDetail = selectedDerivation?.pages.find((page) => page.page_number === previewPage);
 
   function processingRunId(item: IngestionRunItem) {
     return item.processing_run_id;
@@ -661,6 +666,7 @@ export function IngestionRunResults({
                     {item.status} · processing v{item.processing_version} · {item.chunk_count}{' '}
                     chunks · {item.content_hash.slice(0, 12)}
                   </p>
+                  {item.is_optional && <small>Optional source</small>}
                   {item.processing_versions && (
                     <small>
                       Extractor {item.processing_versions.extractor} · cleaner{' '}
@@ -738,7 +744,11 @@ export function IngestionRunResults({
             </p>
           )}
           {!busy && derivations.length === 0 && !error && (
-            <p>Canonical content is unavailable for this legacy processing version.</p>
+            <p>
+              {items.find((item) => processingRunId(item) === selectedRunId)?.status === 'failed'
+                ? 'Canonical content is unavailable because processing failed before it could be saved.'
+                : 'Canonical content is unavailable for this legacy processing version.'}
+            </p>
           )}
           {selectedDerivation && (
             <>
@@ -867,6 +877,22 @@ export function IngestionRunResults({
                         ))}
                       </NativeSelect>
                     </Label>
+                    {pageDetail && (
+                      <dl className="ingestion-stage-facts content-quality-summary">
+                        <dt>Page origin</dt>
+                        <dd>{pageDetail.origin.toUpperCase()}</dd>
+                        <dt>Fallback reason</dt>
+                        <dd>{pageDetail.fallback_reason?.replaceAll('_', ' ') ?? 'None'}</dd>
+                        <dt>Rotation</dt>
+                        <dd>{pageDetail.rotation_degrees}° applied</dd>
+                        <dt>OCR engine confidence</dt>
+                        <dd>
+                          {pageDetail.ocr_confidence === null
+                            ? 'Not reported'
+                            : `${pageDetail.ocr_confidence.toFixed(1)} / 100`}
+                        </dd>
+                      </dl>
+                    )}
                     <figure>
                       <div className="content-page-canvas">
                         <img

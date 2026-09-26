@@ -22,8 +22,8 @@ LEGACY_CLEANER_VERSION = "legacy-whitespace-boilerplate-v1"
 STANDARD_CLEANER_VERSION = "deterministic-clean-v1"
 STRUCTURE_CLEANER_VERSION = "structure-clean-v1"
 CHARACTER_CHUNKER_VERSION = "character-window-v1"
-SECTION_TOKEN_CHUNKER_VERSION = "section-token-v1"
-PARENT_CHILD_CHUNKER_VERSION = "parent-child-v1"
+SECTION_TOKEN_CHUNKER_VERSION = "section-token-v2"
+PARENT_CHILD_CHUNKER_VERSION = "parent-child-v2"
 _SPACE = re.compile(r"\s+")
 
 

@@ -1,5 +1,13 @@
 # Implementation plan
 
+## Extract and ingestion QA follow-up (2026-09-26)
+
+Acceptance criteria: reproduce the five blocked cases from `extract-ingestion-qa-findings.csv` in the canonical browser, classify fixture and automation limits separately from product defects, fix confirmed defects, verify UI → API → worker → persisted results, and retest EX-060 page provenance. Preserve development storage, volumes and the local artifact key. Record evidence and honest status for each case in the CSV.
+
+Implementation: browser upload and cancellation were reproduced with isolated fixtures; scanned and rotated raster PDF pages drove real OCR; warning, strict, optional, language allowlist and mixed-language policies drove saved previews and runs. Page-level derivation metadata, page-bounded chunking, optional Existing Files policy, typed language-exclusion failures, terminal item status, installed OCR-language validation, focused schema validation and failed-content copy were corrected. Migrations 0026–0028 preserve historical rows. The final QA statuses and remaining automation limits are tracked in the CSV and `docs/qa/extract-followup-2026-09-26/`.
+
+Result: 64 PASS, 0 FAIL, 1 BLOCKED across 65 cases. The remaining EX-027 native-select keyboard check is blocked by agent-browser behavior in both headless and headed modes; a human keyboard pass is the next action. The isolated PostgreSQL integration selection passed 61 tests, and the full frontend Vitest suite passed 121 tests. OCR rotation-off/deskew variants, OCR page/time limits under pressure, and some table-output modes remain outside this follow-up's runtime coverage.
+
 ## Robust ingestion roadmap — Phase 7A acceptance criteria (2026-09-25)
 
 Status: **complete and verified on 2026-09-25** on

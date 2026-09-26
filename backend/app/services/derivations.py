@@ -110,6 +110,14 @@ def _derivation_values(
         language=(
             document.language.model_dump(mode="json") if document.language else None
         ),
+        pages=(
+            [
+                page.model_dump(mode="json", exclude={"block_ids"})
+                for page in document.pages
+            ]
+            if isinstance(document, ExtractedDocumentV1)
+            else []
+        ),
         measurements=document.measurements.model_dump(mode="json"),
         findings=[item.model_dump(mode="json") for item in document.findings],
         sensitive_findings=(

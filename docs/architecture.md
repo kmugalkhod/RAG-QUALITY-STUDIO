@@ -1,5 +1,15 @@
 # Application architecture
 
+## Extract QA corrections (2026-09-26)
+
+Section and parent-child chunk windows are bounded by both structural section and PDF page. A page-one footer and page-two answer therefore cannot share a chunk that loses page attribution. Both chunker runtime identities advanced to v2 so a new processing run cannot reuse the older cross-page output. Saved extraction derivations now carry page-level origin, fallback, rotation, confidence and language metadata in `content_derivations.pages`; the inspector reads these persisted facts rather than inferring them from counts. The PDF extractor runtime identity advanced for the same reuse boundary.
+
+Existing Files source configuration can mark selected document IDs optional. The immutable pipeline version, ingestion snapshot and run item persist that choice. A schema-v2 quality policy with `failed_item_action=exclude` lets a failed optional processing item become an inspectable `excluded` item; a required failure still fails the run and marks other unpublished items terminal. An index is created only from ready items, and an all-excluded run fails without publication. Successful partial runs report excluded items in `failed_count`; the completion constraint requires processed plus failed to equal discovered. Old versions deserialize with no optional files. The prior ready index remains current when a required item fails.
+
+Document processing records a safe `error_code` for typed extraction failures. The `language_excluded` code is emitted only when the saved disallowed-language action is `exclude` and a `language_not_allowed` finding caused exclusion. The ingestion worker can therefore exclude that source even when it is not marked optional, while ordinary quality failures still obey the optional-item rule. Migration 0028 adds the nullable code without changing historical failure messages; no source text is stored in it.
+
+Save and run validation checks requested active OCR language packs against the server's installed packs. Ingestion node and chunk variants use discriminators, so a rejected field yields its own validation issue instead of every unrelated union branch. Protected artifact reads avoid unnecessary identity updates during concurrent block and thumbnail requests, retaining project authorization and audit records while reducing lock contention.
+
 ## Index inspection and current-version guidance (2026-09-14)
 
 The Knowledge Base exposes paginated, project-scoped index records by joining immutable index membership to the exact chunk, processing run and document. Reads include passage text, offsets, source provenance, vector presence, dimensions, norm and only the first eight vector values; the full embedding is deliberately not transferred to the browser. This makes stored pgvector data verifiable without turning a 1,536-dimensional record list into an unbounded response.

@@ -82,7 +82,7 @@ class IngestionRun(Base):
         CheckConstraint(
             "status != 'succeeded' OR "
             "(stage = 'complete' AND progress = 100 AND published_count = 1 "
-            "AND processed_count = discovered_count AND failed_count = 0 "
+            "AND processed_count + failed_count = discovered_count "
             "AND embedded_count = chunk_count)",
             name="ck_ingestion_run_complete",
         ),
@@ -237,7 +237,7 @@ class IngestionRunItem(Base):
             name="fk_ingestion_item_processing_document",
         ),
         CheckConstraint(
-            "status IN ('processing','ready','succeeded','failed','cancelled')",
+            "status IN ('processing','ready','succeeded','excluded','failed','cancelled')",
             name="ck_ingestion_item_status",
         ),
         CheckConstraint("chunk_count >= 0", name="ck_ingestion_item_chunks"),
@@ -249,6 +249,7 @@ class IngestionRunItem(Base):
     source_node_id: Mapped[str] = mapped_column(String(80))
     processing_run_id: Mapped[uuid.UUID]
     processing_created: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_optional: Mapped[bool] = mapped_column(Boolean, default=False)
     status: Mapped[str] = mapped_column(String(16))
     chunk_count: Mapped[int] = mapped_column(default=0)
     error: Mapped[str | None] = mapped_column(Text)

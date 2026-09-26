@@ -122,6 +122,7 @@ class ProcessingRun(Base):
     progress: Mapped[int] = mapped_column(default=0)
     chunk_count: Mapped[int] = mapped_column(default=0)
     error: Mapped[str | None] = mapped_column(Text)
+    error_code: Mapped[str | None] = mapped_column(String(80))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

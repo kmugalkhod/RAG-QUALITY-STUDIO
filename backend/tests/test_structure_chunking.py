@@ -85,6 +85,48 @@ def test_section_chunking_has_hard_bounds_exact_spans_and_embedding_only_heading
             )
 
 
+@pytest.mark.parametrize("algorithm", ["section_token", "parent_child"])
+def test_pdf_chunks_and_parent_evidence_do_not_cross_page_boundaries(algorithm):
+    document = _cleaned(
+        [
+            CanonicalInputSegment(
+                text="Page one footer about the northern route.",
+                page_number=1,
+                heading_path=("Route guide",),
+            ),
+            CanonicalInputSegment(
+                text="Page two says three maps cover the southern approach.",
+                page_number=2,
+                heading_path=("Route guide",),
+            ),
+        ]
+    )
+    settings = (
+        _section_settings(target_tokens=600, maximum_tokens=800, overlap_tokens=80)
+        if algorithm == "section_token"
+        else ParentChildChunkNodeV2(
+            id="chunk",
+            type="chunk",
+            algorithm="parent_child",
+            child_target_tokens=240,
+            child_maximum_tokens=320,
+            child_overlap_tokens=40,
+            parent_target_tokens=900,
+            parent_maximum_tokens=1200,
+        )
+    )
+    result = chunk_cleaned_document(document, settings)
+
+    assert {chunk.page_number for chunk in result.chunks} == {1, 2}
+    for chunk in result.chunks:
+        pages = {
+            document.blocks[span.block_ordinal].page_number
+            for span in result.spans[chunk.ordinal]
+        }
+        assert pages == {chunk.page_number}
+        assert ("southern approach" in chunk.text) == (chunk.page_number == 2)
+
+
 def test_multilingual_long_word_and_protected_blocks_split_only_at_hard_limit():
     document = _cleaned(
         [
