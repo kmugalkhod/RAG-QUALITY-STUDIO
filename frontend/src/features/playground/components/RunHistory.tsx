@@ -1,5 +1,6 @@
 import { Button } from '../../../components/ui/button';
 import { Pagination } from '../../../components/Pagination';
+import { docsHref } from '../../../lib/docs';
 
 import { type QueryRun } from '../model';
 interface Props {
@@ -15,8 +16,11 @@ export function RunHistory({ runs, total, offset, running, onRefresh, onPage, on
   return (
     <div className="playground-history">
       <section aria-labelledby="history-title">
-        <div className="section-heading flex justify-between items-center gap-2.5 m-0 py-4 px-7">
+        <div className="section-heading flex flex-wrap justify-between items-center gap-2.5 m-0 py-4 px-7">
           <h2 id="history-title">Past questions</h2>
+          <a href={docsHref('answers/history')} target="_blank" rel="noopener noreferrer">
+            Query history guide
+          </a>
           <Button variant="outline" disabled={!!running} onClick={onRefresh}>
             Refresh
           </Button>

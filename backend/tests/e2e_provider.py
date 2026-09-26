@@ -50,9 +50,17 @@ def chat_respond(request):
         "INSUFFICIENT_EVIDENCE: The sources do not give a launch code."
         if "launch code" in question.lower()
         else (
-            "The controlled guide documents solar orchards. [S1]"
-            if "controlled guide" in question.lower()
-            else "The orchard grows apples. [S1]"
+            "INSUFFICIENT_EVIDENCE: The source does not give delivery hours."
+            if "harbor desk" in question.lower() and "deliver" in question.lower()
+            else (
+                "Harbor Desk is open Monday through Friday, 09:00–17:00. [S1]"
+                if "harbor desk" in question.lower()
+                else (
+                    "The controlled guide documents solar orchards. [S1]"
+                    if "controlled guide" in question.lower()
+                    else "The orchard grows apples. [S1]"
+                )
+            )
         )
     )
     return httpx.Response(

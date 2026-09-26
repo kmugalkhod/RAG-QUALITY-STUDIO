@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 260" role="img" aria-labelledby="title desc">
+  <title id="title">Versioned API workflow</title>
+  <desc id="desc">Create a project, upload a document, poll processing, publish and poll an index, then ask a query against that exact ready index. Keep every returned ID for later reads.</desc>
+  <rect width="1100" height="260" rx="18" fill="#f4f7fb"/>
+  <g fill="#fff" stroke="#466383" stroke-width="2">
+    <rect x="24" y="53" width="180" height="130" rx="12"/>
+    <rect x="242" y="53" width="180" height="130" rx="12"/>
+    <rect x="460" y="53" width="180" height="130" rx="12"/>
+    <rect x="678" y="53" width="180" height="130" rx="12"/>
+    <rect x="896" y="53" width="180" height="130" rx="12"/>
+  </g>
+  <g fill="#18304b" font-family="system-ui, sans-serif" text-anchor="middle">
+    <g font-size="17" font-weight="700">
+      <text x="114" y="92">Project</text><text x="332" y="92">Document</text>
+      <text x="550" y="92">Processing</text><text x="768" y="92">Index</text>
+      <text x="986" y="92">Query</text>
+    </g>
+    <g font-size="13">
+      <text x="114" y="120">POST → project ID</text>
+      <text x="332" y="120">Upload → document ID</text>
+      <text x="550" y="120">POST → run ID</text><text x="550" y="145">GET until succeeded</text>
+      <text x="768" y="120">POST → index ID</text><text x="768" y="145">GET until succeeded</text>
+      <text x="986" y="120">Use ready index ID</text><text x="986" y="145">Read saved evidence</text>
+    </g>
+  </g>
+  <g stroke="#166579" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M207 118h27m-8-8 8 8-8 8"/><path d="M425 118h27m-8-8 8 8-8 8"/>
+    <path d="M643 118h27m-8-8 8 8-8 8"/><path d="M861 118h27m-8-8 8 8-8 8"/>
+  </g>
+  <text x="550" y="224" fill="#365372" font-family="system-ui, sans-serif" font-size="14" text-anchor="middle">A 202 response starts work; it does not make chunks or an index ready.</text>
+</svg>

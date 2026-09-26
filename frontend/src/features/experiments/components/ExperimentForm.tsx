@@ -9,6 +9,7 @@ import type { IndexVersion } from '../../documents/model';
 import * as api from '../api';
 import { type Dataset, type Metric, metricLabel } from '../model';
 import { Configuration } from './Configuration';
+import { docsHref } from '../../../lib/docs';
 
 const metrics = Object.keys(metricLabel) as Metric[];
 type EvaluationOptions = Awaited<ReturnType<typeof api.getEvaluationOptions>>;
@@ -203,6 +204,9 @@ export function ExperimentForm({
       <aside className="experiment-run-summary" aria-label="Experiment run summary">
         <div>
           <h2>Run summary</h2>
+          <a href={docsHref('experiments/runs')} target="_blank" rel="noopener noreferrer">
+            Experiment run guide
+          </a>
           <p className="draft-notice" role="status">
             {storageError || 'Draft saved in this browser tab.'}
           </p>

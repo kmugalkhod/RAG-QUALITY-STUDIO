@@ -6,6 +6,7 @@ import { Button } from '../../../components/ui/button';
 import { Label } from '../../../components/ui/label';
 import { NativeSelect, NativeSelectOption } from '../../../components/ui/native-select';
 import type { Page } from '../../../lib/pagination';
+import { docsHref } from '../../../lib/docs';
 import { terminalIngestionStatuses } from '../editorModel';
 import * as api from '../api';
 import type {
@@ -175,6 +176,9 @@ export function IngestionPreviewResults({
       <div className="section-heading">
         <div>
           <p className="eyebrow">Processing preview</p>
+          <a href={docsHref('ingestion/previews')} target="_blank" rel="noopener noreferrer">
+            Preview and stage guide
+          </a>
           <h2>
             {preview.included_count} included · {preview.excluded_count} excluded
           </h2>
@@ -186,6 +190,9 @@ export function IngestionPreviewResults({
             Quality: {preview.pass_count} pass · {preview.warn_count} warn · {preview.exclude_count}{' '}
             exclude · {preview.quality_fail_count} fail
           </p>
+          <a href={docsHref('ingestion/quality')} target="_blank" rel="noopener noreferrer">
+            Interpret quality findings
+          </a>
           <small>
             {preview.fetch_mode.replace('-', ' ')} · exact config{' '}
             {preview.configuration_hash.slice(0, 12)} · {preview.known_compute_ms} ms known local
@@ -515,7 +522,9 @@ export function IngestionRunResults({
   const visiblePages = selectedDerivation?.pages.length
     ? selectedDerivation.pages.map((page) => page.page_number)
     : Array.from(
-        new Set(blocks?.items.flatMap((block) => (block.page_number ? [block.page_number] : [])) ?? []),
+        new Set(
+          blocks?.items.flatMap((block) => (block.page_number ? [block.page_number] : [])) ?? [],
+        ),
       ).sort((left, right) => left - right);
   const previewPage = selectedPage ?? visiblePages[0] ?? null;
   const pageDetail = selectedDerivation?.pages.find((page) => page.page_number === previewPage);
@@ -577,6 +586,12 @@ export function IngestionRunResults({
       <div className="section-heading">
         <div>
           <h2 id="ingestion-run-details-heading">Run details</h2>
+          <a href={docsHref('ingestion/runs')} target="_blank" rel="noopener noreferrer">
+            Run and failure guide
+          </a>
+          <a href={docsHref('operate/operations')} target="_blank" rel="noopener noreferrer">
+            Jobs and recovery
+          </a>
           {(run.new_count > 0 ||
             run.changed_count > 0 ||
             run.unchanged_count > 0 ||

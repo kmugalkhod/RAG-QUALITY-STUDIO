@@ -6,6 +6,7 @@ import { Label } from '../../../components/ui/label';
 import { bytes, message } from '../documentPresentation';
 import type { Document } from '../model';
 import { uploadDocument } from '../api';
+import { docsHref } from '../../../lib/docs';
 
 export function DocumentUpload({
   projectId,
@@ -77,6 +78,14 @@ export function DocumentUpload({
             TXT, Markdown, HTML, DOCX, PPTX, CSV, TSV, or XLSX. Scanned PDFs use the saved OCR
             policy.
           </p>
+          <a
+            className="field-hint"
+            href={docsHref('knowledge-base/documents')}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Supported files and upload help
+          </a>
         </div>
         <Button disabled={uploading || !limit} type="submit">
           <Upload />

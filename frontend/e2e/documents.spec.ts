@@ -11,7 +11,7 @@ test('uploads, processes, inspects and revisits a versioned document', async ({ 
   await expect(page.getByRole('heading', { name: 'Knowledge Base' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'No documents yet' })).toBeVisible();
   await page.getByRole('button', { name: 'Add document', exact: true }).click();
-  await page.getByLabel('PDF or UTF-8 TXT').setInputFiles({
+  await page.getByLabel('Document file').setInputFiles({
     name: 'knowledge.txt',
     mimeType: 'text/plain',
     buffer: Buffer.from('A source document with evidence. '.repeat(50)),
@@ -30,19 +30,19 @@ test('uploads, processes, inspects and revisits a versioned document', async ({ 
   await inspect.click();
   await expect(page.getByRole('heading', { name: 'Chunks · Version 1' })).toBeVisible();
   await expect(
-    page.getByText('Chunk 1 · TXT source · characters 0–40 (end exclusive)', { exact: true }),
+    page.getByText('Chunk 1 · Source file · characters 0–40 (end exclusive)', { exact: true }),
   ).toBeVisible();
   await page
     .getByRole('navigation', { name: 'Chunk pages' })
     .getByRole('button', { name: 'Next' })
     .click();
-  await expect(page.getByText(/Chunk 21 · TXT source/)).toBeVisible();
+  await expect(page.getByText(/Chunk 21 · Source file/)).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Chunks · Version 1' })).toBeFocused();
   await page.reload();
   await page.getByRole('button', { name: 'Inspect version 1: knowledge.txt' }).click();
   await page.getByRole('button', { name: /Inspect \d+ chunks/ }).click();
   await expect(
-    page.getByText('Chunk 1 · TXT source · characters 0–40 (end exclusive)', { exact: true }),
+    page.getByText('Chunk 1 · Source file · characters 0–40 (end exclusive)', { exact: true }),
   ).toBeVisible();
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.screenshot({ path: 'test-results/knowledge-desktop.png', fullPage: true });
@@ -59,7 +59,7 @@ test('shows parsing failure and allows a new processing version', async ({ page,
   ).json()) as { id: string };
   await page.goto(`/#/projects/${project.id}`);
   await page.getByRole('button', { name: 'Add document', exact: true }).click();
-  await page.getByLabel('PDF or UTF-8 TXT').setInputFiles({
+  await page.getByLabel('Document file').setInputFiles({
     name: 'broken.pdf',
     mimeType: 'application/pdf',
     buffer: Buffer.from('%PDF-1.7\ninvalid PDF'),
@@ -79,7 +79,7 @@ test('processes a text PDF and displays its page provenance', async ({ page, req
   ).json()) as { id: string };
   await page.goto(`/#/projects/${project.id}`);
   await page.getByRole('button', { name: 'Add document', exact: true }).click();
-  await page.getByLabel('PDF or UTF-8 TXT').setInputFiles('e2e/fixtures/text.pdf');
+  await page.getByLabel('Document file').setInputFiles('e2e/fixtures/text.pdf');
   await page.getByRole('button', { name: 'Upload document', exact: true }).click();
   await page.getByRole('button', { name: 'Start processing', exact: true }).click();
   const inspect = page.getByRole('button', { name: 'Inspect 2 chunks' });

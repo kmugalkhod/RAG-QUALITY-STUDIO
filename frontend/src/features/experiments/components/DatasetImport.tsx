@@ -7,6 +7,7 @@ import { number } from '../format';
 import type { Dataset, Preview } from '../model';
 import * as api from '../api';
 import { Questions } from './Questions';
+import { docsHref } from '../../../lib/docs';
 
 type EvaluationOptions = Awaited<ReturnType<typeof api.getEvaluationOptions>>;
 
@@ -82,6 +83,9 @@ export function DatasetImport({
         <div>
           <h2 id="dataset-stage-title">Dataset</h2>
           <p>Choose the reviewed questions every candidate will answer.</p>
+          <a href={docsHref('experiments/datasets')} target="_blank" rel="noopener noreferrer">
+            Dataset import guide
+          </a>
         </div>
       </div>
       <Label className="dataset-version-field">

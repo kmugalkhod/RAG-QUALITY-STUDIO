@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 290" role="img" aria-labelledby="title desc">
+  <title id="title">Two saved answer versions compared on one reviewed dataset</title>
+  <desc id="desc">The same ready index and two reviewed questions feed answer pipeline versions one and two. Each question produces an explicit result for A and B. Only pairs with two successful scores contribute to a paired metric difference; unavailable and failed rows remain visible.</desc>
+  <rect width="900" height="290" rx="20" fill="#20242b"/>
+  <g font-family="Inter,Arial,sans-serif" text-anchor="middle">
+    <rect x="28" y="86" width="178" height="116" rx="12" fill="#17191f" stroke="#a49bd8" stroke-width="2"/>
+    <text x="117" y="120" fill="#eceef3" font-size="18" font-weight="700">Ready index</text>
+    <text x="117" y="149" fill="#adb6c4" font-size="14">same source version</text>
+    <text x="117" y="173" fill="#adb6c4" font-size="14">for A and B</text>
+    <path d="M206 144H250M250 144V70M250 144V218M250 70H278M250 218H278" fill="none" stroke="#adb6c4" stroke-width="2"/>
+    <rect x="278" y="28" width="184" height="88" rx="12" fill="#17191f" stroke="#a49bd8" stroke-width="2"/>
+    <text x="370" y="64" fill="#eceef3" font-size="18" font-weight="700">Candidate A</text>
+    <text x="370" y="89" fill="#adb6c4" font-size="14">saved version 1</text>
+    <rect x="278" y="174" width="184" height="88" rx="12" fill="#17191f" stroke="#a49bd8" stroke-width="2"/>
+    <text x="370" y="210" fill="#eceef3" font-size="18" font-weight="700">Candidate B</text>
+    <text x="370" y="235" fill="#adb6c4" font-size="14">saved version 2</text>
+    <path d="M462 72H500M462 218H500" fill="none" stroke="#adb6c4" stroke-width="2"/>
+    <rect x="500" y="44" width="166" height="200" rx="12" fill="#17191f" stroke="#a49bd8" stroke-width="2"/>
+    <text x="583" y="83" fill="#eceef3" font-size="17" font-weight="700">Two questions</text>
+    <text x="583" y="117" fill="#adb6c4" font-size="14">answerable</text>
+    <text x="583" y="146" fill="#adb6c4" font-size="14">unanswerable</text>
+    <text x="583" y="194" fill="#adb6c4" font-size="14">4 item outcomes</text>
+    <path d="M666 144H700" fill="none" stroke="#adb6c4" stroke-width="2"/>
+    <rect x="700" y="86" width="172" height="116" rx="12" fill="#17191f" stroke="#a49bd8" stroke-width="2"/>
+    <text x="786" y="120" fill="#eceef3" font-size="17" font-weight="700">Paired result</text>
+    <text x="786" y="149" fill="#adb6c4" font-size="13">shared scored rows</text>
+    <text x="786" y="174" fill="#adb6c4" font-size="13">failures still shown</text>
+  </g>
+</svg>

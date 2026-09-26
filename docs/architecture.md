@@ -1,5 +1,13 @@
 # Application architecture
 
+## User documentation boundary (2026-09-26)
+
+`docs/site/` is a separate Docusaurus 3 static site with TypeScript configuration, authored Markdown guides and a browser-local search index. Only `docs/site/docs/` and `docs/site/static/` are published by its build; engineering plans and QA evidence under the parent `docs/` directory remain outside that content root. The Vite app links to completed public slugs through `frontend/src/lib/docs.ts`; its non-secret `VITE_DOCS_BASE_URL` defaults to the local docs preview at `http://127.0.0.1:3000`. This keeps the app's canonical `http://127.0.0.1:5273` port and FastAPI's `/docs` route separate. The site is not deployed by this repository change.
+
+Endpoint contracts and schema-model pages are generated from the canonical FastAPI `app.openapi()` into checked-in static site files; the generator's `--check` mode detects drift without requiring a running service. Auth, workflow, error, cost and capability explanations remain authored guides because OpenAPI cannot encode those runtime rules. The isolated browser test provider registers three `/api/test/` routes after app import, so its expanded schema is never used as the public reference. The large generated model catalog is excluded from local full-text indexing to keep task guides and operation headings prominent; it remains reachable through navigation and schema links.
+
+The ingestion schema-v2 node union retains its closed Pydantic branches and inner `algorithm` discriminator for chunk variants, but removes the outer `type` discriminator because OpenAPI mappings require string references and cannot nest the chunk discriminator schema as a mapping value. The validated generated schema is the source for later endpoint-contract generation; authentication and workflow semantics remain authored explanations.
+
 ## Extract QA corrections (2026-09-26)
 
 Section and parent-child chunk windows are bounded by both structural section and PDF page. A page-one footer and page-two answer therefore cannot share a chunk that loses page attribution. Both chunker runtime identities advanced to v2 so a new processing run cannot reuse the older cross-page output. Saved extraction derivations now carry page-level origin, fallback, rotation, confidence and language metadata in `content_derivations.pages`; the inspector reads these persisted facts rather than inferring them from counts. The PDF extractor runtime identity advanced for the same reuse boundary.

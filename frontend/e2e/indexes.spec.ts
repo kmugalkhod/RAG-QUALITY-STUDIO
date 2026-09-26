@@ -32,7 +32,7 @@ test('indexes and retrieves persisted source evidence using the isolated provide
   ).json()) as { id: string };
   await page.goto(`/#/projects/${project.id}`);
   await page.getByRole('button', { name: 'Add document', exact: true }).click();
-  await page.getByLabel('PDF or UTF-8 TXT').setInputFiles({
+  await page.getByLabel('Document file').setInputFiles({
     name: 'orchard.txt',
     mimeType: 'text/plain',
     buffer: Buffer.from('The orchard grows apples. The harvest begins in September.'),

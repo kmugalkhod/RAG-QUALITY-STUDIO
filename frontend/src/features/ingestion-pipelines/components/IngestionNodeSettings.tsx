@@ -4,6 +4,7 @@ import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
 import { Label } from '../../../components/ui/label';
 import { NativeSelect, NativeSelectOption } from '../../../components/ui/native-select';
+import { docsHref } from '../../../lib/docs';
 import type { ConnectionSettings, SourceConnection } from '../../connections/model';
 import type { Document, KnowledgeSet } from '../../documents/model';
 import {
@@ -178,6 +179,25 @@ export function IngestionNodeSettings({
               ? `Version ${saved.version}`
               : 'Draft configuration'}
         </p>
+        {selected && (
+          <a
+            href={
+              selected.type === 'source'
+                ? docsHref('ingestion/sources')
+                : selected.type === 'extract'
+                  ? docsHref('ingestion/extraction')
+                  : selected.type === 'clean'
+                    ? docsHref('ingestion/cleaning')
+                    : selected.type === 'chunk' || selected.type === 'embed'
+                      ? docsHref('ingestion/chunking')
+                      : docsHref('knowledge-base/collections')
+            }
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            About this stage
+          </a>
+        )}
       </div>
       <div
         id="ingestion-settings-body"
@@ -264,43 +284,10 @@ export function IngestionNodeSettings({
                   return (
                     <div key={document.id}>
                       <label className="ingestion-document-option">
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        disabled={disabled}
-                        onChange={(event) =>
-                          updateNode(selected.id, (node) =>
-                            node.type === 'source' && node.config.kind === 'existing_files'
-                              ? {
-                                  ...node,
-                                  config: {
-                                    ...node.config,
-                                    document_ids: event.target.checked
-                                      ? [...node.config.document_ids, document.id]
-                                      : node.config.document_ids.filter(
-                                          (id: string) => id !== document.id,
-                                        ),
-                                    optional_document_ids: event.target.checked
-                                      ? node.config.optional_document_ids ?? []
-                                      : (node.config.optional_document_ids ?? []).filter(
-                                          (id: string) => id !== document.id,
-                                        ),
-                                  },
-                                }
-                              : node,
-                          )
-                        }
-                      />
-                      <span>
-                        <strong>{document.filename}</strong>
-                        <small>{statusCopy}</small>
-                      </span>
-                      </label>
-                      {schemaVersion === 2 && checked && (
-                        <label className="ingestion-document-option">
                         <input
                           type="checkbox"
-                          checked={(sourceConfig.optional_document_ids ?? []).includes(document.id)}
+                          checked={checked}
+                          disabled={disabled}
                           onChange={(event) =>
                             updateNode(selected.id, (node) =>
                               node.type === 'source' && node.config.kind === 'existing_files'
@@ -308,8 +295,13 @@ export function IngestionNodeSettings({
                                     ...node,
                                     config: {
                                       ...node.config,
+                                      document_ids: event.target.checked
+                                        ? [...node.config.document_ids, document.id]
+                                        : node.config.document_ids.filter(
+                                            (id: string) => id !== document.id,
+                                          ),
                                       optional_document_ids: event.target.checked
-                                        ? [...(node.config.optional_document_ids ?? []), document.id]
+                                        ? (node.config.optional_document_ids ?? [])
                                         : (node.config.optional_document_ids ?? []).filter(
                                             (id: string) => id !== document.id,
                                           ),
@@ -319,6 +311,39 @@ export function IngestionNodeSettings({
                             )
                           }
                         />
+                        <span>
+                          <strong>{document.filename}</strong>
+                          <small>{statusCopy}</small>
+                        </span>
+                      </label>
+                      {schemaVersion === 2 && checked && (
+                        <label className="ingestion-document-option">
+                          <input
+                            type="checkbox"
+                            checked={(sourceConfig.optional_document_ids ?? []).includes(
+                              document.id,
+                            )}
+                            onChange={(event) =>
+                              updateNode(selected.id, (node) =>
+                                node.type === 'source' && node.config.kind === 'existing_files'
+                                  ? {
+                                      ...node,
+                                      config: {
+                                        ...node.config,
+                                        optional_document_ids: event.target.checked
+                                          ? [
+                                              ...(node.config.optional_document_ids ?? []),
+                                              document.id,
+                                            ]
+                                          : (node.config.optional_document_ids ?? []).filter(
+                                              (id: string) => id !== document.id,
+                                            ),
+                                      },
+                                    }
+                                  : node,
+                              )
+                            }
+                          />
                           <span>
                             <strong>Optional source for {document.filename}</strong>
                             <small>
@@ -808,7 +833,9 @@ export function IngestionNodeSettings({
                         }
                       />
                       {serverFieldErrors['ocr.dpi'] && (
-                        <small role="alert" className="error-message">{serverFieldErrors['ocr.dpi']}</small>
+                        <small role="alert" className="error-message">
+                          {serverFieldErrors['ocr.dpi']}
+                        </small>
                       )}
                     </Label>
                     <Label>
@@ -826,7 +853,9 @@ export function IngestionNodeSettings({
                         }
                       />
                       {serverFieldErrors['ocr.max_pages'] && (
-                        <small role="alert" className="error-message">{serverFieldErrors['ocr.max_pages']}</small>
+                        <small role="alert" className="error-message">
+                          {serverFieldErrors['ocr.max_pages']}
+                        </small>
                       )}
                     </Label>
                     <Label>

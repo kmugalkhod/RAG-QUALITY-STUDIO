@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 360" role="img" aria-labelledby="lineage-title lineage-desc">
+  <title id="lineage-title">One source snapshot, two independent index versions</title>
+  <desc id="lineage-desc">A bounded remote collection creates immutable snapshot 1. Saved pipeline version 1 and version 2 both process that same snapshot into separate ready indexes. A later source refresh creates snapshot 2 instead of changing snapshot 1.</desc>
+  <rect width="960" height="360" rx="18" fill="#20242b"/>
+  <g fill="#17191f" stroke="#a49bd8" stroke-width="2">
+    <rect x="35" y="120" width="180" height="100" rx="12"/>
+    <rect x="280" y="120" width="190" height="100" rx="12"/>
+    <rect x="560" y="35" width="190" height="100" rx="12"/>
+    <rect x="560" y="225" width="190" height="100" rx="12"/>
+    <rect x="785" y="35" width="145" height="100" rx="12"/>
+    <rect x="785" y="225" width="145" height="100" rx="12"/>
+  </g>
+  <g fill="#eceef3" font-family="Arial,sans-serif" font-size="20" font-weight="bold" text-anchor="middle">
+    <text x="125" y="160">Remote source</text><text x="375" y="160">Snapshot 1</text>
+    <text x="655" y="74">Pipeline v1</text><text x="655" y="264">Pipeline v2</text>
+    <text x="857" y="74">Index A</text><text x="857" y="264">Index B</text>
+  </g>
+  <g fill="#adb6c4" font-family="Arial,sans-serif" font-size="15" text-anchor="middle">
+    <text x="125" y="190">bounded collection</text><text x="375" y="190">fixed revisions</text>
+    <text x="655" y="103">original chunks</text><text x="655" y="293">different chunks</text>
+    <text x="857" y="103">ready</text><text x="857" y="293">ready</text>
+  </g>
+  <g stroke="#adb6c4" stroke-width="3" fill="none">
+    <path d="M215 170h65m-10-10 10 10-10 10M470 170h42v-85h48m-10-10 10 10-10 10M470 170h42v105h48m-10-10 10 10-10 10M750 85h35m-10-10 10 10-10 10M750 275h35m-10-10 10 10-10 10"/>
+  </g>
+  <text x="35" y="335" fill="#adb6c4" font-family="Arial,sans-serif" font-size="15">Reuse reads stored revisions; a later refresh creates a new snapshot.</text>
+</svg>

@@ -1,0 +1,13 @@
+Harbor Desk quality sample — fictional content
+
+Section: opening hours
+Harbor Desk is open Monday through Friday, 09:00–17:00 UTC. This statement is repeated in the archive export for an intentionally inspectable cleaning example.
+
+Section: opening hours
+Harbor Desk is open Monday through Friday, 09:00–17:00 UTC. This statement is repeated in the archive export for an intentionally inspectable cleaning example.
+
+Section: contact
+The fictional contact address is sample@example.test. The saved sensitive-data policy should replace this address before embedding or answering.
+
+Section: repaired export
+The source sentence has been repaired from the approved fictional record. No replacement glyph remains in this version.

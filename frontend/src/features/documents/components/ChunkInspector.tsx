@@ -81,7 +81,7 @@ export function ChunkInspector({
             <li key={chunk.ordinal}>
               <p className="chunk-provenance text-muted-foreground text-[10px]">
                 Chunk {chunk.ordinal + 1} ·{' '}
-                {chunk.page_number ? `PDF page ${chunk.page_number}` : 'TXT source'} · characters{' '}
+                {chunk.page_number ? `PDF page ${chunk.page_number}` : 'Source file'} · characters{' '}
                 {chunk.start_char}–{chunk.end_char} (end exclusive)
               </p>
               <pre>{chunk.text}</pre>

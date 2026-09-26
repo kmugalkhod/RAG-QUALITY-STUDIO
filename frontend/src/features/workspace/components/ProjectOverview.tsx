@@ -51,7 +51,7 @@ export function ProjectOverview({
     !data.documents.length && !ready.length
       ? [
           'Add your first source',
-          'Upload a PDF or TXT document to begin.',
+          'Upload a supported document to begin.',
           'knowledge-base',
           'Upload documents',
         ]

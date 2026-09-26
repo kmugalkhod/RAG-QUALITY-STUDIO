@@ -146,7 +146,7 @@ class S3Config(Strict):
     expected_bucket_owner: str | None = Field(default=None, pattern=r"^[0-9]{12}$")
     allowed_file_types: list[
         Literal["txt", "pdf", "md", "html", "docx", "pptx", "csv", "tsv", "xlsx"]
-    ] = Field(default_factory=lambda: ["txt", "pdf"], min_length=1, max_length=2)
+    ] = Field(default_factory=lambda: ["txt", "pdf"], min_length=1, max_length=9)
     max_objects: int = Field(default=1000, strict=True, ge=1, le=5000)
     max_pages: int = Field(default=10, strict=True, ge=1, le=100)
     max_object_bytes: int = Field(
@@ -928,7 +928,10 @@ IngestionNodeV2 = Annotated[
     | ChunkNodeV2
     | EmbedNode
     | PublishIndexNode,
-    Field(discriminator="type"),
+    # The chunk branch has its own algorithm discriminator. OpenAPI cannot
+    # represent a nested discriminator mapping as the value of "type=chunk";
+    # keep the same closed union and let Pydantic validate its branches.
+    Field(),
 ]
 
 

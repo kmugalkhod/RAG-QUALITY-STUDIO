@@ -2,6 +2,7 @@ import { StatusBadge } from '../../../components/StatusBadge';
 import { Separator } from '../../../components/ui/separator';
 import type { ProjectSettingsData } from '../data';
 import { ConnectionVault } from '../../connections/ConnectionVault';
+import { docsHref } from '../../../lib/docs';
 
 function SettingsSection({
   title,
@@ -39,8 +40,19 @@ export function ProjectSettings({
         <div>
           <h1>Settings</h1>
           <p>Project identity and server configuration.</p>
+          <nav aria-label="Settings help" className="flex flex-wrap gap-4">
+            <a href={docsHref('start/configure')} target="_blank" rel="noopener noreferrer">
+              Provider setup and costs
+            </a>
+            <a href={docsHref('operate/security')} target="_blank" rel="noopener noreferrer">
+              Security and permissions
+            </a>
+            <a href={docsHref('reference/limits-faq')} target="_blank" rel="noopener noreferrer">
+              Limits and FAQ
+            </a>
+          </nav>
         </div>
-        <span className="quiet-label">Local workspace</span>
+        <span className="quiet-label">Project configuration</span>
       </div>
       <SettingsSection title="Project" description="Identity shared across this workspace.">
         <dt>Name</dt>
@@ -52,11 +64,15 @@ export function ProjectSettings({
       </SettingsSection>
       <SettingsSection title="Documents" description="Supported uploads and processing.">
         <dt>File types</dt>
-        <dd>Text-based PDF and UTF-8 TXT</dd>
+        <dd>PDF, TXT, Markdown, HTML, DOCX, PPTX, CSV, TSV, and XLSX</dd>
         <dt>Upload limit</dt>
         <dd>{(data.upload.max_upload_bytes / 1048576).toFixed(0)} MB per file</dd>
         <dt>Processing</dt>
-        <dd>Versioned character chunks. Scanned PDFs require OCR.</dd>
+        <dd>
+          Document preparation uses versioned character chunks. Ingestion pipelines also offer
+          section-token and parent-child chunks. Scanned PDFs need OCR support and an enabled
+          extraction policy.
+        </dd>
       </SettingsSection>
       <SettingsSection title="Models" description="Configured on the server.">
         <dt>Embeddings</dt>
@@ -84,17 +100,17 @@ export function ProjectSettings({
             Credentials are encrypted on the server. Reads expose only intentionally redacted
             metadata.
           </p>
-          <p>
-            Vaulting is available now. Provider validation and source selection become available
-            only when each connector ships.
-          </p>
+          <p>Available connections depend on server configuration and provider access.</p>
         </div>
         <ConnectionVault projectId={projectId} settings={data.connections} />
       </section>
       <p className="field-hint settings-note">
         Source credentials never enter pipeline versions or browser storage. Shared deployments
-        require authentication before this local-only vault can be enabled.
+        require configured OIDC authentication and encrypted artifact storage.
       </p>
+      <a href={docsHref('operate/troubleshooting')} target="_blank" rel="noopener noreferrer">
+        Troubleshoot unavailable settings
+      </a>
     </>
   );
 }

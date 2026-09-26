@@ -11,6 +11,7 @@ import {
 } from '../../../components/ui/table';
 import { money, number, readable } from '../format';
 import { type Detail, metricLabel } from '../model';
+import { docsHref } from '../../../lib/docs';
 
 export function QuestionComparison({ run }: { run: Detail }) {
   const [selectedQuestion, setSelectedQuestion] = useState<number>();
@@ -25,6 +26,9 @@ export function QuestionComparison({ run }: { run: Detail }) {
     <>
       <section className="experiment-section">
         <h2>Per-question comparison</h2>
+        <a href={docsHref('experiments/interpret')} target="_blank" rel="noopener noreferrer">
+          Interpret and improve results
+        </a>
         <div className="experiment-table" tabIndex={0} aria-label="Per-question comparison">
           <Table>
             <TableHeader>
@@ -52,7 +56,7 @@ export function QuestionComparison({ run }: { run: Detail }) {
                       (value) => value.ordinal === ordinal && value.candidate === candidateIndex,
                     )!;
                     return (
-                      <TableCell key={candidate.id}>
+                      <TableCell key={candidate.id} className="whitespace-normal">
                         {item.output.status === 'insufficient_evidence'
                           ? 'Insufficient evidence'
                           : readable(item.status)}

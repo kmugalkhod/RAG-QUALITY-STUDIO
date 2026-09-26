@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 355" role="img" aria-labelledby="title desc">
+  <title id="title">Authentication, authorization and encrypted data boundaries</title>
+  <desc id="desc">Local loopback owner or validated OIDC bearer identity enters project authorization. Protected raw reads require owner or admin and create audit events. Document artifacts and source-connection secrets use separate encryption keys. Shared OIDC and external key services are not live-verified.</desc>
+  <rect width="1120" height="355" rx="18" fill="#f4f7fb"/>
+  <g fill="#fff" stroke="#486889" stroke-width="2">
+    <rect x="24" y="55" width="210" height="105" rx="11"/><rect x="24" y="197" width="210" height="105" rx="11"/>
+    <rect x="300" y="105" width="215" height="115" rx="11"/>
+    <rect x="585" y="50" width="225" height="105" rx="11"/><rect x="585" y="198" width="225" height="105" rx="11"/>
+    <rect x="870" y="50" width="225" height="105" rx="11"/><rect x="870" y="198" width="225" height="105" rx="11"/>
+  </g>
+  <g fill="#18304b" font-family="system-ui,sans-serif" text-anchor="middle">
+    <g font-size="17" font-weight="700">
+      <text x="129" y="87">Local owner</text><text x="129" y="229">OIDC bearer</text>
+      <text x="407" y="140">Project membership</text>
+      <text x="697" y="81">Ordinary reads/writes</text><text x="697" y="229">Protected raw read</text>
+      <text x="982" y="81">Artifact storage</text><text x="982" y="229">Connection vault</text>
+    </g>
+    <g font-size="13">
+      <text x="129" y="114">loopback Host only</text><text x="129" y="256">signature · issuer</text><text x="129" y="275">audience · expiry</text>
+      <text x="407" y="164">owner · admin · editor · viewer</text><text x="407" y="187">cross-project: 404</text>
+      <text x="697" y="108">viewer writes: 403</text><text x="697" y="257">owner/admin only</text><text x="697" y="279">audit granted + denied</text>
+      <text x="982" y="108">versioned artifact key</text><text x="982" y="129">KMS/Vault in shared mode</text>
+      <text x="982" y="256">separate credential key</text><text x="982" y="279">loopback-only routes</text>
+    </g>
+  </g>
+  <g fill="none" stroke="#166579" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M235 108h57m-9-8 9 8-9 8"/><path d="M235 248h30v-85h27m-9-8 9 8-9 8"/>
+    <path d="M516 143h38v-42h23m-9-8 9 8-9 8"/><path d="M516 177h38v74h23m-9-8 9 8-9 8"/>
+    <path d="M811 102h51m-9-8 9 8-9 8"/><path d="M811 251h51m-9-8 9 8-9 8"/>
+  </g>
+</svg>

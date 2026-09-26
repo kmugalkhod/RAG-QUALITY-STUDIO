@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 285" role="img" aria-labelledby="title desc">
+  <title id="title">Consistent recovery checklist</title>
+  <desc id="desc">Pause schedules and finish or cancel jobs, stop writers, back up PostgreSQL and the document volume, retain referenced keys separately, restore into an empty target, then verify historical evidence and a new run.</desc>
+  <rect width="1120" height="285" rx="18" fill="#f4f7fb"/>
+  <g fill="#fff" stroke="#486889" stroke-width="2">
+    <rect x="21" y="63" width="168" height="143" rx="11"/><rect x="205" y="63" width="168" height="143" rx="11"/>
+    <rect x="389" y="63" width="168" height="143" rx="11"/><rect x="573" y="63" width="168" height="143" rx="11"/>
+    <rect x="757" y="63" width="168" height="143" rx="11"/><rect x="941" y="63" width="158" height="143" rx="11"/>
+  </g>
+  <g fill="#18304b" font-family="system-ui,sans-serif" text-anchor="middle">
+    <g font-size="16" font-weight="700">
+      <text x="105" y="98">1 · Quiesce</text><text x="289" y="98">2 · Stop writers</text>
+      <text x="473" y="98">3 · PostgreSQL</text><text x="657" y="98">4 · Artifacts</text>
+      <text x="841" y="98">5 · Keys</text><text x="1020" y="98">6 · Verify</text>
+    </g>
+    <g font-size="13">
+      <text x="105" y="127">pause schedules</text><text x="105" y="149">finish/cancel jobs</text>
+      <text x="289" y="127">API · worker</text><text x="289" y="149">dispatcher</text>
+      <text x="473" y="127">pg_dump -Fc</text><text x="473" y="149">same recovery point</text>
+      <text x="657" y="127">document volume</text><text x="657" y="149">same recovery point</text>
+      <text x="841" y="127">store versions</text><text x="841" y="149">separately</text>
+      <text x="1020" y="127">empty target</text><text x="1020" y="149">old + new work</text>
+    </g>
+  </g>
+  <g fill="none" stroke="#166579" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M190 135h10m-6-6 6 6-6 6"/><path d="M374 135h10m-6-6 6 6-6 6"/>
+    <path d="M558 135h10m-6-6 6 6-6 6"/><path d="M742 135h10m-6-6 6 6-6 6"/>
+    <path d="M926 135h10m-6-6 6 6-6 6"/>
+  </g>
+  <text x="560" y="246" fill="#365372" font-family="system-ui,sans-serif" font-size="14" text-anchor="middle">A database dump without the artifact volume and referenced key versions is not a complete recovery point.</text>
+</svg>

@@ -9,6 +9,7 @@ import { Label } from '../../components/ui/label';
 import { NativeSelect, NativeSelectOption } from '../../components/ui/native-select';
 import { allPages, type Page } from '../../lib/pagination';
 import { ApiError } from '../../lib/api';
+import { docsHref } from '../../lib/docs';
 import { listDocuments } from '../documents/api';
 import {
   getEmbeddingSettings,
@@ -798,6 +799,31 @@ export function IngestionPipelineEditor({
                     : 'Existing files → ready index'}
           </span>
         </div>
+        <a
+          href={
+            websiteSource
+              ? docsHref('ingestion/sources/website')
+              : s3Source
+                ? docsHref('ingestion/sources/s3')
+                : notionSource
+                  ? docsHref('ingestion/sources/notion')
+                  : confluenceSource
+                    ? docsHref('ingestion/sources/confluence')
+                    : docsHref('ingestion/pipelines')
+          }
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          {websiteSource
+            ? 'Website source guide'
+            : s3Source
+              ? 'S3 source guide'
+              : notionSource
+                ? 'Notion source guide'
+                : confluenceSource
+                  ? 'Confluence source guide'
+                  : 'Existing Files preview and run guide'}
+        </a>
       </div>
       {(error || pollError) && (
         <p id="ingestion-error" tabIndex={-1} role="alert" className="error-message">

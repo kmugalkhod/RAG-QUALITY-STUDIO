@@ -17,7 +17,11 @@ router = APIRouter(
 )
 
 
-@router.get("/datasets/example.csv")
+@router.get(
+    "/datasets/example.csv",
+    response_class=Response,
+    responses={200: {"content": {"text/csv": {"schema": {"type": "string"}}}}},
+)
 def example(project_id: UUID, session: Database):
     project(session, project_id)
     return Response(
@@ -117,7 +121,11 @@ def cancel(project_id: UUID, experiment_id: UUID, session: Database):
     return experiments.cancel(session, project_id, experiment_id)
 
 
-@router.get("/experiments/{experiment_id}/export.csv")
+@router.get(
+    "/experiments/{experiment_id}/export.csv",
+    response_class=Response,
+    responses={200: {"content": {"text/csv": {"schema": {"type": "string"}}}}},
+)
 def export(project_id: UUID, experiment_id: UUID, session: Database):
     return Response(
         experiments.export_csv(session, project_id, experiment_id),

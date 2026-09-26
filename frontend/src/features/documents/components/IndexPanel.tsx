@@ -24,6 +24,7 @@ import {
 } from '../../../lib/retrieval';
 import { allPages } from '../../../lib/pagination';
 import * as api from '../indexApi';
+import { docsHref } from '../../../lib/docs';
 import type { EmbeddingSettings, IndexVersion, Retrieval } from '../model';
 import { collectionGroups, IndexList } from './IndexList';
 import { IndexRecords } from './IndexRecords';
@@ -347,6 +348,13 @@ export function IndexPanel({ projectId }: { projectId: string }) {
         <div>
           <h2 id="index-title">Searchable collections</h2>
           <p>Publish prepared content into an immutable version that retrieval can use.</p>
+          <a
+            href={docsHref('knowledge-base/collections')}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            How collection versions work
+          </a>
         </div>
         <Button onClick={() => void create()} disabled={busy || hasActive || !settings?.configured}>
           <Plus /> Publish prepared documents

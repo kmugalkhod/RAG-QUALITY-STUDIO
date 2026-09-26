@@ -1,0 +1,31 @@
+{
+  "name": "rag-quality-studio-docs",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "start": "docusaurus start --host 127.0.0.1 --port 3000",
+    "build": "docusaurus build",
+    "serve": "docusaurus serve --host 127.0.0.1 --port 3000",
+    "typecheck": "tsc --noEmit",
+    "check:public": "node scripts/check-public.mjs",
+    "check": "npm run typecheck && npm run build && npm run check:public"
+  },
+  "dependencies": {
+    "@docusaurus/core": "3.10.2",
+    "@docusaurus/preset-classic": "3.10.2",
+    "@easyops-cn/docusaurus-search-local": "0.55.3",
+    "@mdx-js/react": "3.1.1",
+    "clsx": "2.1.1",
+    "open-ask-ai": "0.7.3",
+    "prism-react-renderer": "2.4.1",
+    "react": "19.1.1",
+    "react-dom": "19.1.1"
+  },
+  "devDependencies": {
+    "@docusaurus/tsconfig": "3.10.2",
+    "@types/react": "19.1.12",
+    "@types/react-dom": "19.1.9",
+    "typescript": "5.9.2"
+  },
+  "overrides": {"serialize-javascript": "7.1.2"}
+}

@@ -15,7 +15,7 @@ test('import reviewed dataset, compare two versions and inspect evidence', async
   ).json();
   await page.goto(`/#/projects/${project.id}/knowledge-base`);
   await page.getByRole('button', { name: 'Add document', exact: true }).click();
-  await page.getByLabel('PDF or UTF-8 TXT').setInputFiles({
+  await page.getByLabel('Document file').setInputFiles({
     name: 'orchard.txt',
     mimeType: 'text/plain',
     buffer: Buffer.from('The orchard grows apples. Harvest begins in September.'),

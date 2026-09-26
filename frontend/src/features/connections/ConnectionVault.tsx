@@ -7,6 +7,7 @@ import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { NativeSelect, NativeSelectOption } from '../../components/ui/native-select';
 import { allPages } from '../../lib/pagination';
+import { docsHref } from '../../lib/docs';
 import * as api from './api';
 import type { ConnectionKind, ConnectionSettings, Credentials, SourceConnection } from './model';
 
@@ -275,6 +276,12 @@ export function ConnectionVault({
             <p>
               {items.length} encrypted connection{items.length === 1 ? '' : 's'}
             </p>
+            <a href={docsHref('ingestion/connections')} target="_blank" rel="noopener noreferrer">
+              Source connection guide
+            </a>
+            <a href={docsHref('operate/security')} target="_blank" rel="noopener noreferrer">
+              Credential security boundary
+            </a>
           </div>
           <Button variant="outline" onClick={() => setForm('create')} disabled={busy}>
             <Plus /> Add connection

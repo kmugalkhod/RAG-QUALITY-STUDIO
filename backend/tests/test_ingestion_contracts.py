@@ -10,7 +10,7 @@ from app.connectors.base import (
     FetchResult,
     SourceConnector,
 )
-from app.schemas.ingestion import IngestionPipelineSave
+from app.schemas.ingestion import IngestionPipelineSave, S3Config
 from app.ingestion_content import CleanSemantics, DeterministicCleaner
 from connector_fixtures import DeterministicConnector
 
@@ -115,6 +115,20 @@ def test_ingestion_graph_accepts_one_to_ten_sources_only():
     )
     with pytest.raises(ValidationError):
         IngestionPipelineSave.model_validate(ingestion_draft(source_count=11))
+
+
+def test_s3_source_accepts_every_supported_file_type_selected_in_editor():
+    formats = ["txt", "pdf", "md", "html", "docx", "pptx", "csv", "tsv", "xlsx"]
+    source = {
+        "kind": "s3",
+        "connection_id": "10000000-0000-4000-8000-000000000001",
+        "region": "us-east-1",
+        "bucket": "research-archive",
+        "allowed_file_types": formats,
+    }
+    assert S3Config.model_validate(source).allowed_file_types == formats
+    with pytest.raises(ValidationError):
+        S3Config.model_validate({**source, "allowed_file_types": formats + ["txt"]})
 
 
 def test_v2_envelope_is_strict_and_v1_output_contract_remains_separate():

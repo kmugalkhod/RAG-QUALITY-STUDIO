@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 300" role="img" aria-labelledby="quality-title quality-desc">
+  <title id="quality-title">Quality failure and repaired-source path</title>
+  <desc id="quality-desc">The corrupt synthetic source previews with a strict replacement-character failure and is not published. A separate repaired source is previewed with the same threshold, has its synthetic email redacted, and only then can a saved run publish a ready index.</desc>
+  <rect width="960" height="300" rx="18" fill="#20242b"/>
+  <g fill="#17191f" stroke="#a49bd8" stroke-width="2">
+    <rect x="30" y="40" width="225" height="90" rx="12"/><rect x="340" y="40" width="245" height="90" rx="12"/>
+    <rect x="30" y="175" width="225" height="90" rx="12"/><rect x="340" y="175" width="245" height="90" rx="12"/>
+    <rect x="670" y="175" width="255" height="90" rx="12"/>
+  </g>
+  <g fill="#eceef3" font-family="Arial,sans-serif" font-size="20" font-weight="bold" text-anchor="middle">
+    <text x="142" y="78">Corrupt source</text><text x="462" y="78">Quality fail</text>
+    <text x="142" y="213">Repaired source</text><text x="462" y="213">Preview passes</text><text x="797" y="213">Ready index</text>
+  </g>
+  <g fill="#adb6c4" font-family="Arial,sans-serif" font-size="15" text-anchor="middle">
+    <text x="142" y="106">replacement glyph</text><text x="462" y="106">no publication</text>
+    <text x="142" y="241">new document record</text><text x="462" y="241">[EMAIL] cleaned text</text><text x="797" y="241">saved version only</text>
+  </g>
+  <g stroke="#adb6c4" stroke-width="3" fill="none">
+    <path d="M255 85h85m-10-10 10 10-10 10M142 130v45m-10-10 10 10 10-10M255 220h85m-10-10 10 10-10 10M585 220h85m-10-10 10 10-10 10"/>
+  </g>
+</svg>

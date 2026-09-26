@@ -1,0 +1,23 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+:root { --ifm-font-family-base: Inter, system-ui, sans-serif; --ifm-color-primary: #a49bd8; --ifm-color-primary-dark: #9185d0; --ifm-color-primary-darker: #8174c8; --ifm-color-primary-light: #b6ade0; --ifm-background-color: #17191f; --ifm-background-surface-color: #20242b; --ifm-font-color-base: #eceef3; --ifm-navbar-background-color: #20242b; --ifm-footer-background-color: #20242b; --ifm-code-font-size: 90%; }
+[data-theme='dark'] { --ifm-color-emphasis-200: #343b45; --ifm-color-emphasis-300: #47505d; --ifm-font-color-secondary: #adb6c4; --ifm-link-color: #c3bcec; }
+.navbar { border-bottom: 1px solid #343b45; box-shadow: none; }
+.theme-doc-sidebar-container { border-right: 1px solid #343b45 !important; }
+.markdown { max-width: 76ch; line-height: 1.72; }
+.markdown h1, .markdown h2, .markdown h3 { letter-spacing: -.025em; }
+.markdown h1 { font-size: clamp(2rem, 4vw, 2.75rem); }
+.markdown table { display: block; max-width: 100%; overflow-x: auto; }
+.markdown pre { max-width: 100%; overflow-x: auto; }
+.navbar__search pre[aria-hidden='true'] { max-width: 100%; overflow: hidden; }
+.markdown img { border: 1px solid #343b45; border-radius: .65rem; }
+.pagination-nav__link, .card { border-color: #343b45; }
+.skipToContent_fXgn:focus, :focus-visible { outline: 2px solid #c3bcec; outline-offset: 3px; }
+.doc-callout { background: #20242b; border-left: 3px solid #a49bd8; padding: 1rem 1.2rem; margin: 1.4rem 0; }
+.home { max-width: 1100px; margin: 0 auto; padding: clamp(2rem, 6vw, 6rem) 1.5rem; }
+.home h1 { max-width: 850px; font-size: clamp(2.5rem, 6vw, 5rem); line-height: 1.05; letter-spacing: -.045em; }
+.home-lead { max-width: 64ch; color: #adb6c4; font-size: 1.15rem; }
+.home-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(235px,1fr)); gap: 1rem; margin-top: 3rem; }
+.home-card { display: block; border: 1px solid #343b45; border-radius: .8rem; background: #20242b; padding: 1.5rem; color: #eceef3; text-decoration: none; }
+.home-card:hover, .home-card:focus-visible { border-color: #a49bd8; color: #eceef3; text-decoration: none; }
+.home-card span { display: block; color: #adb6c4; margin-top: .65rem; }
+@media (max-width: 390px) { .home { padding: 2rem 1rem; } .markdown { overflow-wrap: anywhere; } }

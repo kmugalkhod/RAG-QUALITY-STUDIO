@@ -276,7 +276,15 @@ def list_content_chunk_spans(
     )
 
 
-@router.get("/processing-runs/{processing_run_id}/pages/{page_number}/thumbnail")
+@router.get(
+    "/processing-runs/{processing_run_id}/pages/{page_number}/thumbnail",
+    response_class=Response,
+    responses={
+        200: {
+            "content": {"image/png": {"schema": {"type": "string", "format": "binary"}}}
+        }
+    },
+)
 def page_thumbnail(
     project_id: UUID,
     processing_run_id: UUID,

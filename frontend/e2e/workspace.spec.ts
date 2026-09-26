@@ -18,7 +18,7 @@ test('project navigation, isolated state, direct links, history and mobile menu'
   );
   await page.getByRole('link', { name: 'Knowledge Base', exact: true }).click();
   await page.getByRole('button', { name: 'Add document', exact: true }).click();
-  await page.getByLabel('PDF or UTF-8 TXT').setInputFiles({
+  await page.getByLabel('Document file').setInputFiles({
     name: 'only-project-a.txt',
     mimeType: 'text/plain',
     buffer: Buffer.from('Project A evidence.'),
@@ -53,6 +53,12 @@ test('project navigation, isolated state, direct links, history and mobile menu'
   await page.screenshot({ path: 'test-results/workspace-mobile-navigation.png' });
   await page.getByRole('link', { name: 'Settings', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Settings', exact: true })).toBeVisible();
+  await expect(
+    page.getByText('PDF, TXT, Markdown, HTML, DOCX, PPTX, CSV, TSV, and XLSX'),
+  ).toBeVisible();
+  await expect(
+    page.getByText(/Document preparation uses versioned character chunks/),
+  ).toBeVisible();
   await expect(page.getByRole('button', { name: 'Open navigation' })).toBeVisible();
   await page.screenshot({ path: 'test-results/settings-mobile.png', fullPage: true });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);

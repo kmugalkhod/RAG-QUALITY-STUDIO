@@ -34,7 +34,7 @@ test('Confluence preview publishes and incrementally refreshes an exact index', 
   await expect(
     page.locator('.react-flow__node').first().getByText('Confluence', { exact: true }),
   ).toBeVisible();
-  await page.getByRole('button', { name: 'Preview source' }).click();
+  await page.getByRole('button', { name: 'Preview processing' }).click();
   await expect(page.getByRole('heading', { name: '2 included · 0 excluded' })).toBeVisible({
     timeout: 30000,
   });

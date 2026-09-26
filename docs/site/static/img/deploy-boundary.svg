@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 350" role="img" aria-labelledby="title desc">
+  <title id="title">Local service and storage boundary</title>
+  <desc id="desc">Vite reaches a loopback FastAPI service. FastAPI, the Celery worker and dispatcher share PostgreSQL, Redis and a persistent document volume. Configured provider calls leave the local boundary. OIDC and external key wrapping require a separate shared deployment gate.</desc>
+  <rect width="1120" height="350" rx="18" fill="#f4f7fb"/>
+  <rect x="18" y="18" width="810" height="306" rx="16" fill="#e5f3f4" stroke="#166579" stroke-width="2"/>
+  <text x="38" y="48" fill="#17495a" font-family="system-ui,sans-serif" font-size="17" font-weight="700">Local Compose + Vite · loopback ports</text>
+  <g fill="#fff" stroke="#486889" stroke-width="2">
+    <rect x="38" y="77" width="150" height="72" rx="10"/><rect x="235" y="77" width="150" height="72" rx="10"/>
+    <rect x="430" y="77" width="150" height="72" rx="10"/><rect x="625" y="77" width="175" height="72" rx="10"/>
+    <rect x="135" y="213" width="185" height="75" rx="10"/><rect x="365" y="213" width="150" height="75" rx="10"/><rect x="560" y="213" width="215" height="75" rx="10"/>
+    <rect x="862" y="76" width="230" height="95" rx="10"/><rect x="862" y="205" width="230" height="95" rx="10"/>
+  </g>
+  <g fill="#18304b" font-family="system-ui,sans-serif" font-size="16" text-anchor="middle">
+    <text x="113" y="104" font-weight="700">Vite</text><text x="113" y="128" font-size="13">:5273</text>
+    <text x="310" y="104" font-weight="700">FastAPI</text><text x="310" y="128" font-size="13">:8000</text>
+    <text x="505" y="104" font-weight="700">Celery worker</text><text x="505" y="128" font-size="13">jobs</text>
+    <text x="712" y="104" font-weight="700">Dispatcher</text><text x="712" y="128" font-size="13">queue + recovery</text>
+    <text x="227" y="240" font-weight="700">PostgreSQL + pgvector</text><text x="227" y="264" font-size="13">durable state</text>
+    <text x="440" y="240" font-weight="700">Redis</text><text x="440" y="264" font-size="13">delivery</text>
+    <text x="667" y="240" font-weight="700">Document volume</text><text x="667" y="264" font-size="13">retained artifacts</text>
+    <text x="977" y="105" font-weight="700">Model providers</text><text x="977" y="130" font-size="13">configured, may bill</text>
+    <text x="977" y="233" font-weight="700">Shared gate</text><text x="977" y="256" font-size="13">OIDC · TLS · KMS/Vault</text><text x="977" y="277" font-size="13">separate acceptance</text>
+  </g>
+  <g fill="none" stroke="#166579" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M189 112h37m-8-8 8 8-8 8"/>
+    <path d="M310 151v37M505 151v37M712 151v37M227 188h485"/>
+    <path d="M227 188v18m-8-8 8 8 8-8"/>
+    <path d="M440 188v18m-8-8 8 8 8-8"/>
+    <path d="M667 188v18m-8-8 8 8 8-8"/>
+  </g>
+</svg>

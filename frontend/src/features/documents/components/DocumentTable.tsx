@@ -193,7 +193,7 @@ export function DocumentTable({
           <div>
             <h3>No documents yet</h3>
             <p>
-              Add a PDF or TXT source. You can inspect its extracted passages before publishing a
+              Add a supported document. You can inspect its extracted passages before publishing a
               searchable collection.
             </p>
           </div>

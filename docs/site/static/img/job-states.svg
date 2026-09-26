@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 300" role="img" aria-labelledby="title desc">
+  <title id="title">Durable job states and recovery</title>
+  <desc id="desc">An accepted API request writes a queued PostgreSQL row. The dispatcher relays it through Redis to a worker, which checkpoints running progress and ends succeeded, failed or cancelled. Stale running work is reclaimed with a fenced token and a bounded retry budget.</desc>
+  <rect width="1120" height="300" rx="18" fill="#f4f7fb"/>
+  <g fill="#fff" stroke="#486889" stroke-width="2">
+    <rect x="28" y="92" width="180" height="96" rx="11"/><rect x="270" y="92" width="180" height="96" rx="11"/>
+    <rect x="512" y="92" width="180" height="96" rx="11"/>
+    <rect x="754" y="28" width="200" height="68" rx="11"/><rect x="754" y="117" width="200" height="68" rx="11"/>
+    <rect x="754" y="206" width="200" height="68" rx="11"/>
+  </g>
+  <g fill="#18304b" font-family="system-ui,sans-serif" text-anchor="middle">
+    <g font-size="17" font-weight="700">
+      <text x="118" y="128">Accepted</text><text x="360" y="128">Queued</text><text x="602" y="128">Running</text>
+      <text x="854" y="72">Succeeded</text><text x="854" y="161">Failed</text><text x="854" y="250">Cancelled</text>
+    </g>
+    <g font-size="13">
+      <text x="118" y="155">API returns run ID</text><text x="360" y="155">PostgreSQL state</text>
+      <text x="602" y="155">worker checkpoints</text>
+    </g>
+  </g>
+  <g fill="none" stroke="#166579" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M210 140h51m-9-8 9 8-9 8"/><path d="M452 140h51m-9-8 9 8-9 8"/>
+    <path d="M694 132h31v-70h20m-9-8 9 8-9 8"/>
+    <path d="M694 140h51m-9-8 9 8-9 8"/>
+    <path d="M694 148h31v92h20m-9-8 9 8-9 8"/>
+  </g>
+  <text x="315" y="241" fill="#365372" font-family="system-ui,sans-serif" font-size="13" text-anchor="middle">Dispatcher + Redis deliver queued work.</text>
+  <text x="500" y="267" fill="#365372" font-family="system-ui,sans-serif" font-size="13" text-anchor="middle">Stale running work uses a new execution fence and bounded retries.</text>
+</svg>

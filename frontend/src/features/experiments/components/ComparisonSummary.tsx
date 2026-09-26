@@ -10,6 +10,7 @@ import type { Detail } from '../model';
 import { metricLabel } from '../model';
 import { money, number } from '../format';
 import { Configuration } from './Configuration';
+import { docsHref } from '../../../lib/docs';
 
 export function ComparisonSummary({ run }: { run: Detail }) {
   const selected = run.snapshot.evaluator.metrics;
@@ -47,6 +48,9 @@ export function ComparisonSummary({ run }: { run: Detail }) {
         )}
       <section className="experiment-section">
         <h2>Candidate summaries</h2>
+        <a href={docsHref('experiments/metrics')} target="_blank" rel="noopener noreferrer">
+          Interpret metrics and costs
+        </a>
         <p>Means include successful scores only. Counts expose excluded and pending items.</p>
         <div className="experiment-table" tabIndex={0} aria-label="Candidate summaries">
           <Table>
@@ -136,6 +140,9 @@ export function ComparisonSummary({ run }: { run: Detail }) {
       {run.snapshot.candidates.length === 2 && (
         <section className="experiment-section">
           <h2>Paired comparison</h2>
+          <a href={docsHref('experiments/compare')} target="_blank" rel="noopener noreferrer">
+            Paired comparison guide
+          </a>
           <p>Only questions scored for both candidates contribute to each difference.</p>
           <div className="experiment-table" tabIndex={0} aria-label="Paired comparison">
             <Table>

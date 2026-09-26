@@ -4038,6 +4038,15 @@ summary {
   padding: 24px 0 0;
   border-top: 1px solid var(--border);
 }
+.app-shell .ingestion-results > .section-heading h2 {
+  color: var(--foreground);
+  font-size: 18px;
+  font-weight: 600;
+}
+.app-shell .ingestion-results > .section-heading small {
+  display: block;
+  margin-top: 4px;
+}
 .app-shell .ingestion-published-index {
   display: flex;
   align-items: center;
@@ -4238,6 +4247,9 @@ summary {
   margin: 5px 0 0;
   overflow-wrap: anywhere;
   word-break: break-word;
+}
+.app-shell .ingestion-results .project-list li > div > small {
+  display: block;
 }
 @media (max-width: 1100px) {
   .app-shell .ingestion-editor .pipeline-fields {

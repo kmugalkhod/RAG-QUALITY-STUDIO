@@ -1,10 +1,11 @@
 import { Button } from '../components/ui/button';
 import { NativeSelect, NativeSelectOption } from '../components/ui/native-select';
 import { Label } from '../components/ui/label';
-import { Folder, Layers3, Menu, X } from 'lucide-react';
+import { BookOpen, Folder, Layers3, Menu, X } from 'lucide-react';
 import type { Dispatch, SetStateAction } from 'react';
 import type { Project } from '../features/projects/api';
 import { pages } from './pages';
+import { docsHref } from '../lib/docs';
 type WorkspaceSidebarProps = {
   projectId?: string;
   page: string;
@@ -122,9 +123,17 @@ export function WorkspaceSidebar({
             Manage projects
           </a>
         )}
+        <a
+          className="all-projects-link text-xs no-underline underline-offset-4 text-muted-foreground my-2 mx-2.5 flex items-center gap-2"
+          href={docsHref('start')}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <BookOpen size={15} /> Help &amp; documentation
+        </a>
         <div className="sidebar-note mt-auto text-muted-foreground text-xs py-3 px-2.25">
           <span className="local-dot inline-block w-1.5 h-1.5 rounded-full bg-muted-foreground mr-1.75" />
-          Local workspace<p>Sources → pipelines → grounded answers.</p>
+          Project workspace<p>Sources → pipelines → grounded answers.</p>
         </div>
       </div>
     </aside>

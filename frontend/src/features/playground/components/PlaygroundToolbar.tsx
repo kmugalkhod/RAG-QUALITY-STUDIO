@@ -2,6 +2,7 @@ import { BookOpenCheck, History, PanelRightOpen, Search, SlidersHorizontal } fro
 import { Button } from '../../../components/ui/button';
 import type { PipelineVersion } from '../../pipelines/model';
 import type { PlaygroundMode, PlaygroundPanel } from '../model';
+import { docsHref } from '../../../lib/docs';
 
 interface PlaygroundToolbarProps {
   mode: PlaygroundMode;
@@ -57,6 +58,15 @@ export function PlaygroundToolbar({
         </Button>
       </div>
       <div className="playground-toolbar">
+        <a href={docsHref('answers/playground')} target="_blank" rel="noopener noreferrer">
+          Playground guide
+        </a>
+        <a href={docsHref('answers/retrieval')} target="_blank" rel="noopener noreferrer">
+          Retrieval settings guide
+        </a>
+        <a href={docsHref('answers/evidence')} target="_blank" rel="noopener noreferrer">
+          How to inspect evidence
+        </a>
         <span className="playground-context">
           {mode === 'retrieval'
             ? 'Retrieval settings affect document search only'

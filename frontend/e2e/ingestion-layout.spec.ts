@@ -506,7 +506,7 @@ test('preview feedback is brought into view, cancellation works, and failures st
     route.fulfill({ json: { ...preview, status: 'cancelled' } }),
   );
   await page.getByLabel('Starting URL').fill('https://example.org/');
-  await page.getByRole('button', { name: 'Preview source', exact: true }).click();
+  await page.getByRole('button', { name: 'Preview processing', exact: true }).click();
   await expect(page.locator('#ingestion-preview')).toBeInViewport();
   await page.getByRole('button', { name: 'Cancel preview' }).click();
   await expect(page.locator('#ingestion-preview')).toContainText('cancelled');
@@ -516,10 +516,10 @@ test('preview feedback is brought into view, cancellation works, and failures st
   await page.route('**/api/projects/*/ingestion-previews', (route) =>
     route.fulfill({ status: 503, json: { detail: 'Source service unavailable. Retry preview.' } }),
   );
-  await page.getByRole('button', { name: 'Preview source', exact: true }).click();
+  await page.getByRole('button', { name: 'Preview processing', exact: true }).click();
   await expect(page.getByRole('alert')).toHaveText('Source service unavailable. Retry preview.');
   await expect(page.getByRole('alert')).toBeFocused();
-  await expect(page.getByRole('button', { name: 'Preview source', exact: true })).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'Preview processing', exact: true })).toBeEnabled();
 });
 
 test('invalid chunk settings expose field errors and block saving and preview', async ({
@@ -531,7 +531,9 @@ test('invalid chunk settings expose field errors and block saving and preview', 
   await expect(page.getByLabel('Chunk size (characters)')).toHaveAttribute('aria-invalid', 'true');
   await expect(page.getByLabel('Overlap (characters)')).toHaveAttribute('aria-invalid', 'true');
   await expect(page.getByRole('button', { name: 'Save version', exact: true })).toBeDisabled();
-  await expect(page.getByRole('button', { name: 'Preview source', exact: true })).toBeDisabled();
+  await expect(
+    page.getByRole('button', { name: 'Preview processing', exact: true }),
+  ).toBeDisabled();
   await page.getByRole('button', { name: 'Balanced', exact: true }).click();
   await expect(page.getByLabel('Chunk size (characters)')).toHaveValue('1000');
   await expect(page.getByLabel('Overlap (characters)')).toHaveValue('120');

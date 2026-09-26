@@ -36,7 +36,7 @@ test('S3 preview publishes and incrementally refreshes an exact index', async ({
   await page.getByLabel('Prefix (optional)').fill('docs/');
   await page.getByLabel('Expected AWS account ID (optional)').fill('123456789012');
   await page.getByLabel('PDF').uncheck();
-  await page.getByRole('button', { name: 'Preview source' }).click();
+  await page.getByRole('button', { name: 'Preview processing' }).click();
   await expect(page.getByRole('heading', { name: '2 included · 0 excluded' })).toBeVisible({
     timeout: 30000,
   });

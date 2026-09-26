@@ -20,7 +20,7 @@ test('website discovery publishes and incrementally refreshes an exact index', a
   await page.getByLabel('Source type').selectOption('website');
   await page.getByLabel('Starting URL').fill('https://controlled.example/');
   await page.getByLabel('Allowed origins (one per line)').fill('https://controlled.example');
-  await page.getByRole('button', { name: 'Preview source' }).click();
+  await page.getByRole('button', { name: 'Preview processing' }).click();
 
   await expect(page.getByRole('heading', { name: '2 included · 2 excluded' })).toBeVisible({
     timeout: 30000,
@@ -185,7 +185,7 @@ test('existing files publish an exact index that grounds an answer pipeline', as
     ['packing.txt', 'Apples are packed in recycled paper boxes.'],
   ]) {
     await page.getByRole('button', { name: 'Add document', exact: true }).click();
-    await page.getByLabel('PDF or UTF-8 TXT').setInputFiles({
+    await page.getByLabel('Document file').setInputFiles({
       name,
       mimeType: 'text/plain',
       buffer: Buffer.from(content),
@@ -204,7 +204,7 @@ test('existing files publish an exact index that grounds an answer pipeline', as
   await page.getByLabel('Pipeline name').fill('Project files ingestion');
   await page.getByText('orchard.txt', { exact: true }).click();
   await page.getByText('packing.txt', { exact: true }).click();
-  await page.getByRole('button', { name: 'Preview source' }).click();
+  await page.getByRole('button', { name: 'Preview processing' }).click();
   await expect(page.getByRole('heading', { name: '2 included · 0 excluded' })).toBeVisible({
     timeout: 30000,
   });

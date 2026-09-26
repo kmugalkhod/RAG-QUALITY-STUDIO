@@ -5,6 +5,7 @@ import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
 import { StatusBadge } from '../../../components/StatusBadge';
 import { allPages } from '../../../lib/pagination';
+import { docsHref } from '../../../lib/docs';
 import * as ingestionApi from '../../ingestion-pipelines/api';
 import type { IngestionPipelineVersion, IngestionRun } from '../../ingestion-pipelines/model';
 import * as pipelineApi from '../../pipelines/api';
@@ -270,6 +271,9 @@ export function SnapshotPanel({ projectId }: { projectId: string }) {
         <div>
           <h2 id="snapshot-title">Source snapshots</h2>
           <p>Immutable connector collections that can feed independently configured indexes.</p>
+          <a href={docsHref('ingestion/source-history')} target="_blank" rel="noopener noreferrer">
+            Snapshot reuse guide
+          </a>
         </div>
       </header>
       {error && (

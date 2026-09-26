@@ -1,0 +1,29 @@
+{
+  "captured_on": "2026-09-26",
+  "application_base_commit": "481b4eca90c5",
+  "working_tree_scope": "documentation phases 0–4 copy, app links and checked API contracts",
+  "environment": "T1–T5 used isolated rag-docs-e2e PostgreSQL/pgvector, Redis, worker and deterministic test transport; Phase 4 provider-unavailable views used isolated rag-docs-restore-src with no provider key; canonical Vite frontend at http://127.0.0.1:5273",
+  "source": "reviewed fictional files in docs/site/static/examples/; controlled.example uses the isolated test transport",
+  "review": "Screenshots were visually inspected. No credentials, real source content, project UUIDs or external account details are visible. Selected views are component crops; the quality-failure image is cropped to summary text to exclude source IDs.",
+  "screenshots": [
+    {"file": "00-project.png", "viewport": "1440x1000", "scenario": "T1 project form"},
+    {"file": "01-upload.png", "viewport": "1440x1000", "scenario": "T1 file selected for upload"},
+    {"file": "02-prepared.png", "viewport": "1440x1000", "scenario": "T1 successful processing"},
+    {"file": "03-collection.png", "viewport": "1440x1000", "scenario": "T1 stable ready collection version after reload"},
+    {"file": "04-evidence.png", "viewport": "1440x1000", "scenario": "T1 cited answer and source inspector"},
+    {"file": "05-evidence-mobile.png", "viewport": "390x844 full page", "scenario": "T1 responsive cited answer"},
+    {"file": "06-ingestion-preview.png", "viewport": "1440x1000", "scenario": "T2 exact synthetic processing preview stages"},
+    {"file": "07-ingestion-run.png", "viewport": "1440x1000", "scenario": "T2 saved pipeline complete"},
+    {"file": "08-published-index.png", "viewport": "1440x1000", "scenario": "T2 exact ready index link"},
+    {"file": "09-quality-failure.png", "viewport": "1440x1000", "scenario": "T5 strict synthetic quality-failure summary"},
+    {"file": "10-quality-repaired.png", "viewport": "1440x1000", "scenario": "T5 cleaned repaired fixture with redacted email"},
+    {"file": "11-source-snapshot.png", "viewport": "1440x1000", "scenario": "T3 immutable Website source snapshot"},
+    {"file": "12-snapshot-variant.png", "viewport": "1440x1000", "scenario": "T3 second index created from the same snapshot"},
+    {"file": "13-reviewed-dataset.png", "viewport": "1440x1000", "scenario": "T4 preview of two human-reviewed fictional questions"},
+    {"file": "14-candidate-summary.png", "viewport": "1440x1000", "scenario": "T4 successful and unavailable metric counts with unknown cost"},
+    {"file": "15-paired-comparison.png", "viewport": "1440x1000", "scenario": "T4 one shared scored pair and deterministic zero difference"},
+    {"file": "16-question-comparison.png", "viewport": "1440x1000", "scenario": "T4 answerable and insufficient-evidence rows for both candidates"},
+    {"file": "17-provider-unavailable.png", "viewport": "1440x1000 component crop", "scenario": "Phase 4 Settings model panel with no configured provider"},
+    {"file": "18-provider-unavailable-mobile.png", "viewport": "390x844 component crop", "scenario": "Phase 4 mobile Settings model panel with no configured provider"}
+  ]
+}

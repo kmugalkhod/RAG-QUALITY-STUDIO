@@ -11,6 +11,60 @@ from app.db.session import get_session
 from app.main import app
 
 
+def test_openapi_contract_is_available(client):
+    schema = app.openapi()
+    response = client.get("/openapi.json")
+    assert response.status_code == 200
+    assert response.json() == schema
+    assert schema["paths"]["/api/projects"]["post"]["responses"]["201"]
+    schemas = schema["components"]["schemas"]
+
+    def verify_refs(value):
+        if isinstance(value, dict):
+            if "$ref" in value:
+                prefix = "#/components/schemas/"
+                assert value["$ref"].startswith(prefix)
+                assert value["$ref"][len(prefix) :] in schemas
+            for nested in value.values():
+                verify_refs(nested)
+        elif isinstance(value, list):
+            for nested in value:
+                verify_refs(nested)
+
+    verify_refs(schema["paths"])
+    verify_refs(schemas)
+    for path, media_type in (
+        ("/api/projects/{project_id}/datasets/example.csv", "text/csv"),
+        (
+            "/api/projects/{project_id}/experiments/{experiment_id}/export.csv",
+            "text/csv",
+        ),
+        (
+            "/api/projects/{project_id}/processing-runs/{processing_run_id}/pages/{page_number}/thumbnail",
+            "image/png",
+        ),
+    ):
+        content = schema["paths"][path]["get"]["responses"]["200"]["content"]
+        assert list(content) == [media_type]
+    for path, methods in schema["paths"].items():
+        for method, operation in methods.items():
+            if method in {"get", "post", "delete", "put", "patch"}:
+                assert operation.get("responses"), (
+                    f"{method.upper()} {path} has no response"
+                )
+                for media in (
+                    operation.get("requestBody", {}).get("content", {}).values()
+                ):
+                    assert "schema" in media, (
+                        f"{method.upper()} {path} has no request schema"
+                    )
+                for response_contract in operation["responses"].values():
+                    for media in response_contract.get("content", {}).values():
+                        assert "schema" in media, (
+                            f"{method.upper()} {path} has no response schema"
+                        )
+
+
 def test_health_does_not_need_database(client):
     response = client.get("/api/health")
     assert response.status_code == 200

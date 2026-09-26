@@ -1,4 +1,5 @@
 import { Button } from '../../../components/ui/button';
+import { docsHref } from '../../../lib/docs';
 
 interface PipelineValidationProps {
   saveReasons: string[];
@@ -39,6 +40,9 @@ export function PipelineValidation({
           Choose documents to search
         </Button>
       )}
+      <a href={docsHref('answers/pipelines')} target="_blank" rel="noopener noreferrer">
+        Answer pipeline setup and validation
+      </a>
     </section>
   );
 }
