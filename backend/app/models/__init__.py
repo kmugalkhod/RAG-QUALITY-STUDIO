@@ -29,3 +29,13 @@ from app.models.security import (  # noqa: F401
     SensitiveAccessEvent,
     UserIdentity,
 )
+from app.models.deployment import (  # noqa: F401
+    AnswerDeployment,
+    AnswerDeploymentRelease,
+    AnswerDeploymentEvent,
+    AnswerDeploymentKey,
+    DeployedAnswerRun,
+    DeploymentUsageBucket,
+    DeploymentUsageEntry,
+    DeploymentCommandReceipt,
+)

@@ -184,6 +184,8 @@ def compile_answer_chain(
     node_ids: dict[str, str] | None = None,
     checkpoint: Callable[[dict[str, Any]], None] | None = None,
     before_provider: Callable[[], None] | None = None,
+    before_embedding: Callable[[], None] | None = None,
+    before_generation: Callable[[], None] | None = None,
 ) -> tuple[RunnableSequence, ChainTrace]:
     """Compile one validated five-node answer graph into an LCEL sequence."""
 
@@ -210,7 +212,9 @@ def compile_answer_chain(
     def retrieval_stage(state: dict[str, Any]) -> dict[str, Any]:
         started = monotonic()
         try:
-            if before_provider:
+            if before_embedding:
+                before_embedding()
+            elif before_provider:
                 before_provider()
             documents = retriever.invoke(
                 state["question"], config={"run_name": ids["retriever"]}
@@ -267,7 +271,9 @@ def compile_answer_chain(
             return {**state, **updates}
         started = monotonic()
         try:
-            if before_provider:
+            if before_generation:
+                before_generation()
+            elif before_provider:
                 before_provider()
             message = chat_model.invoke(
                 state["prompt_value"], config={"run_name": ids["llm"]}

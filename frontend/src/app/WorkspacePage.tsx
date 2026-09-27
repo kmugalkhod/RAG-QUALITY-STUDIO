@@ -26,6 +26,11 @@ const PipelinesPage = lazy(() =>
     default: module.PipelinesPage,
   })),
 );
+const DeploymentsPage = lazy(() =>
+  import('../features/deployments/DeploymentsPage').then((module) => ({
+    default: module.DeploymentsPage,
+  })),
+);
 const Playground = lazy(() =>
   import('../features/playground/Playground').then((module) => ({ default: module.Playground })),
 );
@@ -97,6 +102,8 @@ function WorkspaceRoute({ route, onProjectCreated }: WorkspacePageProps) {
           testMode={query.get('mode') || 'pipeline'}
         />
       );
+    case 'deployments':
+      return <DeploymentsPage projectId={projectId} deploymentId={detail} />;
     default:
       return <PageNotFound />;
   }

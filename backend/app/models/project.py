@@ -1,6 +1,14 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import CheckConstraint, DateTime, Index, String, Text, func
+from sqlalchemy import (
+    CheckConstraint,
+    DateTime,
+    Index,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 from app.db.session import Base
 
@@ -8,6 +16,7 @@ from app.db.session import Base
 class Project(Base):
     __tablename__ = "projects"
     __table_args__ = (
+        UniqueConstraint("id", "organization_id", name="uq_project_organization"),
         CheckConstraint(
             "char_length(btrim(name)) BETWEEN 1 AND 120", name="ck_projects_name"
         ),

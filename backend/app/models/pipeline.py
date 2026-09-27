@@ -40,6 +40,9 @@ class PipelineVersion(Base):
         ),
         UniqueConstraint("pipeline_id", "version", name="uq_pipeline_version"),
         UniqueConstraint("id", "project_id", name="uq_pipeline_version_project"),
+        UniqueConstraint(
+            "id", "pipeline_id", "project_id", name="uq_pipeline_version_identity"
+        ),
     )
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     pipeline_id: Mapped[uuid.UUID]

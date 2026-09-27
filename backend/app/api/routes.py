@@ -15,6 +15,7 @@ from app.services import projects, organizations
 from app.core.auth import CurrentPrincipal, require_project_access, _clerk_membership
 from app.models.project import Project
 from app.models.security import ProjectMembership, UserIdentity
+from app.core.config import settings
 
 router = APIRouter(prefix="/api")
 Database = Annotated[Session, Depends(get_session)]
@@ -93,6 +94,27 @@ def ready(session: Database) -> dict[str, str]:
     session.execute(text("SELECT rows FROM dataset_versions LIMIT 0"))
     session.execute(text("SELECT snapshot, progress FROM experiments LIMIT 0"))
     session.execute(text("SELECT metrics, query_run_id FROM experiment_items LIMIT 0"))
+    session.execute(
+        text(
+            "SELECT id, active_release_id, rate_per_minute FROM answer_deployments LIMIT 0"
+        )
+    )
+    session.execute(
+        text("SELECT execution_sha256 FROM answer_deployment_releases LIMIT 0")
+    )
+    session.execute(
+        text("SELECT prefix, secret_hash FROM answer_deployment_keys LIMIT 0")
+    )
+    session.execute(
+        text("SELECT status, execution_token FROM deployed_answer_runs LIMIT 0")
+    )
+    session.execute(text("SELECT reserved_usd FROM deployment_usage_buckets LIMIT 0"))
+    if settings.deployed_answers_enabled and (
+        not settings.deployment_pricing_version
+        or not settings.deployment_approved_prices
+        or settings.deployment_active_pepper not in settings.deployment_key_peppers
+    ):
+        raise HTTPException(503, "Deployed answer configuration unavailable.")
     return {"status": "ready"}
 
 

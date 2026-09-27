@@ -1,7 +1,8 @@
 from pathlib import Path
+from decimal import Decimal
 from typing import Literal
 
-from pydantic import Field, SecretStr
+from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -59,6 +60,55 @@ class Settings(BaseSettings):
     auth_oidc_algorithms: list[Literal["RS256", "RS384", "RS512", "ES256"]] = ["RS256"]
     auth_local_subject: str = "local-owner"
     auth_local_email: str = "local-owner@localhost.invalid"
+    deployed_answers_enabled: bool = False
+    deployment_local_keys_enabled: bool = False
+    deployment_active_pepper: str = ""
+    deployment_key_peppers: dict[str, SecretStr] = Field(default_factory=dict)
+    deployment_key_rotation_grace_minutes: int = Field(default=15, ge=0, le=60)
+    deployment_pricing_version: str = ""
+    deployment_approved_prices: dict[str, dict[str, Decimal]] = Field(
+        default_factory=dict
+    )
+    deployment_key_rpm: int = Field(default=10, ge=1)
+    deployment_rpm: int = Field(default=30, ge=1)
+    deployment_org_rpm: int = Field(default=100, ge=1)
+    deployment_concurrency: int = Field(default=2, ge=1)
+    deployment_org_concurrency: int = Field(default=10, ge=1)
+    deployment_queue_cap: int = Field(default=20, ge=1)
+    deployment_org_queue_cap: int = Field(default=100, ge=1)
+    deployment_global_queue_cap: int = Field(default=1000, ge=1)
+    deployment_org_daily_usd: Decimal = Field(default=Decimal("5.00"), gt=0)
+    deployment_org_monthly_usd: Decimal = Field(default=Decimal("20.00"), gt=0)
+    deployment_max_reserved_usd_per_run: Decimal = Field(default=Decimal("0.25"), gt=0)
+    deployment_result_retention_days: int = Field(default=30, ge=1, le=365)
+
+    @model_validator(mode="after")
+    def deployment_settings_coherent(self):
+        if not (
+            self.deployment_key_rpm <= self.deployment_rpm <= self.deployment_org_rpm
+            and self.deployment_concurrency <= self.deployment_org_concurrency
+            and self.deployment_queue_cap
+            <= self.deployment_org_queue_cap
+            <= self.deployment_global_queue_cap
+            and self.deployment_org_daily_usd <= self.deployment_org_monthly_usd
+        ):
+            raise ValueError("Deployment limit hierarchy is invalid.")
+        if self.deployed_answers_enabled and (
+            not self.deployment_pricing_version
+            or not self.deployment_approved_prices
+            or self.deployment_active_pepper not in self.deployment_key_peppers
+            or len(
+                self.deployment_key_peppers[self.deployment_active_pepper]
+                .get_secret_value()
+                .encode()
+            )
+            < 32
+        ):
+            raise ValueError(
+                "Deployment pricing or key verification configuration is unavailable."
+            )
+        return self
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 

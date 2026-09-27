@@ -582,3 +582,56 @@ Clerk is an opt-in development authentication mode alongside the existing loopba
 The FastAPI Clerk adapter verifies an RS256 session token against the configured instance JWKS and exact issuer, checks expiry/not-before/issued-at, requires a session/user subject, validates the frontend `azp` against the authorized origins when Clerk includes it, and rejects pending organization-selection sessions. Clerk documents that `azp` can be omitted when the original Frontend API request has no Origin; an absent claim is allowed only within this loopback-only development mode, while any supplied claim must match the configured origin. It then checks the active organization's membership through Clerk's Backend API on every request, so removal takes effect without waiting for a JWT refresh. Backend API failure fails closed as 503. Initial identity creation retries PostgreSQL serialization conflicts a bounded number of times, which matters when Clerk completes organization setup concurrently with the first API read. A project role is read from PostgreSQL only when its `organization_id` equals the verified active organization. The existing owner/admin/editor/viewer access rules and owner/admin sensitive-read checks remain authoritative across the project-scoped routers. The Clerk development mode is loopback-only while raw artifacts lack a shared KMS/Vault boundary; public shared deployment remains gated separately.
 
 Migration 0029 adds nullable `projects.organization_id`. A pre-existing project is backfilled only when `LEGACY_PROJECT_ORG_ID` is explicitly supplied; otherwise migration fails before changing data. Downgrading removes this association, so the same explicit owner mapping is required again before re-upgrade. New Clerk projects always store the verified active organization and grant their creator the project owner role. Local-owner projects may remain null to preserve local development. Organization admins can explicitly claim organization-owned legacy projects with no project membership. Project owners/admins can grant project roles only to current members of that same organization; admins cannot grant owner/admin. A Clerk invitation alone grants organization membership, not project access. Project-scoped CSV responses use the same bearer authorization as JSON.
+## Deployable answer endpoint (local server-to-server implementation)
+
+Migrations 0030–0034 add organization-owned deployments, immutable release/event rows,
+versioned hashed keys, durable answer runs and usage buckets, per-deployment ceilings,
+and 24-hour management command receipts. Existing pipeline/index/query/experiment rows
+are not rewritten. Composite foreign keys bind deployment, release, project, pipeline,
+index, key and run ownership. A database trigger rejects release/event changes. The
+active release pointer is a deferred composite foreign key to the same deployment.
+
+Owner/admin may create and change a deployment; editor/viewer can read safe release and
+run summaries. Every release snapshots the validated answer execution/hash and exact
+ready index ID/embedding configuration/hash. Its retriever must name that index. Saving
+a newer pipeline version or publishing a new ready index cannot move an active release.
+Promotion, rollback, pause, resume and archival use a revision precondition and commit
+an event with the state change. Archival is terminal, revokes keys and cancels or
+requests cancellation of accepted work. The development Clerk mode remains loopback
+only; local-owner mode requires a separate switch before it can issue customer keys.
+
+Customer keys have 256 random bits, a public lookup prefix and a versioned HMAC-SHA-256
+hash with a server-only pepper. The plaintext is returned once on issuance/rotation.
+Rotation preserves a credential-family ID; rate and idempotency accounting use that
+family so overlap cannot reset limits. Management command receipts store a hash of an
+optional `Idempotency-Key`, the request hash and only safe metadata. Replaying key
+issuance returns `key_secret_already_issued`, never the secret.
+
+Customer admission uses a read-committed PostgreSQL transaction and advisory lock to
+validate the key, active release, client-family idempotency, rate/queue ceilings and
+conservative organization and deployment daily/monthly reservations together. A row's
+unique `(deployment_id, client_id, idempotency_key)` constraint is the final duplicate
+barrier. Approved price ceilings are operator configured; an unpriced model fails
+closed. Since the embedding adapter does not report total query cost, a successful run
+still retains its full worst-case reservation. A pre-provider cancellation releases it;
+an ambiguous paid call retains it until reconciliation. This is intentionally
+conservative and can exhaust admission capacity before actual billing does.
+
+The dispatcher relays durable queued IDs to a dedicated Celery queue. The worker
+claims with a fenced token, checkpoints before each possibly paid provider call,
+executes the saved release and exact index, and persists bounded evidence, validated
+citation excerpts, usage and separate queue/execution timing. It never calls the
+playground's FastAPI `BackgroundTasks` path. Redis loss leaves queued rows in
+PostgreSQL; duplicate deliveries cannot repeat a terminal run. The dispatcher requeues
+only stale pre-provider attempts, marks ambiguous paid attempts unknown, redacts
+customer question/answer/evidence after 30 days by default, and prunes expired
+command receipts. Release/key/audit/usage metadata currently remains retained; no
+automatic historical-data deletion is performed.
+
+The management React feature reads backend role permissions and exposes immutable
+release history, exact version/index IDs, publication and traffic controls, limits,
+one-time key copy, and operational run summaries. The customer API refuses browser
+Origin requests and stays bound to loopback in Compose. A separate loopback metrics
+endpoint reports bounded-label queue, stale, unknown-outcome and reserved-spend gauges.
+Internet exposure remains subject to independent production Clerk, KMS/Vault,
+authenticated TLS ingress and AWS infrastructure gates.

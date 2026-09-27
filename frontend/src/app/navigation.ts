@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 export function parseRoute(hash: string) {
   const [path, query = ''] = hash.replace(/^#/, '').split('?');
   const match =
-    /^\/projects\/([a-f0-9-]{36})(?:\/(overview|knowledge-base|pipelines|playground|experiments|settings))?(?:\/([a-zA-Z0-9-]+))?$/.exec(
+    /^\/projects\/([a-f0-9-]{36})(?:\/(overview|knowledge-base|pipelines|deployments|playground|experiments|settings))?(?:\/([a-zA-Z0-9-]+))?$/.exec(
       path,
     );
   return {

@@ -15,6 +15,11 @@ it('parses project, page, editor and saved version links', () => {
   expect(parseRoute(`#/projects/${id}/playground?pipeline=p&version=v`).query.get('version')).toBe(
     'v',
   );
+  expect(parseRoute(`#/projects/${id}/deployments/new`)).toMatchObject({
+    projectId: id,
+    page: 'deployments',
+    detail: 'new',
+  });
   expect(parseRoute('#/missing').page).toBe('not-found');
 });
 function Guard() {

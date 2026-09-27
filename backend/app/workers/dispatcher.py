@@ -419,6 +419,122 @@ def dispatch_schedules_once(db_engine=engine, current=None):
             session.commit()
 
 
+def dispatch_deployed_once(db_engine=engine, send=None):
+    from app.models.deployment import DeployedAnswerRun
+    from app.workers.deployed_answers import (
+        execute_deployed,
+        _release_reservation,
+        _session,
+    )
+
+    send = send or (
+        lambda run_id: execute_deployed.apply_async(
+            args=[str(run_id)], queue="deployed_answers"
+        )
+    )
+    current = now()
+    with _session(db_engine) as session:
+        stale = session.scalars(
+            select(DeployedAnswerRun)
+            .where(
+                DeployedAnswerRun.status.in_(["running", "cancel_requested"]),
+                or_(
+                    DeployedAnswerRun.deadline_at < current,
+                    DeployedAnswerRun.heartbeat_at < current - timedelta(seconds=130),
+                ),
+            )
+            .limit(50)
+            .with_for_update(skip_locked=True)
+        ).all()
+        for run in stale:
+            run.execution_token = None
+            run.dispatched_at = None
+            if run.status == "cancel_requested":
+                run.status = "cancelled"
+                run.error_code = "cancelled"
+            elif run.provider_call_started_at is not None:
+                run.status = "failed"
+                run.error_code = "provider_outcome_unknown"
+            elif run.attempts < 2:
+                run.status = "queued"
+                run.stage = "recovery"
+                continue
+            else:
+                run.status = "failed"
+                run.error_code = "worker_unavailable"
+            run.finished_at = current
+            run.stage = "terminal"
+            if run.provider_call_started_at is None:
+                _release_reservation(session, run)
+        session.commit()
+    with _session(db_engine) as session:
+        queued = session.scalars(
+            select(DeployedAnswerRun)
+            .where(
+                DeployedAnswerRun.status == "queued",
+                or_(
+                    DeployedAnswerRun.dispatched_at.is_(None),
+                    DeployedAnswerRun.dispatched_at < current - timedelta(seconds=30),
+                ),
+            )
+            .order_by(DeployedAnswerRun.created_at)
+            .limit(20)
+            .with_for_update(skip_locked=True)
+        ).all()
+        for run in queued:
+            send(run.id)
+            run.dispatched_at = current
+        session.commit()
+
+
+def redact_expired_deployed_once(db_engine=engine):
+    """Remove customer content but keep idempotency and accounting tombstones."""
+    from app.models.deployment import DeployedAnswerRun
+    from app.workers.deployed_answers import _session
+
+    current = now()
+    with _session(db_engine) as session:
+        expired = session.scalars(
+            select(DeployedAnswerRun)
+            .where(
+                DeployedAnswerRun.result_expires_at <= current,
+                DeployedAnswerRun.redacted_at.is_(None),
+                DeployedAnswerRun.status.in_(
+                    ["succeeded", "insufficient_evidence", "failed", "cancelled"]
+                ),
+            )
+            .order_by(DeployedAnswerRun.result_expires_at)
+            .limit(50)
+            .with_for_update(skip_locked=True)
+        ).all()
+        for run in expired:
+            run.question = None
+            run.answer = None
+            run.citations = None
+            run.evidence = None
+            run.redacted_at = current
+        session.commit()
+    return len(expired)
+
+
+def prune_expired_deployment_commands_once(db_engine=engine):
+    from app.models.deployment import DeploymentCommandReceipt
+    from app.workers.deployed_answers import _session
+
+    with _session(db_engine) as session:
+        rows = session.scalars(
+            select(DeploymentCommandReceipt)
+            .where(DeploymentCommandReceipt.expires_at <= now())
+            .order_by(DeploymentCommandReceipt.expires_at)
+            .limit(50)
+            .with_for_update(skip_locked=True)
+        ).all()
+        for row in rows:
+            session.delete(row)
+        session.commit()
+    return len(rows)
+
+
 def main():
     while True:
         try:
@@ -433,6 +549,9 @@ def main():
             from app.workers.experiments import dispatch_experiments_once
 
             dispatch_experiments_once()
+            dispatch_deployed_once()
+            redact_expired_deployed_once()
+            prune_expired_deployment_commands_once()
         except Exception:
             logging.warning("Queue dispatch unavailable; retrying in five seconds.")
         time.sleep(5)

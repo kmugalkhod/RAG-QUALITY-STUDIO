@@ -1,5 +1,13 @@
 # Deployment
 
+The deployable answer endpoint is currently a **loopback-only server-to-server
+development feature**. Migrations 0030–0034, a dedicated Celery queue and a separate
+`deployed-worker` service are required when it is enabled. Keep
+`DEPLOYED_ANSWERS_ENABLED=false` for an unconfigured installation. See
+[deployed answer operations](operations.md#deployed-answer-endpoint-local-operation)
+for key, budget, recovery and retention procedures. The website widget and optimization
+agent are not implemented. No public ingress or production rollout is authorized.
+
 The default verified deployment is the local Docker Compose workspace documented in the [README](../README.md). Its published ports bind to `127.0.0.1`, and local authentication provides one loopback-only owner. Shared mode requires OIDC signature/issuer/audience validation, project roles and an external AWS KMS or Vault Transit artifact-key boundary; incomplete settings fail startup. Ingress/TLS, identity provisioning and external key-service availability remain operator responsibilities. Follow the [authorization and recovery gate](operations.md) before shared access.
 
 ## PDF extraction and OCR capacity

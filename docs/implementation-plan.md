@@ -1930,3 +1930,62 @@ Verification: the changed backend security, API and website-migration suites pas
 Social sign-in follow-up (2026-09-27): the owner's Clerk account accepted the invitation and has an active admin session. Safe rejection-category logging established why project reads initially returned 401: Clerk issued the session for `http://localhost:5273`, while the backend allowed only `http://127.0.0.1:5273`. Both loopback frontend origins are now explicitly allowed; the canonical browser verification URL remains `127.0.0.1`. Clerk also documents that a session token may omit `azp` if the original Frontend API request had no Origin. Token verification treats `azp` as optional and still rejects any supplied value outside the configured frontend origins. The owner confirmed that projects load after refreshing.
 
 The signed-out screen now has a responsive layout aligned with the studio's dark theme, visible sign-in and sign-up actions, and product-specific Clerk modal copy. Both dialogs and the desktop/mobile layout were checked in the development browser. Frontend typecheck, lint, formatting and production build passed. A later parallel Vitest run hit timeouts in several existing UI suites; a single-worker retry stalled and was stopped, so this later run does not supersede the earlier 122-test pass.
+## Deployable answer endpoint — 2026-09-27
+
+The requested server-to-server slices 0–7 are implemented locally. Strict schemas and
+additive Alembic migrations 0030–0034 establish organization/project ownership,
+immutable releases and events, hashed one-time keys, durable runs/usage and command
+receipts. Owner/admin management routes create, stage, promote, roll back, pause,
+resume, archive, change capped limits, issue/rotate/revoke keys, inspect releases,
+events and jobs, and cancel work. Customer status/admission/poll/result routes require
+a deployment-specific key, reject browser Origin traffic and never call FastAPI
+`BackgroundTasks`. A PostgreSQL advisory transaction serializes idempotency, rates,
+queues and budget reservations; a dedicated Celery queue and dispatcher fence claims,
+checkpoint paid calls, recover safe attempts, and mark ambiguous calls unknown. The
+React workspace has an Answer deployments page for these controls and one-time key
+display. Operational metrics, 30-day content redaction and runbooks are added.
+
+The user authorized the plan's development defaults: $5/day and $20/month per
+organization, $0.25 maximum reservation per run, short citation excerpts, and 30-day
+result retention. Production values remain server configurable. No live paid provider
+call, website widget, optimization agent, deployment, publication or internet exposure
+was performed. The new endpoint remains loopback-only and the separate production
+Clerk, encryption, ingress and AWS gates are open. Full query cost is unknown with the
+current embedding adapter, so successful paid runs conservatively retain the full
+reservation; this may reject further questions before actual provider billing reaches
+the configured budget.
+
+Verification: a fresh isolated PostgreSQL/pgvector focused suite passed 63 tests. The
+final deployment-specific suite passed 10 tests, including role/organization isolation,
+key rotation/revocation, atomic admission under eight concurrent clients, deterministic
+worker result, duplicate delivery, Redis dispatch failure, stale paid/prepaid recovery,
+cancellation and redaction. One test sent eight pinned runs through a unique Redis
+queue to a real solo Celery worker with deterministic provider doubles, then verified
+the saved answers, citations and queue/execution timing. The final local samples
+measured admission p50/p95/p99 at 18/42/45 ms, Celery queue at 193/196/197 ms, and
+execution at 5/8/8 ms. These are not public capacity thresholds. A complete backend
+run with clean local settings passed 365 tests and skipped four opt-in live cases; two
+existing unrelated assertions failed: one expects public-host local authorization to
+succeed, and one expects only one OCR DPI validation issue instead of the current
+Pydantic union error list. The deployment selection passed. `alembic check` reported
+no model drift. Empty isolated PostgreSQL upgraded to 0034, downgraded to 0029 and
+re-upgraded successfully. The populated development database upgraded from 0032 to
+0034 with project/pipeline/index/query/experiment counts unchanged at 5/9/18/9/0.
+Ruff lint/format, frontend lint/typecheck, all 122 Vitest tests and the production
+build passed. On canonical Vite `127.0.0.1:5273`, Agent Browser exercised a local
+owner creating and promoting a paused release, staging and promoting release 2,
+pausing, rolling back, issuing/rotating/revoking one-time keys, rejecting an invalid
+budget, saving a valid budget and archiving. The one-time key disappeared after
+dismissal and was absent from browser storage; the archived deployment reports
+`accepting_questions:false`. Editor and viewer UI read-only journeys used browser-side
+permission doubles, and a foreign-organization 404 journey used a browser-side error
+double; the configured Clerk signed-out landing was also observed at the canonical
+URL. Backend tests verify the real server role/organization boundary. The 390 px
+mobile check found and fixed execution-hash overflow, then measured document
+`scrollWidth == innerWidth == 390`. Keyboard focus was visible. The local dispatcher
+and dedicated deployed-answer worker started against Redis, the worker returned a
+Celery ping, and the loopback metrics endpoint reported zero queued/stale/unknown runs.
+After restoring the local Clerk configuration, readiness returned 200, an anonymous
+management read and keyless customer read returned 401, and a customer request with a
+browser Origin returned 403. The canonical Vite process remained on port 5273.
+These checks do not constitute the separate production gate.

@@ -139,3 +139,90 @@ protected reads; denied and granted sensitive-read audit events; and absence of 
 values from logs, URLs, browser storage and error bodies. Run the synthetic authorization,
 artifact tamper/retention and sensitive-data suites. Local mode is one loopback owner and
 is not a shared-deployment substitute.
+
+## Deployed answer endpoint: local operation
+
+Apply migrations before enabling the feature. The local stack uses one Vite frontend at
+`http://127.0.0.1:5273`; do not start the Nginx frontend alongside it. The API binds
+`127.0.0.1:8000`. To start the durable services without resetting data:
+
+```sh
+docker compose up --build -d db redis migrate backend worker dispatcher deployed-worker
+docker compose ps
+curl --fail http://127.0.0.1:8000/api/ready
+curl --fail http://127.0.0.1:8000/api/ops/deployed-answers/metrics
+```
+
+The feature is off by default. A local test must set `DEPLOYED_ANSWERS_ENABLED=true`,
+an active version in `DEPLOYMENT_ACTIVE_PEPPER`, a matching JSON
+`DEPLOYMENT_KEY_PEPPERS` secret of at least 32 bytes, a nonempty approved
+`DEPLOYMENT_PRICING_VERSION` and `DEPLOYMENT_APPROVED_PRICES` for the configured chat
+and embedding models. Use only server environment/secret files; never `VITE_*` or a
+browser store. In `AUTH_MODE=local`, key issuance also requires the explicit
+`DEPLOYMENT_LOCAL_KEYS_ENABLED=true` development switch. The default organization
+admission budget is $5 UTC day and $20 UTC month, with at most $0.25 reserved per run.
+Rates, queue/concurrency ceilings, retention, rotation grace and prices are settings in
+`.env.example`; a deployment may lower its own ceiling in the UI. Startup/readiness
+reject missing or incoherent enabled configuration. These controls are not an external
+provider account spend cap.
+
+An owner/admin uses **Answer deployments** to select a saved answer pipeline version
+whose retriever names a ready index, create a paused deployment, promote a release and
+issue a server key. The key response is one-time. Copy it directly to a server-side
+secret store; if it is lost, create/rotate a key and revoke the lost credential.
+Rotation preserves the client family and expires the old credential after the configured
+15-minute default grace. Use `If-Match: "<revision>"` for state/limit changes and an
+`Idempotency-Key` on management writes. A repeated key-issue command returns only the
+key ID with `key_secret_already_issued`. A customer server submits one bounded question
+with `Authorization: Bearer <key>` and a stable `Idempotency-Key`, then polls the
+returned status/result URLs. Reusing the key with changed question content is a 409.
+Browser-Origin customer requests are rejected. Customer requests never execute in the
+API process or use FastAPI `BackgroundTasks`.
+
+The local metrics endpoint exposes counts by run state, oldest queue age, stale leases,
+unknown provider outcomes and UTC-day reserved/settled USD without question, key or
+user labels. Inspect `docker compose logs --since=30m dispatcher deployed-worker backend`
+and `docker compose exec deployed-worker celery -A app.workers.celery_app:celery inspect ping`
+when queue age rises or claims stop. Alert on sustained queue age over 30 seconds,
+stale leases above zero, repeated unknown provider outcomes, API 401/429 bursts,
+daily reservations above 80% of budget, and missing dispatcher/worker heartbeats from
+process supervision. Compose does not install a metrics scraper or alert manager; the
+operator must provision and test those before shared exposure.
+
+Pause a deployment to stop new admissions without changing accepted runs. Revoke a
+compromised key immediately; archived deployments revoke all keys and cannot resume.
+For a provider incident, pause affected deployments, preserve the queue and usage
+ledger, check provider billing externally and reconcile unknown outcomes before issuing
+new client idempotency keys. Do not replay a run after `provider_call_started` merely
+because Celery or Redis restarted. The dispatcher requeues only a bounded stale
+pre-provider attempt; a stale paid attempt becomes `provider_outcome_unknown` with its
+full reservation retained. A queued cancellation releases the reservation. Running
+cancellation takes effect at the next fenced checkpoint or stale deadline; an in-flight
+paid call may still complete and be billed.
+
+The dispatcher clears question, answer, citations and evidence after the configured
+30-day result window and retains the idempotency tombstone; expired customer reads
+return 410. It prunes 24-hour management receipts. Release, key, audit and usage
+history is retained without automatic deletion. Capacity planning must account for
+that PostgreSQL growth. Full query cost is unavailable from the current embedding
+adapter, so even successful paid runs keep the worst-case reservation rather than
+settling a potentially false zero. Review provider billing and budget configuration
+before widening local traffic.
+
+Back up PostgreSQL, the document volume, API-key pepper, artifact wrapping keys and
+connection-secret keys at one recovery point. Stop the API, dispatcher and both worker
+services before taking a consistent local backup; use the commands above for existing
+artifact recovery, adding `deployed-worker` to the stopped/restarted set. A restored
+database can resurrect a previously revoked key. Keep customer ingress closed after
+restore, replay a separately retained revocation ledger or revoke and replace every
+deployment key, fence stale runs, reconcile outstanding reservations, then verify old
+release/index references and result reads in an isolated restored copy. Do not run a
+destructive Alembic downgrade on populated deployment data. To roll back code, disable
+admission, drain/fence work, and keep additive migrations 0030–0034 in place.
+
+The local stack is not an internet-capacity measurement. Before exposing a customer
+route, separately verify production Clerk issuer/JWKS and live organization membership;
+KMS/Vault encryption and protected backups for artifacts, connections and pepper;
+authenticated TLS ingress with trusted proxy, host/body/CORS and abuse controls; and a
+tested AWS IAM, pgvector, Redis, worker, backup and monitoring design. None of those
+gates is completed by enabling this loopback feature.

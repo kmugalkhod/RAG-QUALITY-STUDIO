@@ -18,10 +18,16 @@ export class ApiError extends Error {
 }
 
 function validationIssues(body: unknown): ValidationIssue[] {
-  if (!body || typeof body !== 'object' || !('detail' in body) || !Array.isArray(body.detail)) {
+  if (!body || typeof body !== 'object') {
     return [];
   }
-  return body.detail.filter(
+  const wrapped = 'error' in body && body.error && typeof body.error === 'object' &&
+    'details' in body.error && Array.isArray(body.error.details) ? body.error.details : null;
+  const entries = 'detail' in body && Array.isArray(body.detail) ? body.detail : wrapped;
+  if (!entries) {
+    return [];
+  }
+  return entries.filter(
     (issue: unknown): issue is ValidationIssue =>
       !!issue &&
       typeof issue === 'object' &&
@@ -59,6 +65,24 @@ function issueField(issue: ValidationIssue): string {
 }
 
 function errorMessage(status: number, body: unknown): string {
+  if (
+    body &&
+    typeof body === 'object' &&
+    'error' in body &&
+    body.error &&
+    typeof body.error === 'object' &&
+    'message' in body.error &&
+    typeof body.error.message === 'string'
+  ) {
+    const issues = relevantIssues(validationIssues(body));
+    if (status === 422 && issues.length) {
+      return issues.slice(0, 5).map((issue) => {
+        const field = issueField(issue);
+        return field ? `${field}: ${issue.msg}` : issue.msg;
+      }).join(' ');
+    }
+    return body.error.message;
+  }
   if (body && typeof body === 'object' && 'detail' in body) {
     if (typeof body.detail === 'string') {
       return body.detail;

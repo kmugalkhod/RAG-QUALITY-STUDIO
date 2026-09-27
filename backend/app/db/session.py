@@ -19,3 +19,9 @@ engine = create_engine(
 def get_session():
     with Session(engine) as session:
         yield session
+
+
+def get_deployment_session():
+    """Admissions need a fresh committed view after their PostgreSQL lock."""
+    with Session(engine.execution_options(isolation_level="READ COMMITTED")) as session:
+        yield session

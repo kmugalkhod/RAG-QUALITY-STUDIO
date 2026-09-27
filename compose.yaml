@@ -56,6 +56,25 @@ services:
       CLERK_SECRET_KEY: ${CLERK_SECRET_KEY:-}
       CLERK_AUTHORIZED_ORIGINS: '${CLERK_AUTHORIZED_ORIGINS:-["http://127.0.0.1:5273"]}'
       LEGACY_PROJECT_ORG_ID: ${LEGACY_PROJECT_ORG_ID:-}
+      DEPLOYED_ANSWERS_ENABLED: ${DEPLOYED_ANSWERS_ENABLED:-false}
+      DEPLOYMENT_LOCAL_KEYS_ENABLED: ${DEPLOYMENT_LOCAL_KEYS_ENABLED:-false}
+      DEPLOYMENT_ACTIVE_PEPPER: ${DEPLOYMENT_ACTIVE_PEPPER:-}
+      DEPLOYMENT_KEY_PEPPERS: '${DEPLOYMENT_KEY_PEPPERS:-{}}'
+      DEPLOYMENT_PRICING_VERSION: ${DEPLOYMENT_PRICING_VERSION:-}
+      DEPLOYMENT_APPROVED_PRICES: '${DEPLOYMENT_APPROVED_PRICES:-{}}'
+      DEPLOYMENT_KEY_ROTATION_GRACE_MINUTES: ${DEPLOYMENT_KEY_ROTATION_GRACE_MINUTES:-15}
+      DEPLOYMENT_KEY_RPM: ${DEPLOYMENT_KEY_RPM:-10}
+      DEPLOYMENT_RPM: ${DEPLOYMENT_RPM:-30}
+      DEPLOYMENT_ORG_RPM: ${DEPLOYMENT_ORG_RPM:-100}
+      DEPLOYMENT_CONCURRENCY: ${DEPLOYMENT_CONCURRENCY:-2}
+      DEPLOYMENT_ORG_CONCURRENCY: ${DEPLOYMENT_ORG_CONCURRENCY:-10}
+      DEPLOYMENT_QUEUE_CAP: ${DEPLOYMENT_QUEUE_CAP:-20}
+      DEPLOYMENT_ORG_QUEUE_CAP: ${DEPLOYMENT_ORG_QUEUE_CAP:-100}
+      DEPLOYMENT_GLOBAL_QUEUE_CAP: ${DEPLOYMENT_GLOBAL_QUEUE_CAP:-1000}
+      DEPLOYMENT_ORG_DAILY_USD: ${DEPLOYMENT_ORG_DAILY_USD:-5.00}
+      DEPLOYMENT_ORG_MONTHLY_USD: ${DEPLOYMENT_ORG_MONTHLY_USD:-20.00}
+      DEPLOYMENT_MAX_RESERVED_USD_PER_RUN: ${DEPLOYMENT_MAX_RESERVED_USD_PER_RUN:-0.25}
+      DEPLOYMENT_RESULT_RETENTION_DAYS: ${DEPLOYMENT_RESULT_RETENTION_DAYS:-30}
       AUTH_OIDC_ISSUER: ${AUTH_OIDC_ISSUER:-}
       AUTH_OIDC_AUDIENCE: ${AUTH_OIDC_AUDIENCE:-}
       AUTH_OIDC_JWKS_URL: ${AUTH_OIDC_JWKS_URL:-}
@@ -109,6 +128,19 @@ services:
     environment: *backend-env
     volumes:
       - document_data:/data/documents
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+  deployed-worker:
+    build: ./backend
+    command: ["celery", "-A", "app.workers.celery_app:celery", "worker", "--queues=deployed_answers", "--loglevel=warning", "--concurrency=2"]
+    environment: *backend-env
+    volumes:
+      - document_data:/data/documents
+    mem_limit: 768m
     restart: unless-stopped
     depends_on:
       migrate:

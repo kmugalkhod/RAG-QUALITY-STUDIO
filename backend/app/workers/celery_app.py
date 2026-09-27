@@ -12,6 +12,7 @@ celery = Celery(
         "app.workers.ingestion",
         "app.workers.previews",
         "app.workers.experiments",
+        "app.workers.deployed_answers",
     ],
 )
 celery.conf.update(
