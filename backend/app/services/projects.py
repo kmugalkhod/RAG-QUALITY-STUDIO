@@ -1,4 +1,5 @@
 from sqlalchemy import func, select
+from fastapi import HTTPException
 from sqlalchemy.orm import Session
 from app.models.project import Project
 from app.models.index import KnowledgeSet
@@ -10,11 +11,18 @@ from app.schemas.project import ProjectCreate, ProjectPage
 def create_project(
     session: Session, data: ProjectCreate, principal: Principal
 ) -> Project:
-    project = Project(**data.model_dump())
+    if principal.auth_mode == "clerk" and not principal.organization_id:
+        raise HTTPException(403, "Select an organization to continue.")
+    project = Project(
+        **data.model_dump(),
+        organization_id=principal.organization_id
+        if principal.auth_mode == "clerk"
+        else None,
+    )
     session.add(project)
     session.flush()
     session.add(KnowledgeSet(project_id=project.id, name="Uploaded documents"))
-    if principal.auth_mode == "oidc":
+    if principal.auth_mode in {"oidc", "clerk"}:
         session.add(
             ProjectMembership(
                 project_id=project.id, user_id=principal.user_id, role="owner"
@@ -35,6 +43,13 @@ def list_projects(
             ProjectMembership,
             ProjectMembership.project_id == Project.id,
         ).where(ProjectMembership.user_id == principal.user_id)
+    elif principal.auth_mode == "clerk":
+        query = query.join(
+            ProjectMembership, ProjectMembership.project_id == Project.id
+        ).where(
+            ProjectMembership.user_id == principal.user_id,
+            Project.organization_id == principal.organization_id,
+        )
     total = session.scalar(select(func.count()).select_from(query.subquery()))
     items = session.scalars(
         query.order_by(Project.created_at.desc(), Project.id.desc())

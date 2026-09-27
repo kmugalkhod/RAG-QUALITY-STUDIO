@@ -1,5 +1,11 @@
 export type ValidationIssue = { loc: (string | number)[]; msg: string };
 
+let tokenProvider: (() => Promise<string | null>) | null = null;
+
+export function setTokenProvider(provider: (() => Promise<string | null>) | null) {
+  tokenProvider = provider;
+}
+
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -28,9 +34,7 @@ function validationIssues(body: unknown): ValidationIssue[] {
 
 function relevantIssues(issues: ValidationIssue[]): ValidationIssue[] {
   const ingestion = issues.filter((issue) =>
-    issue.loc.some((part) =>
-      typeof part === 'string' && part.toLowerCase().includes('ingestion'),
-    ),
+    issue.loc.some((part) => typeof part === 'string' && part.toLowerCase().includes('ingestion')),
   );
   return ingestion.length ? ingestion : issues;
 }
@@ -47,7 +51,9 @@ function issueField(issue: ValidationIssue): string {
     return `Extract · ${name[String(issue.loc[ocr + 1])] ?? String(issue.loc[ocr + 1])}`;
   }
   return issue.loc
-    .filter((part) => typeof part === 'string' && !['body', 'ingestion', 'execution'].includes(part))
+    .filter(
+      (part) => typeof part === 'string' && !['body', 'ingestion', 'execution'].includes(part),
+    )
     .slice(-2)
     .join(' · ');
 }
@@ -63,7 +69,10 @@ function errorMessage(status: number, body: unknown): string {
         return field ? `${field}: ${issue.msg}` : issue.msg;
       });
       if (messages.length) {
-        return messages.slice(0, 5).join(' ') + (messages.length > 5 ? ` ${messages.length - 5} more settings need review.` : '');
+        return (
+          messages.slice(0, 5).join(' ') +
+          (messages.length > 5 ? ` ${messages.length - 5} more settings need review.` : '')
+        );
       }
     }
   }
@@ -90,7 +99,19 @@ export async function request<T>(
   options.signal?.addEventListener('abort', abort, { once: true });
   const timeout = window.setTimeout(abort, timeoutMs);
   try {
-    const response = await fetch(`/api${path}`, { ...options, signal: controller.signal });
+    const token = tokenProvider ? await tokenProvider() : null;
+    if (tokenProvider && !token) {
+      throw new ApiError('Your session has expired. Sign in again.', 401);
+    }
+    const headers = token ? new Headers(options.headers) : options.headers;
+    if (token && headers instanceof Headers) {
+      headers.set('Authorization', `Bearer ${token}`);
+    }
+    const response = await fetch(`/api${path}`, {
+      ...options,
+      headers,
+      signal: controller.signal,
+    });
     if (!response.ok) {
       const body: unknown = await response.json().catch(() => null);
       throw new ApiError(
@@ -123,4 +144,28 @@ export function postJson<T>(path: string, body: unknown): Promise<T> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
+}
+
+export async function downloadFile(path: string, filename: string): Promise<void> {
+  const token = tokenProvider ? await tokenProvider() : null;
+  if (tokenProvider && !token) {
+    throw new ApiError('Your session has expired. Sign in again.', 401);
+  }
+  const headers = new Headers();
+  if (token) {
+    headers.set('Authorization', `Bearer ${token}`);
+  }
+  const response = await fetch(`/api${path}`, { headers });
+  if (!response.ok) {
+    const body: unknown = await response.json().catch(() => null);
+    throw new ApiError(errorMessage(response.status, body), response.status);
+  }
+  const objectUrl = URL.createObjectURL(await response.blob());
+  const link = document.createElement('a');
+  link.href = objectUrl;
+  link.download = filename;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
 }

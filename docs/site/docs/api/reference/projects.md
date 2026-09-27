@@ -1,12 +1,12 @@
 ---
-verified_against: "OpenAPI SHA-256 1237e6ca1816bbbde889c9a991668b9540326c4e26a77c5b9fbc2ba053206d1c (2026-09-26)"
+verified_against: "OpenAPI SHA-256 248b9a137ddd5003ef378a218143ef2d67f938086ca7d7a68103166bee0f90b3 (2026-09-26)"
 title: Projects and access
 slug: /api/reference/projects/
 ---
 
 Create, list and read a project and inspect the current principal's project access.
 
-**Prerequisite:** Use the local loopback owner mode or a permitted OIDC token; project writes are scoped by the server. For project-scoped examples, set `PROJECT_ID` to the ID returned by [creating a local project](../patterns.md); do not use another project's ID.
+**Prerequisite:** Use the local loopback owner mode, a permitted Clerk development session, or an OIDC token; project writes are scoped by the server. For project-scoped examples, set `PROJECT_ID` to the ID returned by [creating a local project](../patterns.md); do not use another project's ID.
 
 ```sh
 curl --fail 'http://127.0.0.1:8000/api/projects?limit=20&offset=0'
@@ -14,7 +14,7 @@ curl --fail 'http://127.0.0.1:8000/api/projects?limit=20&offset=0'
 
 **Expected result:** A paginated object with items, total, limit and offset is returned. **If it fails:** For 401/403/404, check authentication and project membership; do not substitute another project's ID.
 
-**Capability boundary:** Local ownership is tested; live shared OIDC acceptance remains a separate release gate. Related: [Projects](../../concepts/projects.md), [API patterns](../patterns.md). The operation table below is generated from the [validated schema](/openapi.json); it does not replace the task guide.
+**Capability boundary:** Clerk development mode stays on loopback; live public shared access remains a separate release gate. Related: [Projects](../../concepts/projects.md), [API patterns](../patterns.md). The operation table below is generated from the [validated schema](/openapi.json); it does not replace the task guide.
 
 ## Operations
 
@@ -43,6 +43,56 @@ OpenAPI operation ID: `create_project_api_projects_post`.
 | Response | Content contract |
 | --- | --- |
 | `201` | `application/json` [`ProjectRead`](../schema-models.md#projectread) |
+| `422` | `application/json` [`HTTPValidationError`](../schema-models.md#httpvalidationerror) |
+
+### GET `/api/organizations/current/members`
+
+OpenAPI operation ID: `list_current_organization_members_api_organizations_current_members_get`.
+
+**Request body:** none.
+
+| Response | Content contract |
+| --- | --- |
+| `200` | `application/json` object |
+
+### POST `/api/projects/claim-unowned`
+
+OpenAPI operation ID: `claim_unowned_projects_api_projects_claim_unowned_post`.
+
+**Request body:** none.
+
+| Response | Content contract |
+| --- | --- |
+| `200` | `application/json` object |
+
+### POST `/api/projects/{project_id}/memberships`
+
+OpenAPI operation ID: `grant_project_membership_api_projects__project_id__memberships_post`.
+
+| Parameter | In | Required | Type | Bounds/default |
+| --- | --- | --- | --- | --- |
+| `project_id` | path | yes | string (uuid) | — |
+
+**Request body:** `application/json` [`ProjectMembershipGrant`](../schema-models.md#projectmembershipgrant). Required.
+
+| Response | Content contract |
+| --- | --- |
+| `200` | `application/json` object |
+| `422` | `application/json` [`HTTPValidationError`](../schema-models.md#httpvalidationerror) |
+
+### GET `/api/projects/{project_id}/memberships`
+
+OpenAPI operation ID: `list_project_memberships_api_projects__project_id__memberships_get`.
+
+| Parameter | In | Required | Type | Bounds/default |
+| --- | --- | --- | --- | --- |
+| `project_id` | path | yes | string (uuid) | — |
+
+**Request body:** none.
+
+| Response | Content contract |
+| --- | --- |
+| `200` | `application/json` object |
 | `422` | `application/json` [`HTTPValidationError`](../schema-models.md#httpvalidationerror) |
 
 ### GET `/api/projects/{project_id}/access`

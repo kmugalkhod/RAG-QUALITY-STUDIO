@@ -8,6 +8,7 @@ import type { Dataset, Preview } from '../model';
 import * as api from '../api';
 import { Questions } from './Questions';
 import { docsHref } from '../../../lib/docs';
+import { downloadFile } from '../../../lib/api';
 
 type EvaluationOptions = Awaited<ReturnType<typeof api.getEvaluationOptions>>;
 
@@ -120,9 +121,17 @@ export function DatasetImport({
             UTF-8 CSV with a required question column and optional reference answers. Up to{' '}
             {options?.max_rows} questions and {number((options?.max_bytes || 0) / 1024 / 1024)} MiB.
           </p>
-          <a href={`/api/projects/${projectId}/datasets/example.csv`} download>
+          <button
+            type="button"
+            onClick={() =>
+              void downloadFile(
+                `/projects/${projectId}/datasets/example.csv`,
+                'example-dataset.csv',
+              ).catch((cause) => setError((cause as Error).message))
+            }
+          >
             Download example CSV
-          </a>
+          </button>
           <div className="experiment-fields">
             <Label>
               Dataset name

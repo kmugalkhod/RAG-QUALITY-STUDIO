@@ -5269,6 +5269,33 @@
         "title": "ProjectCreate",
         "type": "object"
       },
+      "ProjectMembershipGrant": {
+        "additionalProperties": false,
+        "properties": {
+          "role": {
+            "enum": [
+              "owner",
+              "admin",
+              "editor",
+              "viewer"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "user_id": {
+            "maxLength": 100,
+            "pattern": "^user_[A-Za-z0-9]+$",
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id",
+          "role"
+        ],
+        "title": "ProjectMembershipGrant",
+        "type": "object"
+      },
       "ProjectPage": {
         "properties": {
           "items": {
@@ -9159,6 +9186,22 @@
         "summary": "Health"
       }
     },
+    "/api/organizations/current/members": {
+      "get": {
+        "operationId": "list_current_organization_members_api_organizations_current_members_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Current Organization Members"
+      }
+    },
     "/api/projects": {
       "get": {
         "operationId": "list_projects_api_projects_get",
@@ -9246,6 +9289,22 @@
           }
         },
         "summary": "Create Project"
+      }
+    },
+    "/api/projects/claim-unowned": {
+      "post": {
+        "operationId": "claim_unowned_projects_api_projects_claim_unowned_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Claim Unowned Projects"
       }
     },
     "/api/projects/{project_id}": {
@@ -11574,6 +11633,90 @@
           }
         },
         "summary": "List Knowledge Set Indexes"
+      }
+    },
+    "/api/projects/{project_id}/memberships": {
+      "get": {
+        "operationId": "list_project_memberships_api_projects__project_id__memberships_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Project Memberships"
+      },
+      "post": {
+        "operationId": "grant_project_membership_api_projects__project_id__memberships_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectMembershipGrant"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Grant Project Membership"
       }
     },
     "/api/projects/{project_id}/pipelines": {

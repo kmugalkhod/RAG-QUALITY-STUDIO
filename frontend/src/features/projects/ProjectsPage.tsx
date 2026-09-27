@@ -4,6 +4,42 @@ import { Button } from '../../components/ui/button';
 import { listProjects, type Project, type ProjectPage } from './api';
 import { ProjectForm } from './components/ProjectForm';
 import { ProjectList } from './components/ProjectList';
+import { useAuth } from '@clerk/react';
+import { postJson } from '../../lib/api';
+
+function ClaimExistingProjects({ onClaimed }: { onClaimed: () => void }) {
+  const { orgRole } = useAuth();
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState('');
+  if (orgRole !== 'org:admin') {
+    return null;
+  }
+  return (
+    <div className="mb-6">
+      <Button
+        variant="outline"
+        disabled={busy}
+        onClick={async () => {
+          setBusy(true);
+          try {
+            const result = await postJson<{ claimed: number }>('/projects/claim-unowned', {});
+            setMessage(
+              `${result.claimed} existing ${result.claimed === 1 ? 'project' : 'projects'} added to your workspace.`,
+            );
+            onClaimed();
+          } catch (error) {
+            setMessage((error as Error).message);
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        Claim existing projects
+      </Button>
+      {message && <p role="status">{message}</p>}
+    </div>
+  );
+}
 
 export function ProjectsPage({ onCreated }: { onCreated?: () => void }) {
   const [page, setPage] = useState<ProjectPage | null>(null);
@@ -84,6 +120,14 @@ export function ProjectsPage({ onCreated }: { onCreated?: () => void }) {
         <p role="status" className="success-message">
           {notice}
         </p>
+      )}
+      {import.meta.env.VITE_CLERK_PUBLISHABLE_KEY && (
+        <ClaimExistingProjects
+          onClaimed={() => {
+            void load(0);
+            onCreated?.();
+          }}
+        />
       )}
       {formOpen && <ProjectForm onClose={closeForm} onCreated={handleCreated} />}
       {!isCreatingFirstProject && (

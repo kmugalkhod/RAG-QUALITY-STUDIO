@@ -1,10 +1,25 @@
-import { ApiError, postJson, request } from '../../src/lib/api';
+import { ApiError, postJson, request, setTokenProvider } from '../../src/lib/api';
 
 function respond(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status });
 }
 
-afterEach(() => vi.useRealTimers());
+afterEach(() => {
+  vi.useRealTimers();
+  setTokenProvider(null);
+});
+
+test('sends a current Clerk bearer token and fails closed when it expires', async () => {
+  const fetch = vi.spyOn(globalThis, 'fetch').mockResolvedValue(respond({ items: [] }));
+  setTokenProvider(async () => 'signed-session-token');
+  await request('/projects');
+  const headers = fetch.mock.calls[0][1]?.headers;
+  expect(headers).toBeInstanceOf(Headers);
+  expect((headers as Headers).get('Authorization')).toBe('Bearer signed-session-token');
+  setTokenProvider(async () => null);
+  await expect(request('/projects')).rejects.toMatchObject({ status: 401 });
+  expect(fetch).toHaveBeenCalledTimes(1);
+});
 
 test('serializes JSON once and preserves server validation messages across features', async () => {
   const fetch = vi

@@ -15,6 +15,7 @@ Check whether a workspace can safely remain local or proceed to a separately val
 | Operation | Current rule |
 | --- | --- |
 | Local request | `AUTH_MODE=local` treats a loopback Host as one owner. It is not multi-user authentication. |
+| Clerk development request | `AUTH_MODE=clerk` checks the configured instance's signed session token, expiry, issuer and authorized frontend origin, then checks live organization membership. The active organization must own the project and the user must have a project role. This mode stays on loopback while raw artifacts lack a shared key boundary. |
 | Shared request | `AUTH_MODE=oidc` checks bearer signature, issuer, audience, expiry and subject against configured HTTPS JWKS. An unrelated project returns 404; a viewer write returns 403. |
 | Ordinary project read/write | Owner, admin, editor and viewer can read their project; viewer writes are denied. Do not infer access to another project from a known UUID. |
 | Protected raw/derivation read or artifact rewrap | Owner or admin only; granted and denied attempts create a `sensitive_access_events` audit row without source values. |

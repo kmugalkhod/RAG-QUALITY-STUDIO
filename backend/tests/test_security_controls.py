@@ -15,10 +15,15 @@ from sqlalchemy.orm import Session
 
 from app.core.auth import (
     Principal,
+    _clerk_claims,
+    _clerk_membership,
     _oidc_claims,
     authorize_sensitive_read,
+    project_role,
     require_project_access,
+    current_principal,
 )
+from app.main import app
 from app.core.config import settings
 from app.models.document import Document
 from app.models.project import Project
@@ -68,6 +73,110 @@ def test_oidc_validates_signature_issuer_audience_and_expiry(monkeypatch):
     assert rejected.value.status_code == 401
 
 
+def test_clerk_token_rejects_wrong_origin_expiry_and_pending_session(monkeypatch):
+    private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    now = int(datetime.now(timezone.utc).timestamp())
+    monkeypatch.setattr(settings, "clerk_issuer", "https://example.clerk.accounts.dev")
+    monkeypatch.setattr(
+        settings,
+        "clerk_jwks_url",
+        "https://example.clerk.accounts.dev/.well-known/jwks.json",
+    )
+    monkeypatch.setattr(
+        settings,
+        "clerk_authorized_origins",
+        ["http://127.0.0.1:5273", "http://localhost:5273"],
+    )
+    monkeypatch.setattr(
+        "app.core.auth._jwks_client",
+        lambda _: SimpleNamespace(
+            get_signing_key_from_jwt=lambda token: SimpleNamespace(
+                key=private_key.public_key()
+            )
+        ),
+    )
+    claims = {
+        "sub": "user_test",
+        "sid": "sess_test",
+        "o": {"id": "org_test"},
+        "iss": settings.clerk_issuer,
+        "azp": "http://127.0.0.1:5273",
+        "iat": now,
+        "nbf": now - 1,
+        "exp": now + 60,
+    }
+
+    def verify(payload):
+        token = jwt.encode(payload, private_key, algorithm="RS256")
+        return _clerk_claims(
+            SimpleNamespace(headers={"authorization": f"Bearer {token}"})
+        )
+
+    assert verify(claims)["_organization_id"] == "org_test"
+    assert (
+        verify({**claims, "azp": "http://localhost:5273"})["_organization_id"]
+        == "org_test"
+    )
+    # Clerk documents azp as optional when the Frontend API request omitted
+    # Origin (for example, browser privacy controls during social sign-in).
+    assert (
+        verify({key: value for key, value in claims.items() if key != "azp"})[
+            "_organization_id"
+        ]
+        == "org_test"
+    )
+    for changed in (
+        {"azp": "http://malicious.example"},
+        {"exp": now - 1},
+        {"iss": "https://other.clerk.accounts.dev"},
+        {"sts": "pending"},
+    ):
+        with pytest.raises(HTTPException) as rejected:
+            verify({**claims, **changed})
+        assert rejected.value.status_code == 401
+    different_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    forged = jwt.encode(claims, different_key, algorithm="RS256")
+    with pytest.raises(HTTPException) as rejected:
+        _clerk_claims(SimpleNamespace(headers={"authorization": f"Bearer {forged}"}))
+    assert rejected.value.status_code == 401
+
+
+def test_clerk_membership_is_checked_live(monkeypatch):
+    class FakeResponse:
+        status_code = 200
+
+        def __init__(self, data):
+            self.data = data
+
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"data": self.data, "total_count": len(self.data)}
+
+    class FakeClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+        def get(self, url, **kwargs):
+            assert url.endswith("/users/user_test/organization_memberships")
+            return FakeResponse(self.memberships)
+
+    monkeypatch.setattr("app.core.auth.httpx.Client", FakeClient)
+    FakeClient.memberships = [
+        {"organization": {"id": "org_test"}, "role": "org:member"}
+    ]
+    assert _clerk_membership("user_test", "org_test") == "org:member"
+    FakeClient.memberships = []
+    assert _clerk_membership("user_test", "org_test") is None
+
+
 def test_project_roles_deny_cross_project_and_viewer_writes(database):
     engine, _ = database
     user_id, project_id, unrelated_id = uuid4(), uuid4(), uuid4()
@@ -104,6 +213,77 @@ def test_project_roles_deny_cross_project_and_viewer_writes(database):
             session.execute(
                 delete(Project).where(Project.id.in_([project_id, unrelated_id]))
             )
+            session.execute(delete(UserIdentity).where(UserIdentity.id == user_id))
+            session.commit()
+
+
+def test_clerk_project_role_requires_active_organization(database):
+    engine, _ = database
+    user_id, project_id = uuid4(), uuid4()
+    with Session(engine) as session:
+        session.add(UserIdentity(id=user_id, external_subject="user_org_scope"))
+        session.add(
+            Project(
+                id=project_id, name="Organization scope", organization_id="org_first"
+            )
+        )
+        session.flush()
+        session.add(
+            ProjectMembership(project_id=project_id, user_id=user_id, role="owner")
+        )
+        session.commit()
+    try:
+        with Session(engine) as session:
+            correct = Principal(user_id, "user_org_scope", None, "clerk", "org_first")
+            switched = Principal(user_id, "user_org_scope", None, "clerk", "org_second")
+            assert project_role(session, project_id, correct) == "owner"
+            assert project_role(session, project_id, switched) is None
+            with pytest.raises(HTTPException) as rejected:
+                require_project_access(project_id, _request("GET"), session, switched)
+            assert rejected.value.status_code == 404
+    finally:
+        with Session(engine) as session:
+            session.execute(delete(Project).where(Project.id == project_id))
+            session.execute(delete(UserIdentity).where(UserIdentity.id == user_id))
+            session.commit()
+
+
+def test_cross_organization_project_resources_are_hidden(database, db_client):
+    engine, _ = database
+    user_id, project_id, item_id = uuid4(), uuid4(), uuid4()
+    principal = Principal(user_id, "user_cross_org", None, "clerk", "org_first")
+    with Session(engine) as session:
+        session.add(UserIdentity(id=user_id, external_subject=principal.subject))
+        session.add(
+            Project(
+                id=project_id, name="Foreign organization", organization_id="org_second"
+            )
+        )
+        session.flush()
+        # A stale/misprovisioned project role must not override the active org.
+        session.add(
+            ProjectMembership(project_id=project_id, user_id=user_id, role="owner")
+        )
+        session.commit()
+    app.dependency_overrides[current_principal] = lambda: principal
+    try:
+        for suffix in (
+            "documents",
+            "source-connections/settings",
+            "pipelines",
+            f"documents/{item_id}/runs",
+            "experiments",
+            f"experiments/{item_id}",
+            f"experiments/{item_id}/export.csv",
+            f"query-runs/{item_id}",
+            "datasets/example.csv",
+        ):
+            response = db_client.get(f"/api/projects/{project_id}/{suffix}")
+            assert response.status_code == 404, suffix
+    finally:
+        app.dependency_overrides.pop(current_principal, None)
+        with Session(engine) as session:
+            session.execute(delete(Project).where(Project.id == project_id))
             session.execute(delete(UserIdentity).where(UserIdentity.id == user_id))
             session.commit()
 

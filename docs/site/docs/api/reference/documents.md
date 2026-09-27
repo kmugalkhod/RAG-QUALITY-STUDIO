@@ -1,5 +1,5 @@
 ---
-verified_against: "OpenAPI SHA-256 1237e6ca1816bbbde889c9a991668b9540326c4e26a77c5b9fbc2ba053206d1c (2026-09-26)"
+verified_against: "OpenAPI SHA-256 248b9a137ddd5003ef378a218143ef2d67f938086ca7d7a68103166bee0f90b3 (2026-09-26)"
 title: Documents and processing
 slug: /api/reference/documents/
 ---

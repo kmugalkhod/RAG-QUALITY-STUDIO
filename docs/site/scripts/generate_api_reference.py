@@ -35,11 +35,11 @@ GROUPS = {
     "projects": {
         "title": "Projects and access",
         "outcome": "Create, list and read a project and inspect the current principal's project access.",
-        "prerequisite": "Use the local loopback owner mode or a permitted OIDC token; project writes are scoped by the server.",
+        "prerequisite": "Use the local loopback owner mode, a permitted Clerk development session, or an OIDC token; project writes are scoped by the server.",
         "example": "curl --fail 'http://127.0.0.1:8000/api/projects?limit=20&offset=0'",
         "expected": "A paginated object with items, total, limit and offset is returned.",
         "failure": "For 401/403/404, check authentication and project membership; do not substitute another project's ID.",
-        "boundary": "Local ownership is tested; live shared OIDC acceptance remains a separate release gate.",
+        "boundary": "Clerk development mode stays on loopback; live public shared access remains a separate release gate.",
         "related": "[Projects](../../concepts/projects.md), [API patterns](../patterns.md)",
     },
     "connections": {
@@ -120,8 +120,10 @@ METHODS = {"get", "post", "put", "patch", "delete"}
 def group_for(path: str) -> str:
     if path in ("/api/health", "/api/ready"):
         return "health"
+    if path == "/api/organizations/current/members":
+        return "projects"
     tail = path.removeprefix("/api/projects")
-    if tail in ("", "/{project_id}", "/{project_id}/access"):
+    if tail in ("", "/{project_id}", "/{project_id}/access", "/claim-unowned", "/{project_id}/memberships"):
         return "projects"
     if "/source-connections" in tail:
         return "connections"

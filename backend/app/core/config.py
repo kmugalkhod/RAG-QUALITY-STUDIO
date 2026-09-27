@@ -45,7 +45,14 @@ class Settings(BaseSettings):
     artifact_vault_token: SecretStr = SecretStr("")
     artifact_vault_mount: str = "transit"
     artifact_retention_days: int = Field(default=30, ge=1, le=3650)
-    auth_mode: Literal["local", "oidc"] = "local"
+    auth_mode: Literal["local", "oidc", "clerk"] = "local"
+    clerk_issuer: str = ""
+    clerk_jwks_url: str = ""
+    clerk_secret_key: SecretStr = SecretStr("")
+    clerk_authorized_origins: list[str] = [
+        "http://127.0.0.1:5273",
+        "http://localhost:5273",
+    ]
     auth_oidc_issuer: str = ""
     auth_oidc_audience: str = ""
     auth_oidc_jwks_url: str = ""

@@ -71,7 +71,9 @@ Offset = Annotated[int, Query(ge=0)]
 
 
 @router.get("/settings", response_model=SourceConnectionSettings)
-def read_settings(project_id: UUID, request: Request, session: Database):
+def read_settings(
+    project_id: UUID, request: Request, session: Database, _access: ProjectAccess
+):
     if session.get(Project, project_id) is None:
         raise HTTPException(404, "Project not found.")
     return connection_settings(request)

@@ -1,6 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
+from typing import Literal
 
 
 class ProjectCreate(BaseModel):
@@ -22,3 +23,9 @@ class ProjectPage(BaseModel):
     total: int
     limit: int
     offset: int
+
+
+class ProjectMembershipGrant(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    user_id: str = Field(pattern=r"^user_[A-Za-z0-9]+$", max_length=100)
+    role: Literal["owner", "admin", "editor", "viewer"]

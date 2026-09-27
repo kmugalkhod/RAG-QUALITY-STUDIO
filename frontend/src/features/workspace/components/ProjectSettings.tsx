@@ -3,6 +3,7 @@ import { Separator } from '../../../components/ui/separator';
 import type { ProjectSettingsData } from '../data';
 import { ConnectionVault } from '../../connections/ConnectionVault';
 import { docsHref } from '../../../lib/docs';
+import { ProjectMembers } from './ProjectMembers';
 
 function SettingsSection({
   title,
@@ -92,6 +93,7 @@ export function ProjectSettings({
         <dt>Context budget</dt>
         <dd>{data.generation.context_tokens.toLocaleString()} tokens</dd>
       </SettingsSection>
+      {import.meta.env.VITE_CLERK_PUBLISHABLE_KEY && <ProjectMembers projectId={projectId} />}
       <Separator />
       <section className="connection-settings py-7">
         <div className="settings-section-intro mb-6 max-w-2xl">

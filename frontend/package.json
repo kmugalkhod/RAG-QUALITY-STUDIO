@@ -10,19 +10,24 @@
     "lint": "node scripts/check-structure.mjs && eslint .",
     "test": "vitest",
     "test:e2e": "playwright test",
+    "test:e2e:clerk": "node scripts/run-clerk-e2e.mjs",
     "format": "prettier --write src tests e2e scripts *.ts *.js *.json",
     "format:check": "prettier --check src tests e2e scripts *.ts *.js *.json"
   },
   "dependencies": {
+    "@clerk/react": "6.17.2",
+    "@clerk/ui": "1.36.0",
     "@xyflow/react": "12.11.6",
     "class-variance-authority": "0.7.1",
     "cn": "0.2.6",
     "lucide-react": "0.542.0",
     "radix-ui": "1.6.7",
-    "react": "19.1.1",
-    "react-dom": "19.1.1"
+    "react": "19.1.4",
+    "react-dom": "19.1.4"
   },
   "devDependencies": {
+    "@clerk/backend": "3.20.1",
+    "@clerk/testing": "2.2.39",
     "@eslint/js": "9.34.0",
     "@playwright/test": "1.63.0",
     "@tailwindcss/vite": "4.3.3",

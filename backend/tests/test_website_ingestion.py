@@ -697,6 +697,7 @@ def test_populated_upgrade_backfills_only_proven_website_lineage(website_api):
     env = {
         **os.environ,
         "DATABASE_URL": os.environ["TEST_DATABASE_URL"],
+        "LEGACY_PROJECT_ORG_ID": "org_test_legacy",
     }
     subprocess.run(
         [sys.executable, "-m", "alembic", "downgrade", "0017"],

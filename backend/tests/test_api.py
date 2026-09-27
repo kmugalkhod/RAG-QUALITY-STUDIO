@@ -188,6 +188,13 @@ def test_milestone_one_upgrade_preserves_project(database):
             )
             == "Before 2A"
         )
+        assert (
+            connection.scalar(
+                text("SELECT organization_id FROM projects WHERE id=:id"),
+                {"id": project_id},
+            )
+            == "org_test_legacy"
+        )
         connection.execute(
             text("DELETE FROM projects WHERE id=:id"), {"id": project_id}
         )

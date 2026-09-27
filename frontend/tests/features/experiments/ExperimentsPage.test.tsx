@@ -43,10 +43,7 @@ describe('experiment setup', () => {
     render(<ExperimentsPage projectId="p" />);
     expect(await screen.findByText('Requires reference answer.')).toBeVisible();
     expect(screen.getByRole('button', { name: 'Run experiment' })).toBeDisabled();
-    expect(screen.getByRole('link', { name: 'Download example CSV' })).toHaveAttribute(
-      'href',
-      '/api/projects/p/datasets/example.csv',
-    );
+    expect(screen.getByRole('button', { name: 'Download example CSV' })).toBeVisible();
   });
   it('shows row errors, blocks import, and clears preview when the file changes', async () => {
     const user = userEvent.setup();

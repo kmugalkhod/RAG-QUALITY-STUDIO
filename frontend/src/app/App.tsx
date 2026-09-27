@@ -7,7 +7,21 @@ import { pages } from './pages';
 import { WorkspaceSidebar } from './WorkspaceSidebar';
 import { WorkspacePage } from './WorkspacePage';
 import { useWorkspaceProjects } from './useWorkspaceProjects';
+import { OrganizationSwitcher, UserButton, useClerk } from '@clerk/react';
+function AuthControls() {
+  const clerk = useClerk();
+  return (
+    <div className="auth-controls">
+      <OrganizationSwitcher hidePersonal />
+      <button type="button" onClick={() => clerk.openOrganizationProfile()} className="auth-manage">
+        Members &amp; invitations
+      </button>
+      <UserButton />
+    </div>
+  );
+}
 export function App() {
+  const clerkEnabled = Boolean(import.meta.env.VITE_CLERK_PUBLISHABLE_KEY);
   const route = useRoute();
   const { projectId, page, detail } = route;
   const [mobile, setMobile] = useState(false);
@@ -80,6 +94,7 @@ export function App() {
               {page === 'pipelines' && detail ? ' / Editor' : ''}
             </strong>
           </span>
+          {clerkEnabled && <AuthControls />}
         </header>
         <main
           id="main"

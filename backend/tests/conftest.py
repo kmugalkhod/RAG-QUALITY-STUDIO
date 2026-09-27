@@ -37,7 +37,11 @@ def database():
             pytest.fail(
                 "Test database must be empty; no existing project table will be reset"
             )
-    env = {**os.environ, "DATABASE_URL": url}
+    env = {
+        **os.environ,
+        "DATABASE_URL": url,
+        "LEGACY_PROJECT_ORG_ID": "org_test_legacy",
+    }
     subprocess.run(
         [sys.executable, "-m", "alembic", "upgrade", "head"], env=env, check=True
     )

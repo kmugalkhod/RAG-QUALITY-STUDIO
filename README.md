@@ -48,7 +48,7 @@ docker compose logs backend migrate worker dispatcher
 docker compose down
 ```
 
-`down` preserves named `postgres_data`, `document_data` and `redis_data` volumes. Do not use `down -v` for routine cleanup. Changing the password in `.env` after initialization does not change an existing PostgreSQL role's password. All published ports bind to `127.0.0.1`. Local mode supplies one loopback-only owner identity; shared access requires OIDC plus an external KMS/Vault artifact-key boundary and must pass the authorization release gate.
+`down` preserves named `postgres_data`, `document_data` and `redis_data` volumes. Do not use `down -v` for routine cleanup. Changing the password in `.env` after initialization does not change an existing PostgreSQL role's password. All published ports bind to `127.0.0.1`. Local mode supplies one loopback-only owner identity. The opt-in Clerk development setup and legacy-project ownership steps are in [development](docs/development.md#clerk-development-authentication). Public shared access still requires the external KMS/Vault artifact-key boundary and authorization release gate.
 
 Source connections are disabled by default. To enable the local encrypted vault, generate a 32-byte key with `openssl rand -base64 32`, place it in `SOURCE_CONNECTION_KEYS` under a version name, set that version in `SOURCE_CONNECTION_ACTIVE_KEY`, and set `SOURCE_CONNECTIONS_ENABLED=true`. Never commit the populated values. Keep every old key available until its connections have been re-encrypted from Settings; losing a required key makes those credentials unrecoverable. See [deployment guidance](docs/deployment.md#source-connection-vault).
 

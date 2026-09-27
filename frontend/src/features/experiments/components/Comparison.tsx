@@ -6,6 +6,7 @@ import * as api from '../api';
 import type { Detail } from '../model';
 import { ComparisonSummary } from './ComparisonSummary';
 import { QuestionComparison } from './QuestionComparison';
+import { downloadFile } from '../../../lib/api';
 
 export function Comparison({
   projectId,
@@ -85,10 +86,16 @@ export function Comparison({
                 {run.cancel_requested ? ' · Cancellation requested' : ''}
               </p>
             </div>
-            <Button variant="outline" asChild>
-              <a href={`/api/projects/${projectId}/experiments/${run.id}/export.csv`} download>
-                Export CSV
-              </a>
+            <Button
+              variant="outline"
+              onClick={() =>
+                void downloadFile(
+                  `/projects/${projectId}/experiments/${run.id}/export.csv`,
+                  `experiment-${run.id}.csv`,
+                ).catch((cause) => setError((cause as Error).message))
+              }
+            >
+              Export CSV
             </Button>
           </header>
           {['queued', 'running'].includes(run.status) && (
