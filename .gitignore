@@ -14,3 +14,7 @@ test-results/
 
 backend/.local-documents/
 widget/.local/
+
+# Locally installed agent skills
+.agents/skills/
+skills-lock.json
