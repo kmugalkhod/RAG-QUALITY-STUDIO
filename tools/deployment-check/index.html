@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="local-token" content="__LOCAL_TOKEN__" />
+    <title>Answer deployment check</title>
+    <style>
+      :root { color-scheme: light; font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f4f6fb; color: #172139; }
+      * { box-sizing: border-box; }
+      body { margin: 0; min-height: 100vh; background: radial-gradient(circle at 90% 0%, #dfe9ff 0, transparent 33%), #f4f6fb; }
+      main { width: min(900px, calc(100% - 32px)); margin: 0 auto; padding: 54px 0 80px; }
+      .eyebrow { color: #4164a8; font-size: .78rem; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
+      h1 { margin: 10px 0 8px; font-size: clamp(2rem, 5vw, 3.1rem); line-height: 1.12; letter-spacing: -.045em; }
+      .intro { margin: 0; max-width: 620px; color: #566178; line-height: 1.65; }
+      .topline { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 28px 0 20px; flex-wrap: wrap; }
+      .tag { display: inline-flex; align-items: center; gap: 9px; padding: 9px 13px; border: 1px solid #d5dff0; border-radius: 100px; background: #fff; color: #3f506b; font-size: .86rem; font-weight: 650; }
+      .dot { width: 8px; height: 8px; border-radius: 50%; background: #91a0b8; }
+      .tag.ready .dot { background: #16a67a; box-shadow: 0 0 0 4px #daf7eb; }
+      .tag.error .dot { background: #d24d58; box-shadow: 0 0 0 4px #ffe4e6; }
+      .id { color: #6a7790; font: .75rem ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wrap: anywhere; }
+      .card { border: 1px solid #dee5f0; border-radius: 18px; background: #fff; box-shadow: 0 16px 42px rgba(35, 55, 100, .07); }
+      form { padding: 28px; }
+      label { display: block; margin-bottom: 11px; font-size: 1.04rem; font-weight: 750; }
+      textarea { display: block; width: 100%; min-height: 142px; padding: 16px; resize: vertical; border: 1px solid #cbd6e6; border-radius: 12px; outline: none; background: #fcfdff; color: #172139; font: inherit; line-height: 1.55; }
+      textarea:focus { border-color: #426dd4; box-shadow: 0 0 0 4px #dce7ff; }
+      textarea::placeholder { color: #8895a9; }
+      .form-footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 18px; flex-wrap: wrap; }
+      .hint { color: #6a7790; font-size: .85rem; line-height: 1.5; }
+      button { appearance: none; padding: 12px 20px; border: 0; border-radius: 10px; background: #2357c6; color: white; font: inherit; font-weight: 750; cursor: pointer; box-shadow: 0 7px 14px rgba(35, 87, 198, .18); }
+      button:hover:not(:disabled) { background: #1945a5; }
+      button:focus-visible { outline: 3px solid #90b0ff; outline-offset: 3px; }
+      button:disabled { opacity: .55; cursor: not-allowed; box-shadow: none; }
+      .notice { display: none; margin-top: 18px; padding: 14px 16px; border-radius: 10px; border: 1px solid #f2c2c7; background: #fff1f2; color: #8d2330; line-height: 1.5; }
+      .notice.visible { display: block; }
+      .result { display: none; margin-top: 24px; overflow: hidden; }
+      .result.visible { display: block; }
+      .result-header { padding: 21px 28px; border-bottom: 1px solid #e7ecf5; background: #f9fbff; display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
+      .result-header h2 { margin: 0; font-size: 1.16rem; }
+      .result-meta { color: #66738a; font-size: .82rem; }
+      .result-body { padding: 27px 28px 30px; }
+      .answer { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.75; font-size: 1.04rem; }
+      .citations { margin-top: 28px; padding-top: 22px; border-top: 1px solid #e7ecf5; }
+      .citations h3 { margin: 0 0 14px; font-size: 1rem; }
+      .citation-list { display: grid; gap: 12px; }
+      .citation { border: 1px solid #e0e7f2; border-radius: 11px; background: #fbfcff; padding: 15px; }
+      .citation-title { font-weight: 750; overflow-wrap: anywhere; }
+      .citation-excerpt { margin: 8px 0 0; color: #566178; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
+      footer { margin-top: 24px; color: #718098; font-size: .82rem; line-height: 1.55; }
+      @media (max-width: 600px) { main { width: min(100% - 24px, 900px); padding-top: 30px; } form, .result-body { padding: 20px; } .result-header { padding: 18px 20px; } button { width: 100%; } .form-footer { align-items: stretch; } }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="eyebrow">RAG Quality Studio · Local check</div>
+      <h1>Ask your deployed answer pipeline</h1>
+      <p class="intro">Send a question to the selected release and inspect its answer and source citations. This local page keeps the server key outside your browser.</p>
+      <div class="topline">
+        <div id="deployment-status" class="tag" role="status"><span class="dot" aria-hidden="true"></span><span id="deployment-status-text">Checking deployment…</span></div>
+        <div class="id">Deployment __DEPLOYMENT_ID__</div>
+      </div>
+      <section class="card" aria-label="Ask a question">
+        <form id="question-form">
+          <label for="question">Your question</label>
+          <textarea id="question" maxlength="8000" required placeholder="Ask something your indexed documents can answer…"></textarea>
+          <div class="form-footer"><span class="hint">One submission may call your configured model provider.</span><button id="submit" type="submit" disabled>Ask deployment</button></div>
+          <div id="error" class="notice" role="alert"></div>
+        </form>
+      </section>
+      <section id="result" class="card result" aria-live="polite" aria-label="Answer result">
+        <div class="result-header"><h2 id="result-title">Answer</h2><span id="result-meta" class="result-meta"></span></div>
+        <div class="result-body"><div id="answer" class="answer"></div><div id="citations" class="citations" hidden><h3>Sources</h3><div id="citation-list" class="citation-list"></div></div></div>
+      </section>
+      <footer>Local testing utility · Real API: 127.0.0.1:8000 · The server key is held in the Node process and is never stored by this page.</footer>
+    </main>
+    <script src="/app.js" defer></script>
+  </body>
+</html>
