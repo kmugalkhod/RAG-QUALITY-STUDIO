@@ -123,6 +123,8 @@ def verify_key(session, deployment, authorization):
     )
     if not hmac.compare_digest(digest, row.secret_hash if row else "0" * 64):
         raise HTTPException(401, "Invalid deployment key.")
+    if row.kind != "server":
+        raise HTTPException(401, "Invalid deployment key.")
     if deployment.state == "archived":
         raise HTTPException(410, "Deployment archived.")
     now = datetime.now(timezone.utc)

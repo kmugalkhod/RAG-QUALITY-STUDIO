@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Widget embed test</title>
+    <style>
+      :root { color-scheme: light; font-family: system-ui, sans-serif; }
+      body { max-width: 48rem; margin: 0 auto; padding: 3rem 1.5rem; line-height: 1.6; color: #17212f; background: #f7f9fc; }
+      h1 { line-height: 1.2; }
+      .note { padding: 1rem 1.25rem; border: 1px solid #ccd5e1; border-radius: 0.75rem; background: white; }
+      code { overflow-wrap: anywhere; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Static site widget test</h1>
+      <p>This page loads the website assistant from the local widget server. The launcher should appear in the lower-right corner.</p>
+      <div class="note">
+        <strong>One-script integration.</strong> This is a plain static HTML page. Visitors can ask questions when public access is enabled for the deployment in Studio. The page has no token backend or deployment key.
+      </div>
+      <p>Open this page at <code>http://127.0.0.1:5275/</code>. The deployment allows that exact origin.</p>
+    </main>
+    <script
+      async
+      src="http://127.0.0.1:5274/v1.0.0/loader.js"
+      data-rqs-deployment-id="867e39d4-3121-4933-99c6-5da6f99381fe"
+    ></script>
+  </body>
+</html>

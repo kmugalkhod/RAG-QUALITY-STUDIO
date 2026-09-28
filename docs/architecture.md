@@ -635,3 +635,46 @@ Origin requests and stays bound to loopback in Compose. A separate loopback metr
 endpoint reports bounded-label queue, stale, unknown-outcome and reserved-spend gauges.
 Internet exposure remains subject to independent production Clerk, KMS/Vault,
 authenticated TLS ingress and AWS infrastructure gates.
+
+## Private website widget boundary (2026-09-28)
+
+The [website chatbot widget plan](website-chatbot-widget-plan.md) is implemented locally as a separate
+lightweight `widget/` app, a versioned public loader and an isolated iframe. Its
+public deployment ID selects one active answer deployment but grants no question
+access. A customer's authenticated website backend keeps the deployment key and
+exchanges it for a five-minute opaque token bound to one deployment, site origin
+and pseudonymous visitor session. The loader obtains the token from a first-party
+customer endpoint and passes it to the iframe via an exact-origin, nonce-checked
+message; the browser retains it only in memory. Browser routes reuse
+the deployed answer job, status and citation serializers while adding per-visitor
+run ownership. Exact allowed origins, CORS and frame CSP narrow exposure but do
+not authenticate a visitor. Migration 0035 adds exact-origin widget settings,
+hashed token and visitor-binding records, and run caller ownership. Token exchange
+requires the server key without browser Origin; widget question routes require the
+short-lived token and exact iframe Origin. The existing key routes still reject Origin.
+The same durable admission and worker pin the release and index and serialize results.
+The local feature is not approval for public ingress.
+
+The embedded iframe uses a neutral, customer-facing chat surface independent of the dark
+Studio workspace. It keeps only the current browser session's visible turns in memory;
+each question is a separate deployed-answer run with no conversation context. Citation
+markers link to the bounded evidence already returned by the shared result serializer.
+The loader sends the customer page's viewport mode through the checked handshake and
+on resize, because the narrow iframe viewport alone cannot distinguish a desktop
+panel from a mobile page. Desktop uses a nonmodal region; mobile uses a full-screen
+dialog. If framing never completes, the loader shows a generic setup message on the
+customer page without exposing a token or deployment key.
+
+## Public visitor widget boundary (2026-09-29)
+
+Migration 0036 adds an opt-in `widget_public_enabled` deployment flag and one internal
+`public_widget` accounting key per deployment. Its secret is never issued; customer key
+listing, verification, rotation and revocation exclude it. The iframe verifies its
+parent origin against saved deployment origins, then obtains a five-minute token from
+the Studio browser route. The loader needs only a deployment ID in public mode. A
+random per-frame visitor ID scopes run reads; the token and ID remain in frame memory.
+Public token issuance has a deployment-wide cap, while existing visitor, key, deployment,
+organization, queue and spending admission still applies to questions. Disabling the
+public flag invalidates issued public tokens on their next request. Exact origins and
+CORS narrow browser embedding; nonbrowser clients can spoof Origin, so the durable
+rate and budget ceilings are the abuse boundary. This remains loopback-only.

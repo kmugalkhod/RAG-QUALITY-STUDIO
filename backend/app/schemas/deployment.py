@@ -113,3 +113,24 @@ class Page(Strict):
     total: int
     limit: int
     offset: int
+
+
+class WidgetBranding(Strict):
+    title: str = Field(default="Ask a question", min_length=1, max_length=60)
+    greeting: str = Field(default="How can I help?", max_length=240)
+    color: Literal["blue", "slate", "green"] = "blue"
+    position: Literal["left", "right"] = "right"
+
+
+class WidgetSettingsInput(Strict):
+    enabled: bool
+    public_enabled: bool = False
+    allowed_origins: list[str] = Field(max_length=20)
+    branding: WidgetBranding
+
+
+class WidgetExchangeInput(Strict):
+    visitor_session_id: str = Field(
+        min_length=32, max_length=128, pattern=r"^[A-Za-z0-9_-]+$"
+    )
+    site_origin: str = Field(min_length=8, max_length=255)

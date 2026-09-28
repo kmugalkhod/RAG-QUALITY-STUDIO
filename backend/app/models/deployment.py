@@ -4,6 +4,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     DateTime,
     ForeignKeyConstraint,
@@ -13,6 +14,7 @@ from sqlalchemy import (
     String,
     UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
@@ -103,6 +105,10 @@ class AnswerDeployment(Base):
     queued_runs: Mapped[int] = mapped_column(Integer, default=20)
     daily_budget_usd: Mapped[float] = mapped_column(Numeric(12, 6), default=5)
     monthly_budget_usd: Mapped[float] = mapped_column(Numeric(12, 6), default=20)
+    widget_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    widget_public_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    widget_origins: Mapped[list] = mapped_column(JSONB, default=list)
+    widget_branding: Mapped[dict] = mapped_column(JSONB, default=dict)
 
 
 class AnswerDeploymentRelease(Base):
@@ -211,6 +217,15 @@ class AnswerDeploymentKey(Base):
         ),
         UniqueConstraint("prefix", name="uq_answer_key_prefix"),
         UniqueConstraint("id", "deployment_id", name="uq_answer_key_deployment"),
+        CheckConstraint(
+            "kind IN ('server','public_widget')", name="ck_answer_key_kind"
+        ),
+        Index(
+            "uq_public_widget_key",
+            "deployment_id",
+            unique=True,
+            postgresql_where=text("kind = 'public_widget'"),
+        ),
         Index("ix_answer_key_family", "deployment_id", "client_id"),
         Index("ix_answer_key_validity", "deployment_id", "revoked_at", "expires_at"),
     )
@@ -223,6 +238,7 @@ class AnswerDeploymentKey(Base):
     secret_hash: Mapped[str] = mapped_column(String(64))
     pepper_version: Mapped[str] = mapped_column(String(40))
     label: Mapped[str] = mapped_column(String(120))
+    kind: Mapped[str] = mapped_column(String(20), default="server")
     created_by: Mapped[uuid.UUID]
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
@@ -231,6 +247,47 @@ class AnswerDeploymentKey(Base):
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     rotation_of_key_id: Mapped[uuid.UUID | None]
+
+
+class WidgetToken(Base):
+    __tablename__ = "widget_tokens"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["deployment_id", "organization_id", "project_id"],
+            [
+                "answer_deployments.id",
+                "answer_deployments.organization_id",
+                "answer_deployments.project_id",
+            ],
+            name="fk_widget_token_deployment_owner",
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["key_id", "deployment_id"],
+            ["answer_deployment_keys.id", "answer_deployment_keys.deployment_id"],
+            name="fk_widget_token_key",
+            ondelete="RESTRICT",
+        ),
+        UniqueConstraint("token_hash", name="uq_widget_token_hash"),
+        Index("ix_widget_token_expiry", "expires_at"),
+        Index(
+            "ix_widget_token_visitor", "deployment_id", "visitor_binding", "created_at"
+        ),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    deployment_id: Mapped[uuid.UUID]
+    organization_id: Mapped[str] = mapped_column(String(100))
+    project_id: Mapped[uuid.UUID]
+    key_id: Mapped[uuid.UUID]
+    token_hash: Mapped[str] = mapped_column(String(64))
+    visitor_binding: Mapped[str] = mapped_column(String(64))
+    client_id: Mapped[uuid.UUID]
+    site_origin: Mapped[str] = mapped_column(String(255))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
 
 
 class DeployedAnswerRun(Base):
@@ -275,6 +332,9 @@ class DeployedAnswerRun(Base):
             "cost_reservation_usd >= 0", name="ck_deployed_run_reservation"
         ),
         CheckConstraint("attempts >= 0", name="ck_deployed_run_attempts"),
+        CheckConstraint(
+            "caller_kind IN ('server_key','widget')", name="ck_deployed_run_caller_kind"
+        ),
         Index("ix_deployed_run_history", "deployment_id", "created_at", "id"),
         Index("ix_deployed_run_org_status", "organization_id", "status", "created_at"),
         Index("ix_deployed_run_queue", "status", "dispatched_at"),
@@ -286,6 +346,8 @@ class DeployedAnswerRun(Base):
     release_id: Mapped[uuid.UUID]
     key_id: Mapped[uuid.UUID]
     client_id: Mapped[uuid.UUID]
+    caller_kind: Mapped[str] = mapped_column(String(16), default="server_key")
+    widget_visitor_binding: Mapped[str | None] = mapped_column(String(64))
     idempotency_key: Mapped[str] = mapped_column(String(200))
     request_hash: Mapped[str] = mapped_column(String(64))
     question: Mapped[str | None] = mapped_column(String(8000))

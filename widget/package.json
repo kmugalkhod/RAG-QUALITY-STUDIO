@@ -1,0 +1,30 @@
+{
+  "name": "rag-quality-widget",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 5274",
+    "build": "tsc --noEmit && vite build && node scripts/copy-frame.mjs && node scripts/package.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "serve": "node scripts/serve.mjs",
+    "build:layout-fixtures": "node scripts/build-layout-fixtures.mjs"
+  },
+  "dependencies": {
+    "react": "19.1.4",
+    "react-dom": "19.1.4"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "6.8.0",
+    "@testing-library/react": "16.3.0",
+    "@types/react": "19.1.12",
+    "@types/react-dom": "19.1.9",
+    "@vitejs/plugin-react": "5.0.2",
+    "jsdom": "26.1.0",
+    "typescript": "5.9.2",
+    "vite": "7.3.6",
+    "vitest": "4.1.11",
+    "vue": "3.5.18"
+  }
+}

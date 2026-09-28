@@ -14,6 +14,7 @@ from app.models.deployment import (
     AnswerDeploymentKey,
     AnswerDeploymentRelease,
     DeployedAnswerRun,
+    WidgetToken,
 )
 from app.models.project import Project
 from app.schemas.deployment import (
@@ -23,8 +24,9 @@ from app.schemas.deployment import (
     PromotionInput,
     ReasonInput,
     ReleaseInput,
+    WidgetSettingsInput,
 )
-from app.core import deployment_auth
+from app.core import deployment_auth, widget_auth
 from app.core.config import settings
 from app.services import deployments, deployment_commands
 
@@ -494,7 +496,10 @@ def key_list(
     response.headers["Cache-Control"] = "no-store"
     keys = session.scalars(
         select(AnswerDeploymentKey)
-        .where(AnswerDeploymentKey.deployment_id == row.id)
+        .where(
+            AnswerDeploymentKey.deployment_id == row.id,
+            AnswerDeploymentKey.kind == "server",
+        )
         .order_by(AnswerDeploymentKey.created_at.desc(), AnswerDeploymentKey.id.desc())
     ).all()
     return {"items": [deployment_auth.metadata(key) for key in keys]}
@@ -546,7 +551,7 @@ def key_rotate(
     _owner(session, project_id, principal)
     row = _read(session, project_id, deployment_id, principal, lock=True)
     key = session.get(AnswerDeploymentKey, key_id)
-    if key is None or key.deployment_id != row.id:
+    if key is None or key.deployment_id != row.id or key.kind != "server":
         raise HTTPException(404, "Deployment key not found.")
     command, _ = deployment_commands.prepare(
         session,
@@ -577,7 +582,7 @@ def key_revoke(
     _owner(session, project_id, principal)
     row = _read(session, project_id, deployment_id, principal, lock=True)
     key = session.get(AnswerDeploymentKey, key_id)
-    if key is None or key.deployment_id != row.id:
+    if key is None or key.deployment_id != row.id or key.kind != "server":
         raise HTTPException(404, "Deployment key not found.")
     command, replay = deployment_commands.prepare(
         session,
@@ -707,3 +712,83 @@ def cancel_run(
     deployment_commands.record(session, command, run.id, _run_summary(run))
     session.commit()
     return _run_summary(run)
+
+
+@router.get("/{deployment_id}/widget")
+def widget_settings(
+    project_id: UUID,
+    deployment_id: UUID,
+    session: ManagementDatabase,
+    principal: CurrentPrincipal,
+):
+    row = _read(session, project_id, deployment_id, principal)
+    return {
+        "deployment_id": row.id,
+        "enabled": row.widget_enabled,
+        "public_enabled": row.widget_public_enabled,
+        "allowed_origins": row.widget_origins,
+        "branding": row.widget_branding
+        or {
+            "title": "Ask a question",
+            "greeting": "How can I help?",
+            "color": "blue",
+            "position": "right",
+        },
+        "revision": row.revision,
+    }
+
+
+@router.put("/{deployment_id}/widget")
+def put_widget_settings(
+    project_id: UUID,
+    deployment_id: UUID,
+    payload: WidgetSettingsInput,
+    session: ManagementDatabase,
+    principal: CurrentPrincipal,
+    if_match: Annotated[str | None, Header()] = None,
+):
+    _owner(session, project_id, principal)
+    row = _read(session, project_id, deployment_id, principal, lock=True)
+    if row.revision != _etag(if_match):
+        raise HTTPException(412, "stale_revision")
+    if row.state == "archived":
+        raise HTTPException(409, "deployment_archived")
+    origins = [widget_auth.canonical_origin(item) for item in payload.allowed_origins]
+    if len(set(origins)) != len(origins):
+        raise HTTPException(422, "duplicate_origins")
+    if payload.enabled and not origins:
+        raise HTTPException(422, "origin_not_allowed")
+    if payload.public_enabled and (
+        not payload.enabled
+        or not origins
+        or row.state != "active"
+        or not row.active_release_id
+    ):
+        raise HTTPException(422, "public_widget_requires_active_deployment")
+    if payload.public_enabled and not row.widget_public_enabled:
+        widget_auth.ensure_public_key(session, row, principal.user_id)
+    row.widget_enabled = payload.enabled
+    row.widget_public_enabled = payload.public_enabled
+    row.widget_origins = origins
+    row.widget_branding = payload.branding.model_dump()
+    row.revision += 1
+    row.updated_at = datetime.now(timezone.utc)
+    session.commit()
+    return widget_settings(project_id, deployment_id, session, principal)
+
+
+@router.post("/{deployment_id}/widget/revoke-sessions")
+def revoke_widget_sessions(
+    project_id: UUID,
+    deployment_id: UUID,
+    session: ManagementDatabase,
+    principal: CurrentPrincipal,
+):
+    _owner(session, project_id, principal)
+    row = _read(session, project_id, deployment_id, principal, lock=True)
+    now = datetime.now(timezone.utc)
+    session.query(WidgetToken).filter(
+        WidgetToken.deployment_id == row.id, WidgetToken.revoked_at.is_(None)
+    ).update({WidgetToken.revoked_at: now})
+    session.commit()
+    return {"revoked": True}

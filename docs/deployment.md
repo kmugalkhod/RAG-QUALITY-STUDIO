@@ -1,5 +1,7 @@
 # Deployment
 
+The website widget supports private and opt-in public visitor modes locally. Its versioned loader and iframe can be built from `widget/`, but no CDN, public API ingress or internet customer endpoint has been deployed. Before any shared rollout, complete the deployed-answer endpoint's independent Clerk membership, external KMS/Vault, secret-store, authenticated TLS ingress, backup/restore, abuse and capacity gates. See [widget development](development.md#website-widget-local-only) and [widget operations](operations.md#private-website-widget-local-operation).
+
 The deployable answer endpoint is currently a **loopback-only server-to-server
 development feature**. Migrations 0030–0034, a dedicated Celery queue and a separate
 `deployed-worker` service are required when it is enabled. Keep

@@ -97,6 +97,7 @@ def _own_run(session, deployment, client_id, run_id):
             DeployedAnswerRun.id == run_id,
             DeployedAnswerRun.deployment_id == deployment.id,
             DeployedAnswerRun.client_id == client_id,
+            DeployedAnswerRun.caller_kind == "server_key",
         )
     )
     if run is None:
@@ -138,6 +139,10 @@ def question_result(
     key = verify_key(session, row, authorization)
     session.commit()
     run = _own_run(session, row, key.client_id, run_id)
+    return serialize_result(session, run, response)
+
+
+def serialize_result(session, run, response):
     response.headers["Cache-Control"] = "no-store"
     if run.status not in {"succeeded", "insufficient_evidence", "failed", "cancelled"}:
         response.status_code = 202

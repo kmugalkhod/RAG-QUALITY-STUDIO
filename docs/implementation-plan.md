@@ -1,5 +1,15 @@
 # Implementation plan
 
+## Private website chatbot widget — local implementation (2026-09-28)
+
+Status: **implemented and verified for local private use; no public deployment**. The [widget plan](website-chatbot-widget-plan.md) slices 0–5 and the local portion of slice 6 are delivered. The separate `widget/` React/TypeScript/Vite app builds a versioned loader, an iframe app, SRI manifest and loopback static server. Its single launcher works in plain HTML, React and Vue shared layouts and a server-rendered head layout, across route changes. The iframe provides a nonmodal desktop chat and full-screen mobile dialog, keyboard behavior, polite status announcements, visible setup/session errors, slow/429/expired/failed/insufficient-evidence states and bounded citation inspection. Tokens are volatile memory only. After user feedback, the form-like panel was changed to a recognizable chat transcript: persistent composer, distinct visitor/assistant messages, session-local prior turns, compact inline source links and evidence disclosure. The loader now sends the host viewport mode through its checked handshake so the desktop panel no longer misidentifies its narrow iframe as a mobile page. Each backend question remains independent; closing clears the transcript.
+
+Migration 0035 adds typed widget settings, exact site origins, limited branding, keyed token hashes and visitor-scoped run ownership. A customer server authenticates its visitor, keeps the deployment key, and exchanges a pseudonymous per-login-session binding for a five-minute widget token. Separate widget status/question/result routes enforce that token, the exact frame Origin, deployment/key/revocation state, visitor ownership and per-visitor admission/idempotency. CORS, iframe CSP and nonce-checked `postMessage` narrow the browser boundary. Old server-key routes still reject browser Origin. Widget questions reuse deployed-answer admission, the durable worker, pinned release/index and existing result serializer; no second answer executor or synthetic production response was added. Studio owner/admin can set origins/branding and enable or pause widget access with revisions, see an appearance-only preview, copy the pinned snippet, and read customer-backend setup instructions. A local authenticated customer backend fixture has server-side key storage, Origin/CSRF-style request checks, token issuance limits and session revocation on logout.
+
+**Acceptance evidence:** a fresh isolated PostgreSQL migration and Alembic model-drift check passed. Focused backend widget, deployment, schema, authorization, exchange/visitor rates and Redis/Celery pinned-answer regressions passed **14/14** in a Compose test container; the six widget-specific backend tests subsequently passed on a fresh isolated PostgreSQL database after adding wrong-deployment, tampering, key-rotation and archive assertions. Widget typecheck, **6 loader tests** and production build passed; the measured artifacts are 5,361 bytes for the loader, 198,937 bytes of frame JS and 5,699 bytes of CSS. Studio typecheck, lint, **122/122** Vitest tests and build passed. The final isolated Chromium/Playwright suite passed **17/17**: authenticated answers/citations, copied-script denial with visible setup error, plain HTML/React/Vue/server-rendered layouts, mobile and desktop semantics, zoom-sized viewport/reduced motion, insufficient evidence, provider failure, expired-token renewal, pause, ambiguous idempotent retry, interrupted polling, 429 countdown, chat turns, inert untrusted HTML, a 16-second provider response and fixture-key web-root denial. Four critical journeys (authenticated answer/citations, copied denial, server-rendered head layout and mobile dialog) also passed against the packaged static widget server on port 5274; the Vite development server was restored afterward. A security check found that Vite could serve the disposable backend key when it was stored under `widget/.local/`; the fixture now stores it in the operating system's temporary directory outside the web root. Direct URL probes returned 404 for the old path and 403 for Vite's `/@fs` path, and authenticated/copy/expiry smoke journeys passed after restarting the fixture. Agent Browser CLI separately exercised the running authenticated customer-site flow (token exchange → question → persisted progress → cited answer), copied-script/frame denial, expiration, pause, provider failure, mobile and keyboard/focus behavior, React root navigation, and Studio settings/preview. The latest manual desktop check confirmed a nonmodal region and the latest mobile check confirmed a dialog; the copied-site check showed the visible setup error. Final desktop, mobile and copied-site captures are under ignored `widget/.local/`. All services were loopback-only with an isolated `rag_widget_browser_test` database and deterministic provider double; no paid provider call or public ingress was used.
+
+**Limits and next gate:** the customer backend and sign-in are a disposable local fixture, not reusable production authentication. The React/Vue/server layouts are local stand-ins, so actual Next.js/Nuxt deployment CSP and hosting details remain customer validation. A live provider, shared identity/KMS, external secret store, ingress, backup/restore, load/capacity and CDN rollback have not been accepted. No production-readiness claim follows from these local gates. The next actionable step before any separately authorized internet rollout is to complete the deployable-answer production gates, integrate a real customer backend/session policy, and rehearse secure ingress and recovery against the selected infrastructure.
+
 ## User documentation website — reviewable phase 4 boundary (2026-09-26)
 
 **Phase 4 complete for local review, not published:** added seven authored pages: Deploy the local workspace, Security and permissions, Back up and restore a workspace, Operate jobs and storage, Troubleshoot a blocked workflow, Review a documentation release, and Limits and FAQ. The planned public inventory and five tutorials are now represented by 58 stable, navigable pages. Each operator page gives a concrete local outcome, prerequisites, current commands or UI labels, expected and retry behavior, related guides, and the boundary between deterministic local checks and live/shared acceptance. A reviewed route contract records all 58 slugs; it has no redirects because no documentation route has previously been published. The release checklist assigns feature, API, operator and reviewer ownership and requires a real redirect check if a published slug changes.
@@ -1989,3 +1999,26 @@ After restoring the local Clerk configuration, readiness returned 200, an anonym
 management read and keyless customer read returned 401, and a customer request with a
 browser Origin returned 403. The canonical Vite process remained on port 5273.
 These checks do not constitute the separate production gate.
+
+## Public visitor website widget, local only — 2026-09-29
+
+An owner can opt in to public visitor questions for an active widget and exact allowed
+site origin. Migration 0036 defaults existing deployments to private and adds a
+server-owned accounting key that cannot be listed or used as a customer key. The
+iframe obtains five-minute visitor tokens from Studio after checking its parent origin.
+A public customer copies one script without a token URL, key or backend route. The
+private customer-token flow remains available. Public issuance is capped per
+deployment, and questions reuse the existing visitor, key, deployment and organization
+rates, queue controls, conservative daily/monthly reservations and worker. Disabling
+public access invalidates its active browser tokens.
+
+Verification: migration 0036 applied to the retained local PostgreSQL database;
+focused widget integration tests passed 7/7 against fresh isolated PostgreSQL;
+widget loader tests passed 7/7; backend Ruff lint/format, widget typecheck/build,
+frontend lint/typecheck passed. The owner enabled public visitors for the existing
+“First Pipeline” local deployment on `http://127.0.0.1:5275` with its saved
+30-question/minute, $5/day and $20/month limits. An anonymous browser loaded the
+static HTML page, received a 201 public token, submitted one question (202), and read
+a succeeded answer with three evidence items. The owner’s Chrome test tab was refreshed
+and shows the ready assistant. No internet ingress or public hosting was configured.
+The test asked one live question and may have incurred provider cost.

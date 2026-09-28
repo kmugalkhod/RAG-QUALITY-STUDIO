@@ -72,7 +72,13 @@ def _deployment_reserved(session, deployment_id, since):
 
 
 def admit(
-    session, deployment: AnswerDeployment, key, question: str, idempotency_key: str
+    session,
+    deployment: AnswerDeployment,
+    key,
+    question: str,
+    idempotency_key: str,
+    *,
+    visitor_binding: str | None = None,
 ):
     if not idempotency_key:
         _deny(428, "idempotency_required")
@@ -102,6 +108,8 @@ def admit(
         if existing.redacted_at is not None:
             _deny(410, "result_expired")
         return existing, True
+    if visitor_binding is not None and not deployment.widget_enabled:
+        _deny(403, "widget_disabled")
     if deployment.state != "active" or deployment.active_release_id is None:
         _deny(409, "deployment_not_active")
     release = session.get(AnswerDeploymentRelease, deployment.active_release_id)
@@ -128,6 +136,28 @@ def admit(
             DeployedAnswerRun.created_at >= since,
         )
         >= settings.deployment_key_rpm
+    ):
+        _deny(429, "rate_limited")
+    if (
+        visitor_binding is not None
+        and _count(
+            session,
+            DeployedAnswerRun.key_id == key.id,
+            DeployedAnswerRun.deployment_id == deployment.id,
+            DeployedAnswerRun.created_at >= since,
+        )
+        >= settings.deployment_key_rpm
+    ):
+        _deny(429, "rate_limited")
+    if (
+        visitor_binding is not None
+        and _count(
+            session,
+            DeployedAnswerRun.deployment_id == deployment.id,
+            DeployedAnswerRun.widget_visitor_binding == visitor_binding,
+            DeployedAnswerRun.created_at >= since,
+        )
+        >= settings.widget_visitor_rpm
     ):
         _deny(429, "rate_limited")
     if _count(
@@ -188,6 +218,8 @@ def admit(
         release_id=release.id,
         key_id=key.id,
         client_id=key.client_id,
+        caller_kind="widget" if visitor_binding is not None else "server_key",
+        widget_visitor_binding=visitor_binding,
         idempotency_key=idempotency_key,
         request_hash=request_hash,
         question=question,
@@ -233,12 +265,13 @@ def status(run):
     }
 
 
-def accepted(run, release):
+def accepted(run, release, *, widget=False):
+    route = "widget/questions" if widget else "questions"
     return {
         "id": run.id,
         "status": run.status,
         "release_number": release.release_number,
         "created_at": run.created_at,
-        "status_url": f"/v1/answer-deployments/{run.deployment_id}/questions/{run.id}/status",
-        "result_url": f"/v1/answer-deployments/{run.deployment_id}/questions/{run.id}/result",
+        "status_url": f"/v1/answer-deployments/{run.deployment_id}/{route}/{run.id}/status",
+        "result_url": f"/v1/answer-deployments/{run.deployment_id}/{route}/{run.id}/result",
     }

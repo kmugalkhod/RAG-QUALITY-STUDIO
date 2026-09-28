@@ -13,3 +13,4 @@ test-results/
 *.tsbuildinfo
 
 backend/.local-documents/
+widget/.local/

@@ -80,6 +80,11 @@ class Settings(BaseSettings):
     deployment_org_daily_usd: Decimal = Field(default=Decimal("5.00"), gt=0)
     deployment_org_monthly_usd: Decimal = Field(default=Decimal("20.00"), gt=0)
     deployment_max_reserved_usd_per_run: Decimal = Field(default=Decimal("0.25"), gt=0)
+    widget_enabled: bool = False
+    widget_frame_origin: str = "http://127.0.0.1:5274"
+    widget_token_hash_key: SecretStr = SecretStr("")
+    widget_visitor_rpm: int = Field(default=5, ge=1, le=100)
+    widget_exchange_rpm: int = Field(default=20, ge=1, le=1000)
     deployment_result_retention_days: int = Field(default=30, ge=1, le=365)
 
     @model_validator(mode="after")
@@ -106,6 +111,13 @@ class Settings(BaseSettings):
         ):
             raise ValueError(
                 "Deployment pricing or key verification configuration is unavailable."
+            )
+        if self.widget_enabled and (
+            not self.deployed_answers_enabled
+            or len(self.widget_token_hash_key.get_secret_value().encode()) < 32
+        ):
+            raise ValueError(
+                "Widget token hashing or deployed answers are unavailable."
             )
         return self
 

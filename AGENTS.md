@@ -229,3 +229,9 @@ Keep test data in an isolated database/storage location. Automated tests must no
 - Run relevant checks for changed areas. Do not claim unrun tests or unverified external integrations passed.
 - Finish each task with what changed, how it was verified, any remaining limitations and the next actionable step.
 - Keep this file concise enough to remain useful. Add detailed procedures to `docs/` and link them here only after those files exist.
+
+## Context files
+
+- [backend/AGENTS.md](backend/AGENTS.md) (API, persistence, workers, and backend verification)
+- [frontend/AGENTS.md](frontend/AGENTS.md) (Studio workspace, UI conventions, and browser verification)
+- [widget/AGENTS.md](widget/AGENTS.md) (separate website widget, browser trust boundary, and local checks)

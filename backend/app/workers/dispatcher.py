@@ -535,6 +535,22 @@ def prune_expired_deployment_commands_once(db_engine=engine):
     return len(rows)
 
 
+def prune_expired_widget_tokens_once(db_engine=engine):
+    from app.models.deployment import WidgetToken
+
+    cutoff = now() - timedelta(hours=1)
+    with Session(
+        db_engine.execution_options(isolation_level="READ COMMITTED")
+    ) as session:
+        rows = session.scalars(
+            select(WidgetToken).where(WidgetToken.expires_at < cutoff).limit(100)
+        ).all()
+        for token in rows:
+            session.delete(token)
+        session.commit()
+    return len(rows)
+
+
 def main():
     while True:
         try:
@@ -552,6 +568,7 @@ def main():
             dispatch_deployed_once()
             redact_expired_deployed_once()
             prune_expired_deployment_commands_once()
+            prune_expired_widget_tokens_once()
         except Exception:
             logging.warning("Queue dispatch unavailable; retrying in five seconds.")
         time.sleep(5)

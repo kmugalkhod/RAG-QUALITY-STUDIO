@@ -1,5 +1,25 @@
 # Development
 
+## Website widget, local only
+
+For a static local site, enable **Allow public visitors to ask questions** in Answer Deployments → Website widget, save the exact allowed origin `http://127.0.0.1:5275`, and use the copied script without `data-rqs-token-url`. The example in `widget/demo-static/index.html` is served with `python3 -m http.server 5275 --bind 127.0.0.1 --directory widget/demo-static`. Keep the separate widget Vite server on port 5274 and the backend widget settings enabled. Studio issues the short-lived visitor token; the site has no key or backend route. Questions use the deployment's rate, queue and daily/monthly budget limits. The public switch is off by default and disabling it rejects outstanding public tokens. This local check does not configure internet access.
+
+The separate `widget/` Vite app runs on `http://127.0.0.1:5274`; Studio remains the single frontend at `http://127.0.0.1:5273`. Apply migration 0035 and configure the existing deployed-answer settings plus `WIDGET_ENABLED=true`, `WIDGET_FRAME_ORIGIN=http://127.0.0.1:5274`, and an independent random 32-byte or longer `WIDGET_TOKEN_HASH_KEY` in the backend environment. Keep these values on the server. The widget feature is off by default. Do not start the Compose/Nginx frontend alongside Studio Vite.
+
+For the isolated deterministic browser fixture, keep PostgreSQL running locally, install the locked `widget/` and `frontend/` dependencies, then use separate terminals from the repository root:
+
+```sh
+PYTHONPATH=backend backend/.venv/bin/python widget/e2e/start_api.py
+cd widget && npm run dev
+cd widget && npm run build:layout-fixtures && node e2e/customer.mjs
+cd widget && node e2e/copied.mjs
+cd frontend && VITE_CLERK_PUBLISHABLE_KEY= npm run dev -- --port 5273
+```
+
+The fixture uses the dedicated `rag_widget_browser_test` database and a deterministic answer double behind the real admission, persisted run, worker checkpoint and result routes. Its customer site is `http://127.0.0.1:5275`, copied embed is `http://127.0.0.1:5276`, and its backend-only one-time key file is created with mode `0600` in the operating system's temporary directory, outside the Vite web root. Opening the customer fixture as `http://localhost:5275/` redirects to the canonical `127.0.0.1` origin; the iframe's exact `frame-ancestors` policy does not admit both aliases. The sample sign-in is disposable test authentication. This one shared test deployment has raised rate ceilings so the entire browser suite can run; isolated backend tests verify the default production limits. In production integration, the customer's backend must authenticate and authorize each real visitor, protect the deployment key in its secret store, validate the incoming browser Origin and CSRF/Fetch Metadata, rate-limit token issuance, and exchange its opaque per-login-session binding. The browser token URL is a same-origin POST path. The widget sends no key or token in HTML, URL, storage or logs. Add the pinned script/frame origins to the site's CSP.
+
+With these servers running, `cd frontend && WIDGET_E2E=1 npm run test:e2e -- --grep widget` runs the widget browser suite. `cd widget && npm run typecheck && npm run test && npm run build` checks the independent app and records asset sizes/SRI in `widget/dist/v1.0.0/manifest.json`. Browser state controls such as `PYTHONPATH=backend backend/.venv/bin/python widget/e2e/control.py pause` affect only the isolated fixture database. The customer site serves plain HTML, React and Vue shared layouts, plus a server-rendered head-script layout; none is a production authentication implementation.
+
 ## Clerk development authentication
 
 The existing local-owner mode remains available with `AUTH_MODE=local` and no `VITE_CLERK_PUBLISHABLE_KEY` in `frontend/.env.local`. For Clerk development, link the existing application from `frontend/` with `npx -y clerk@latest link --app <app_id>`, then run `npx -y clerk@latest doctor --json`. Put only `VITE_CLERK_PUBLISHABLE_KEY` in the ignored `frontend/.env.local`. Put `AUTH_MODE=clerk`, `CLERK_ISSUER`, its exact `CLERK_JWKS_URL` (`<issuer>/.well-known/jwks.json`), `CLERK_SECRET_KEY`, and `CLERK_AUTHORIZED_ORIGINS=["http://127.0.0.1:5273","http://localhost:5273"]` in the ignored root `.env`. Never put the secret in a `VITE_*` variable. The CLI may pull server keys into an ignored file; do not print them. Restart the backend and Vite after changing either env file. Use `http://127.0.0.1:5273` as the canonical browser URL; `localhost:5273` is also accepted for Clerk sessions already issued there.

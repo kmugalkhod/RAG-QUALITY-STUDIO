@@ -109,6 +109,10 @@ def ready(session: Database) -> dict[str, str]:
         text("SELECT status, execution_token FROM deployed_answer_runs LIMIT 0")
     )
     session.execute(text("SELECT reserved_usd FROM deployment_usage_buckets LIMIT 0"))
+    session.execute(
+        text("SELECT widget_enabled, widget_origins FROM answer_deployments LIMIT 0")
+    )
+    session.execute(text("SELECT token_hash FROM widget_tokens LIMIT 0"))
     if settings.deployed_answers_enabled and (
         not settings.deployment_pricing_version
         or not settings.deployment_approved_prices

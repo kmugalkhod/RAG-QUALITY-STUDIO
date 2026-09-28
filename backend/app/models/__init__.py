@@ -34,6 +34,7 @@ from app.models.deployment import (  # noqa: F401
     AnswerDeploymentRelease,
     AnswerDeploymentEvent,
     AnswerDeploymentKey,
+    WidgetToken,
     DeployedAnswerRun,
     DeploymentUsageBucket,
     DeploymentUsageEntry,

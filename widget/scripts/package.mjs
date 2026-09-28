@@ -1,0 +1,14 @@
+import { createHash } from 'node:crypto';
+import { readFile, readdir, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+const root = 'dist/v1.0.0';
+const loader = await readFile(join(root,'loader.js'));
+const entries = await readdir(join(root,'assets'));
+const js = entries.find(name => /^frame-[A-Za-z0-9_-]+\.js$/.test(name));
+const css = entries.find(name => /^frame-[A-Za-z0-9_-]+\.css$/.test(name));
+if (!js || !css) throw new Error('Frame assets missing');
+const script = await readFile(join(root,'assets',js));
+const styles = await readFile(join(root,'assets',css));
+if (loader.length > 10_000 || script.length > 220_000 || styles.length > 20_000) throw new Error('Widget asset budget exceeded');
+const hash = value => `sha256-${createHash('sha256').update(value).digest('base64')}`;
+await writeFile(join(root,'manifest.json'), JSON.stringify({version:'1.0.0',protocol:'1.0.0',loader:{path:'/v1.0.0/loader.js',bytes:loader.length,integrity:hash(loader)},frame:{script:`/v1.0.0/assets/${js}`,script_bytes:script.length,style:`/v1.0.0/assets/${css}`,style_bytes:styles.length}},null,2)+'\n');

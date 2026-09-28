@@ -11,6 +11,7 @@ import { formatIndexOption, type IndexVersion } from '../documents/model';
 import { listPipelines, listPipelineVersions } from '../pipelines/api';
 import type { Pipeline, PipelineVersion } from '../pipelines/model';
 import * as api from './api';
+import { WidgetSettings } from './WidgetSettings';
 
 type Props = { projectId: string; deploymentId?: string };
 const short = (id: string) => id.slice(0, 8);
@@ -421,6 +422,8 @@ export function DeploymentsPage({ projectId, deploymentId }: Props) {
                     Pipeline {deployment.pipeline_id}
                   </p>
                 </div>
+
+                <WidgetSettings projectId={projectId} deployment={deployment} canManage={canManage} onSaved={() => setRevision(value => value + 1)} />
 
                 <section aria-labelledby="release-heading" className="space-y-4">
                   <h3 id="release-heading" className="text-base font-semibold">
