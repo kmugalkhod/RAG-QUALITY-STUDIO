@@ -14,6 +14,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.core.auth import (
+    TOKEN_CLOCK_SKEW_SECONDS,
     Principal,
     _clerk_claims,
     _clerk_membership,
@@ -127,7 +128,7 @@ def test_clerk_token_rejects_wrong_origin_expiry_and_pending_session(monkeypatch
     )
     for changed in (
         {"azp": "http://malicious.example"},
-        {"exp": now - 1},
+        {"exp": now - TOKEN_CLOCK_SKEW_SECONDS - 1},
         {"iss": "https://other.clerk.accounts.dev"},
         {"sts": "pending"},
     ):
@@ -138,6 +139,43 @@ def test_clerk_token_rejects_wrong_origin_expiry_and_pending_session(monkeypatch
     forged = jwt.encode(claims, different_key, algorithm="RS256")
     with pytest.raises(HTTPException) as rejected:
         _clerk_claims(SimpleNamespace(headers={"authorization": f"Bearer {forged}"}))
+    assert rejected.value.status_code == 401
+
+
+def test_clerk_token_tolerates_small_clock_skew(monkeypatch):
+    # Clerk stamps iat and nbf with its own clock, so a backend clock a moment
+    # behind must not reject a freshly issued token (ImmatureSignatureError).
+    private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    now = int(datetime.now(timezone.utc).timestamp())
+    monkeypatch.setattr(settings, "clerk_issuer", "https://example.clerk.accounts.dev")
+    monkeypatch.setattr(settings, "clerk_authorized_origins", ["http://127.0.0.1:5273"])
+    monkeypatch.setattr(
+        "app.core.auth._jwks_client",
+        lambda _: SimpleNamespace(
+            get_signing_key_from_jwt=lambda token: SimpleNamespace(
+                key=private_key.public_key()
+            )
+        ),
+    )
+    claims = {
+        "sub": "user_test",
+        "sid": "sess_test",
+        "o": {"id": "org_test"},
+        "iss": settings.clerk_issuer,
+        "iat": now + 2,
+        "nbf": now + 2,
+        "exp": now + 62,
+    }
+
+    def verify(payload):
+        token = jwt.encode(payload, private_key, algorithm="RS256")
+        return _clerk_claims(
+            SimpleNamespace(headers={"authorization": f"Bearer {token}"})
+        )
+
+    assert verify(claims)["_organization_id"] == "org_test"
+    with pytest.raises(HTTPException) as rejected:
+        verify({**claims, "iat": now + 60, "nbf": now + 60})
     assert rejected.value.status_code == 401
 
 

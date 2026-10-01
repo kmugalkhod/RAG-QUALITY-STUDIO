@@ -26,6 +26,9 @@ from app.models.project import Project
 
 
 logger = logging.getLogger(__name__)
+# Tokens carry the issuer's clock in iat, nbf and exp; allow a small skew so a backend
+# clock a moment behind (common after a Docker VM resync) does not reject fresh tokens.
+TOKEN_CLOCK_SKEW_SECONDS = 5
 
 
 @dataclass(frozen=True)
@@ -117,6 +120,7 @@ def _oidc_claims(request: Request) -> dict:
             algorithms=list(settings.auth_oidc_algorithms),
             audience=audience,
             issuer=issuer,
+            leeway=TOKEN_CLOCK_SKEW_SECONDS,
             options={"require": ["exp", "iat", "sub"]},
         )
     except jwt.PyJWTError:
@@ -137,6 +141,7 @@ def _clerk_claims(request: Request) -> dict:
             signing_key.key,
             algorithms=["RS256"],
             issuer=settings.clerk_issuer.rstrip("/"),
+            leeway=TOKEN_CLOCK_SKEW_SECONDS,
             options={
                 "verify_aud": False,
                 "require": ["exp", "iat", "nbf", "iss", "sub", "sid"],
