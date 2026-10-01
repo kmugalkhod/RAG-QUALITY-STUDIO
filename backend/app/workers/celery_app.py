@@ -3,6 +3,12 @@ from celery.signals import worker_process_init
 from app.core.config import settings
 from app.db.session import engine
 
+# Short steps (parse, chunk, embed, file-ingestion coordination) use the default
+# queue; work that may run for up to an hour uses its own worker pool so it
+# cannot occupy every worker that short steps need.
+DEFAULT_QUEUE = "celery"
+LONG_QUEUE = "long"
+
 celery = Celery(
     "rag_studio",
     broker=settings.redis_url,
@@ -31,7 +37,14 @@ celery.conf.update(
         "socket_connect_timeout": 3,
     },
     worker_max_tasks_per_child=20,
-    worker_max_memory_per_child=262144,
+    # Kilobytes of resident memory. A forked child already reports about 260 MB
+    # of shared imports, so a lower limit would replace it after every task.
+    worker_max_memory_per_child=409600,
+    task_default_queue=DEFAULT_QUEUE,
+    task_routes={
+        "preview.sources": {"queue": LONG_QUEUE},
+        "experiments.step": {"queue": LONG_QUEUE},
+    },
 )
 
 

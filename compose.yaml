@@ -24,6 +24,8 @@ services:
       EMBEDDING_DIMENSIONS: ${EMBEDDING_DIMENSIONS:-1536}
       EMBEDDING_BASE_URL: ${EMBEDDING_BASE_URL:-https://openrouter.ai/api/v1}
       EMBEDDING_REQUESTS_PER_MINUTE: ${EMBEDDING_REQUESTS_PER_MINUTE:-60}
+      DISPATCH_RESEND_SECONDS: ${DISPATCH_RESEND_SECONDS:-300}
+      DISPATCH_ORG_CONCURRENCY: ${DISPATCH_ORG_CONCURRENCY:-4}
       EVALUATOR_MODEL: ${EVALUATOR_MODEL:-}
       EVALUATOR_MAX_TOKENS: ${EVALUATOR_MAX_TOKENS:-4096}
       DATASET_MAX_ROWS: ${DATASET_MAX_ROWS:-200}
@@ -116,7 +118,21 @@ services:
       retries: 20
   worker:
     build: ./backend
-    command: ["celery", "-A", "app.workers.celery_app:celery", "worker", "--loglevel=warning", "--concurrency=2"]
+    command: ["celery", "-A", "app.workers.celery_app:celery", "worker", "--queues=celery", "--loglevel=warning", "--concurrency=${WORKER_CONCURRENCY:-2}"]
+    environment: *backend-env
+    volumes:
+      - document_data:/data/documents
+    mem_limit: 768m
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+  # Website/S3/Notion/Confluence discovery, source previews and experiments.
+  long-worker:
+    build: ./backend
+    command: ["celery", "-A", "app.workers.celery_app:celery", "worker", "--queues=long", "--loglevel=warning", "--concurrency=${LONG_WORKER_CONCURRENCY:-2}"]
     environment: *backend-env
     volumes:
       - document_data:/data/documents

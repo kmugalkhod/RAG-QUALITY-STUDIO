@@ -35,5 +35,5 @@ def reserve_request():
     if count > settings.embedding_requests_per_minute:
         raise EmbeddingError(
             "Local embedding request budget reached. Retry after one minute.",
-            transient=True,
+            throttled=True,
         )

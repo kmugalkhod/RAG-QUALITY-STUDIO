@@ -19,7 +19,7 @@ Start the supported loopback workspace, identify its persistent stores, and deci
 ```sh
 test -e .env || cp .env.example .env
 # Edit .env before the first Compose start.
-docker compose up --build -d db redis migrate backend worker dispatcher
+docker compose up --build -d db redis migrate backend worker long-worker dispatcher
 curl --fail http://127.0.0.1:8000/api/health
 curl --fail http://127.0.0.1:8000/api/ready
 docker compose ps

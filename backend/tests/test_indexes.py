@@ -15,6 +15,7 @@ from app.core.config import settings
 from app.models.index import IndexChunk, IndexVersion, KnowledgeSet
 from app.providers import embeddings
 from app.providers.openrouter import OpenRouterEmbeddings
+from app.workers import indexing
 from app.workers.indexing import process_index
 from app.workers.dispatcher import dispatch_indexes_once
 from app.workers.processing import now, process
@@ -379,6 +380,130 @@ def test_bounded_retries_and_concurrent_delivery(index_api):
         assert session.get(IndexVersion, UUID(retry["id"])).attempts == 1
 
 
+def sender():
+    sent = []
+    return sent, lambda value, countdown=None: sent.append((value, countdown))
+
+
+def test_worker_hands_off_each_batch_without_dispatcher(index_api, monkeypatch):
+    client, engine, p, _, _ = index_api
+    prepared(client, engine, p)
+    id = UUID(create(client, p)["id"])
+    monkeypatch.setattr("app.workers.indexing.BATCH_SIZE", 1)
+    sent, send = sender()
+    process_index(id, engine, send=send)
+    assert sent == [(id, None)]
+    with Session(engine) as session:
+        assert session.get(IndexVersion, id).dispatched_at is not None
+    redispatched = []
+    dispatch_indexes_once(engine, send=redispatched.append)
+    assert id not in redispatched
+    while sent:
+        sent.pop()
+        process_index(id, engine, send=send)
+    with Session(engine) as session:
+        job = session.get(IndexVersion, id)
+        assert job.status == "succeeded" and job.dispatched_at is None
+
+
+def test_throttling_waits_without_consuming_retries(index_api):
+    client, engine, p, _, provider = index_api
+    prepared(client, engine, p)
+    id = UUID(create(client, p)["id"])
+    sent, send = sender()
+    with patch.object(
+        provider,
+        "embed",
+        side_effect=embeddings.EmbeddingError("Budget reached.", throttled=True),
+    ):
+        for _ in range(5):
+            process_index(id, engine, send=send)
+    with Session(engine) as session:
+        job = session.get(IndexVersion, id)
+        assert job.status == "queued" and job.failures == 0 and job.attempts == 5
+    assert sent == [(id, indexing.THROTTLE_DELAY_SECONDS)] * 5
+    sent.clear()
+    with patch.object(
+        provider,
+        "embed",
+        side_effect=embeddings.EmbeddingError("Unavailable.", transient=True),
+    ):
+        process_index(id, engine, send=send)
+        process_index(id, engine, send=send)
+    assert sent == [
+        (id, indexing.RETRY_DELAY_SECONDS),
+        (id, 2 * indexing.RETRY_DELAY_SECONDS),
+    ]
+    process_index(id, engine, send=send)
+    with Session(engine) as session:
+        assert session.get(IndexVersion, id).status == "succeeded"
+
+
+def test_broker_outage_on_hand_off_falls_back_to_dispatcher(index_api, monkeypatch):
+    client, engine, p, _, _ = index_api
+    prepared(client, engine, p)
+    id = UUID(create(client, p)["id"])
+    monkeypatch.setattr("app.workers.indexing.BATCH_SIZE", 1)
+
+    def unavailable(value, countdown=None):
+        raise OSError("broker unavailable")
+
+    process_index(id, engine, send=unavailable)
+    with Session(engine) as session:
+        job = session.get(IndexVersion, id)
+        assert job.status == "queued" and job.dispatched_at is None
+    redispatched = []
+    dispatch_indexes_once(engine, send=redispatched.append)
+    assert id in redispatched
+
+
+def test_reuse_hash_is_maintained_by_the_database(index_api):
+    import hashlib
+    from app.models.document import Chunk
+
+    client, engine, p, _, provider = index_api
+    _, run = prepared(client, engine, p)
+    with Session(engine) as session:
+        chunks = session.scalars(
+            select(Chunk).where(Chunk.run_id == UUID(run["id"]))
+        ).all()
+        assert chunks and all(
+            chunk.embedding_text_hash
+            == hashlib.sha256((chunk.embedding_text or chunk.text).encode()).digest()
+            for chunk in chunks
+        )
+    first = create(client, p)
+    process_index(UUID(first["id"]), engine)
+    calls = len(provider.calls)
+    second = create(client, p)
+    process_index(UUID(second["id"]), engine)
+    with Session(engine) as session:
+        assert session.get(IndexVersion, UUID(second["id"])).status == "succeeded"
+    assert len(provider.calls) == calls
+
+
+def test_dispatcher_resends_only_after_window(index_api):
+    client, engine, p, _, _ = index_api
+    prepared(client, engine, p)
+    id = UUID(create(client, p)["id"])
+    first, second, late = [], [], []
+    dispatch_indexes_once(engine, send=first.append)
+    dispatch_indexes_once(engine, send=second.append)
+    assert id in first and id not in second
+    with Session(engine) as session:
+        session.execute(
+            update(IndexVersion)
+            .where(IndexVersion.id == id)
+            .values(
+                dispatched_at=now()
+                - timedelta(seconds=settings.dispatch_resend_seconds + 1)
+            )
+        )
+        session.commit()
+    dispatch_indexes_once(engine, send=late.append)
+    assert id in late
+
+
 @pytest.mark.parametrize(
     "values",
     [
@@ -516,6 +641,7 @@ def test_adapter_safe_errors_and_no_internal_retry(embedding_config, status, tra
     with pytest.raises(embeddings.EmbeddingError) as error:
         provider.embed(["text"])
     assert error.value.transient is transient
+    assert error.value.throttled is (status == 429)
     assert "private" not in str(error.value) and len(calls) == 1
 
 
@@ -578,8 +704,9 @@ def test_limiter_budget_and_unavailability(monkeypatch):
     connection.eval.side_effect = [1, 2, 3, RedisError("private details")]
     reserve_request()
     reserve_request()
-    with pytest.raises(embeddings.EmbeddingError, match="budget"):
+    with pytest.raises(embeddings.EmbeddingError, match="budget") as budget:
         reserve_request()
+    assert budget.value.throttled and budget.value.transient
     with pytest.raises(embeddings.EmbeddingError, match="unavailable") as error:
         reserve_request()
     assert "private" not in str(error.value)

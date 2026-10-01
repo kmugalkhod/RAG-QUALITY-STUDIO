@@ -13,7 +13,7 @@ Start the [local stack](./install.md). You need an OpenRouter account and key fo
 ## Configure
 
 1. Edit only the root `.env` on your machine. Set `OPENROUTER_API_KEY`, `EMBEDDING_PROVIDER=openrouter`, a supported `EMBEDDING_MODEL`, `EMBEDDING_DIMENSIONS`, and `CHAT_MODEL`. Keep model name and dimensions compatible. Set `EVALUATOR_MODEL` only if you intend to run experiments.
-2. Recreate the API, worker and dispatcher so their environment changes take effect: `docker compose up --build -d backend worker dispatcher` from the repository root.
+2. Recreate the API, workers and dispatcher so their environment changes take effect: `docker compose up --build -d backend worker long-worker dispatcher` from the repository root.
 3. In a project, open **Settings**. Check **Embeddings**, **Embedding model**, and **Answer models**. Settings shows safe status and model identifiers, never keys.
 4. Open **Knowledge Base → Collections**. **Publish prepared documents** is disabled when embeddings are unavailable. Open **Playground** and check model availability before asking a question.
 

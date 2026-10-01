@@ -21,7 +21,7 @@ docker compose exec -T db sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -
 docker compose run --rm --no-deps -v "$BACKUP_DIR:/backup" backend \
   sh -c 'tar -C /data/documents -cpf /backup/documents.tar .'
 docker compose exec -T db pg_restore -l < "$BACKUP_DIR/postgres.dump" > "$BACKUP_DIR/archive-list.txt"
-docker compose up -d backend worker dispatcher
+docker compose up -d backend worker long-worker dispatcher
 ```
 
 Expected result: nonempty `postgres.dump` and `documents.tar`, a readable archive list, and `/api/ready` returning `{"status":"ready"}` after restart. Preserve a manifest of app/migration version, time, volume and database identity, plus checksums of both files. Both archives can contain private source or derived content: restrict and encrypt backup storage. Store the connection keyring, artifact keyring or external KMS/Vault references **separately** through the operator's secret process; never put populated keys or archives in Git or the public docs. A database-only or volume-only copy cannot guarantee recovery. Missing wrapping keys make retained encrypted bytes unreadable even if both archives restore.

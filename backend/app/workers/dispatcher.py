@@ -6,12 +6,84 @@ from datetime import timedelta
 from uuid import uuid4
 
 from fastapi import HTTPException
-from sqlalchemy import or_, select, update
+from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.db.session import engine
-from app.models.document import ProcessingRun
+from app.models.document import Document, ProcessingRun
+from app.models.project import Project
 from app.workers.processing import now, process_document
+
+
+def resend_cutoff(current):
+    """A message already sent may still wait in a busy broker; resend it only
+    after the window, so backlogs are not multiplied by duplicate deliveries."""
+    return current - timedelta(seconds=settings.dispatch_resend_seconds)
+
+
+def claim_fair(session, model, current, limit, project_id=None, via=None):
+    """Lock the next queued jobs to send, at most `dispatch_org_concurrency`
+    queued-and-sent or running per organization, taking turns across
+    organizations so one large upload cannot starve everyone else."""
+    project_id = project_id if project_id is not None else model.project_id
+    org = func.coalesce(Project.organization_id, "").label("org")
+    cutoff = resend_cutoff(current)
+    dispatchable = and_(
+        model.status == "queued",
+        or_(model.dispatched_at.is_(None), model.dispatched_at < cutoff),
+    )
+    in_flight = or_(
+        model.status == "running",
+        and_(model.status == "queued", model.dispatched_at >= cutoff),
+    )
+
+    def scoped(query):
+        if via is not None:
+            query = query.join(via, via.id == model.document_id)
+        return query.join(Project, Project.id == project_id)
+
+    busy = (
+        scoped(select(org, func.count().label("jobs")).select_from(model))
+        .where(in_flight)
+        .group_by(org)
+        .subquery()
+    )
+    ranked = (
+        scoped(
+            select(
+                model.id,
+                model.created_at,
+                org,
+                func.row_number()
+                .over(partition_by=org, order_by=(model.created_at, model.id))
+                .label("turn"),
+            ).select_from(model)
+        )
+        .where(dispatchable)
+        .subquery()
+    )
+    ids = session.scalars(
+        select(ranked.c.id)
+        .outerjoin(busy, busy.c.org == ranked.c.org)
+        .where(
+            ranked.c.turn + func.coalesce(busy.c.jobs, 0)
+            <= settings.dispatch_org_concurrency
+        )
+        .order_by(ranked.c.turn, ranked.c.created_at, ranked.c.id)
+        .limit(limit)
+    ).all()
+    if not ids:
+        return []
+    locked = {
+        job.id: job
+        for job in session.scalars(
+            select(model)
+            .where(model.id.in_(ids), dispatchable)
+            .with_for_update(skip_locked=True, of=model)
+        )
+    }
+    return [locked[id] for id in ids if id in locked]
 
 
 def dispatch_once(db_engine=engine, send=None):
@@ -44,19 +116,9 @@ def dispatch_once(db_engine=engine, send=None):
     with Session(
         db_engine.execution_options(isolation_level="READ COMMITTED")
     ) as session:
-        queued = session.scalars(
-            select(ProcessingRun)
-            .where(
-                ProcessingRun.status == "queued",
-                or_(
-                    ProcessingRun.dispatched_at.is_(None),
-                    ProcessingRun.dispatched_at < current - timedelta(seconds=30),
-                ),
-            )
-            .order_by(ProcessingRun.created_at)
-            .limit(20)
-            .with_for_update(skip_locked=True)
-        ).all()
+        queued = claim_fair(
+            session, ProcessingRun, current, 20, Document.project_id, Document
+        )
         for job in queued:
             send(job.id)
             job.dispatched_at = current
@@ -93,19 +155,7 @@ def dispatch_indexes_once(db_engine=engine, send=None):
     with Session(
         db_engine.execution_options(isolation_level="READ COMMITTED")
     ) as session:
-        queued = session.scalars(
-            select(IndexVersion)
-            .where(
-                IndexVersion.status == "queued",
-                or_(
-                    IndexVersion.dispatched_at.is_(None),
-                    IndexVersion.dispatched_at < current - timedelta(seconds=30),
-                ),
-            )
-            .order_by(IndexVersion.created_at)
-            .limit(20)
-            .with_for_update(skip_locked=True)
-        ).all()
+        queued = claim_fair(session, IndexVersion, current, 20)
         for job in queued:
             send(job.id)
             job.dispatched_at = current
@@ -115,9 +165,14 @@ def dispatch_indexes_once(db_engine=engine, send=None):
 def dispatch_ingestion_once(db_engine=engine, send=None):
     from app.models.ingestion import IngestionRun, IngestionRunItem
     from app.models.index import IndexVersion
-    from app.workers.ingestion import coordinate_ingestion
+    from app.workers.ingestion import coordinate_ingestion, queue_for
 
-    send = send or (lambda run_id: coordinate_ingestion.apply_async(args=[str(run_id)]))
+    queues = {}
+    send = send or (
+        lambda run_id: coordinate_ingestion.apply_async(
+            args=[str(run_id)], queue=queues[run_id]
+        )
+    )
     current = now()
     with Session(
         db_engine.execution_options(isolation_level="READ COMMITTED")
@@ -181,20 +236,9 @@ def dispatch_ingestion_once(db_engine=engine, send=None):
     with Session(
         db_engine.execution_options(isolation_level="READ COMMITTED")
     ) as session:
-        queued = session.scalars(
-            select(IngestionRun)
-            .where(
-                IngestionRun.status == "queued",
-                or_(
-                    IngestionRun.dispatched_at.is_(None),
-                    IngestionRun.dispatched_at < current - timedelta(seconds=30),
-                ),
-            )
-            .order_by(IngestionRun.created_at)
-            .limit(20)
-            .with_for_update(skip_locked=True)
-        ).all()
+        queued = claim_fair(session, IngestionRun, current, 20)
         for job in queued:
+            queues[job.id] = queue_for(job.snapshot.get("source_kind"))
             send(job.id)
             job.dispatched_at = current
         session.commit()
@@ -232,19 +276,7 @@ def dispatch_previews_once(db_engine=engine, send=None):
     with Session(
         db_engine.execution_options(isolation_level="READ COMMITTED")
     ) as session:
-        queued = session.scalars(
-            select(SourcePreview)
-            .where(
-                SourcePreview.status == "queued",
-                or_(
-                    SourcePreview.dispatched_at.is_(None),
-                    SourcePreview.dispatched_at < current - timedelta(seconds=30),
-                ),
-            )
-            .order_by(SourcePreview.created_at)
-            .limit(10)
-            .with_for_update(skip_locked=True)
-        ).all()
+        queued = claim_fair(session, SourcePreview, current, 10)
         for preview in queued:
             send(preview.id)
             preview.dispatched_at = current

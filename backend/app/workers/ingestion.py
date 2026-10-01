@@ -21,7 +21,8 @@ from app.services import (
     ingestion_execution,
     indexes,
 )
-from app.workers.celery_app import celery
+from app.workers.celery_app import DEFAULT_QUEUE, LONG_QUEUE, celery
+from app.workers.handoff import hand_off
 from app.workers.processing import now
 from app.workers.remote_ingestion import (
     REMOTE_SOURCE_KINDS,
@@ -29,6 +30,13 @@ from app.workers.remote_ingestion import (
     fail_run,
     finish_remote,
 )
+
+RETRY_DELAY_SECONDS = 30
+
+
+def queue_for(source_kind: str | None) -> str:
+    """Remote discovery and fetch can run for up to an hour."""
+    return LONG_QUEUE if source_kind in REMOTE_SOURCE_KINDS else DEFAULT_QUEUE
 
 
 def _cancel_unpublished_work(session: Session, run_id: UUID):
@@ -78,7 +86,9 @@ def _cancel_unpublished_work(session: Session, run_id: UUID):
     )
 
 
-def process_ingestion(run_id: UUID, db_engine=engine, connector_factory=None):
+def process_ingestion(
+    run_id: UUID, db_engine=engine, connector_factory=None, send=None
+):
     db_engine = db_engine.execution_options(isolation_level="READ COMMITTED")
     token = uuid4()
     with Session(db_engine) as session:
@@ -368,8 +378,25 @@ def process_ingestion(run_id: UUID, db_engine=engine, connector_factory=None):
                 fail_run(session, job, message)
                 _cancel_unpublished_work(session, run_id)
             session.commit()
+            retry = job.status == "queued"
+        if retry and send is not None:
+            hand_off(
+                db_engine,
+                IngestionRun,
+                run_id,
+                lambda value, countdown=None: send(
+                    value, countdown=countdown, queue=queue_for(source_kind)
+                ),
+                RETRY_DELAY_SECONDS,
+            )
 
 
 @celery.task(name="ingestion.coordinate", soft_time_limit=3660, time_limit=3670)
 def coordinate_ingestion(run_id: str):
-    process_ingestion(UUID(run_id))
+    process_ingestion(UUID(run_id), send=_send)
+
+
+def _send(run_id: UUID, countdown=None, queue=None):
+    coordinate_ingestion.apply_async(
+        args=[str(run_id)], countdown=countdown, queue=queue
+    )

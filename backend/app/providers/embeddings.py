@@ -16,9 +16,13 @@ class EmbeddingConfig(BaseModel):
 
 
 class EmbeddingError(Exception):
-    def __init__(self, message: str, *, transient: bool = False):
+    def __init__(
+        self, message: str, *, transient: bool = False, throttled: bool = False
+    ):
         super().__init__(message)
-        self.transient = transient
+        # Throttling is a wait for request budget, not a failed attempt.
+        self.transient = transient or throttled
+        self.throttled = throttled
 
 
 class EmbeddingProvider(Protocol):

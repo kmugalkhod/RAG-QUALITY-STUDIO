@@ -23,7 +23,8 @@ curl --fail http://127.0.0.1:8000/api/ready
 curl --fail http://127.0.0.1:8000/api/projects/PROJECT_ID/ingestion-capabilities
 docker compose ps
 docker compose exec worker celery -A app.workers.celery_app:celery inspect ping
-docker compose logs --since=30m backend worker dispatcher
+docker compose exec long-worker celery -A app.workers.celery_app:celery inspect ping
+docker compose logs --since=30m backend worker long-worker dispatcher
 ```
 
 `/api/health` proves only that the API process is alive. `/api/ready` checks the
@@ -50,7 +51,7 @@ Losing a wrapping key is intentional cryptographic erasure and cannot be repaire
 2. Stop writers while retaining PostgreSQL:
 
    ```sh
-   docker compose stop frontend backend worker dispatcher
+   docker compose stop frontend backend worker long-worker dispatcher
    mkdir -p backups/RECOVERY_POINT
    docker compose exec -T db sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc' > backups/RECOVERY_POINT/postgres.dump
    docker compose run --rm --no-deps -v "$PWD/backups/RECOVERY_POINT:/backup" backend sh -c 'tar -C /data/documents -cpf /backup/documents.tar .'
@@ -59,7 +60,7 @@ Losing a wrapping key is intentional cryptographic erasure and cannot be repaire
 3. Copy the external secret-store/keyring versions and the non-secret deployment
    configuration into the recovery point using the operator's approved secret process.
    Do not place populated keys in Git.
-4. Restart with `docker compose up -d backend worker dispatcher` and unpause schedules
+4. Restart with `docker compose up -d backend worker long-worker dispatcher` and unpause schedules
    only after readiness.
 
 Restore only into an empty, explicitly selected deployment. Keep services stopped,
@@ -155,7 +156,7 @@ Apply migrations before enabling the feature. The local stack uses one Vite fron
 `127.0.0.1:8000`. To start the durable services without resetting data:
 
 ```sh
-docker compose up --build -d db redis migrate backend worker dispatcher deployed-worker
+docker compose up --build -d db redis migrate backend worker long-worker dispatcher deployed-worker
 docker compose ps
 curl --fail http://127.0.0.1:8000/api/ready
 curl --fail http://127.0.0.1:8000/api/ops/deployed-answers/metrics

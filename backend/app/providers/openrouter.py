@@ -56,12 +56,14 @@ class OpenRouterEmbeddings:
                         raise EmbeddingError(
                             "OpenRouter has insufficient credits. Add credits to the configured account and retry."
                         )
-                    if (
-                        response.status_code in (408, 429)
-                        or response.status_code >= 500
-                    ):
+                    if response.status_code == 429:
                         raise EmbeddingError(
-                            "OpenRouter rate limit or temporary service failure. Indexing retries are bounded; retrieval can be retried.",
+                            "OpenRouter rate limit reached. Indexing waits and retries automatically; retrieval can be retried.",
+                            throttled=True,
+                        )
+                    if response.status_code == 408 or response.status_code >= 500:
+                        raise EmbeddingError(
+                            "OpenRouter temporary service failure. Indexing retries are bounded; retrieval can be retried.",
                             transient=True,
                         )
                     if response.status_code != 200:

@@ -19,7 +19,7 @@ Docker Engine/Desktop with Compose v2, Node.js 22.12+, npm, and free local ports
 ```sh
 test -e .env || cp .env.example .env
 # Edit .env: set POSTGRES_PASSWORD and any provider settings you intend to use.
-docker compose up --build -d db redis migrate backend worker dispatcher
+docker compose up --build -d db redis migrate backend worker long-worker dispatcher
 curl --fail http://127.0.0.1:8000/api/health
 curl --fail http://127.0.0.1:8000/api/ready
 cd frontend

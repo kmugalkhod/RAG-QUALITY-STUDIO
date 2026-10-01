@@ -46,7 +46,7 @@ Options B (horizontal flow with an overlay drawer) and C (guided steps) are in t
 ### Phase 0: unblock now (configuration only, no code)
 
 1. In `.env`, set a default and any extra approved models, for example `CHAT_MODEL=openai/gpt-4.1-mini` and `CHAT_MODELS=["anthropic/claude-haiku-4.5","meta-llama/llama-3.3-70b-instruct"]`. Use IDs you have checked on openrouter.ai/models, and keep `CHAT_CONTEXT_TOKENS` at or below the smallest context among them.
-2. Recreate the containers so Compose picks up the new values: `docker compose up -d backend worker dispatcher`. A plain `restart` keeps the old environment.
+2. Recreate the containers so Compose picks up the new values: `docker compose up -d backend worker long-worker dispatcher`. A plain `restart` keeps the old environment.
 3. Check `GET /api/projects/<id>/pipelines/options`: it should list the models with `error: null`, as long as an OpenRouter key is configured.
 
 ### Phase 1: an honest empty state (small frontend change)

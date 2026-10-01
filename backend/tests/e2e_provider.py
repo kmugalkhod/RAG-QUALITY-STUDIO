@@ -540,4 +540,6 @@ def set_confluence_state(state: str):
 if __name__ == "__main__" and sys.argv[-1] == "worker":
     from app.workers.celery_app import celery
 
-    celery.worker_main(["worker", "--loglevel=warning", "--concurrency=2"])
+    celery.worker_main(
+        ["worker", "--queues=celery,long", "--loglevel=warning", "--concurrency=2"]
+    )

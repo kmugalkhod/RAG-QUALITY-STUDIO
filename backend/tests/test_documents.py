@@ -432,12 +432,19 @@ def test_bounded_retry_stale_recovery_and_broker_outage(documents_api):
         result = session.get(ProcessingRun, id)
         assert result.status == "failed" and result.execution_token is None
     retry = start(client, p, doc["id"])
+    handed_off = []
     with patch("app.workers.processing.pages", side_effect=OSError()):
         for _ in range(5):
-            process(UUID(retry["id"]), engine)
+            process(
+                UUID(retry["id"]),
+                engine,
+                send=lambda value, countdown=None: handed_off.append(countdown),
+            )
     with Session(engine) as session:
         result = session.get(ProcessingRun, UUID(retry["id"]))
         assert result.status == "failed" and result.attempts == 3
+    # Transient failures retry after a delay without waiting for the dispatcher.
+    assert handed_off == [30, 30]
 
 
 @pytest.mark.parametrize(

@@ -29,6 +29,9 @@ from app.services.derivations import (
 )
 from app.services import artifact_storage
 from app.workers.celery_app import celery
+from app.workers.handoff import hand_off
+
+RETRY_DELAY_SECONDS = 30
 
 
 def now():
@@ -162,7 +165,7 @@ def _v2_chunks(job, path, media, title, on_stage, cancelled=None):
     )
 
 
-def process(run_id: UUID, db_engine=engine):
+def process(run_id: UUID, db_engine=engine, send=None):
     token = uuid4()
     # Workers use fresh sessions and READ COMMITTED row locks, not API snapshots.
     with Session(
@@ -372,12 +375,19 @@ def process(run_id: UUID, db_engine=engine):
             job.error_code = exc.code if isinstance(exc, IngestionStageError) else None
             job.execution_token = None
             job.updated_at = now()
-            job.dispatched_at = now()  # dispatcher waits at least 30s before retry
+            job.dispatched_at = now()
             if job.status == "failed":
                 job.finished_at = now()
             session.commit()
+            retry = job.status == "queued"
+        if retry and send is not None:
+            hand_off(db_engine, ProcessingRun, run_id, send, RETRY_DELAY_SECONDS)
+
+
+def _send(run_id: UUID, countdown=None):
+    process_document.apply_async(args=[str(run_id)], countdown=countdown)
 
 
 @celery.task(name="documents.process")
 def process_document(run_id: str):
-    process(UUID(run_id))
+    process(UUID(run_id), send=_send)

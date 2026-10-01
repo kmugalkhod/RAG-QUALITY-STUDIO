@@ -148,6 +148,7 @@ class IndexChunk(Base):
             "embedding IS NULL OR vector_norm(embedding) > 0",
             name="ck_embedding_nonzero",
         ),
+        Index("ix_index_chunks_member", "run_id", "ordinal", "index_id"),
     )
     index_id: Mapped[uuid.UUID] = mapped_column(primary_key=True)
     run_id: Mapped[uuid.UUID] = mapped_column(primary_key=True)

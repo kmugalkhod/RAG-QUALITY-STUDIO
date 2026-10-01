@@ -17,7 +17,7 @@ cp .env.example .env
 # Edit .env: choose a URL-safe local database password. For encrypted raw
 # artifacts, generate a separate key with `openssl rand -base64 32`, put it in
 # ARTIFACT_KEYS, and set ARTIFACT_ENCRYPTION_ENABLED=true.
-docker compose up --build -d db redis migrate backend worker dispatcher
+docker compose up --build -d db redis migrate backend worker long-worker dispatcher
 cd frontend
 npm ci
 npm run dev
@@ -116,7 +116,7 @@ export DATABASE_URL='postgresql+psycopg://rag:change-me-local-only@localhost:543
 uv run uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
-Redis is internal to Compose by default. For fully local Python processes, provide a local Redis instance on 6379 or an explicit loopback-only Compose port override. Run `uv run celery -A app.workers.celery_app:celery worker --concurrency=2` and `uv run python -m app.workers.dispatcher` in separate backend terminals with the same DATABASE_URL, STORAGE_PATH and REDIS_URL. The all-Compose setup is the simplest complete workflow.
+Redis is internal to Compose by default. For fully local Python processes, provide a local Redis instance on 6379 or an explicit loopback-only Compose port override. Run `uv run celery -A app.workers.celery_app:celery worker --queues=celery,long --concurrency=2` and `uv run python -m app.workers.dispatcher` in separate backend terminals with the same DATABASE_URL, STORAGE_PATH and REDIS_URL. The all-Compose setup is the simplest complete workflow.
 
 In another terminal:
 

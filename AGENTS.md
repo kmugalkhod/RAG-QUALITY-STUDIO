@@ -207,7 +207,7 @@ The following are target conventions for the initial scaffold, not claims that c
 
 | Purpose | Command and location |
 | --- | --- |
-| Start local backend services | `docker compose up --build -d db redis migrate backend worker dispatcher` from repository root |
+| Start local backend services | `docker compose up --build -d db redis migrate backend worker long-worker dispatcher` from repository root |
 | Start the canonical development frontend | `npm run dev -- --port 5273` in `frontend/`; keep using `http://127.0.0.1:5273` |
 | Stop without deleting data | `docker compose down` from repository root |
 | Apply migrations | `docker compose exec backend alembic upgrade head` |

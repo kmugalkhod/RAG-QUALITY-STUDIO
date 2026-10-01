@@ -161,6 +161,7 @@ class Chunk(Base):
             name="fk_chunk_parent",
         ),
         Index("ix_chunks_parent", "run_id", "parent_ordinal"),
+        Index("ix_chunks_embedding_text_hash", "embedding_text_hash"),
     )
     run_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("processing_runs.id"), primary_key=True
@@ -171,6 +172,8 @@ class Chunk(Base):
     end_char: Mapped[int]
     text: Mapped[str] = mapped_column(Text)
     embedding_text: Mapped[str | None] = mapped_column(Text)
+    # sha256 of the embedded text, maintained by a database trigger.
+    embedding_text_hash: Mapped[bytes | None] = mapped_column(LargeBinary)
     token_count: Mapped[int | None]
     embedding_token_count: Mapped[int | None]
     chunk_role: Mapped[str] = mapped_column(String(16), default="leaf")
