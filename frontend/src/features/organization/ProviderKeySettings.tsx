@@ -10,6 +10,7 @@ import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { cn } from '../../lib/utils';
 import * as api from './api';
+import { ChatModelSettings } from './ChatModelSettings';
 
 function when(value: string | null) {
   return value ? new Date(value).toLocaleString() : 'Never';
@@ -103,7 +104,7 @@ export function ProviderKeySettings() {
   const header = (
     <PageHeader
       title="Organization settings"
-      meta="Model provider credentials used by every project in this organization"
+      meta="Model provider key and chat models used by every project in this organization"
     />
   );
   if (loadError) {
@@ -224,6 +225,7 @@ export function ProviderKeySettings() {
           </>
         )}
       </section>
+      <ChatModelSettings />
     </div>
   );
 }

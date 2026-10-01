@@ -1,3 +1,5 @@
+from dataclasses import asdict
+
 from fastapi import HTTPException
 from sqlalchemy import select, func
 from app.core.config import settings
@@ -6,9 +8,9 @@ from app.models.connection import SourceConnection
 from app.models.index import KnowledgeSet
 from app.models.pipeline import Pipeline, PipelineVersion
 from app.models.query import QueryRun
-from app.providers import generation
+from app.providers import chat_models, generation
 from app.schemas.ingestion import IngestionExecution
-from app.schemas.pipeline import Execution
+from app.schemas.pipeline import DEFAULT_TEMPLATE, Execution
 from app.schemas.query import QueryRequest
 from app.services import indexes, provider_credentials, queries
 from app.services.documents import project, paginate
@@ -37,6 +39,29 @@ def get_version(session, project_id, pipeline_id, version_id):
     if row is None:
         raise HTTPException(404, "Pipeline version not found in this project.")
     return row
+
+
+def options(session, project_id, principal):
+    """Models and limits the answer editor may offer, with the reason when unusable."""
+    project(session, project_id)
+    error = error_code = None
+    with provider_credentials.bound_for_project(session, project_id):
+        models = chat_models.available()
+        try:
+            generation.configured()
+        except generation.GenerationError as exc:
+            error, error_code = str(exc), exc.code
+    return {
+        "models": [m.id for m in models],
+        "model_options": [asdict(m) for m in models],
+        "default_model": chat_models.default_model(models),
+        "max_tokens": settings.chat_max_tokens,
+        "context_tokens": settings.chat_context_tokens,
+        "template": DEFAULT_TEMPLATE,
+        "error": error,
+        "error_code": error_code,
+        "can_manage_models": provider_credentials.can_manage(principal),
+    }
 
 
 def validate_answer(session, project_id, execution):

@@ -8,12 +8,15 @@ from typing import Protocol
 
 import httpx
 from app.core.config import settings
-from app.providers import credentials
+from app.providers import chat_models, credentials
 from app.providers.rate_limit import reserve_request
 
 
 class GenerationError(Exception):
-    pass
+    # "no_models", "provider_key" or "configuration"; the options route reports it.
+    def __init__(self, message: str, code: str = "configuration"):
+        super().__init__(message)
+        self.code = code
 
 
 @dataclass(frozen=True)
@@ -30,42 +33,34 @@ class AnswerProvider(Protocol):
 
 
 def allowed_models():
-    return list(
-        dict.fromkeys(
-            [
-                m
-                for m in [settings.chat_model, *settings.chat_models]
-                if m and "embedding" not in m.lower()
-            ]
-        )
-    )
+    return [m.id for m in chat_models.available()]
 
 
 def configured(model=None, max_tokens=None, temperature=0):
-    if not settings.chat_model or "embedding" in settings.chat_model.lower():
-        raise GenerationError(
-            "Configure CHAT_MODEL with an OpenRouter chat model ID on the server."
-        )
+    options = chat_models.available()
+    if not options:
+        raise GenerationError(chat_models.no_models_message(), "no_models")
     try:
         credentials.current()
     except credentials.ProviderCredentialMissing as exc:
-        raise GenerationError(str(exc)) from None
+        raise GenerationError(str(exc), "provider_key") from None
     if settings.chat_max_tokens + 1024 >= settings.chat_context_tokens:
         raise GenerationError(
             "CHAT_CONTEXT_TOKENS must leave room for the prompt and reserved output."
         )
-    model = model or settings.chat_model
-    if model not in allowed_models():
-        raise GenerationError("Select a server-configured chat model.")
+    model = model or chat_models.default_model(options)
+    option = next((m for m in options if m.id == model), None)
+    if option is None:
+        raise GenerationError("Select an approved chat model.")
     max_tokens = max_tokens if max_tokens is not None else settings.chat_max_tokens
-    if max_tokens + 1024 >= settings.chat_context_tokens:
+    if max_tokens + 1024 >= option.context_tokens:
         raise GenerationError(
-            "Output capacity must leave room for the prompt in the server context budget."
+            "Output capacity must leave room for the prompt in this model's context budget."
         )
     return dict(
         provider="openrouter",
         model=model,
-        context_tokens=settings.chat_context_tokens,
+        context_tokens=option.context_tokens,
         max_tokens=max_tokens,
         temperature=temperature,
         context_accounting="utf8-bytes-plus-256-envelope-v1",

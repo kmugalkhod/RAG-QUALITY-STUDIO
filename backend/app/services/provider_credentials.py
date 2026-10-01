@@ -335,7 +335,10 @@ def _mark_rejected(credential: ProviderCredential):
 
 @contextmanager
 def bound_for_project(session: Session, project_id: UUID):
-    """Bind this project's key for nested provider calls in the same context."""
+    """Bind this project's key and approved chat models for nested provider calls."""
+    from app.providers import chat_models as chat_model_context
+    from app.services import chat_models
+
     scope_key = project_scope(session, project_id)
     existing = credentials.bound()
     if existing is not None and existing.scope == scope_key:
@@ -343,7 +346,11 @@ def bound_for_project(session: Session, project_id: UUID):
         yield existing
         return
     credential, message = resolve(session, project_id)
-    with credentials.use(credential, message, scope_key) as binding:
+    approved = chat_models.approved_for_scope(session, scope_key)
+    with (
+        chat_model_context.use(approved),
+        credentials.use(credential, message, scope_key) as binding,
+    ):
         try:
             yield binding
         finally:

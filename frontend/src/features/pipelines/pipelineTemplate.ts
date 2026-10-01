@@ -22,7 +22,7 @@ export function createNode(kind: PipelineNodeKind, options?: PipelineOptions): P
     case 'llm':
       return {
         ...node,
-        model: options?.models[0] ?? '',
+        model: options?.default_model ?? options?.models[0] ?? '',
         max_tokens: options?.max_tokens ?? 1024,
         temperature: 0,
       };

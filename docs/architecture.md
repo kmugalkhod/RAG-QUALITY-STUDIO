@@ -300,6 +300,18 @@ Provider calls resolve the key per project. Each entry point (query execution, r
 
 Clerk mode is still loopback-only in development, so startup does not yet require KMS or Vault for it. Before Clerk is opened to shared access, apply the same KMS/Vault requirement that `validate_security_configuration` enforces for OIDC.
 
+## Organization chat model approvals (2026-10-01)
+
+Before this change the LLM node could offer only `CHAT_MODEL` and `CHAT_MODELS`, so an empty environment produced an empty model list with no explanation. Organization admins now approve chat models from the live OpenRouter catalog in **Organization settings**, and the answer editor lists the approved models alongside the server's own.
+
+Migration `0038` adds `chat_model_approvals`, keyed by the same `scope_key` as `provider_credentials` and unique per scope, provider and model, with at most one default per scope (partial unique index). Each row snapshots the catalog label, context length and OpenRouter prompt and completion prices at approval time. A price OpenRouter reports as variable or missing is stored as NULL and shown as unknown, never as zero.
+
+The catalog comes from OpenRouter `GET /api/v1/models?output_modalities=text`, a public endpoint, so no key is sent. The request has bounded timeouts, a 20 MB body cap and no redirects. The response is treated as untrusted data: only well-formed IDs, text-output models, contexts of at least 2,048 tokens and non-expired, non-embedding entries are kept. The parsed catalog is cached in process for six hours. Listing the catalog, approving, removing and choosing the default require `org:admin` (the local owner in local mode). Members can read the approved list. OIDC deployments have no organization, so they keep environment models only.
+
+`provider_credentials.bound_for_project` also binds the scope's approvals in a context variable (`providers/chat_models.py`). `generation.configured()` validates the requested model against the union of approvals and server models, so saves, previews, deployments and the deployed-answer worker apply one rule. Server models stay available so existing pipelines keep working. An organization default outranks `CHAT_MODEL`. Each model's prompt budget is `min(catalog context, CHAT_CONTEXT_TOKENS)`: the server value remains a ceiling, and deployment reservations, which use it as the worst case, stay an upper bound. Removing an approval never rewrites saved versions. Validation reports the model as not approved until an admin approves it again, and the editor keeps showing it.
+
+`GET /pipelines/options` keeps `models: string[]` for existing consumers and adds `model_options`, `default_model`, `error_code` (`no_models`, `provider_key` or `configuration`) and `can_manage_models`, so the editor can explain an empty list and route admins to the settings page.
+
 ## Encrypted source connections (Phase 6, 2026-09-13)
 
 Migration `0013` adds project-scoped `source_connections` and append-only lifecycle `source_connection_events`. A connection row stores provider kind, AES-GCM ciphertext, a random 96-bit nonce, secret schema version, server key version and deliberately redacted metadata. Composite connection/project keys protect audit ownership; unique project/name and bounded kind/status constraints remain database-enforced. API response schemas omit all encryption envelope fields. Audit events contain only action, outcome, connector kind and a fixed safe result code—never request data or provider responses.

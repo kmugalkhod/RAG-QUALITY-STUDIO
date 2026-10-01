@@ -1,12 +1,30 @@
 import { createPipelineDraft } from '../../../src/features/pipelines/pipelineTemplate';
-import { validatePipelineExecution } from '../../../src/features/pipelines/model';
+import {
+  validatePipelineExecution,
+  type PipelineOptions,
+} from '../../../src/features/pipelines/model';
 
-const options = {
+const options: PipelineOptions = {
   models: ['configured-model'],
+  model_options: [
+    {
+      id: 'configured-model',
+      label: 'configured-model',
+      context_tokens: 4096,
+      prompt_usd_per_mtok: null,
+      completion_usd_per_mtok: null,
+      catalog_fetched_at: null,
+      source: 'server',
+      is_default: true,
+    },
+  ],
+  default_model: 'configured-model',
   template: '{question}\n{context}',
   max_tokens: 512,
   context_tokens: 4096,
   error: null,
+  error_code: null,
+  can_manage_models: false,
 };
 
 test('uses server defaults and produces a valid supported graph for a ready index', () => {

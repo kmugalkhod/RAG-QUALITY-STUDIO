@@ -44,3 +44,4 @@ from app.models.provider_credential import (  # noqa: F401
     ProviderCredentialEvent,
     ProviderCredentialRecord,
 )
+from app.models.chat_model import ChatModelApproval  # noqa: F401

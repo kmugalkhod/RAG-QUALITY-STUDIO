@@ -69,9 +69,10 @@ export function PipelineEditor({
           onChooseDocuments={editor.chooseDocuments}
         />
         <PipelineCanvas
-          nodes={editor.nodes}
+          nodes={editor.flowNodes}
           edges={editor.edges}
           flow={editor.flow}
+          layoutKey={editor.layoutKey}
           busy={editor.busy}
           inspectorOpen={editor.inspectorOpen}
           onInit={editor.setFlow}
@@ -91,6 +92,8 @@ export function PipelineEditor({
             nodes={editor.nodes}
             indexes={editor.indexes}
             options={editor.options}
+            optionsLoading={editor.optionsLoading}
+            onRefreshOptions={editor.refreshOptions}
             onSelect={editor.selectNode}
             onUpdate={editor.updateNode}
             onDelete={editor.removeNode}

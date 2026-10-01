@@ -36,13 +36,37 @@ export type PipelineVersion = PipelineDraft & {
 };
 export type PipelineKind = 'answer' | 'ingestion';
 export type Pipeline = { id: string; name: string; kind: PipelineKind };
+export type ChatModelOption = {
+  id: string;
+  label: string;
+  // Usable prompt budget: the model's context capped by the server ceiling.
+  context_tokens: number;
+  // OpenRouter estimates in USD per million tokens; null when unknown.
+  prompt_usd_per_mtok: number | null;
+  completion_usd_per_mtok: number | null;
+  catalog_fetched_at: string | null;
+  source: 'server' | 'organization';
+  is_default: boolean;
+};
 export type PipelineOptions = {
   models: string[];
+  model_options: ChatModelOption[];
+  default_model: string | null;
   template: string;
   max_tokens: number;
+  // Server ceiling; each model's own budget is in model_options.
   context_tokens: number;
   error: string | null;
+  error_code: 'no_models' | 'provider_key' | 'configuration' | null;
+  can_manage_models: boolean;
 };
+
+export function findModelOption(
+  options: PipelineOptions | undefined,
+  id: string | undefined,
+): ChatModelOption | undefined {
+  return id ? options?.model_options.find((model) => model.id === id) : undefined;
+}
 function hasValidPrompt(template: string | undefined): boolean {
   if (!template || template.length > 8000) {
     return false;
@@ -63,7 +87,8 @@ function hasValidGenerationSettings(node: PipelineNodeConfig, options?: Pipeline
   if (!Number.isInteger(maxTokens) || maxTokens < 128 || maxTokens > 8192) {
     return false;
   }
-  if (options && maxTokens + 1024 >= options.context_tokens) {
+  const budget = findModelOption(options, node.model)?.context_tokens ?? options?.context_tokens;
+  if (budget !== undefined && maxTokens + 1024 >= budget) {
     return false;
   }
   return Number.isFinite(temperature) && temperature >= 0 && temperature <= 2;
@@ -118,13 +143,37 @@ export function validatePipelineExecution(
       case 'llm':
         if (!hasValidGenerationSettings(node, options)) {
           errors.push(
-            'LLM: select a configured model, output tokens within the server budget and temperature from 0 to 2.',
+            "LLM: select an approved model, output tokens within the model's budget and temperature from 0 to 2.",
           );
         }
         break;
     }
   }
   return errors;
+}
+
+const issuePrefixes: [string, PipelineNodeKind][] = [
+  ['Retriever:', 'retriever'],
+  ['Prompt:', 'prompt'],
+  ['LLM:', 'llm'],
+];
+
+// The first validation message for each node kind, shown as a status on its card.
+export function nodeIssues(
+  errors: string[],
+  options?: PipelineOptions,
+): Partial<Record<PipelineNodeKind, string>> {
+  const issues: Partial<Record<PipelineNodeKind, string>> = {};
+  if (options?.error && options.error_code !== 'configuration') {
+    issues.llm = options.error;
+  }
+  for (const error of errors) {
+    const match = issuePrefixes.find(([prefix]) => error.startsWith(prefix));
+    if (match && !issues[match[1]]) {
+      issues[match[1]] = error.slice(match[0].length).trim();
+    }
+  }
+  return issues;
 }
 
 // PostgreSQL JSONB object key order is not meaningful; compare canonical data.

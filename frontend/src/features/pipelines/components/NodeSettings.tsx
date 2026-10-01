@@ -10,6 +10,7 @@ import { Callout, META } from '../../../components/parts';
 import { formatIndexOption, type IndexVersion } from '../../documents/model';
 import type { PipelineNodeConfig, PipelineOptions } from '../model';
 import type { FlowNode } from './WorkflowNode';
+import { ModelField } from './ModelField';
 import { getNodeLabel } from '../model';
 interface Props {
   open: boolean;
@@ -18,6 +19,8 @@ interface Props {
   nodes: FlowNode[];
   indexes: IndexVersion[];
   options?: PipelineOptions;
+  optionsLoading: boolean;
+  onRefreshOptions: () => void;
   onSelect: (id: string) => void;
   onUpdate: (patch: Partial<PipelineNodeConfig>) => void;
   onDelete: () => void;
@@ -29,6 +32,8 @@ export function NodeSettings({
   nodes,
   indexes,
   options,
+  optionsLoading,
+  onRefreshOptions,
   onSelect,
   onUpdate,
   onDelete,
@@ -157,20 +162,13 @@ export function NodeSettings({
       )}
       {config?.type === 'llm' && (
         <>
-          <Label className="mb-0">
-            Chat model
-            <NativeSelect
-              className="mt-2"
-              aria-label="Chat model"
-              value={config.model}
-              onChange={(e) => onUpdate({ model: e.target.value })}
-            >
-              <NativeSelectOption value="">Select a model</NativeSelectOption>
-              {options?.models.map((m) => (
-                <NativeSelectOption key={m}>{m}</NativeSelectOption>
-              ))}
-            </NativeSelect>
-          </Label>
+          <ModelField
+            value={config.model ?? ''}
+            options={options}
+            loading={optionsLoading}
+            onChange={(model) => onUpdate({ model })}
+            onRefresh={onRefreshOptions}
+          />
           <Label className="mb-0">
             Maximum output tokens
             <Input
@@ -195,7 +193,8 @@ export function NodeSettings({
             />
           </Label>
           <p className={META}>
-            Server context budget: {options?.context_tokens} tokens. Credentials stay on the server.
+            Output plus 1,024 reserved tokens must fit the model's budget. Credentials stay on the
+            server.
           </p>
         </>
       )}

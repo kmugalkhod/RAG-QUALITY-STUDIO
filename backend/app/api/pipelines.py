@@ -4,8 +4,6 @@ from typing import Literal
 from fastapi import APIRouter, BackgroundTasks, Depends, Query
 from app.api.routes import Database
 from app.api.documents import Limit, Offset
-from app.core.config import settings
-from app.providers import generation
 from app.schemas.pipeline import (
     PipelineSaveRequest,
     PipelinePage,
@@ -13,11 +11,10 @@ from app.schemas.pipeline import (
     VersionPage,
     RunRequest,
     PreviewRequest,
-    DEFAULT_TEMPLATE,
 )
 from app.schemas.query import QueryRead
-from app.services import pipelines, provider_credentials
-from app.core.auth import require_project_access
+from app.services import pipelines
+from app.core.auth import CurrentPrincipal, require_project_access
 
 router = APIRouter(
     prefix="/api/projects/{project_id}/pipelines",
@@ -26,23 +23,8 @@ router = APIRouter(
 
 
 @router.get("/options")
-def options(project_id: UUID, session: Database):
-    from app.services.documents import project
-
-    project(session, project_id)
-    error = None
-    try:
-        with provider_credentials.bound_for_project(session, project_id):
-            generation.configured()
-    except generation.GenerationError as exc:
-        error = str(exc)
-    return {
-        "models": generation.allowed_models(),
-        "max_tokens": settings.chat_max_tokens,
-        "context_tokens": settings.chat_context_tokens,
-        "template": DEFAULT_TEMPLATE,
-        "error": error,
-    }
+def options(project_id: UUID, session: Database, principal: CurrentPrincipal):
+    return pipelines.options(session, project_id, principal)
 
 
 @router.post("/preview-runs", response_model=QueryRead, status_code=202)

@@ -1,0 +1,510 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Answer Pipeline Canvas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+/* Wireframe only. Colors mirror the token block in frontend/src/app/styles.css (dark is :root). */
+:root {
+  --background: #0b0c0e; --surface: #131518; --surface-raised: #1a1d21; --surface-hover: #1f2226;
+  --border: rgb(255 255 255 / 8%); --border-strong: rgb(255 255 255 / 40%);
+  --foreground: #e6e7e9; --foreground-muted: #9a9ea6; --foreground-subtle: #6b7079;
+  --accent: #4b8bd4; --accent-fill: #2b62ad; --accent-foreground: #fff;
+  --success: #3f9a5e; --warning: #c48a2a; --danger: #d9625a;
+  --dot: rgb(255 255 255 / 10%);
+  --shadow: 0 1px 2px rgb(0 0 0 / 40%);
+  color-scheme: dark;
+}
+:root[data-theme="light"] {
+  --background: #f7f7f8; --surface: #ffffff; --surface-raised: #ffffff; --surface-hover: #f1f2f3;
+  --border: rgb(0 0 0 / 8%); --border-strong: rgb(0 0 0 / 45%);
+  --foreground: #16181b; --foreground-muted: #5d6269; --foreground-subtle: #8a8f97;
+  --accent: #2a63b5; --accent-fill: #2a63b5;
+  --success: #2e7d4a; --warning: #8f6210; --danger: #b23c33;
+  --dot: rgb(0 0 0 / 12%);
+  --shadow: 0 1px 2px rgb(0 0 0 / 6%);
+  color-scheme: light;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --background: #f7f7f8; --surface: #ffffff; --surface-raised: #ffffff; --surface-hover: #f1f2f3;
+    --border: rgb(0 0 0 / 8%); --border-strong: rgb(0 0 0 / 45%);
+    --foreground: #16181b; --foreground-muted: #5d6269; --foreground-subtle: #8a8f97;
+    --accent: #2a63b5; --accent-fill: #2a63b5;
+    --success: #2e7d4a; --warning: #8f6210; --danger: #b23c33;
+    --dot: rgb(0 0 0 / 12%); --shadow: 0 1px 2px rgb(0 0 0 / 6%);
+    color-scheme: light;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--background); color: var(--foreground);
+  font: 400 14px/20px Inter, -apple-system, "Segoe UI", sans-serif; }
+h1, h2, h3 { margin: 0; font-weight: 600; }
+h1 { font-size: 20px; line-height: 28px; }
+h2 { font-size: 16px; line-height: 24px; }
+h3 { font-size: 14px; line-height: 20px; }
+p { margin: 0; }
+.muted { color: var(--foreground-muted); }
+.xs { font-size: 12px; line-height: 16px; }
+.page { max-width: 1320px; margin: 0 auto; padding: 24px; }
+.top { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; justify-content: space-between; }
+.tabs { display: flex; flex-wrap: wrap; gap: 4px; margin: 24px 0 16px; border-bottom: 1px solid var(--border); }
+.tab { appearance: none; border: 0; background: none; color: var(--foreground-muted); font: 500 14px/20px inherit;
+  font-family: inherit; padding: 10px 12px; border-bottom: 2px solid transparent; cursor: pointer; min-height: 44px; }
+.tab[aria-selected="true"] { color: var(--foreground); border-bottom-color: var(--accent); }
+.tab:focus-visible, .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.panel[hidden] { display: none; }
+.btn { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border-radius: 4px;
+  border: 1px solid var(--border-strong); background: var(--surface); color: var(--foreground);
+  font: 500 13px/1 inherit; font-family: inherit; white-space: nowrap; }
+.btn.primary { background: var(--accent-fill); border-color: transparent; color: var(--accent-foreground); }
+.btn.ghost { border-color: transparent; background: transparent; }
+.btn.icon { width: 32px; padding: 0; justify-content: center; }
+.badge { display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 8px; border-radius: 999px;
+  border: 1px solid var(--border); font-size: 12px; color: var(--foreground-muted); white-space: nowrap; }
+.badge.warn { color: var(--warning); border-color: color-mix(in oklab, var(--warning), transparent 60%); }
+.badge.ok { color: var(--success); border-color: color-mix(in oklab, var(--success), transparent 60%); }
+.badge.danger { color: var(--danger); border-color: color-mix(in oklab, var(--danger), transparent 60%); }
+.dotmark { width: 8px; height: 8px; border-radius: 50%; background: var(--warning); display: inline-block; }
+
+/* Mock app frame */
+.frame { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--background); }
+.appbar { height: 48px; display: flex; align-items: center; gap: 12px; padding: 0 16px; border-bottom: 1px solid var(--border);
+  background: var(--surface); }
+.crumb { color: var(--foreground-muted); }
+.crumb b { color: var(--foreground); font-weight: 500; }
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 16px; border-bottom: 1px solid var(--border); background: var(--surface); }
+.toolbar .spacer { flex: 1; }
+.name { font-weight: 600; }
+.editor { display: flex; height: 600px; min-height: 0; }
+.canvas { position: relative; flex: 1; min-width: 0; overflow: hidden;
+  background-color: var(--background);
+  background-image: radial-gradient(var(--dot) 1px, transparent 1px); background-size: 24px 24px; }
+.settings { width: 320px; flex: none; border-left: 1px solid var(--border); background: var(--surface); overflow: auto; }
+.settings header { padding: 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; }
+.settings .body { padding: 16px; display: flex; flex-direction: column; gap: 16px; }
+.field label { display: block; font-weight: 500; margin-bottom: 8px; }
+.input { height: 40px; border: 1px solid var(--border-strong); border-radius: 4px; padding: 0 12px; display: flex;
+  align-items: center; justify-content: space-between; gap: 8px; background: var(--background); }
+.input.disabled { opacity: .5; }
+.help { margin-top: 6px; font-size: 12px; line-height: 16px; color: var(--foreground-muted); }
+
+/* Nodes */
+.flow-v { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; }
+.flow-h { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: flex; align-items: center; }
+.node { width: 288px; height: 80px; display: flex; align-items: center; gap: 12px; padding: 16px; border-radius: 4px;
+  border: 1px solid var(--border); background: var(--surface); position: relative; }
+.flow-h .node { width: 196px; }
+.node.sel { outline: 2px solid var(--accent); outline-offset: -1px; }
+.node.err { border-color: color-mix(in oklab, var(--warning), transparent 30%); }
+.node .ico { width: 32px; height: 32px; border-radius: 4px; flex: none; display: grid; place-items: center;
+  background: var(--surface-hover); color: var(--foreground-muted); font-size: 12px; font-weight: 600; }
+.node.sel .ico { color: var(--accent); }
+.node .t { font-weight: 500; font-size: 15px; line-height: 22px; }
+.node .s { font-size: 12px; line-height: 16px; color: var(--foreground-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.node .s.warn { color: var(--warning); }
+.node .meta { min-width: 0; }
+.node .state { position: absolute; top: 8px; right: 8px; }
+.wire-v { width: 2px; height: 32px; background: var(--border-strong); opacity: .5; position: relative; }
+.wire-v::after { content: ""; position: absolute; left: -4px; bottom: -1px; border: 5px solid transparent; border-top-color: var(--border-strong); border-bottom: 0; }
+.wire-h { height: 2px; width: 36px; background: var(--border-strong); opacity: .5; position: relative; }
+.wire-h::after { content: ""; position: absolute; right: -1px; top: -4px; border: 5px solid transparent; border-left-color: var(--border-strong); border-right: 0; }
+
+.float { position: absolute; z-index: 2; }
+.cluster { display: flex; flex-direction: column; gap: 0; border: 1px solid var(--border); border-radius: 4px; background: var(--surface); box-shadow: var(--shadow); overflow: hidden; }
+.cluster .btn { border: 0; border-radius: 0; border-bottom: 1px solid var(--border); }
+.cluster .btn:last-child { border-bottom: 0; }
+.cluster.row { flex-direction: row; }
+.cluster.row .btn { border-bottom: 0; border-right: 1px solid var(--border); }
+.cluster.row .btn:last-child { border-right: 0; }
+.minimap { width: 160px; height: 104px; border: 1px solid var(--border); border-radius: 4px; background: var(--surface); position: relative; box-shadow: var(--shadow); }
+.minimap i { position: absolute; left: 66px; width: 28px; height: 10px; background: var(--foreground-subtle); border-radius: 2px; opacity: .6; }
+.minimap .vp { position: absolute; inset: 8px 40px; border: 1.5px solid var(--accent); border-radius: 2px; }
+.rail { display: flex; flex-direction: column; gap: 4px; padding: 4px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); box-shadow: var(--shadow); }
+.rail .btn { width: 40px; height: 40px; padding: 0; justify-content: center; border-color: transparent; }
+.rail hr { border: 0; border-top: 1px solid var(--border); margin: 2px 4px; }
+
+.issuebar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 8px 16px; border-bottom: 1px solid var(--border);
+  background: color-mix(in oklab, var(--warning), var(--surface) 90%); }
+.seg { display: flex; flex-wrap: wrap; gap: 4px; }
+.seg .btn { height: 28px; font-size: 12px; padding: 0 8px; }
+.seg .btn.on { border-color: var(--accent); color: var(--accent); }
+
+/* Notes under each frame */
+.notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin-top: 16px; }
+.card { border: 1px solid var(--border); border-radius: 8px; background: var(--surface); padding: 16px; }
+.card ul { margin: 8px 0 0; padding-left: 18px; color: var(--foreground-muted); }
+.card li + li { margin-top: 4px; }
+.lead { margin: 4px 0 16px; color: var(--foreground-muted); max-width: 820px; }
+.rec { color: var(--success); font-weight: 500; }
+
+/* Problem annotations */
+.anno { position: absolute; z-index: 3; max-width: 240px; padding: 8px 12px; border-radius: 4px; font-size: 12px; line-height: 16px;
+  background: color-mix(in oklab, var(--danger), var(--surface) 82%); border: 1px solid color-mix(in oklab, var(--danger), transparent 40%); }
+.anno b { color: var(--danger); }
+
+/* Drawer (option B) */
+.drawer { position: absolute; top: 12px; right: 12px; bottom: 12px; width: 340px; border: 1px solid var(--border); border-radius: 8px;
+  background: var(--surface); box-shadow: 0 8px 24px rgb(0 0 0 / 35%); z-index: 4; display: flex; flex-direction: column; }
+.drawer header { padding: 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; }
+.drawer .body { padding: 16px; display: flex; flex-direction: column; gap: 16px; overflow: auto; }
+.statusbar { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; height: 36px; padding: 0 16px; border-top: 1px solid var(--border); background: var(--surface); font-size: 12px; color: var(--foreground-muted); }
+
+/* Steps (option C) */
+.steps { width: 248px; flex: none; border-right: 1px solid var(--border); background: var(--surface); padding: 12px; display: flex; flex-direction: column; gap: 4px; }
+.step { display: flex; gap: 12px; align-items: center; padding: 10px 12px; border-radius: 4px; min-height: 52px; }
+.step.on { background: var(--surface-hover); box-shadow: inset 2px 0 0 var(--accent); }
+.step .n { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; border: 1px solid var(--border-strong); flex: none; }
+.step .n.ok { background: var(--success); border-color: var(--success); color: #fff; }
+.step .n.warn { border-color: var(--warning); color: var(--warning); }
+
+/* Model picker */
+.pickers { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+.pop { margin-top: 4px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-raised); box-shadow: 0 8px 24px rgb(0 0 0 / 30%); overflow: hidden; }
+.pop .search { height: 40px; display: flex; align-items: center; gap: 8px; padding: 0 12px; border-bottom: 1px solid var(--border); color: var(--foreground-muted); }
+.pop .grp { padding: 8px 12px 4px; font-size: 12px; color: var(--foreground-subtle); font-weight: 500; }
+.opt { display: flex; justify-content: space-between; gap: 8px; padding: 8px 12px; min-height: 44px; align-items: center; }
+.opt.on { background: var(--surface-hover); box-shadow: inset 2px 0 0 var(--accent); }
+.opt .id { font-weight: 500; }
+.opt .m { font-size: 12px; color: var(--foreground-muted); text-align: right; font-variant-numeric: tabular-nums; }
+.pop .foot { padding: 8px 12px; border-top: 1px solid var(--border); font-size: 12px; color: var(--foreground-muted); display: flex; justify-content: space-between; gap: 8px; }
+.empty { border: 1px dashed var(--border-strong); border-radius: 8px; padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+.empty.warn { border-color: color-mix(in oklab, var(--warning), transparent 30%); }
+.empty.danger { border-color: color-mix(in oklab, var(--danger), transparent 30%); }
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 12px; }
+.kv dt { color: var(--foreground-muted); }
+.kv dd { margin: 0; font-variant-numeric: tabular-nums; }
+
+/* Responsive: stack panels below the canvas like the real app does under 1152px */
+@media (max-width: 900px) {
+  .page { padding: 16px; }
+  .editor { flex-direction: column; height: auto; }
+  .canvas { height: 520px; flex: none; }
+  .settings, .steps { width: 100%; border-left: 0; border-right: 0; border-top: 1px solid var(--border); }
+  .flow-v { transform: translate(-50%, -50%) scale(.8); }
+  .flow-h { transform: translate(-50%, -50%) scale(.55); }
+  .minimap, .hide-sm { display: none; }
+  .drawer { left: 12px; width: auto; }
+  .anno { display: none; }
+}
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="top">
+    <div>
+      <h1>Answer pipeline canvas: layout options</h1>
+      <p class="lead">Static wireframes, not built UI. They use the workspace tokens from <code>DESIGN.md</code>, so light and dark both match the app. Each option fixes the same three problems: the graph not fitting on first load, wasted canvas space, and an LLM node with an empty model list.</p>
+    </div>
+    <button class="btn" id="theme" type="button" aria-label="Toggle theme">Toggle theme</button>
+  </div>
+
+  <div class="tabs" role="tablist" aria-label="Wireframes">
+    <button class="tab" role="tab" aria-selected="true" aria-controls="p-now" id="t-now">Today (problems)</button>
+    <button class="tab" role="tab" aria-selected="false" aria-controls="p-a" id="t-a">A · Docked flow (recommended)</button>
+    <button class="tab" role="tab" aria-selected="false" aria-controls="p-b" id="t-b">B · Horizontal stage</button>
+    <button class="tab" role="tab" aria-selected="false" aria-controls="p-c" id="t-c">C · Guided steps</button>
+    <button class="tab" role="tab" aria-selected="false" aria-controls="p-m" id="t-m">LLM model picker</button>
+  </div>
+
+  <!-- ============ TODAY ============ -->
+  <section class="panel" role="tabpanel" id="p-now" aria-labelledby="t-now">
+    <div class="frame">
+      <div class="appbar"><span class="crumb">Acme docs / Pipelines / <b>Untitled answer pipeline</b></span></div>
+      <div class="toolbar">
+        <span class="name">Untitled answer pipeline</span><span class="badge">Draft</span>
+        <span class="spacer"></span>
+        <button class="btn">Discard</button><button class="btn">Duplicate</button><button class="btn primary">Save version</button>
+      </div>
+      <div class="issuebar xs"><b>Cannot save:</b> LLM: choose a server-configured model · Configure CHAT_MODEL with an OpenRouter chat model ID on the server.</div>
+      <div class="editor">
+        <div class="canvas">
+          <div class="float" style="top:16px;left:16px;display:flex;gap:8px"><button class="btn">+ Nodes</button><button class="btn">Arrange vertically</button></div>
+          <div class="float" style="top:16px;right:16px"><button class="btn">Hide settings</button></div>
+          <!-- Graph rendered at the default viewport (x:24, y:80, zoom .9), not fitted -->
+          <div style="position:absolute;left:96px;top:96px;transform:scale(.9);transform-origin:0 0;display:flex;flex-direction:column;align-items:center">
+            <div class="node"><span class="ico">Q</span><div class="meta"><div class="t">Question</div><div class="s">From the playground</div></div></div><div class="wire-v"></div>
+            <div class="node"><span class="ico">R</span><div class="meta"><div class="t">Retriever</div><div class="s">Index v3 · top 5</div></div></div><div class="wire-v"></div>
+            <div class="node"><span class="ico">P</span><div class="meta"><div class="t">Prompt</div><div class="s">Answer concisely…</div></div></div><div class="wire-v"></div>
+            <div class="node sel err"><span class="ico">L</span><div class="meta"><div class="t">LLM</div><div class="s warn">Choose a model</div></div></div><div class="wire-v"></div>
+            <div class="node"><span class="ico">A</span><div class="meta"><div class="t">Answer</div><div class="s">Cited answer</div></div></div>
+          </div>
+          <div class="float" style="left:16px;bottom:16px"><div class="cluster"><button class="btn icon">+</button><button class="btn icon">−</button><button class="btn icon">⤢</button><button class="btn icon">🔒</button></div></div>
+          <div class="anno" style="left:420px;top:120px"><b>1 · Not fitted.</b> <code>&lt;ReactFlow fitView&gt;</code> runs once on mount, when <code>nodes</code> is still empty because options, indexes and versions load first. The graph sits at the default viewport and the bottom is cut off until you press Fit view.</div>
+          <div class="anno" style="left:420px;top:300px"><b>2 · Wasted space.</b> A narrow column sits in the top-left corner. The right side of the canvas stays empty, and Arrange or Nodes cover the first card.</div>
+          <div class="anno" style="left:420px;bottom:40px"><b>3 · Scroll does not zoom</b> (<code>zoomOnScroll={false}</code>). The only way to recover is the small control cluster.</div>
+        </div>
+        <aside class="settings">
+          <header><h2>LLM</h2><span class="spacer"></span></header>
+          <div class="body">
+            <div class="field"><label>Chat model</label><div class="input"><span class="muted">Select a model</span><span>▾</span></div>
+              <p class="help" style="color:var(--danger)"><b>4 · Empty list.</b> The dropdown holds only the placeholder. The reason appears only in the strip above the canvas.</p></div>
+            <div class="field"><label>Maximum output tokens</label><div class="input">1024</div></div>
+            <div class="field"><label>Temperature</label><div class="input">0</div></div>
+            <p class="help">Server context budget: 8192 tokens. Credentials stay on the server.</p>
+          </div>
+        </aside>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ OPTION A ============ -->
+  <section class="panel" role="tabpanel" id="p-a" aria-labelledby="t-a" hidden>
+    <p class="lead"><span class="rec">Recommended.</span> This is the smallest change from today. It keeps the vertical five-node flow and the 320px right panel from spec 0002. The canvas fits once nodes are measured and centers the graph. Tools move to a slim left rail and a bottom-left cluster, so nothing covers the cards.</p>
+    <div class="frame">
+      <div class="appbar"><span class="crumb">Acme docs / Pipelines / <b>Support answers</b></span></div>
+      <div class="toolbar">
+        <span class="name">Support answers</span><span class="badge">v4 saved</span><span class="badge warn"><span class="dotmark"></span>Unsaved changes</span>
+        <span class="badge warn" title="Opens the issues list">1 issue</span>
+        <span class="spacer"></span>
+        <button class="btn ghost">Discard</button><button class="btn">Run in playground</button><button class="btn primary">Save v5</button>
+      </div>
+      <div class="editor">
+        <div class="canvas">
+          <div class="float" style="top:16px;left:16px">
+            <div class="rail" aria-label="Canvas tools">
+              <button class="btn" title="Add node">＋</button>
+              <button class="btn" title="Auto-layout">⇅</button>
+              <button class="btn" title="Fit view (F)">⤢</button>
+              <hr />
+              <button class="btn" title="Restore template">↺</button>
+            </div>
+          </div>
+          <div class="flow-v">
+            <div class="node"><span class="ico">Q</span><div class="meta"><div class="t">Question</div><div class="s">From the playground or API</div></div><span class="state badge ok">✓</span></div><div class="wire-v"></div>
+            <div class="node"><span class="ico">R</span><div class="meta"><div class="t">Retriever</div><div class="s">Index v3 · dense · top 5</div></div><span class="state badge ok">✓</span></div><div class="wire-v"></div>
+            <div class="node"><span class="ico">P</span><div class="meta"><div class="t">Prompt</div><div class="s">Answer concisely using…</div></div><span class="state badge ok">✓</span></div><div class="wire-v"></div>
+            <div class="node sel"><span class="ico">L</span><div class="meta"><div class="t">LLM</div><div class="s">openai/gpt-4.1-mini · 1024 out</div></div><span class="state badge ok">✓</span></div><div class="wire-v"></div>
+            <div class="node"><span class="ico">A</span><div class="meta"><div class="t">Answer</div><div class="s">Cited answer or insufficient evidence</div></div><span class="state badge ok">✓</span></div>
+          </div>
+          <div class="float" style="left:16px;bottom:16px"><div class="cluster row"><button class="btn icon">−</button><button class="btn" style="width:56px;justify-content:center">92%</button><button class="btn icon">+</button><button class="btn icon" title="Fit view">⤢</button></div></div>
+          <div class="float hide-sm" style="right:16px;bottom:16px"><div class="minimap"><i style="top:14px"></i><i style="top:30px"></i><i style="top:46px"></i><i style="top:62px;background:var(--accent);opacity:1"></i><i style="top:78px"></i><span class="vp"></span></div></div>
+          <p class="float xs muted hide-sm" style="left:72px;top:22px">Scroll to pan · Ctrl + scroll to zoom · F to fit</p>
+        </div>
+        <aside class="settings">
+          <header><div><p class="xs muted">Node settings</p><h2>LLM</h2></div></header>
+          <div class="body">
+            <div class="seg" aria-label="Jump to node">
+              <button class="btn">Question</button><button class="btn">Retriever</button><button class="btn">Prompt</button><button class="btn on">LLM</button><button class="btn">Answer</button>
+            </div>
+            <div class="field"><label>Chat model</label><div class="input"><span>openai/gpt-4.1-mini</span><span>▾</span></div>
+              <p class="help">128K context · $0.40 / $1.60 per 1M tokens (in / out), estimate from OpenRouter</p></div>
+            <div class="field"><label>Maximum output tokens</label><div class="input">1024</div><p class="help">Up to 8192. Leaves room for prompt and evidence.</p></div>
+            <div class="field"><label>Temperature</label><div class="input">0</div></div>
+            <p class="help">Uses the organization's OpenRouter key. Keys never reach the browser.</p>
+          </div>
+        </aside>
+      </div>
+    </div>
+    <div class="notes">
+      <div class="card"><h3>What changes</h3><ul>
+        <li>Fit runs after nodes load and are measured, not on the empty mount. It reruns when the panel opens or closes and on Auto-layout.</li>
+        <li>The graph is centered. The canvas fills the full height left under the toolbar.</li>
+        <li>Tools sit in a 48px left rail. Zoom and fit share one cluster with a readable zoom level. A minimap shows on desktop only.</li>
+        <li>Ctrl + scroll zooms. Plain scroll still pans or scrolls the page, as today.</li>
+        <li>Each node shows a ✓ or ! badge, so problems show on the card itself.</li>
+      </ul></div>
+      <div class="card"><h3>Why A</h3><ul>
+        <li>Keeps spec 0002's vertical 288×80 cards and the 320px panel, so no redesign is needed.</li>
+        <li>The five-node graph is linear, and a vertical flow suits the 320px panel.</li>
+        <li>Touches the fewest components: the canvas wrapper, the toolbar and the node badge.</li>
+      </ul></div>
+      <div class="card"><h3>Trade-offs</h3><ul>
+        <li>On wide screens a lot of horizontal space stays unused. That is acceptable for five nodes.</li>
+        <li>The minimap adds little for five nodes. It is optional and could be left out.</li>
+      </ul></div>
+    </div>
+  </section>
+
+  <!-- ============ OPTION B ============ -->
+  <section class="panel" role="tabpanel" id="p-b" aria-labelledby="t-b" hidden>
+    <p class="lead">The graph runs left to right across the full canvas width, which suits wide desktops. Settings open as a floating drawer when you select a node, so the canvas keeps its full width. Validation and the saved version move to a bottom status bar.</p>
+    <div class="frame">
+      <div class="appbar"><span class="crumb">Acme docs / Pipelines / <b>Support answers</b></span></div>
+      <div class="toolbar">
+        <span class="name">Support answers</span><span class="badge">v4 saved</span><span class="badge warn"><span class="dotmark"></span>Unsaved</span>
+        <span class="spacer"></span>
+        <div class="cluster row"><button class="btn">＋ Node</button><button class="btn">⇄ Auto-layout</button><button class="btn">⤢ Fit</button></div>
+        <button class="btn">Run in playground</button><button class="btn primary">Save v5</button>
+      </div>
+      <div class="editor" style="height:560px">
+        <div class="canvas">
+          <div class="flow-h" style="left:calc(50% - 160px);transform:translate(-50%,-50%) scale(.78)">
+            <div class="node"><span class="ico">Q</span><div class="meta"><div class="t">Question</div><div class="s">Playground / API</div></div></div><div class="wire-h"></div>
+            <div class="node"><span class="ico">R</span><div class="meta"><div class="t">Retriever</div><div class="s">Index v3 · top 5</div></div></div><div class="wire-h"></div>
+            <div class="node"><span class="ico">P</span><div class="meta"><div class="t">Prompt</div><div class="s">Answer concisely…</div></div></div><div class="wire-h"></div>
+            <div class="node sel err"><span class="ico">L</span><div class="meta"><div class="t">LLM</div><div class="s warn">No models available</div></div></div><div class="wire-h"></div>
+            <div class="node"><span class="ico">A</span><div class="meta"><div class="t">Answer</div><div class="s">Cited answer</div></div></div>
+          </div>
+          <div class="float" style="left:16px;bottom:16px"><div class="cluster row"><button class="btn icon">−</button><button class="btn" style="width:56px;justify-content:center">80%</button><button class="btn icon">+</button></div></div>
+          <aside class="drawer" aria-label="LLM settings">
+            <header><div><p class="xs muted">Node settings</p><h2>LLM</h2></div><span style="flex:1"></span><button class="btn icon ghost" aria-label="Close">✕</button></header>
+            <div class="body">
+              <div class="empty warn">
+                <h3>No chat models available</h3>
+                <p class="xs muted">The server has no approved chat models for this organization.</p>
+                <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary">Manage models</button><button class="btn">Retry</button></div>
+              </div>
+              <div class="field"><label>Maximum output tokens</label><div class="input disabled">1024</div></div>
+              <div class="field"><label>Temperature</label><div class="input disabled">0</div></div>
+            </div>
+          </aside>
+        </div>
+      </div>
+      <div class="statusbar"><span>Editing v4 → v5</span><span style="color:var(--warning)">● 1 issue: LLM has no model</span><span>Index v3 · 1,284 chunks</span></div>
+    </div>
+    <div class="notes">
+      <div class="card"><h3>What changes</h3><ul>
+        <li>The default and template layout is horizontal, using 196–220px cards. The vertical layout stays available through Auto-layout.</li>
+        <li>The settings panel becomes an overlay drawer, so the canvas never shrinks and fit never has to rerun.</li>
+        <li>Canvas tools move into the editor toolbar, so nothing floats over the graph.</li>
+      </ul></div>
+      <div class="card"><h3>Pros</h3><ul><li>Uses the most canvas space on desktop.</li><li>Reads naturally as a pipeline from input to output.</li></ul></div>
+      <div class="card"><h3>Cons</h3><ul><li>Changes spec 0002, which sets vertical cards and a docked panel. It needs a spec update.</li><li>The drawer covers the right-hand nodes while open.</li><li>The horizontal graph must scale down on tablet and mobile.</li></ul></div>
+    </div>
+  </section>
+
+  <!-- ============ OPTION C ============ -->
+  <section class="panel" role="tabpanel" id="p-c" aria-labelledby="t-c" hidden>
+    <p class="lead">Guided setup. A left step list (Question → Answer) shows each node's status and works as both navigation and the palette. The canvas becomes a read-mostly overview, and most editing happens in the right panel. This suits users who don't think in graphs.</p>
+    <div class="frame">
+      <div class="appbar"><span class="crumb">Acme docs / Pipelines / <b>Support answers</b></span></div>
+      <div class="toolbar">
+        <span class="name">Support answers</span><span class="badge">v4 saved</span>
+        <span class="spacer"></span>
+        <button class="btn">Run in playground</button><button class="btn primary">Save v5</button>
+      </div>
+      <div class="editor">
+        <nav class="steps" aria-label="Pipeline steps">
+          <p class="xs muted" style="padding:4px 12px 8px">5 steps · 4 ready</p>
+          <div class="step"><span class="n ok">✓</span><div><b style="font-weight:500">Question</b><p class="xs muted">Playground / API</p></div></div>
+          <div class="step"><span class="n ok">✓</span><div><b style="font-weight:500">Retriever</b><p class="xs muted">Index v3 · top 5</p></div></div>
+          <div class="step"><span class="n ok">✓</span><div><b style="font-weight:500">Prompt</b><p class="xs muted">Default instructions</p></div></div>
+          <div class="step on"><span class="n warn">!</span><div><b style="font-weight:500">LLM</b><p class="xs" style="color:var(--warning)">Choose a model</p></div></div>
+          <div class="step"><span class="n ok">✓</span><div><b style="font-weight:500">Answer</b><p class="xs muted">Cited answer</p></div></div>
+          <span style="flex:1"></span>
+          <button class="btn ghost" style="justify-content:flex-start">↺ Restore template</button>
+        </nav>
+        <div class="canvas">
+          <div class="flow-v" style="transform:translate(-50%,-50%) scale(.82)">
+            <div class="node"><span class="ico">Q</span><div class="meta"><div class="t">Question</div><div class="s">Playground / API</div></div></div><div class="wire-v"></div>
+            <div class="node"><span class="ico">R</span><div class="meta"><div class="t">Retriever</div><div class="s">Index v3 · top 5</div></div></div><div class="wire-v"></div>
+            <div class="node"><span class="ico">P</span><div class="meta"><div class="t">Prompt</div><div class="s">Default instructions</div></div></div><div class="wire-v"></div>
+            <div class="node sel err"><span class="ico">L</span><div class="meta"><div class="t">LLM</div><div class="s warn">Choose a model</div></div></div><div class="wire-v"></div>
+            <div class="node"><span class="ico">A</span><div class="meta"><div class="t">Answer</div><div class="s">Cited answer</div></div></div>
+          </div>
+          <div class="float" style="left:16px;bottom:16px"><div class="cluster row"><button class="btn icon">−</button><button class="btn icon">+</button><button class="btn icon">⤢</button></div></div>
+        </div>
+        <aside class="settings">
+          <header><div><p class="xs muted">Step 4 of 5</p><h2>LLM</h2></div></header>
+          <div class="body">
+            <div class="field"><label>Chat model</label><div class="input"><span class="muted">Search models…</span><span>▾</span></div><p class="help">3 models approved for this organization.</p></div>
+            <div class="field"><label>Maximum output tokens</label><div class="input">1024</div></div>
+            <div class="field"><label>Temperature</label><div class="input">0</div></div>
+            <div style="display:flex;justify-content:space-between"><button class="btn">← Prompt</button><button class="btn">Answer →</button></div>
+          </div>
+        </aside>
+      </div>
+    </div>
+    <div class="notes">
+      <div class="card"><h3>Pros</h3><ul><li>Problems are obvious, and Next / Previous gives a clear path through setup.</li><li>Works well on mobile, where the step list becomes a top stepper.</li></ul></div>
+      <div class="card"><h3>Cons</h3><ul><li>Three columns leave the canvas the least room. It becomes mostly decorative.</li><li>Duplicates navigation: steps, canvas and segment buttons all select a node.</li></ul></div>
+      <div class="card"><h3>When to pick C</h3><ul><li>If non-technical users are the main audience and graph editing is secondary.</li></ul></div>
+    </div>
+  </section>
+
+  <!-- ============ MODEL PICKER ============ -->
+  <section class="panel" role="tabpanel" id="p-m" aria-labelledby="t-m" hidden>
+    <p class="lead">The LLM node's model field in each server state. Any layout option above can use it. The list always comes from the server, and the browser never sees a key or calls OpenRouter directly.</p>
+    <div class="pickers">
+      <div class="card">
+        <h3>1 · Models loaded (open)</h3>
+        <p class="xs muted" style="margin:4px 0 12px">Searchable combobox, grouped by provider. Shows context and price estimates.</p>
+        <div class="input"><span>openai/gpt-4.1-mini</span><span>▴</span></div>
+        <div class="pop" role="listbox" aria-label="Chat models">
+          <div class="search">⌕ <span>Search 6 approved models</span></div>
+          <div class="grp">OpenAI</div>
+          <div class="opt on"><div><div class="id">gpt-4.1-mini</div><div class="xs muted">openai/gpt-4.1-mini · default</div></div><div class="m">128K ctx<br />$0.40 / $1.60</div></div>
+          <div class="opt"><div><div class="id">gpt-4.1</div><div class="xs muted">openai/gpt-4.1</div></div><div class="m">1M ctx<br />$2.00 / $8.00</div></div>
+          <div class="grp">Anthropic</div>
+          <div class="opt"><div><div class="id">claude-haiku-4.5</div><div class="xs muted">anthropic/claude-haiku-4.5</div></div><div class="m">200K ctx<br />$1.00 / $5.00</div></div>
+          <div class="grp">Meta</div>
+          <div class="opt"><div><div class="id">llama-3.3-70b-instruct</div><div class="xs muted">meta-llama/llama-3.3-70b-instruct</div></div><div class="m">128K ctx<br />$0.13 / $0.40</div></div>
+          <div class="foot"><span>Prices per 1M tokens (in / out), OpenRouter estimate, refreshed 2h ago</span><a href="#" style="color:var(--accent)">Manage</a></div>
+        </div>
+        <p class="xs muted" style="margin-top:8px">Model IDs and prices are illustrative.</p>
+      </div>
+
+      <div class="card">
+        <h3>2 · No models configured</h3>
+        <p class="xs muted" style="margin:4px 0 12px">Today's case: <code>CHAT_MODEL</code> and <code>CHAT_MODELS</code> are empty. The field is replaced by an explanation, not an empty select.</p>
+        <div class="empty warn">
+          <h3>No chat models available</h3>
+          <p class="xs muted">An admin needs to approve at least one OpenRouter chat model for this organization.</p>
+          <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary">Manage models</button><button class="btn">Retry</button></div>
+          <p class="xs muted">Members without admin rights see "Ask an organization admin" instead of the button.</p>
+        </div>
+        <div class="node err" style="margin-top:16px;width:100%"><span class="ico">L</span><div class="meta"><div class="t">LLM</div><div class="s warn">No models available</div></div><span class="state badge warn">!</span></div>
+      </div>
+
+      <div class="card">
+        <h3>3 · Provider key missing or invalid</h3>
+        <p class="xs muted" style="margin:4px 0 12px">Models are approved, but no working OpenRouter key exists. The list still shows, and running is blocked.</p>
+        <div class="input disabled"><span>openai/gpt-4.1-mini</span><span>▾</span></div>
+        <div class="empty danger" style="margin-top:12px">
+          <h3>OpenRouter key needed</h3>
+          <p class="xs muted">Add or test the organization's OpenRouter key before running this pipeline. You can still save it.</p>
+          <div><button class="btn">Open provider key settings</button></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>4 · Saved model no longer approved</h3>
+        <p class="xs muted" style="margin:4px 0 12px">An older version references a model that was removed. The model is never swapped silently.</p>
+        <div class="input" style="border-color:var(--warning)"><span>mistralai/mistral-small <span class="badge warn">Not approved</span></span><span>▾</span></div>
+        <p class="help" style="color:var(--warning)">v3 used this model. Pick an approved model to save v5. v3 stays runnable only if an admin approves the model again.</p>
+      </div>
+
+      <div class="card">
+        <h3>5 · Admin: Manage models (settings page)</h3>
+        <p class="xs muted" style="margin:4px 0 12px">Organization settings, next to the existing OpenRouter key card.</p>
+        <div class="input"><span class="muted">⌕ Search OpenRouter catalog (text output)</span></div>
+        <div style="margin-top:8px;display:flex;flex-direction:column;gap:0;border:1px solid var(--border);border-radius:4px">
+          <div class="opt"><div><div class="id">☑ openai/gpt-4.1-mini</div><div class="xs muted">Default</div></div><div class="m">128K · $0.40/$1.60</div></div>
+          <div class="opt"><div><div class="id">☑ anthropic/claude-haiku-4.5</div></div><div class="m">200K · $1.00/$5.00</div></div>
+          <div class="opt"><div><div class="id">☐ google/gemini-2.5-flash</div></div><div class="m">1M · $0.30/$2.50</div></div>
+        </div>
+        <dl class="kv" style="margin-top:12px"><dt>Catalog</dt><dd>Fetched on the server with the org key, cached 6h</dd><dt>Ceiling</dt><dd>Env <code>CHAT_MODELS</code>, when set, limits what admins can approve</dd></dl>
+      </div>
+    </div>
+  </section>
+</div>
+<script>
+  const tabs = [...document.querySelectorAll('[role="tab"]')];
+  function show(tab) {
+    tabs.forEach((t) => {
+      const on = t === tab;
+      t.setAttribute('aria-selected', String(on));
+      t.tabIndex = on ? 0 : -1;
+      document.getElementById(t.getAttribute('aria-controls')).hidden = !on;
+    });
+    tab.focus();
+  }
+  tabs.forEach((t, i) => {
+    t.addEventListener('click', () => show(t));
+    t.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight') show(tabs[(i + 1) % tabs.length]);
+      if (e.key === 'ArrowLeft') show(tabs[(i - 1 + tabs.length) % tabs.length]);
+    });
+  });
+  document.getElementById('theme').addEventListener('click', () => {
+    const root = document.documentElement;
+    const dark = root.dataset.theme ? root.dataset.theme === 'dark' : !matchMedia('(prefers-color-scheme: light)').matches;
+    root.dataset.theme = dark ? 'light' : 'dark';
+  });
+</script>
+</body>
+</html>

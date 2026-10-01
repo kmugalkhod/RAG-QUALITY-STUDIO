@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   addEdge,
   Position,
@@ -18,6 +18,7 @@ import {
   canonical,
   createEditableExecution,
   getNodeLabel,
+  nodeIssues,
   pipelineNodeOrder,
   validatePipelineExecution,
   type PipelineDraft,
@@ -46,12 +47,29 @@ function flowNode(
   };
 }
 
+// Whether the whole node card is inside the visible canvas, so selection need not pan.
+function isOnScreen(flow: ReactFlowInstance<FlowNode>, node: FlowNode) {
+  const canvas = document.querySelector('[data-testid="pipeline-canvas"]')?.getBoundingClientRect();
+  if (!canvas) {
+    return false;
+  }
+  const start = flow.flowToScreenPosition(node.position);
+  const end = flow.flowToScreenPosition({
+    x: node.position.x + (node.measured?.width ?? 288),
+    y: node.position.y + (node.measured?.height ?? 80),
+  });
+  return (
+    start.x >= canvas.left &&
+    start.y >= canvas.top &&
+    end.x <= canvas.right &&
+    end.y <= canvas.bottom
+  );
+}
+
 export function usePipelineEditor(projectId: string, pipelineId: string, versionId: string) {
   const [nodes, setNodes, onNodesChange] = useNodesState<FlowNode>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [flow, setFlow] = useState<ReactFlowInstance<FlowNode>>();
-  const flowRef = useRef(flow);
-  flowRef.current = flow;
   const [options, setOptions] = useState<PipelineOptions>();
   const [indexes, setIndexes] = useState<IndexVersion[]>([]);
   const [versions, setVersions] = useState<PipelineVersion[]>([]);
@@ -64,6 +82,10 @@ export function usePipelineEditor(projectId: string, pipelineId: string, version
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [refresh, setRefresh] = useState(0);
+  const [optionsLoading, setOptionsLoading] = useState(false);
+  // Bumped whenever a version, template or arrangement replaces the layout; the canvas refits.
+  const [layoutRevision, setLayoutRevision] = useState(0);
+  const relayout = useCallback(() => setLayoutRevision((value) => value + 1), []);
   const execution: PipelineExecution = {
     schema_version: 2,
     nodes: nodes.map((node) => node.data.config),
@@ -81,6 +103,17 @@ export function usePipelineEditor(projectId: string, pipelineId: string, version
     indexes.map((index) => index.id),
   );
   const config = nodes.find((node) => node.id === selected)?.data.config;
+  const issues = nodeIssues(errors, options);
+  const issueKey = JSON.stringify(issues);
+  // Issues are display data; the saved draft reads only node.data.config.
+  const flowNodes = useMemo(() => {
+    const byKind = JSON.parse(issueKey) as typeof issues;
+    return nodes.map((node) =>
+      node.data.issue === byKind[node.data.config.type]
+        ? node
+        : { ...node, data: { ...node.data, issue: byKind[node.data.config.type] } },
+    );
+  }, [nodes, issueKey]);
   useUnsavedChanges(dirty);
 
   const open = useCallback(
@@ -103,8 +136,6 @@ export function usePipelineEditor(projectId: string, pipelineId: string, version
           selected: index === 0,
         })),
       );
-      const position = version.layout.positions[version.execution.nodes[0].id];
-      void flowRef.current?.setCenter(position.x + 160, position.y + 42, { zoom: 0.9 });
       setEdges(version.execution.edges.map((edge, index) => ({ ...edge, id: `edge-${index}` })));
       setSaved(version);
       setBaseline(
@@ -115,8 +146,9 @@ export function usePipelineEditor(projectId: string, pipelineId: string, version
         }),
       );
       setSelected(version.execution.nodes[0].id);
+      relayout();
     },
-    [setNodes, setEdges],
+    [setNodes, setEdges, relayout],
   );
 
   useEffect(() => {
@@ -167,6 +199,7 @@ export function usePipelineEditor(projectId: string, pipelineId: string, version
               id: `${edge.source}-${edge.target}`,
             })),
           );
+          relayout();
           return;
         }
         if (!pipelineVersions.length) {
@@ -198,7 +231,20 @@ export function usePipelineEditor(projectId: string, pipelineId: string, version
     return () => {
       disposed = true;
     };
-  }, [projectId, pipelineId, versionId, refresh, open, setNodes, setEdges]);
+  }, [projectId, pipelineId, versionId, refresh, open, setNodes, setEdges, relayout]);
+
+  // Reload only the server options, keeping the current draft.
+  function refreshOptions() {
+    setOptionsLoading(true);
+    api
+      .getPipelineOptions(projectId)
+      .then((value) => {
+        setOptions(value);
+        setError('');
+      })
+      .catch((cause) => setError(errorText(cause)))
+      .finally(() => setOptionsLoading(false));
+  }
 
   async function action(work: () => Promise<void>) {
     setBusy(true);
@@ -218,8 +264,12 @@ export function usePipelineEditor(projectId: string, pipelineId: string, version
     setSelected(id);
     setNodes((current) => current.map((node) => ({ ...node, selected: node.id === id })));
     const node = nodes.find((value) => value.id === id);
-    if (center && node) {
-      void flow?.setCenter(node.position.x + 160, node.position.y + 42, { zoom: 0.9 });
+    if (center && node && flow && !isOnScreen(flow, node)) {
+      // Pan to the node without changing the zoom the user chose.
+      void flow.setCenter(node.position.x + 144, node.position.y + 40, {
+        zoom: flow.getZoom(),
+        duration: 200,
+      });
     }
   }
   function updateNode(values: Partial<PipelineNodeConfig>) {
@@ -240,7 +290,9 @@ export function usePipelineEditor(projectId: string, pipelineId: string, version
       { ...flowNode(createNode(kind, options), position), selected: true },
     ]);
     setSelected(kind);
-    void flow?.setCenter(position.x + 160, position.y + 42, { zoom: 0.9 });
+    if (flow) {
+      void flow.setCenter(position.x + 144, position.y + 40, { zoom: flow.getZoom() });
+    }
   }
   function changeNodes(changes: NodeChange<FlowNode>[]) {
     onNodesChange(changes);
@@ -263,7 +315,7 @@ export function usePipelineEditor(projectId: string, pipelineId: string, version
         data: { ...node.data, vertical: true },
       })),
     );
-    requestAnimationFrame(() => void flow?.fitView({ padding: 0.12, maxZoom: 1 }));
+    relayout();
   }
   function restoreTemplate() {
     const template = createPipelineDraft(options, name);
@@ -277,7 +329,7 @@ export function usePipelineEditor(projectId: string, pipelineId: string, version
       template.execution.edges.map((edge) => ({ ...edge, id: `${edge.source}-${edge.target}` })),
     );
     setSelected('retriever');
-    requestAnimationFrame(() => void flow?.fitView({ padding: 0.12, maxZoom: 1 }));
+    relayout();
   }
   function save() {
     void action(async () => {
@@ -345,12 +397,16 @@ export function usePipelineEditor(projectId: string, pipelineId: string, version
             ...(!name.trim() ? ['Enter a pipeline name.'] : []),
             ...(options?.error ? [options.error] : []),
             ...(!options
-              ? ['Server options could not be loaded. Choose Refresh options to retry.']
+              ? ['Server options could not be loaded. Choose Retry loading pipeline.']
               : []),
             ...(!dirty && saved ? ['Version saved. Test it in Playground.'] : []),
           ];
   return {
     nodes,
+    flowNodes,
+    layoutKey: `${saved?.id ?? 'draft'}:${layoutRevision}`,
+    optionsLoading,
+    refreshOptions,
     edges,
     flow,
     options,
