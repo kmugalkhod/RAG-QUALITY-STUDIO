@@ -145,8 +145,9 @@
   :root {
     /* Bottom padding that keeps phone content clear of the 56px tab bar (spec 0002, AC-5). */
     --tabbar-clearance: calc(56px + 16px + env(safe-area-inset-bottom));
-    /* Pipeline canvas heights: beside the settings panel on desktop, fixed on smaller screens. */
-    --editor-canvas: clamp(480px, calc(100dvh - 240px), 900px);
+    /* Pipeline canvas heights: beside the settings panel on desktop, fixed on smaller screens.
+       On desktop it fills the viewport below the 48px shell header and 64px editor toolbar. */
+    --editor-canvas: max(480px, calc(100dvh - 112px));
     --canvas-compact: 480px;
     /* The widget appearance preview matches the widget panel on a desktop site. */
     --widget-preview-height: 480px;

@@ -1,8 +1,5 @@
-import { ArrowLeft } from 'lucide-react';
-import { PageHeader } from '../../components/PageHeader';
 import { ErrorState } from '../../components/states/ErrorState';
 import { LoadingState } from '../../components/states/LoadingState';
-import { Button } from '../../components/ui/button';
 import { NodeSettings } from './components/NodeSettings';
 import { PipelineCanvas } from './components/PipelineCanvas';
 import { PipelineToolbar } from './components/PipelineToolbar';
@@ -19,40 +16,44 @@ export function PipelineEditor({
   versionId?: string;
 }) {
   const editor = usePipelineEditor(projectId, pipelineId, versionId);
+  // Loading and busy reasons are momentary; the strip appears only for fixes the user must make.
+  const showGuidance =
+    editor.saveReasons.length > 0 &&
+    !editor.loading &&
+    !editor.busy &&
+    !(editor.saved && !editor.dirty);
   return (
     <div className="flex min-w-0 flex-col">
-      <div className="flex flex-col gap-4 px-4 pt-4 pb-6 md:px-6">
-        <Button variant="ghost" size="sm" className="-ml-2 self-start" asChild>
-          <a href={`#/projects/${projectId}/pipelines`}>
-            <ArrowLeft aria-hidden="true" />
-            All pipelines
-          </a>
-        </Button>
-        <PageHeader title="Pipeline editor" meta="Question → grounded answer" />
-        {editor.loading && (
-          <LoadingState label="Loading pipeline and server configuration…" rows={2} />
-        )}
-        {editor.error && (
-          <ErrorState
-            title="The pipeline request failed"
-            message={editor.error}
-            onRetry={editor.retry}
-            retryLabel="Retry loading pipeline"
-          />
-        )}
-      </div>
+      <h1 className="sr-only">Pipeline editor</h1>
+      {(editor.loading || editor.error) && (
+        <div className="flex flex-col gap-4 px-4 pt-4 md:px-6">
+          {editor.loading && (
+            <LoadingState label="Loading pipeline and server configuration…" rows={2} />
+          )}
+          {editor.error && (
+            <ErrorState
+              title="The pipeline request failed"
+              message={editor.error}
+              onRetry={editor.retry}
+              retryLabel="Retry loading pipeline"
+            />
+          )}
+        </div>
+      )}
       <fieldset
         className="m-0 flex min-w-0 flex-col border-0 p-0"
         disabled={editor.busy || editor.loading}
       >
-        <div className="px-4 pb-6 md:px-6">
+        <div className="px-4 py-3 md:px-6">
           <PipelineToolbar
+            backHref={`#/projects/${projectId}/pipelines`}
             name={editor.name}
             saved={editor.saved}
             versions={editor.versions}
             dirty={editor.dirty}
             busy={editor.busy}
             canSave={editor.saveReasons.length === 0}
+            guidanceId={showGuidance ? 'save-guidance' : undefined}
             onNameChange={editor.setName}
             onVersionSelect={editor.open}
             onSave={editor.save}
@@ -61,13 +62,15 @@ export function PipelineEditor({
             onOpenPlayground={editor.openPlayground}
           />
         </div>
-        <PipelineValidation
-          saveReasons={editor.saveReasons}
-          alreadySaved={!!editor.saved && !editor.dirty && !editor.loading && !editor.busy}
-          needsDocuments={editor.errors.some((reason) => reason.startsWith('Retriever: choose'))}
-          disabled={editor.busy || editor.loading}
-          onChooseDocuments={editor.chooseDocuments}
-        />
+        {showGuidance && (
+          <PipelineValidation
+            id="save-guidance"
+            saveReasons={editor.saveReasons}
+            needsDocuments={editor.errors.some((reason) => reason.startsWith('Retriever: choose'))}
+            disabled={editor.busy || editor.loading}
+            onChooseDocuments={editor.chooseDocuments}
+          />
+        )}
         <PipelineCanvas
           nodes={editor.flowNodes}
           edges={editor.edges}

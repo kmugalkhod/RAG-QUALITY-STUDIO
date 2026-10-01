@@ -2,7 +2,6 @@ import { useEffect, useRef, useState, type ComponentProps, type ReactNode } from
 import {
   Background,
   Controls,
-  MiniMap,
   ReactFlow,
   useNodesInitialized,
   useReactFlow,
@@ -238,14 +237,8 @@ export function PipelineCanvas({
           >
             <FitOnLayout layoutKey={layoutKey} />
             <Background gap={24} size={1} />
-            <Controls position="bottom-left" orientation="horizontal" fitViewOptions={FIT_VIEW} />
-            <MiniMap
-              className="hidden desktop:block"
-              position="bottom-right"
-              pannable
-              zoomable
-              ariaLabel="Pipeline overview"
-            />
+            {/* The rail already offers Fit view, so the zoom controls omit it. */}
+            <Controls position="bottom-left" orientation="horizontal" showFitView={false} />
           </ReactFlow>
         </div>
       </div>
