@@ -12,7 +12,7 @@ from ragas.llms.base import InstructorBaseRagasLLM
 from ragas.embeddings.base import BaseRagasEmbedding
 from ragas.metrics.collections import Faithfulness, AnswerRelevancy, ContextRecall
 from app.core.config import settings
-from app.providers import embeddings, generation
+from app.providers import credentials, embeddings, generation
 
 METRICS = {
     "faithfulness": "Answer and supplied context. Measures support, not overall accuracy.",
@@ -95,13 +95,14 @@ def metric_objects(llm, embedding):
 
 
 def configured(selected):
-    if (
-        not settings.evaluator_model.strip()
-        or not settings.openrouter_api_key.get_secret_value()
-    ):
+    if not settings.evaluator_model.strip():
         raise ValueError(
-            "Configure EVALUATOR_MODEL and server-side OPENROUTER_API_KEY, then restart backend and workers."
+            "Configure EVALUATOR_MODEL on the server, then restart backend and workers."
         )
+    try:
+        credentials.current()
+    except credentials.ProviderCredentialMissing as exc:
+        raise ValueError(str(exc)) from None
     embedding = (
         embeddings.configured().model_dump()
         if "response_relevancy" in selected

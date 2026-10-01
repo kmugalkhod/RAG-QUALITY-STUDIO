@@ -24,6 +24,7 @@ from app.pipelines.langchain_rag import compile_answer_chain
 from app.providers import generation
 from app.schemas.index import RetrievalRequest
 from app.schemas.pipeline import Execution
+from app.services import provider_credentials
 from app.services.deployments import _hash
 from app.workers.celery_app import celery
 
@@ -292,29 +293,34 @@ def process_deployed(run_id, db_engine=engine):
                 or _hash(index.embedding_config) != release.embedding_sha256
             ):
                 raise ValueError("Release index unavailable.")
-            llm = nodes["llm"]
-            config = generation.configured(llm.model, llm.max_tokens, llm.temperature)
-            chain, trace = compile_answer_chain(
-                session=session,
-                project_id=run.project_id,
-                index=index,
-                request=RetrievalRequest(
-                    index_id=release.index_id,
-                    query=run.question,
-                    retrieval=nodes["retriever"].settings,
-                ),
-                generation_config=config,
-                prompt_template=nodes["prompt"].template,
-                node_ids={kind: node.id for kind, node in nodes.items()},
-                checkpoint=lambda updates: _checkpoint(session, run_id, token, updates),
-                before_embedding=lambda: _before_call(
-                    session, run_id, token, "embedding_call"
-                ),
-                before_generation=lambda: _before_call(
-                    session, run_id, token, "generation_call"
-                ),
-            )
-            result = chain.invoke({"question": run.question})
+            with provider_credentials.bound_for_project(session, run.project_id):
+                llm = nodes["llm"]
+                config = generation.configured(
+                    llm.model, llm.max_tokens, llm.temperature
+                )
+                chain, trace = compile_answer_chain(
+                    session=session,
+                    project_id=run.project_id,
+                    index=index,
+                    request=RetrievalRequest(
+                        index_id=release.index_id,
+                        query=run.question,
+                        retrieval=nodes["retriever"].settings,
+                    ),
+                    generation_config=config,
+                    prompt_template=nodes["prompt"].template,
+                    node_ids={kind: node.id for kind, node in nodes.items()},
+                    checkpoint=lambda updates: _checkpoint(
+                        session, run_id, token, updates
+                    ),
+                    before_embedding=lambda: _before_call(
+                        session, run_id, token, "embedding_call"
+                    ),
+                    before_generation=lambda: _before_call(
+                        session, run_id, token, "generation_call"
+                    ),
+                )
+                result = chain.invoke({"question": run.question})
             _finish(
                 session,
                 run_id,

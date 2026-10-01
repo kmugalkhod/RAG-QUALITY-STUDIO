@@ -7,6 +7,8 @@ import { ProjectForm } from './components/ProjectForm';
 import { ProjectList } from './components/ProjectList';
 import { useAuth } from '@clerk/react';
 import { postJson } from '../../lib/api';
+import { LINK } from '../../components/parts';
+import { cn } from '../../lib/utils';
 
 function ClaimExistingProjects({ onClaimed }: { onClaimed: () => void }) {
   const { orgRole } = useAuth();
@@ -126,6 +128,10 @@ export function ProjectsPage({ onCreated }: { onCreated?: () => void }) {
           {notice}
         </p>
       )}
+      {/* The sidebar holds this link on wider screens. */}
+      <a className={cn(LINK, 'self-start md:hidden')} href="#/organization/settings">
+        Organization settings
+      </a>
       {import.meta.env.VITE_CLERK_PUBLISHABLE_KEY && (
         <ClaimExistingProjects
           onClaimed={() => {

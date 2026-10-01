@@ -11,7 +11,7 @@ from app.models.experiment import Experiment, ExperimentItem
 from app.models.pipeline import PipelineVersion
 from app.models.query import QueryRun
 from app.schemas.query import QueryRequest
-from app.services import queries, experiments
+from app.services import queries, experiments, provider_credentials
 from app.evaluation import evaluator
 from app.workers.celery_app import celery
 
@@ -144,9 +144,10 @@ def run_step(job_id, db_engine=engine):
                 guard()
                 result = output_for(queries.finish(session, run, before_provider=guard))
             else:
-                result = evaluator.provider_for(snapshot["evaluator"]).score(
-                    stage, question, item.output, guard
-                )
+                with provider_credentials.bound_for_project(session, project_id):
+                    result = evaluator.provider_for(snapshot["evaluator"]).score(
+                        stage, question, item.output, guard
+                    )
     except evaluator.EvaluationCancelled:
         result = (
             evaluator.unavailable("cancelled", "skipped")

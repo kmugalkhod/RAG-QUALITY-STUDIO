@@ -2022,3 +2022,13 @@ static HTML page, received a 201 public token, submitted one question (202), and
 a succeeded answer with three evidence items. The owner’s Chrome test tab was refreshed
 and shows the ready assistant. No internet ingress or public hosting was configured.
 The test asked one live question and may have incurred provider cost.
+
+## Organization OpenRouter keys — 2026-10-01
+
+Acceptance criteria: an organization admin stores, tests, replaces and removes the organization's OpenRouter key from **Organization settings** (`#/organization/settings`). The key is verified with OpenRouter, encrypted at rest with the artifact key boundary, and never returned. Every embedding, chat and evaluator call for that organization's projects uses it. In Clerk mode a missing or rejected key blocks paid calls with an actionable error instead of using the server key. Members see status only.
+
+Implemented: migration `0037`, `services/provider_credentials.py`, `providers/credentials.py`, `api/provider_credentials.py`, per-credential Redis budgets, and `frontend/src/features/organization/`. Design is in `docs/architecture.md` ("Organization OpenRouter keys").
+
+Verified: `tests/test_provider_credentials.py` (16 tests: encryption binding, admin/member roles, cross-organization isolation, rotation/deletion audit, rejected-key blocking, fail-closed unbound calls, per-key budgets, verification endpoint handling) plus the full backend suite in `compose.test.yaml`. Three failures remain there, none caused by this change: `test_connections.py::test_tamper_unknown_key_validation_and_local_authorization` and `test_existing_files_ingestion.py::test_save_rejects_unavailable_ocr_pack_and_reports_only_dpi_error` also fail on the prior commit, and `test_zz_deployment_concurrency.py::test_redis_celery_executes_a_pinned_answer_with_provider_doubles` needs Redis, which the test stack does not run. Frontend Vitest, typecheck and build pass. No live OpenRouter call and no KMS/Vault run was made.
+
+Remaining: run snapshots do not yet record which credential paid for a run (audit events cover key lifecycle only). Require KMS/Vault at startup before Clerk leaves loopback. Add a Playwright journey for the settings page.

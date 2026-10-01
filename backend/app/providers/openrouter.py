@@ -3,6 +3,7 @@
 import json
 import httpx
 from app.core.config import settings
+from app.providers import credentials
 from app.providers.rate_limit import reserve_request
 from app.providers.embeddings import EmbeddingConfig, EmbeddingError, validate_vectors
 
@@ -22,6 +23,10 @@ class OpenRouterEmbeddings:
             raise EmbeddingError(
                 "Embedding input must be nonempty and at most 8,191 UTF-8 bytes per chunk/query. Reprocess oversized chunks with a smaller chunk size."
             )
+        try:
+            api_key = credentials.current().api_key
+        except credentials.ProviderCredentialMissing as exc:
+            raise EmbeddingError(str(exc)) from None
         reserve_request()
         try:
             with httpx.Client(
@@ -33,10 +38,7 @@ class OpenRouterEmbeddings:
                 with client.stream(
                     "POST",
                     settings.embedding_base_url.rstrip("/") + "/embeddings",
-                    headers={
-                        "Authorization": "Bearer "
-                        + settings.openrouter_api_key.get_secret_value()
-                    },
+                    headers={"Authorization": "Bearer " + api_key.get_secret_value()},
                     json={
                         "model": self.config.model,
                         "dimensions": self.config.dimensions,
@@ -45,8 +47,10 @@ class OpenRouterEmbeddings:
                     },
                 ) as response:
                     if response.status_code in (401, 403):
+                        if response.status_code == 401:
+                            credentials.report_rejected()
                         raise EmbeddingError(
-                            "OpenRouter rejected the credentials. Check server-side OPENROUTER_API_KEY and model access."
+                            "OpenRouter rejected the credentials. Check the configured OpenRouter key and model access."
                         )
                     if response.status_code == 402:
                         raise EmbeddingError(

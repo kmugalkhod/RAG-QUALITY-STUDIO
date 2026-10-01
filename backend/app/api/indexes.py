@@ -13,7 +13,7 @@ from app.schemas.index import (
     RetrievalRequest,
     RetrievalRead,
 )
-from app.services import indexes
+from app.services import indexes, provider_credentials
 from app.services.documents import project
 from app.core.auth import require_project_access
 
@@ -27,7 +27,9 @@ router = APIRouter(
 def embedding_settings(project_id: UUID, session: Database):
     project(session, project_id)
     try:
-        return {"configured": True, "config": embeddings.configured(), "error": None}
+        with provider_credentials.bound_for_project(session, project_id):
+            config = embeddings.configured()
+        return {"configured": True, "config": config, "error": None}
     except embeddings.EmbeddingError as exc:
         return {"configured": False, "config": None, "error": str(exc)}
 

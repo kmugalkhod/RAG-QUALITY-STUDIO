@@ -42,6 +42,11 @@ const ProjectsPage = lazy(() =>
     default: module.ProjectsPage,
   })),
 );
+const ProviderKeySettings = lazy(() =>
+  import('../features/organization/ProviderKeySettings').then((module) => ({
+    default: module.ProviderKeySettings,
+  })),
+);
 const ProjectSummary = lazy(() =>
   import('../features/workspace/ProjectSummary').then((module) => ({
     default: module.ProjectSummary,
@@ -68,6 +73,9 @@ function WorkspaceRoute({ route, onProjectCreated }: WorkspacePageProps) {
   const { projectId, page, detail, query } = route;
   if (page === 'projects') {
     return <ProjectsPage onCreated={onProjectCreated} />;
+  }
+  if (page === 'organization') {
+    return <ProviderKeySettings />;
   }
   if (!projectId) {
     return <PageNotFound />;

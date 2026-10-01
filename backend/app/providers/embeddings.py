@@ -57,10 +57,12 @@ def configured() -> EmbeddingConfig:
         raise EmbeddingError(
             "Unsupported embedding provider. Set EMBEDDING_PROVIDER=openrouter."
         )
-    if not settings.openrouter_api_key.get_secret_value().strip():
-        raise EmbeddingError(
-            "Set OPENROUTER_API_KEY in the server environment, then restart the backend and worker."
-        )
+    from app.providers import credentials
+
+    try:
+        credentials.current()
+    except credentials.ProviderCredentialMissing as exc:
+        raise EmbeddingError(str(exc)) from None
     if settings.embedding_base_url.rstrip("/") != "https://openrouter.ai/api/v1":
         raise EmbeddingError(
             "This adapter supports https://openrouter.ai/api/v1. Configure EMBEDDING_BASE_URL accordingly."

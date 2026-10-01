@@ -2,6 +2,7 @@ from uuid import UUID, uuid4
 from unittest.mock import patch
 import httpx
 import pytest
+from pydantic import SecretStr
 from sqlalchemy import delete
 from sqlalchemy.orm import Session
 from app.core.config import settings
@@ -124,6 +125,7 @@ def test_context_and_references():
 @pytest.mark.parametrize("status", [401, 402, 403, 429, 500])
 def test_safe_provider_errors(monkeypatch, status):
     monkeypatch.setattr(generation, "reserve_request", lambda: None)
+    monkeypatch.setattr(settings, "openrouter_api_key", SecretStr("test-only"))
     calls = []
 
     def respond(request):
@@ -139,6 +141,7 @@ def test_safe_provider_errors(monkeypatch, status):
 
 def test_provider_usage_and_output_limits(monkeypatch):
     monkeypatch.setattr(generation, "reserve_request", lambda: None)
+    monkeypatch.setattr(settings, "openrouter_api_key", SecretStr("test-only"))
 
     def respond(request):
         return httpx.Response(

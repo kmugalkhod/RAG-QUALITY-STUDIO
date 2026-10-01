@@ -1,6 +1,6 @@
 import { NativeSelect, NativeSelectOption } from '../components/ui/native-select';
 import { Label } from '../components/ui/label';
-import { BookOpen, Folder, Layers3 } from 'lucide-react';
+import { BookOpen, Folder, KeyRound, Layers3 } from 'lucide-react';
 import type { Project } from '../features/projects/api';
 import { cn } from '../lib/utils';
 import { pageHref, pages } from './pages';
@@ -90,6 +90,14 @@ export function WorkspaceSidebar({ projectId, page, current, projects }: Workspa
             Manage projects
           </a>
         )}
+        <a
+          href="#/organization/settings"
+          className={navLinkClass(page === 'organization')}
+          aria-current={page === 'organization' ? 'page' : undefined}
+        >
+          <KeyRound aria-hidden="true" className="size-4" />
+          Organization settings
+        </a>
         <a
           className={navLinkClass(false)}
           href={docsHref('start')}

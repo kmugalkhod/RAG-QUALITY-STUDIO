@@ -8,6 +8,7 @@ from typing import Protocol
 
 import httpx
 from app.core.config import settings
+from app.providers import credentials
 from app.providers.rate_limit import reserve_request
 
 
@@ -45,8 +46,10 @@ def configured(model=None, max_tokens=None, temperature=0):
         raise GenerationError(
             "Configure CHAT_MODEL with an OpenRouter chat model ID on the server."
         )
-    if not settings.openrouter_api_key.get_secret_value():
-        raise GenerationError("Configure server-side OPENROUTER_API_KEY.")
+    try:
+        credentials.current()
+    except credentials.ProviderCredentialMissing as exc:
+        raise GenerationError(str(exc)) from None
     if settings.chat_max_tokens + 1024 >= settings.chat_context_tokens:
         raise GenerationError(
             "CHAT_CONTEXT_TOKENS must leave room for the prompt and reserved output."
@@ -78,6 +81,10 @@ class OpenRouterChat:
         self.transport = transport
 
     def generate(self, messages, config):
+        try:
+            api_key = credentials.current().api_key
+        except credentials.ProviderCredentialMissing as exc:
+            raise GenerationError(str(exc)) from None
         reserve_request()
         # No automatic retry: an ambiguous completion may already be billed.
         deadline = time.monotonic() + 55
@@ -91,10 +98,7 @@ class OpenRouterChat:
                 with client.stream(
                     "POST",
                     "https://openrouter.ai/api/v1/chat/completions",
-                    headers={
-                        "Authorization": "Bearer "
-                        + settings.openrouter_api_key.get_secret_value()
-                    },
+                    headers={"Authorization": "Bearer " + api_key.get_secret_value()},
                     json={
                         "model": config["model"],
                         "messages": messages,
@@ -105,6 +109,8 @@ class OpenRouterChat:
                     },
                 ) as response:
                     if response.status_code != 200:
+                        if response.status_code == 401:
+                            credentials.report_rejected()
                         message = {
                             401: "credentials rejected",
                             403: "model access denied",
@@ -115,7 +121,7 @@ class OpenRouterChat:
                             "request failed or service unavailable",
                         )
                         raise GenerationError(
-                            f"OpenRouter generation: {message}. Check server configuration and retry manually."
+                            f"OpenRouter generation: {message}. Check the configured OpenRouter key and retry manually."
                         )
                     body = bytearray()
                     for block in response.iter_bytes():

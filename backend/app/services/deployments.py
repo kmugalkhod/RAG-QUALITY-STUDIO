@@ -20,7 +20,7 @@ from app.models.project import Project
 from app.core.config import settings
 from app.providers import embeddings, generation
 from app.schemas.pipeline import Execution
-from app.services import pipelines
+from app.services import pipelines, provider_credentials
 from app.services.deployment_commands import record
 
 
@@ -143,8 +143,9 @@ def _validated_release(session, deployment, version_id, index_id):
         raise HTTPException(409, "The selected index is not ready.")
     llm = next(n for n in execution.nodes if n.type == "llm")
     try:
-        generation.configured(llm.model, llm.max_tokens, llm.temperature)
-        current_embedding = embeddings.configured()
+        with provider_credentials.bound_for_project(session, deployment.project_id):
+            generation.configured(llm.model, llm.max_tokens, llm.temperature)
+            current_embedding = embeddings.configured()
     except (generation.GenerationError, embeddings.EmbeddingError):
         raise HTTPException(503, "The saved release provider is unavailable.") from None
     if (

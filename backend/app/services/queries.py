@@ -1,4 +1,5 @@
 from app.schemas.retrieval import algorithm_snapshot
+from contextlib import ExitStack
 from datetime import datetime, timedelta, timezone
 from time import monotonic
 from fastapi import HTTPException
@@ -124,6 +125,24 @@ def execute(
 
 
 def finish(session, run, *, before_provider=None):
+    from app.core.artifact_crypto import ArtifactUnavailableError
+    from app.services import provider_credentials
+
+    with ExitStack() as stack:
+        try:
+            stack.enter_context(
+                provider_credentials.bound_for_project(session, run.project_id)
+            )
+        except ArtifactUnavailableError:
+            run.status = "failed"
+            run.error = "The stored OpenRouter key is unavailable. Retry shortly."
+            session.commit()
+            session.refresh(run)
+            return run
+        return _finish(session, run, before_provider=before_provider)
+
+
+def _finish(session, run, *, before_provider=None):
     from app.schemas.query import QueryRequest
 
     started = monotonic()

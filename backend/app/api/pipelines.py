@@ -16,7 +16,7 @@ from app.schemas.pipeline import (
     DEFAULT_TEMPLATE,
 )
 from app.schemas.query import QueryRead
-from app.services import pipelines
+from app.services import pipelines, provider_credentials
 from app.core.auth import require_project_access
 
 router = APIRouter(
@@ -32,7 +32,8 @@ def options(project_id: UUID, session: Database):
     project(session, project_id)
     error = None
     try:
-        generation.configured()
+        with provider_credentials.bound_for_project(session, project_id):
+            generation.configured()
     except generation.GenerationError as exc:
         error = str(exc)
     return {

@@ -12,6 +12,7 @@ from app.models.project import Project
 from app.models.source import SourceSnapshot
 from app.providers import embeddings
 from app.schemas.index import IndexCreate, RetrievalRequest
+from app.services import provider_credentials
 from app.services.documents import paginate, project
 
 
@@ -122,7 +123,8 @@ def create_index_from_processing_runs(
     if len(set(processing_run_ids)) != len(processing_run_ids):
         raise HTTPException(422, "Processing run IDs must be unique.")
     project(session, project_id)
-    config = embeddings.configured()
+    with provider_credentials.bound_for_project(session, project_id):
+        config = embeddings.configured()
     knowledge_set = session.scalar(
         select(KnowledgeSet)
         .where(
@@ -439,14 +441,15 @@ def retrieve(
     config = embeddings.EmbeddingConfig.model_validate(index.embedding_config)
     from app.pipelines.retrieval import search
 
-    items, diagnostics = search(
-        session,
-        project_id,
-        index,
-        request,
-        config,
-        query_embeddings=query_embeddings,
-    )
+    with provider_credentials.bound_for_project(session, project_id):
+        items, diagnostics = search(
+            session,
+            project_id,
+            index,
+            request,
+            config,
+            query_embeddings=query_embeddings,
+        )
     return dict(
         index_id=index.id,
         index_version=index.version,

@@ -40,3 +40,7 @@ from app.models.deployment import (  # noqa: F401
     DeploymentUsageEntry,
     DeploymentCommandReceipt,
 )
+from app.models.provider_credential import (  # noqa: F401
+    ProviderCredentialEvent,
+    ProviderCredentialRecord,
+)

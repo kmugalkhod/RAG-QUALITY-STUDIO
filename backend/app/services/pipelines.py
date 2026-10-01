@@ -10,7 +10,7 @@ from app.providers import generation
 from app.schemas.ingestion import IngestionExecution
 from app.schemas.pipeline import Execution
 from app.schemas.query import QueryRequest
-from app.services import indexes, queries
+from app.services import indexes, provider_credentials, queries
 from app.services.documents import project, paginate
 
 
@@ -48,7 +48,8 @@ def validate_answer(session, project_id, execution):
         )
     llm = nodes["llm"]
     try:
-        config = generation.configured(llm.model, llm.max_tokens, llm.temperature)
+        with provider_credentials.bound_for_project(session, project_id):
+            config = generation.configured(llm.model, llm.max_tokens, llm.temperature)
     except generation.GenerationError as exc:
         raise HTTPException(422, str(exc)) from None
     return nodes, config

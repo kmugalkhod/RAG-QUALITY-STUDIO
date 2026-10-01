@@ -43,7 +43,9 @@ export function App() {
   const { projectId, page, detail } = route;
   const { projects, current, error, refresh } = useWorkspaceProjects(projectId);
   const title =
-    pages.find((p) => p[0] === page)?.[1] || (page === 'projects' ? 'Projects' : 'Page not found');
+    pages.find((p) => p[0] === page)?.[1] ||
+    { projects: 'Projects', organization: 'Organization settings' }[page] ||
+    'Page not found';
   useEffect(() => {
     document.title = `${title}${current ? ` · ${current.name}` : ''} · RAG Quality Studio`;
     document.getElementById('main')?.focus({ preventScroll: true });

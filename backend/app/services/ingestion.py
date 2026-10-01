@@ -29,7 +29,13 @@ from app.schemas.ingestion import (
     IngestionPreviewRead,
     IngestionSourceInput,
 )
-from app.services import indexes, ingestion_execution, pipelines, source_snapshots
+from app.services import (
+    indexes,
+    ingestion_execution,
+    pipelines,
+    provider_credentials,
+    source_snapshots,
+)
 from app.services.documents import project
 
 
@@ -321,7 +327,8 @@ def start_run(
     version = pipelines.get_version(session, project_id, pipeline_id, version_id)
     execution = IngestionExecution.model_validate(version.execution)
     pipelines.validate_ingestion(session, project_id, execution)
-    embeddings.configured()
+    with provider_credentials.bound_for_project(session, project_id):
+        embedding_config = embeddings.configured()
     sources = [node for node in execution.nodes if node.type == "source"]
     remote_kind = sources[0].config.kind if sources else None
     snapshot_requested = source_input is not None and source_input.kind == "snapshot"
@@ -431,7 +438,7 @@ def start_run(
                 ),
                 "source_input": effective_source_input,
                 "reuse_stored": legacy_reuse,
-                "embedding": embeddings.configured().model_dump(mode="json"),
+                "embedding": embedding_config.model_dump(mode="json"),
             },
         )
         session.add(run)
@@ -575,7 +582,7 @@ def start_run(
             "knowledge_set_id": str(knowledge_set.id),
             "knowledge_set_name": knowledge_set.name,
             "processing": processing_snapshot,
-            "embedding": embeddings.configured().model_dump(mode="json"),
+            "embedding": embedding_config.model_dump(mode="json"),
         },
     )
     session.add(run)

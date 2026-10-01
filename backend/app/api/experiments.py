@@ -6,7 +6,7 @@ from app.api.routes import Database
 from app.api.documents import Limit, Offset
 from app.core.config import settings
 from app.schemas.experiment import DatasetRead, ExperimentCreate, ExperimentRead
-from app.services import datasets, experiments
+from app.services import datasets, experiments, provider_credentials
 from app.services.documents import project
 from app.evaluation import evaluator
 from app.core.auth import require_project_access
@@ -80,7 +80,8 @@ def options(project_id: UUID, session: Database):
     project(session, project_id)
     error = None
     try:
-        evaluator.configured(list(evaluator.METRICS))
+        with provider_credentials.bound_for_project(session, project_id):
+            evaluator.configured(list(evaluator.METRICS))
     except Exception as exc:
         # Configuration errors are application-generated, never provider payloads.
         error = (

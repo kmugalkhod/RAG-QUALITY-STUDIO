@@ -22,7 +22,7 @@ Keep feature requests in each feature's `api.ts` and reusable domain rules in it
 
 Studio Vite uses the canonical `http://127.0.0.1:5273` URL and proxies `/api` to the backend. Do not run a second Docker or Nginx Studio frontend during local UI checks. The website widget is a separate app in `../widget/`; Studio only owns its management form and appearance preview in `src/features/deployments/`. Frontend tests use `tests/setup.ts`, while browser tests need current backend services and isolated data.
 
-`src/main.tsx` mounts `ClerkProvider` from `@clerk/react` only when `VITE_CLERK_PUBLISHABLE_KEY` is set in the ignored `frontend/.env.local`; without it the app talks to the backend in local owner mode. Feature folders are `connections`, `deployments`, `documents`, `experiments`, `ingestion-pipelines`, `pipelines`, `playground`, `projects` and `workspace`.
+`src/main.tsx` mounts `ClerkProvider` from `@clerk/react` only when `VITE_CLERK_PUBLISHABLE_KEY` is set in the ignored `frontend/.env.local`; without it the app talks to the backend in local owner mode. Feature folders are `connections`, `deployments`, `documents`, `experiments`, `ingestion-pipelines`, `organization`, `pipelines`, `playground`, `projects` and `workspace`.
 
 ## Related documents
 

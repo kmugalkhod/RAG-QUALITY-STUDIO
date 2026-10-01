@@ -11,7 +11,7 @@ from app.models.experiment import Experiment, ExperimentItem
 from app.models.pipeline import PipelineVersion
 from app.schemas.pipeline import Execution
 from app.schemas.experiment import ExperimentRead, ItemRead
-from app.services import datasets, pipelines, indexes
+from app.services import datasets, pipelines, indexes, provider_credentials
 from app.services.documents import project, paginate
 from app.evaluation import evaluator
 
@@ -72,7 +72,8 @@ def submit(session, project_id, request):
             }
         )
     try:
-        judge = evaluator.configured(request.metrics)
+        with provider_credentials.bound_for_project(session, project_id):
+            judge = evaluator.configured(request.metrics)
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from None
     snapshot = copy.deepcopy(
