@@ -9,6 +9,7 @@ node_modules/
 dist/
 playwright-report/
 test-results/
+parity-results/
 .DS_Store
 *.tsbuildinfo
 

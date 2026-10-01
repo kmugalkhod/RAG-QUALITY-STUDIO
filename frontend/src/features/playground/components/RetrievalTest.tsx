@@ -1,5 +1,7 @@
 import { formatRetrievalScores } from '../../../lib/retrieval';
 import { Button } from '../../../components/ui/button';
+import { CARD, META, PRE } from '../../../components/parts';
+import { Disclosure, QuestionBubble } from './AnswerResult';
 
 import { type Evidence, type Retrieval } from '../../documents/model';
 export interface RetrievalTestResult {
@@ -15,46 +17,53 @@ export function RetrievalResults({
   onInspect: (item: Evidence) => void;
 }) {
   return (
-    <section className="retrieval-test-results" aria-label="Retrieval test results">
-      <div className="chat-question">
-        <span className="field-hint text-[11px] text-muted-foreground mt-2 leading-relaxed">
-          Search query
-        </span>
-        <p>{value.query}</p>
+    <section className="flex flex-col gap-4 py-4" aria-label="Retrieval test results">
+      <QuestionBubble label="Search query">{value.query}</QuestionBubble>
+      <div className="flex flex-col gap-1">
+        <h2 className="text-base font-semibold text-foreground">
+          {value.result.items.length} matching passages
+        </h2>
+        <p className={META}>
+          Document set version {value.result.index_version} · Top k {value.topK} · No answer was
+          generated.
+        </p>
       </div>
-      <h2>{value.result.items.length} matching passages</h2>
-      <p className="field-hint text-[11px] text-muted-foreground mt-2 leading-relaxed">
-        Document set version {value.result.index_version} · Top k {value.topK} · No answer was
-        generated.
-      </p>
       {!value.result.items.length && (
-        <p>No matching passages were found. Try another query or document set.</p>
+        <p className="text-sm text-foreground-muted">
+          No matching passages were found. Try another query or document set.
+        </p>
       )}
       {value.result.retrieval && (
-        <details className="source-metadata text-[11px] wrap-anywhere text-muted-foreground my-4.5 mx-0">
-          <summary>Settings used for this search</summary>
-          <pre className="rag-source-text">
+        <Disclosure summary="Settings used for this search">
+          <pre className={PRE}>
             {JSON.stringify(
               { settings: value.result.retrieval, diagnostics: value.result.diagnostics },
               null,
               2,
             )}
           </pre>
-        </details>
+        </Disclosure>
       )}
-      <ol>
+      <ol className="flex flex-col gap-3">
         {value.result.items.map((item) => (
-          <li key={`${item.run_id}:${item.ordinal}`}>
-            <div className="retrieval-hit-title">
-              <h3>
+          <li key={`${item.run_id}:${item.ordinal}`} className={`${CARD} flex flex-col gap-2 p-4`}>
+            <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+              <h3 className="min-w-0 text-sm font-medium text-foreground wrap-anywhere">
                 {item.rank}. {item.source_url ?? item.filename}
               </h3>
-              <Button variant="outline" onClick={() => onInspect(item)}>
+              <Button
+                variant="outline"
+                size="sm"
+                className="md:shrink-0"
+                onClick={() => onInspect(item)}
+              >
                 View passage {item.rank}
               </Button>
             </div>
-            <p>{item.text}</p>
-            <span className="field-hint text-[11px] text-muted-foreground mt-2 leading-relaxed">
+            <p className="line-clamp-4 text-sm text-foreground whitespace-pre-wrap wrap-anywhere">
+              {item.text}
+            </p>
+            <span className={META}>
               Passage {item.ordinal + 1}
               {item.page_number ? ` · Page ${item.page_number}` : ''} ·{' '}
               {formatRetrievalScores(item)}
@@ -62,26 +71,26 @@ export function RetrievalResults({
           </li>
         ))}
       </ol>
-      <p className="field-hint text-[11px] text-muted-foreground mt-2 leading-relaxed">
-        {value.result.score_semantics}
-      </p>
+      <p className={META}>{value.result.score_semantics}</p>
     </section>
   );
 }
 export function RetrievalInspector({ item }: { item: Evidence }) {
   return (
-    <section className="answer-inspector" aria-label="Retrieved passage">
-      <h2>{item.source_url ?? item.filename}</h2>
+    <section
+      className="flex min-w-0 flex-col gap-3 p-4 wrap-anywhere"
+      aria-label="Retrieved passage"
+    >
+      <h3 className="text-sm font-semibold text-foreground">{item.source_url ?? item.filename}</h3>
       {item.section_path && item.section_path.length > 0 && (
-        <p className="field-hint">Section: {item.section_path.join(' › ')}</p>
+        <p className={META}>Section: {item.section_path.join(' › ')}</p>
       )}
-      <p className="field-hint text-[11px] text-muted-foreground mt-2 leading-relaxed">
+      <p className={META}>
         Rank {item.rank} · Passage {item.ordinal + 1}
         {item.page_number ? ` · Page ${item.page_number}` : ''}
       </p>
-      <p className="rag-source-text">{item.text}</p>
-      <details className="source-metadata text-[11px] wrap-anywhere text-muted-foreground my-4.5 mx-0">
-        <summary>Source details</summary>
+      <p className="text-sm text-foreground whitespace-pre-wrap">{item.text}</p>
+      <Disclosure summary="Source details">
         <p>
           Processing version {item.processing_version} · Characters {item.start_char}–
           {item.end_char}
@@ -95,7 +104,7 @@ export function RetrievalInspector({ item }: { item: Evidence }) {
           {item.keyword_rank ?? 'Not available'}
         </p>
         <p>Document {item.document_id}</p>
-      </details>
+      </Disclosure>
     </section>
   );
 }

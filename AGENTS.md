@@ -8,6 +8,8 @@ Build working software with real integrations and persistent state. The product 
 
 Deliver incrementally. A milestone is an implementation boundary, not permission to replace functionality with mock results. Do not describe the application as a toy, portfolio-only application or production-ready before the relevant behavior has been verified.
 
+**Build approach:** Tracer Bullet (complete one real path through the interface, API, persistence, and verification before widening it). Mirrors the header of `docs/scope/scope.md`.
+
 ## Working agreement
 
 - Inspect the repository, applicable instructions, Git status and existing implementation before changing files. Preserve unrelated work.
@@ -32,6 +34,9 @@ Deliver incrementally. A milestone is an implementation boundary, not permission
 | Long-running work | Celery workers and Redis, introduced with ingestion jobs |
 | Evaluation | RAGAS behind an application-owned evaluator interface |
 | Model access | Backend provider adapters; support a configured LiteLLM-compatible endpoint when implemented |
+| Authentication | `AUTH_MODE` selects `local` owner mode for development, `clerk` for Clerk sessions and organizations, or `oidc` for shared deployments; roles are enforced in `backend/app/core/auth.py` |
+| Model provider in use | OpenRouter for embeddings and chat through `OPENROUTER_API_KEY`; the validated answer graph compiles to a LangChain runnable in `backend/app/pipelines/langchain_rag.py` |
+| Feature gates | `SOURCE_CONNECTIONS_ENABLED`, `DEPLOYED_ANSWERS_ENABLED` and `WIDGET_ENABLED` default to off; credentialed connectors, the deployed answer API and the widget stay unavailable until set |
 | Local deployment | Docker Compose with persistent volumes |
 | Verification | pytest, Vitest, React Testing Library; Playwright for critical browser journeys |
 
@@ -215,6 +220,10 @@ The following are target conventions for the initial scaffold, not claims that c
 | Frontend tests | `npm run test -- --run` in `frontend/` |
 | Frontend production build | `npm run build` in `frontend/` |
 | Browser journeys | `E2E_BASE_URL=http://127.0.0.1:5273 npm run test:e2e` in `frontend/` with documented test services |
+| All backend tests in an ephemeral database | `docker compose -p rag-studio-tests -f compose.test.yaml up --build --abort-on-container-exit --exit-code-from tests`, then `down` with the same project |
+| Isolated browser stack | `compose.e2e.yaml` (plus `compose.index-e2e.yaml` for deterministic providers) in a separate Compose project such as `rag-studio-e2e`; never the development project |
+| Documentation site checks | `npm run check` in `docs/site/`; `backend/.venv/bin/python docs/site/scripts/generate_api_reference.py --check` from the root |
+| Local deployment check | `node tools/deployment-check/server.mjs <deployment_id>` then open `http://127.0.0.1:8787`; loopback only and may call a paid provider |
 
 Keep test data in an isolated database/storage location. Automated tests must not reset developer data. Never run `docker compose down -v` as routine cleanup.
 
@@ -235,3 +244,4 @@ Keep test data in an isolated database/storage location. Automated tests must no
 - [backend/AGENTS.md](backend/AGENTS.md) (API, persistence, workers, and backend verification)
 - [frontend/AGENTS.md](frontend/AGENTS.md) (Studio workspace, UI conventions, and browser verification)
 - [widget/AGENTS.md](widget/AGENTS.md) (separate website widget, browser trust boundary, and local checks)
+- [docs/site/AGENTS.md](docs/site/AGENTS.md) (Docusaurus documentation site, generated API reference, route and screenshot contracts)

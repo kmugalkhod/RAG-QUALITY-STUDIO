@@ -2,8 +2,9 @@
 
 import * as React from 'react';
 import { cva, type VariantProps } from 'class-variance-authority';
-import { cn } from 'cn';
 import { Tabs as TabsPrimitive } from 'radix-ui';
+
+import { cn } from '../../lib/utils';
 
 function Tabs({
   className,
@@ -22,11 +23,11 @@ function Tabs({
 }
 
 const tabsListVariants = cva(
-  'group/tabs-list inline-flex w-fit items-center justify-center rounded-lg p-[3px] text-muted-foreground group-data-[orientation=horizontal]/tabs:h-9 group-data-[orientation=vertical]/tabs:h-fit group-data-[orientation=vertical]/tabs:flex-col data-[variant=line]:rounded-none',
+  'group/tabs-list inline-flex w-fit items-center justify-center text-foreground-muted group-data-[orientation=vertical]/tabs:h-fit group-data-[orientation=vertical]/tabs:flex-col',
   {
     variants: {
       variant: {
-        default: 'bg-muted',
+        default: 'rounded-control bg-surface-hover p-1',
         line: 'gap-1 bg-transparent',
       },
     },
@@ -56,10 +57,9 @@ function TabsTrigger({ className, ...props }: React.ComponentProps<typeof TabsPr
     <TabsPrimitive.Trigger
       data-slot="tabs-trigger"
       className={cn(
-        "relative inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center gap-1.5 rounded-md border border-transparent px-2 py-1 text-sm font-medium whitespace-nowrap text-foreground/60 transition-all group-data-[orientation=vertical]/tabs:w-full group-data-[orientation=vertical]/tabs:justify-start hover:text-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1 focus-visible:outline-ring disabled:pointer-events-none disabled:opacity-50 group-data-[variant=default]/tabs-list:data-[state=active]:shadow-sm group-data-[variant=line]/tabs-list:data-[state=active]:shadow-none dark:text-muted-foreground dark:hover:text-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
-        'group-data-[variant=line]/tabs-list:bg-transparent group-data-[variant=line]/tabs-list:data-[state=active]:bg-transparent dark:group-data-[variant=line]/tabs-list:data-[state=active]:border-transparent dark:group-data-[variant=line]/tabs-list:data-[state=active]:bg-transparent',
-        'data-[state=active]:bg-background data-[state=active]:text-foreground dark:data-[state=active]:border-input dark:data-[state=active]:bg-input/30 dark:data-[state=active]:text-foreground',
-        'after:absolute after:bg-foreground after:opacity-0 after:transition-opacity group-data-[orientation=horizontal]/tabs:after:inset-x-0 group-data-[orientation=horizontal]/tabs:after:bottom-[-5px] group-data-[orientation=horizontal]/tabs:after:h-0.5 group-data-[orientation=vertical]/tabs:after:inset-y-0 group-data-[orientation=vertical]/tabs:after:-right-1 group-data-[orientation=vertical]/tabs:after:w-0.5 group-data-[variant=line]/tabs-list:data-[state=active]:after:opacity-100',
+        "relative inline-flex h-control-sm flex-1 items-center justify-center gap-2 rounded-control px-2 text-sm font-medium whitespace-nowrap text-foreground-muted transition-colors duration-(--transition-fast) outline-none pointer-coarse:h-control-lg hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-default disabled:opacity-(--disabled-opacity) group-data-[orientation=vertical]/tabs:w-full group-data-[orientation=vertical]/tabs:justify-start [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        'data-[state=active]:text-foreground group-data-[variant=default]/tabs-list:data-[state=active]:bg-surface',
+        'after:absolute after:border-foreground after:opacity-0 group-data-[orientation=horizontal]/tabs:after:inset-x-0 group-data-[orientation=horizontal]/tabs:after:bottom-0 group-data-[orientation=horizontal]/tabs:after:border-b-2 group-data-[orientation=vertical]/tabs:after:inset-y-0 group-data-[orientation=vertical]/tabs:after:right-0 group-data-[orientation=vertical]/tabs:after:border-r-2 group-data-[variant=line]/tabs-list:data-[state=active]:after:opacity-100',
         className,
       )}
       {...props}

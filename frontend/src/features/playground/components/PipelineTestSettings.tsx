@@ -5,7 +5,10 @@ import { Label } from '../../../components/ui/label';
 import { RetrievalSettingsForm } from '../../../components/RetrievalSettingsForm';
 import { getNodeRetrievalSettings } from '../../../lib/retrieval';
 import { Button } from '../../../components/ui/button';
-import { CircleAlert } from 'lucide-react';
+import { Callout, InlineError, SUMMARY } from '../../../components/parts';
+import { LoadingState } from '../../../components/states/LoadingState';
+import { cn } from '../../../lib/utils';
+import { ChevronRight, CircleCheck, CircleDot, TriangleAlert } from 'lucide-react';
 
 import { formatIndexOption, type IndexVersion } from '../../documents/model';
 import type {
@@ -16,6 +19,9 @@ import type {
   Pipeline,
   PipelineVersion,
 } from '../../pipelines/model';
+const SUBHEADING = 'border-t border-border pt-4 text-sm font-semibold text-foreground';
+const HINT = 'text-xs text-foreground-muted';
+
 interface Props {
   pipelines: Pipeline[];
   versions: PipelineVersion[];
@@ -60,15 +66,13 @@ export function PipelineTestSettings(props: Props) {
     });
   }
   return (
-    <div className="pipeline-test-settings">
-      <header className="test-settings-header">
-        <h2>Pipeline settings</h2>
-      </header>
-      <div className="test-settings-scroll">
-        <fieldset disabled={disabled}>
+    <>
+      <div className="flex flex-col gap-4 p-4">
+        <fieldset disabled={disabled} className="flex min-w-0 flex-col gap-3">
           <Label>
             Pipeline
             <NativeSelect
+              className="mt-2"
               value={props.pipelineId}
               onChange={(e) => props.onPipeline(e.target.value)}
             >
@@ -84,6 +88,7 @@ export function PipelineTestSettings(props: Props) {
             <Label>
               Pipeline version
               <NativeSelect
+                className="mt-2"
                 value={props.versionId}
                 onChange={(e) => props.onVersion(e.target.value)}
               >
@@ -97,20 +102,28 @@ export function PipelineTestSettings(props: Props) {
             </Label>
           )}
           {!draft ? (
-            <p role="status">Loading pipeline settings…</p>
+            <LoadingState label="Loading pipeline settings…" rows={2} />
           ) : (
             <>
-              <p className={`test-draft-status ${props.dirty ? 'is-dirty' : ''}`} role="status">
+              <p
+                className={cn(
+                  'flex items-center gap-2 text-xs',
+                  props.dirty ? 'text-warning' : 'text-foreground-muted',
+                )}
+                role="status"
+              >
+                {props.dirty && <CircleDot aria-hidden="true" className="size-3" />}
                 {props.dirty
                   ? 'Test draft · changes are not saved'
                   : props.pipelineId
                     ? 'Testing the saved version'
                     : 'Custom test · no saved version'}
               </p>
-              <h3>Retrieval inputs</h3>
+              <h3 className={SUBHEADING}>Retrieval inputs</h3>
               <Label>
                 Documents to search
                 <NativeSelect
+                  className="mt-2"
                   value={retriever?.index_id || ''}
                   onChange={(e) => update('retriever', { index_id: e.target.value })}
                 >
@@ -123,28 +136,26 @@ export function PipelineTestSettings(props: Props) {
                 </NativeSelect>
               </Label>
               {currentIndex && selectedIndex && (
-                <div className="stale-index-warning" role="status">
-                  <CircleAlert />
-                  <div>
-                    <strong>Your pipeline is searching old data</strong>
-                    <p>
-                      Saved version {selectedIndex.version} has{' '}
-                      {selectedIndex.chunk_count.toLocaleString()} passages; current version{' '}
-                      {currentIndex.version} has {currentIndex.chunk_count.toLocaleString()}.
-                    </p>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => update('retriever', { index_id: currentIndex.id })}
-                    >
-                      Test with current version {currentIndex.version}
-                    </Button>
-                  </div>
-                </div>
+                <Callout tone="warning" role="status" title="Your pipeline is searching old data">
+                  <p>
+                    Saved version {selectedIndex.version} has{' '}
+                    {selectedIndex.chunk_count.toLocaleString()} passages; current version{' '}
+                    {currentIndex.version} has {currentIndex.chunk_count.toLocaleString()}.
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="self-start"
+                    onClick={() => update('retriever', { index_id: currentIndex.id })}
+                  >
+                    Test with current version {currentIndex.version}
+                  </Button>
+                </Callout>
               )}
               {selectedIndex && !currentIndex && (
-                <p className="current-index-confirmation">
+                <p className="flex items-center gap-2 text-xs text-foreground-muted">
+                  <CircleCheck aria-hidden="true" className="size-3 text-success" />
                   Current index · {selectedIndex.chunk_count.toLocaleString()} passages
                 </p>
               )}
@@ -152,24 +163,26 @@ export function PipelineTestSettings(props: Props) {
                 value={getNodeRetrievalSettings(retriever)}
                 onChange={(retrieval) => update('retriever', { retrieval })}
               />
-              <h3>Answer generation</h3>
-              <div className="test-prompt-field">
+              <h3 className={SUBHEADING}>Answer generation</h3>
+              <div className="flex flex-col">
                 <Label htmlFor="playground-prompt">Prompt</Label>
                 <Textarea
                   id="playground-prompt"
                   rows={6}
                   maxLength={8000}
+                  className="resize-y"
                   value={prompt?.template || ''}
                   onChange={(e) => update('prompt', { template: e.target.value })}
                 />
               </div>
-              <p className="field-hint text-[11px] text-muted-foreground mt-2 leading-relaxed">
+              <p className={HINT}>
                 Include {'{question}'} and {'{context}'} where the question and retrieved passages
                 belong.
               </p>
               <Label>
                 Model
                 <NativeSelect
+                  className="mt-2"
                   value={llm?.model || ''}
                   onChange={(e) => update('llm', { model: e.target.value })}
                 >
@@ -179,10 +192,11 @@ export function PipelineTestSettings(props: Props) {
                   ))}
                 </NativeSelect>
               </Label>
-              <div className="test-number-settings">
+              <div className="grid grid-cols-2 gap-3">
                 <Label>
                   Temperature
                   <Input
+                    className="mt-2"
                     type="number"
                     min={0}
                     max={2}
@@ -194,6 +208,7 @@ export function PipelineTestSettings(props: Props) {
                 <Label>
                   Max output tokens
                   <Input
+                    className="mt-2"
                     type="number"
                     min={128}
                     max={8192}
@@ -202,7 +217,7 @@ export function PipelineTestSettings(props: Props) {
                   />
                 </Label>
               </div>
-              <p className="field-hint text-[11px] text-muted-foreground mt-2 leading-relaxed">
+              <p className={HINT}>
                 Testing records these exact settings with the answer. It does not change saved
                 versions.
               </p>
@@ -210,46 +225,63 @@ export function PipelineTestSettings(props: Props) {
           )}
         </fieldset>
         {props.errors.length > 0 && (
-          <details className="test-validation">
-            <summary>
+          <details className="rounded-control border border-warning px-3">
+            <summary className={cn(SUMMARY, 'text-warning [&_svg]:text-warning')}>
+              <TriangleAlert aria-hidden="true" />
               {props.errors.length} setting{props.errors.length === 1 ? '' : 's'} to check
             </summary>
-            <ul>
+            <ul className="flex list-disc flex-col gap-1 pb-3 pl-4 text-xs text-foreground">
               {props.errors.map((error) => (
                 <li key={error}>{error}</li>
               ))}
             </ul>
           </details>
         )}
-        {options?.error && <p role="alert">{options.error}</p>}
+        {options?.error && <InlineError>{options.error}</InlineError>}
       </div>
       {draft && (
-        <fieldset disabled={disabled} className="test-settings-footer">
-          <details className="save-test-settings">
-            <summary>Save these settings as a version</summary>
-            <Label>
-              Pipeline name
-              <Input
-                maxLength={120}
-                value={draft.name}
-                onChange={(e) => props.onChange({ ...draft, name: e.target.value })}
+        // Pinned to the bottom of the panel on desktop, where the panel scrolls on its own.
+        <fieldset
+          disabled={disabled}
+          className="mt-auto flex flex-col gap-3 border-t border-border bg-surface p-4 desktop:sticky desktop:bottom-0"
+        >
+          <details className="group">
+            <summary className={SUMMARY}>
+              <ChevronRight
+                aria-hidden="true"
+                className="transition-transform duration-(--transition-fast) group-open:rotate-90"
               />
-            </Label>
-            <Button
-              type="button"
-              disabled={
-                !!props.errors.length || !draft.name.trim() || (!props.dirty && !!props.pipelineId)
-              }
-              onClick={props.onSave}
-            >
-              Save pipeline version
-            </Button>
+              Save these settings as a version
+            </summary>
+            <div className="flex flex-col gap-3 pt-2">
+              <Label>
+                Pipeline name
+                <Input
+                  className="mt-2"
+                  maxLength={120}
+                  value={draft.name}
+                  onChange={(e) => props.onChange({ ...draft, name: e.target.value })}
+                />
+              </Label>
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={
+                  !!props.errors.length ||
+                  !draft.name.trim() ||
+                  (!props.dirty && !!props.pipelineId)
+                }
+                onClick={props.onSave}
+              >
+                Save pipeline version
+              </Button>
+            </div>
           </details>
           <Button type="button" variant="outline" disabled={!props.dirty} onClick={props.onReset}>
             Reset changes
           </Button>
         </fieldset>
       )}
-    </div>
+    </>
   );
 }

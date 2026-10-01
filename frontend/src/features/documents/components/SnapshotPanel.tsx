@@ -1,8 +1,14 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useId, useMemo, useState, type FormEvent } from 'react';
 import { ArrowLeft, ArrowRight, ExternalLink, Globe2, RefreshCw } from 'lucide-react';
 
 import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
+import { Label } from '../../../components/ui/label';
+import { NativeSelect, NativeSelectOption } from '../../../components/ui/native-select';
+import { RadioGroup, RadioGroupItem } from '../../../components/ui/radio-group';
+import { EmptyState } from '../../../components/states/EmptyState';
+import { LoadingState } from '../../../components/states/LoadingState';
+import { cn } from '../../../lib/utils';
 import { StatusBadge } from '../../../components/StatusBadge';
 import { allPages } from '../../../lib/pagination';
 import { docsHref } from '../../../lib/docs';
@@ -10,6 +16,18 @@ import * as ingestionApi from '../../ingestion-pipelines/api';
 import type { IngestionPipelineVersion, IngestionRun } from '../../ingestion-pipelines/model';
 import * as pipelineApi from '../../pipelines/api';
 import * as api from '../indexApi';
+import {
+  CARD,
+  Facts,
+  InlineError,
+  LINK,
+  LIST,
+  LIST_ROW,
+  META,
+  Notice,
+  SELECT_ROW,
+  SectionHeading,
+} from '../../../components/parts';
 import type {
   KnowledgeSet,
   SourceSnapshot,
@@ -49,6 +67,7 @@ export function SnapshotPanel({ projectId }: { projectId: string }) {
   const [error, setError] = useState('');
   const [revision, setRevision] = useState(0);
   const selectedId = selected?.id;
+  const formId = useId();
 
   useEffect(() => {
     let disposed = false;
@@ -263,141 +282,153 @@ export function SnapshotPanel({ projectId }: { projectId: string }) {
   }
 
   return (
-    <section
-      className={`snapshot-workspace ${selected ? 'has-selection' : ''}`}
-      aria-labelledby="snapshot-title"
-    >
-      <header className="index-workspace-header">
-        <div>
-          <h2 id="snapshot-title">Source snapshots</h2>
-          <p>Immutable connector collections that can feed independently configured indexes.</p>
-          <a href={docsHref('ingestion/source-history')} target="_blank" rel="noopener noreferrer">
-            Snapshot reuse guide
-          </a>
-        </div>
+    <section className="flex flex-col gap-6" aria-labelledby="snapshot-title">
+      <header className="flex min-w-0 flex-col gap-1">
+        <h2 id="snapshot-title" className="text-base font-semibold text-foreground">
+          Source snapshots
+        </h2>
+        <p className="text-sm text-foreground-muted">
+          Immutable connector collections that can feed independently configured indexes.
+        </p>
+        <a
+          className={cn(LINK, 'self-start')}
+          href={docsHref('ingestion/source-history')}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Snapshot reuse guide
+        </a>
       </header>
       {error && (
-        <p role="alert" className="error-message">
-          {error}{' '}
-          <Button variant="outline" size="sm" onClick={() => setRevision((value) => value + 1)}>
-            Retry
-          </Button>
-        </p>
+        <InlineError onRetry={() => setRevision((value) => value + 1)}>{error}</InlineError>
       )}
-      <div className="snapshot-browser-layout">
-        <section className="snapshot-catalog" aria-label="Source snapshot catalog">
+      <div className="flex flex-col gap-6 desktop:flex-row desktop:items-start">
+        <section
+          className={cn(
+            'flex min-w-0 flex-col desktop:w-panel desktop:shrink-0',
+            selected && 'max-md:hidden',
+          )}
+          aria-label="Source snapshot catalog"
+        >
           {loading ? (
-            <p role="status">Loading source snapshots…</p>
+            <LoadingState label="Loading source snapshots…" />
           ) : snapshots.length === 0 ? (
-            <div className="index-detail-empty">
-              <Globe2 />
-              <h3>No source snapshots yet</h3>
-              <p>Run a remote-source ingestion pipeline to collect a reusable source snapshot.</p>
-              <Button asChild>
-                <a href={`#/projects/${projectId}/pipelines/new?kind=ingestion`}>
-                  Open ingestion pipelines
-                </a>
-              </Button>
-            </div>
+            <EmptyState
+              icon={<Globe2 />}
+              title="No source snapshots yet"
+              headingLevel="h3"
+              description="Run a remote-source ingestion pipeline to collect a reusable source snapshot."
+              action={
+                <Button variant="outline" asChild>
+                  <a href={`#/projects/${projectId}/pipelines/new?kind=ingestion`}>
+                    Open ingestion pipelines
+                  </a>
+                </Button>
+              }
+            />
           ) : (
-            snapshots.map((snapshot) => (
-              <button
-                key={snapshot.id}
-                type="button"
-                className={
-                  selected?.id === snapshot.id ? 'snapshot-row is-selected' : 'snapshot-row'
-                }
-                onClick={() => select(snapshot)}
-              >
-                <span>
-                  <strong>{origin(snapshot)}</strong>
-                  <small>
-                    Snapshot {snapshot.snapshot_number} · {formatDate(snapshot.collected_at)}
-                  </small>
-                </span>
-                <span>
-                  <StatusBadge status={snapshot.status}>{snapshot.status}</StatusBadge>
-                  <small>
-                    {snapshot.included_count} items · {snapshot.downstream_index_count} indexes
-                  </small>
-                </span>
-              </button>
-            ))
+            <ul className={LIST}>
+              {snapshots.map((snapshot) => (
+                <li key={snapshot.id} className={LIST_ROW}>
+                  <Button
+                    variant="ghost"
+                    className={SELECT_ROW}
+                    aria-pressed={selected?.id === snapshot.id}
+                    onClick={() => select(snapshot)}
+                  >
+                    <span className="flex items-center justify-between gap-2">
+                      <strong className="truncate font-semibold">{origin(snapshot)}</strong>
+                      <StatusBadge status={snapshot.status}>{snapshot.status}</StatusBadge>
+                    </span>
+                    <small className={META}>
+                      Snapshot {snapshot.snapshot_number} · {formatDate(snapshot.collected_at)}
+                    </small>
+                    <small className={META}>
+                      {snapshot.included_count} items · {snapshot.downstream_index_count} indexes
+                    </small>
+                  </Button>
+                </li>
+              ))}
+            </ul>
           )}
         </section>
-        <section className="snapshot-detail" aria-label="Selected source snapshot details">
+        <section
+          className={cn('flex min-w-0 flex-1 flex-col gap-6', !selected && 'max-md:hidden')}
+          aria-label="Selected source snapshot details"
+          data-testid="snapshot-detail"
+        >
           {!selected ? (
-            <div className="index-detail-empty">
-              <Globe2 />
-              <h2>Select a source snapshot</h2>
-              <p>Inspect captured items, collection state, and every derived index.</p>
-            </div>
+            <EmptyState
+              icon={<Globe2 />}
+              title="Select a source snapshot"
+              headingLevel="h2"
+              description="Inspect captured items, collection state, and every derived index."
+            />
           ) : (
             <>
-              <Button className="snapshot-back" variant="ghost" onClick={() => select()}>
-                <ArrowLeft /> Back to snapshots
+              <Button className="self-start md:hidden" variant="ghost" onClick={() => select()}>
+                <ArrowLeft aria-hidden="true" /> Back to snapshots
               </Button>
-              <header className="index-detail-header">
-                <div>
-                  <p>{origin(selected)}</p>
-                  <h2>Snapshot {selected.snapshot_number}</h2>
-                  <small>{formatDate(selected.collected_at)}</small>
+              <header className={cn(CARD, 'flex items-start justify-between gap-4 p-4')}>
+                <div className="flex min-w-0 flex-col gap-1">
+                  <p className={cn(META, 'wrap-anywhere')}>{origin(selected)}</p>
+                  <h2 className="text-lg font-semibold text-foreground">
+                    Snapshot {selected.snapshot_number}
+                  </h2>
+                  <small className={META}>{formatDate(selected.collected_at)}</small>
                 </div>
                 <StatusBadge status={selected.status}>{selected.status}</StatusBadge>
               </header>
-              {selected.error && <p className="error-message">{selected.error}</p>}
-              <dl className="index-detail-stats">
-                <div>
-                  <dt>Included items</dt>
-                  <dd>{selected.included_count}</dd>
-                </div>
-                <div>
-                  <dt>Changed / new</dt>
-                  <dd>
-                    {selected.changed_count} / {selected.new_count}
-                  </dd>
-                </div>
-                <div>
-                  <dt>Failed</dt>
-                  <dd>{selected.failed_count}</dd>
-                </div>
-              </dl>
+              {selected.error && (
+                <p className="text-sm text-danger wrap-anywhere">{selected.error}</p>
+              )}
+              <Facts
+                className={cn(CARD, 'p-4 md:grid-cols-3')}
+                items={[
+                  ['Included items', selected.included_count],
+                  ['Changed / new', `${selected.changed_count} / ${selected.new_count}`],
+                  ['Failed', selected.failed_count],
+                ]}
+              />
               {selected.status === 'ready' && (
                 <>
                   {currentReadyIndex && (
-                    <div className="snapshot-actions">
-                      <Button asChild>
-                        <a
-                          href={`#/projects/${projectId}/pipelines/new?index=${currentReadyIndex.id}`}
-                        >
-                          Use current index in answer pipeline
-                          <ArrowRight aria-hidden="true" />
-                        </a>
-                      </Button>
-                    </div>
+                    <Button asChild className="self-start max-md:w-full">
+                      <a
+                        href={`#/projects/${projectId}/pipelines/new?index=${currentReadyIndex.id}`}
+                      >
+                        Use current index in answer pipeline
+                        <ArrowRight aria-hidden="true" />
+                      </a>
+                    </Button>
                   )}
-                  <form className="snapshot-build-form" onSubmit={build}>
-                    <h3>Create an index variant from this snapshot</h3>
-                    <p>
-                      This is optional. Reprocess this exact snapshot only when you need different
-                      processing or embedding settings. The existing ready index remains available,
-                      and the remote source will not be fetched again.
-                    </p>
-                    <label>
-                      Ingestion pipeline version
-                      <select
+                  <form className={cn(CARD, 'flex flex-col gap-4 p-4')} onSubmit={build}>
+                    <div className="flex flex-col gap-1">
+                      <h3 className="text-base font-semibold text-foreground">
+                        Create an index variant from this snapshot
+                      </h3>
+                      <p className="text-sm text-foreground-muted">
+                        This is optional. Reprocess this exact snapshot only when you need different
+                        processing or embedding settings. The existing ready index remains
+                        available, and the remote source will not be fetched again.
+                      </p>
+                    </div>
+                    <div className="flex flex-col">
+                      <Label htmlFor={`${formId}-version`}>Ingestion pipeline version</Label>
+                      <NativeSelect
+                        id={`${formId}-version`}
                         value={versionId}
                         onChange={(event) => setVersionId(event.target.value)}
                       >
                         {compatibleVersions.map((version) => (
-                          <option key={version.id} value={version.id}>
+                          <NativeSelectOption key={version.id} value={version.id}>
                             {version.name} · v{version.version}
-                          </option>
+                          </NativeSelectOption>
                         ))}
-                      </select>
-                    </label>
+                      </NativeSelect>
+                    </div>
                     {chunk?.type === 'chunk' && (
-                      <p className="muted">
+                      <p className={META}>
                         {chunk.algorithm === 'section_token'
                           ? `Section-aware tokens · ${chunk.target_tokens} target · ${chunk.maximum_tokens} hard maximum · ${chunk.overlap_tokens} overlap`
                           : chunk.algorithm === 'parent_child'
@@ -406,108 +437,146 @@ export function SnapshotPanel({ projectId }: { projectId: string }) {
                         {embed?.type === 'embed' ? ` · ${embed.provider}/${embed.model}` : ''}
                       </p>
                     )}
-                    <fieldset>
-                      <legend>Destination</legend>
-                      <label>
-                        <input
-                          type="radio"
-                          checked={destination === 'new'}
-                          onChange={() => setDestination('new')}
-                        />{' '}
-                        New index
-                      </label>
-                      <label>
-                        <input
-                          type="radio"
-                          checked={destination === 'existing'}
-                          onChange={() => setDestination('existing')}
-                        />{' '}
-                        Existing index
-                      </label>
+                    <fieldset className="flex flex-col gap-2">
+                      <legend className="mb-2 text-xs font-medium text-foreground-muted">
+                        Destination
+                      </legend>
+                      <RadioGroup
+                        value={destination}
+                        onValueChange={(value) => setDestination(value as typeof destination)}
+                        className="flex-row gap-6"
+                      >
+                        {(
+                          [
+                            ['new', 'New index'],
+                            ['existing', 'Existing index'],
+                          ] as const
+                        ).map(([value, label]) => (
+                          <label
+                            key={value}
+                            className="flex min-h-row items-center gap-2 text-sm text-foreground"
+                          >
+                            <RadioGroupItem value={value} />
+                            {label}
+                          </label>
+                        ))}
+                      </RadioGroup>
                     </fieldset>
                     {destination === 'new' ? (
-                      <label>
-                        Index name
+                      <div className="flex flex-col">
+                        <Label htmlFor={`${formId}-name`}>Index name</Label>
                         <Input
+                          id={`${formId}-name`}
                           value={name}
                           onChange={(event) => setName(event.target.value)}
                           required
                         />
-                      </label>
+                      </div>
                     ) : (
-                      <label>
-                        Existing index
-                        <select value={setId} onChange={(event) => setSetId(event.target.value)}>
+                      <div className="flex flex-col">
+                        <Label htmlFor={`${formId}-set`}>Existing index</Label>
+                        <NativeSelect
+                          id={`${formId}-set`}
+                          value={setId}
+                          onChange={(event) => setSetId(event.target.value)}
+                        >
                           {sets.map((set) => (
-                            <option key={set.id} value={set.id}>
+                            <NativeSelectOption key={set.id} value={set.id}>
                               {set.name}
-                            </option>
+                            </NativeSelectOption>
                           ))}
-                        </select>
-                      </label>
+                        </NativeSelect>
+                      </div>
                     )}
-                    <Button type="submit" disabled={busy || !compatibleVersions.length}>
+                    <Button
+                      type="submit"
+                      variant="outline"
+                      className="self-end max-md:w-full"
+                      disabled={busy || !compatibleVersions.length}
+                    >
                       Create index variant
                     </Button>
                   </form>
                 </>
               )}
-              {run && (
-                <p
-                  role="status"
-                  className={run.status === 'failed' ? 'error-message' : 'success-message'}
-                >
-                  Run {run.status}: {run.progress}% · {run.stage}
-                  {run.error ? ` — ${run.error}` : ''}
+              {run &&
+                (run.status === 'failed' ? (
+                  <p role="status" className="text-sm text-danger wrap-anywhere">
+                    Run {run.status}: {run.progress}% · {run.stage}
+                    {run.error ? ` — ${run.error}` : ''}
+                  </p>
+                ) : (
+                  <Notice>
+                    Run {run.status}: {run.progress}% · {run.stage}
+                    {run.error ? ` — ${run.error}` : ''}
+                  </Notice>
+                ))}
+              <SectionHeading
+                title="Derived indexes"
+                action={
+                  indexes.some((value) => value.ingestion_pipeline_version_id) && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => void refreshSource()}
+                      disabled={busy}
+                    >
+                      <RefreshCw aria-hidden="true" /> Refresh source
+                    </Button>
+                  )
+                }
+              />
+              {indexes.length ? (
+                <ul className={LIST}>
+                  {indexes.map((index) => (
+                    <li key={index.id} className={LIST_ROW}>
+                      <a
+                        className="flex min-h-row items-center gap-3 px-4 py-3 outline-none hover:bg-surface-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
+                        href={`#/projects/${projectId}/knowledge-base?view=indexes&mode=indexes&index=${index.id}`}
+                      >
+                        <span className="flex min-w-0 flex-1 flex-col gap-1">
+                          <strong className="truncate text-sm font-semibold text-foreground">
+                            {index.knowledge_set_name} · v{index.version}
+                          </strong>
+                          <small className={META}>
+                            {index.ingestion_pipeline_name
+                              ? `${index.ingestion_pipeline_name} · v${index.ingestion_pipeline_version}`
+                              : 'Historical lineage unavailable'}
+                          </small>
+                        </span>
+                        <StatusBadge status={index.status}>{index.status}</StatusBadge>
+                        <ExternalLink
+                          aria-hidden="true"
+                          className="size-4 shrink-0 text-foreground-subtle"
+                        />
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-foreground-muted">
+                  No indexes have been built from this snapshot.
                 </p>
               )}
-              <div className="snapshot-section-heading">
-                <h3>Derived indexes</h3>
-                {indexes.some((value) => value.ingestion_pipeline_version_id) && (
-                  <Button variant="outline" onClick={() => void refreshSource()} disabled={busy}>
-                    <RefreshCw /> Refresh source
-                  </Button>
-                )}
-              </div>
-              {indexes.length ? (
-                <div className="snapshot-indexes">
-                  {indexes.map((index) => (
-                    <a
-                      key={index.id}
-                      href={`#/projects/${projectId}/knowledge-base?view=indexes&mode=indexes&index=${index.id}`}
-                    >
-                      <span>
-                        <strong>
-                          {index.knowledge_set_name} · v{index.version}
-                        </strong>
-                        <small>
-                          {index.ingestion_pipeline_name
-                            ? `${index.ingestion_pipeline_name} · v${index.ingestion_pipeline_version}`
-                            : 'Historical lineage unavailable'}
-                        </small>
-                      </span>
-                      <StatusBadge status={index.status}>{index.status}</StatusBadge>
-                      <ExternalLink />
-                    </a>
-                  ))}
-                </div>
-              ) : (
-                <p className="muted">No indexes have been built from this snapshot.</p>
-              )}
-              <h3>Captured items</h3>
+              <h3 className="text-base font-semibold text-foreground">Captured items</h3>
               {items.length ? (
-                <div className="snapshot-items">
+                <ul className={LIST}>
                   {items.map((item) => (
-                    <div key={`${item.ordinal}-${item.canonical_location}`}>
-                      <span>{item.canonical_location}</span>
-                      <small>
+                    <li
+                      key={`${item.ordinal}-${item.canonical_location}`}
+                      className={cn(LIST_ROW, 'flex flex-col gap-1 px-4 py-3')}
+                    >
+                      <span className="text-sm text-foreground wrap-anywhere">
+                        {item.canonical_location}
+                      </span>
+                      <small className={META}>
                         {item.media_type} · {item.size_bytes.toLocaleString()} bytes
                       </small>
-                    </div>
+                    </li>
                   ))}
-                </div>
+                </ul>
               ) : (
-                <p className="muted">No captured items are available.</p>
+                <p className="text-sm text-foreground-muted">No captured items are available.</p>
               )}
             </>
           )}

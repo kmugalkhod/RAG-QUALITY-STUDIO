@@ -1,3 +1,5 @@
+import { markReachable, markUnreachable } from './connection';
+
 export type ValidationIssue = { loc: (string | number)[]; msg: string };
 
 let tokenProvider: (() => Promise<string | null>) | null = null;
@@ -21,8 +23,14 @@ function validationIssues(body: unknown): ValidationIssue[] {
   if (!body || typeof body !== 'object') {
     return [];
   }
-  const wrapped = 'error' in body && body.error && typeof body.error === 'object' &&
-    'details' in body.error && Array.isArray(body.error.details) ? body.error.details : null;
+  const wrapped =
+    'error' in body &&
+    body.error &&
+    typeof body.error === 'object' &&
+    'details' in body.error &&
+    Array.isArray(body.error.details)
+      ? body.error.details
+      : null;
   const entries = 'detail' in body && Array.isArray(body.detail) ? body.detail : wrapped;
   if (!entries) {
     return [];
@@ -76,10 +84,13 @@ function errorMessage(status: number, body: unknown): string {
   ) {
     const issues = relevantIssues(validationIssues(body));
     if (status === 422 && issues.length) {
-      return issues.slice(0, 5).map((issue) => {
-        const field = issueField(issue);
-        return field ? `${field}: ${issue.msg}` : issue.msg;
-      }).join(' ');
+      return issues
+        .slice(0, 5)
+        .map((issue) => {
+          const field = issueField(issue);
+          return field ? `${field}: ${issue.msg}` : issue.msg;
+        })
+        .join(' ');
     }
     return body.error.message;
   }
@@ -107,6 +118,18 @@ function errorMessage(status: number, body: unknown): string {
     return 'The service is temporarily unavailable. Please try again.';
   }
   return 'The request failed. Please try again.';
+}
+
+const UNREACHABLE_STATUSES = new Set([502, 503, 504]);
+
+// Feed the connection store (spec 0002, AC-7): any 2xx proves the server is reachable, and
+// a gateway status means it is not. Other statuses change nothing.
+function recordResponse(response: Response, message = '') {
+  if (response.ok) {
+    markReachable();
+  } else if (UNREACHABLE_STATUSES.has(response.status)) {
+    markUnreachable(message);
+  }
 }
 
 /** Fetch JSON from the application API; the timeout includes reading the response body. */
@@ -138,24 +161,30 @@ export async function request<T>(
     });
     if (!response.ok) {
       const body: unknown = await response.json().catch(() => null);
-      throw new ApiError(
-        errorMessage(response.status, body),
-        response.status,
-        validationIssues(body),
-      );
+      const message = errorMessage(response.status, body);
+      recordResponse(response, message);
+      throw new ApiError(message, response.status, validationIssues(body));
     }
+    recordResponse(response);
     return (await response.json()) as T;
   } catch (error) {
     if (error instanceof ApiError) {
       throw error;
     }
     if (options.signal?.aborted) {
+      // Cancelled by the caller, which says nothing about the server.
       throw error;
     }
     if (controller.signal.aborted) {
-      throw new Error('The request timed out. Please try again.');
+      const message = 'The request timed out. Please try again.';
+      markUnreachable(message);
+      throw new Error(message);
     }
-    throw new Error('Could not reach the server. Check your connection and try again.');
+    const message = 'Could not reach the server. Check your connection and try again.';
+    if (error instanceof TypeError) {
+      markUnreachable(message);
+    }
+    throw new Error(message);
   } finally {
     window.clearTimeout(timeout);
     options.signal?.removeEventListener('abort', abort);
@@ -179,11 +208,22 @@ export async function downloadFile(path: string, filename: string): Promise<void
   if (token) {
     headers.set('Authorization', `Bearer ${token}`);
   }
-  const response = await fetch(`/api${path}`, { headers });
+  let response: Response;
+  try {
+    response = await fetch(`/api${path}`, { headers });
+  } catch (error) {
+    if (error instanceof TypeError) {
+      markUnreachable('Could not reach the server. Check your connection and try again.');
+    }
+    throw error;
+  }
   if (!response.ok) {
     const body: unknown = await response.json().catch(() => null);
-    throw new ApiError(errorMessage(response.status, body), response.status);
+    const message = errorMessage(response.status, body);
+    recordResponse(response, message);
+    throw new ApiError(message, response.status);
   }
+  recordResponse(response);
   const objectUrl = URL.createObjectURL(await response.blob());
   const link = document.createElement('a');
   link.href = objectUrl;

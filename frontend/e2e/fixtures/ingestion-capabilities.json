@@ -1,0 +1,213 @@
+{
+  "schema_version": 1,
+  "media_types": [
+    "application/pdf",
+    "text/plain",
+    "text/markdown",
+    "text/html",
+    "text/csv",
+    "text/tab-separated-values",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+  ],
+  "profiles": [
+    {
+      "id": "auto",
+      "available": true,
+      "reason": null
+    },
+    {
+      "id": "native",
+      "available": true,
+      "reason": null
+    },
+    {
+      "id": "layout_aware",
+      "available": true,
+      "reason": null
+    }
+  ],
+  "ocr": {
+    "available": true,
+    "languages": ["eng"],
+    "reason": null,
+    "max_pages": 100,
+    "max_pixels_per_page": 20000000
+  },
+  "table_modes": ["preserve", "markdown", "plain_text"],
+  "quality_policies": [
+    {
+      "id": "default-v1",
+      "name": "Balanced",
+      "description": "Rejects unsafe extraction and permits explicitly reviewed warnings.",
+      "settings": {
+        "id": "default-v1",
+        "thresholds": {
+          "maximum_empty_page_ratio": 0.2,
+          "maximum_replacement_character_ratio": 0.01,
+          "maximum_control_character_ratio": 0.001,
+          "minimum_ocr_confidence": 50.0,
+          "fail_on_suspicious_reading_order": false,
+          "fail_on_malformed_tables": true
+        },
+        "warning_action": "publish",
+        "failed_item_action": "fail"
+      }
+    },
+    {
+      "id": "strict-v1",
+      "name": "Strict",
+      "description": "Uses tighter text, layout and OCR thresholds and blocks warnings.",
+      "settings": {
+        "id": "strict-v1",
+        "thresholds": {
+          "maximum_empty_page_ratio": 0.0,
+          "maximum_replacement_character_ratio": 0.001,
+          "maximum_control_character_ratio": 0.0,
+          "minimum_ocr_confidence": 70.0,
+          "fail_on_suspicious_reading_order": true,
+          "fail_on_malformed_tables": true
+        },
+        "warning_action": "fail",
+        "failed_item_action": "fail"
+      }
+    },
+    {
+      "id": "warn-v1",
+      "name": "Review warnings",
+      "description": "Keeps bounded quality anomalies visible for explicit review.",
+      "settings": {
+        "id": "warn-v1",
+        "thresholds": {
+          "maximum_empty_page_ratio": 0.2,
+          "maximum_replacement_character_ratio": 0.01,
+          "maximum_control_character_ratio": 0.001,
+          "minimum_ocr_confidence": 50.0,
+          "fail_on_suspicious_reading_order": false,
+          "fail_on_malformed_tables": true
+        },
+        "warning_action": "publish",
+        "failed_item_action": "exclude"
+      }
+    }
+  ],
+  "cleaning_profiles": [
+    {
+      "id": "structure-aware-v1",
+      "name": "Structure-aware standard",
+      "config_version": "structure-clean-v1",
+      "steps": [
+        {
+          "id": "preserve-structure",
+          "enabled": true,
+          "type": "preserve_structure",
+          "block_types": ["table", "list_item", "code", "quote", "footnote"]
+        },
+        {
+          "id": "unicode-normalize",
+          "enabled": true,
+          "type": "unicode_normalize",
+          "form": "NFC"
+        },
+        {
+          "id": "remove-controls",
+          "enabled": true,
+          "type": "remove_control_characters"
+        },
+        {
+          "id": "repeated-margins",
+          "enabled": true,
+          "type": "remove_repeated_headers_footers",
+          "minimum_page_ratio": 0.6,
+          "minimum_pages": 3,
+          "margin_ratio": 0.12
+        },
+        {
+          "id": "reflow-pdf-lines",
+          "enabled": true,
+          "type": "reflow_pdf_lines",
+          "block_types": ["paragraph", "unknown"]
+        },
+        {
+          "id": "dehyphenate",
+          "enabled": true,
+          "type": "dehyphenate",
+          "mode": "conservative"
+        },
+        {
+          "id": "website-main-content",
+          "enabled": true,
+          "type": "website_main_content",
+          "remove_semantic_chrome": true,
+          "remove_cookie_banners": true,
+          "remove_repeated_site_chrome": true,
+          "minimum_page_ratio": 0.6
+        },
+        {
+          "id": "remove-empty-blocks",
+          "enabled": true,
+          "type": "remove_empty_blocks",
+          "minimum_characters": 1
+        },
+        {
+          "id": "validate-useful-content",
+          "enabled": true,
+          "type": "validate_useful_content",
+          "minimum_characters": 1,
+          "maximum_characters": 2000000
+        }
+      ]
+    }
+  ],
+  "tokenizers": [
+    {
+      "id": "utf8_byte",
+      "version": "utf8-byte-v1",
+      "unit": "UTF-8 bytes (conservative token upper bound)"
+    }
+  ],
+  "chunking_profiles": [
+    {
+      "id": "section_token",
+      "name": "Section-aware tokens",
+      "description": "Keeps headings and compatible blocks together with a strict token ceiling.",
+      "recommended": true,
+      "settings": {
+        "tokenizer_version": "utf8-byte-v1",
+        "target_tokens": 600,
+        "maximum_tokens": 800,
+        "overlap_tokens": 80,
+        "add_heading_context": true,
+        "config_version": "section-token-v1"
+      }
+    },
+    {
+      "id": "parent_child",
+      "name": "Parent and child",
+      "description": "Embeds focused child chunks and supplies their larger saved parent as evidence.",
+      "recommended": false,
+      "settings": {
+        "tokenizer_version": "utf8-byte-v1",
+        "child_target_tokens": 240,
+        "child_maximum_tokens": 320,
+        "child_overlap_tokens": 40,
+        "parent_target_tokens": 900,
+        "parent_maximum_tokens": 1200,
+        "add_heading_context": true,
+        "config_version": "parent-child-v1"
+      }
+    },
+    {
+      "id": "character_window",
+      "name": "Character window (compatibility)",
+      "description": "Preserves the historical fixed-character window behavior.",
+      "recommended": false,
+      "settings": {
+        "size": 800,
+        "overlap": 120,
+        "config_version": "character-window-v1"
+      }
+    }
+  ]
+}

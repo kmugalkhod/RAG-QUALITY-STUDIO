@@ -97,7 +97,9 @@ test('reorders and disables transforms with labelled keyboard-safe controls', ()
   rerender(<CleaningTransformSettings node={node} capabilities={capabilities} update={update} />);
   fireEvent.click(screen.getByRole('checkbox', { name: /1. Normalize Unicode/ }));
   expect(update.mock.calls.at(-1)?.[0].steps[0].enabled).toBe(false);
-  expect(screen.getByRole('button', { name: 'Reset profile' })).toBeEnabled();
+  expect(screen.getByRole('button', { name: 'Reset profile' })).not.toHaveAttribute(
+    'aria-disabled',
+  );
 });
 
 test('inserts a newly added transform before final validation', () => {

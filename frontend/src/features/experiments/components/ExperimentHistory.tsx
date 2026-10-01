@@ -1,4 +1,6 @@
+import { FlaskConical } from 'lucide-react';
 import { StatusBadge } from '../../../components/StatusBadge';
+import { EmptyState } from '../../../components/states/EmptyState';
 import {
   Table,
   TableBody,
@@ -8,6 +10,7 @@ import {
   TableRow,
 } from '../../../components/ui/table';
 import type { Experiment } from '../model';
+import { TABLE_REGION } from './parts';
 
 export function ExperimentHistory({
   projectId,
@@ -17,16 +20,18 @@ export function ExperimentHistory({
   experiments: Experiment[];
 }) {
   return (
-    <section className="experiment-section mt-6 border-t border-border py-6">
-      <h2>Experiment history</h2>
+    <section aria-labelledby="experiment-history-title" className="flex flex-col gap-4">
+      <h2 id="experiment-history-title" className="text-base font-semibold text-foreground">
+        Experiment history
+      </h2>
       {!experiments.length ? (
-        <p>No experiments yet. Import a dataset and select saved pipeline versions to begin.</p>
+        <EmptyState
+          icon={<FlaskConical />}
+          title="No experiments yet"
+          description="Import a dataset and select saved pipeline versions to begin."
+        />
       ) : (
-        <div
-          className="experiment-table my-4 max-h-120 overflow-auto"
-          tabIndex={0}
-          aria-label="Experiment history"
-        >
+        <div className={TABLE_REGION} tabIndex={0} aria-label="Experiment history">
           <Table>
             <TableHeader>
               <TableRow>
@@ -39,11 +44,16 @@ export function ExperimentHistory({
             <TableBody>
               {experiments.map((experiment) => (
                 <TableRow key={experiment.id}>
-                  <TableCell>
-                    <a href={`#/projects/${projectId}/experiments/${experiment.id}`}>
+                  <TableCell className="py-2">
+                    <a
+                      className="inline-flex min-h-row items-center font-medium text-accent outline-none hover:underline focus-visible:outline-2 focus-visible:outline-accent"
+                      href={`#/projects/${projectId}/experiments/${experiment.id}`}
+                    >
                       {experiment.name}
                     </a>
-                    <small>{new Date(experiment.created_at).toLocaleString()}</small>
+                    <span className="block text-xs text-foreground-muted">
+                      {new Date(experiment.created_at).toLocaleString()}
+                    </span>
                   </TableCell>
                   <TableCell>
                     {experiment.snapshot.dataset.name} · v{experiment.snapshot.dataset.version}
@@ -51,7 +61,7 @@ export function ExperimentHistory({
                   <TableCell>
                     <StatusBadge status={experiment.status} />
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="tabular-nums">
                     {experiment.progress} / {experiment.total}
                   </TableCell>
                 </TableRow>

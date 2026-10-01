@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Button } from '../../components/ui/button';
+import { ErrorState } from '../../components/states/ErrorState';
+import { LoadingState } from '../../components/states/LoadingState';
 import {
   loadProjectSettings,
   loadProjectSummary,
@@ -12,9 +13,12 @@ import { ProjectSettings } from './components/ProjectSettings';
 export function ProjectSummary({
   projectId,
   configuration = false,
+  section,
 }: {
   projectId: string;
   configuration?: boolean;
+  /** A settings section to scroll to once loaded, such as `connections`. */
+  section?: string;
 }) {
   const [summary, setSummary] = useState<ProjectSummaryData>();
   const [settings, setSettings] = useState<ProjectSettingsData>();
@@ -46,14 +50,20 @@ export function ProjectSummary({
     };
   }, [projectId, configuration, revision]);
 
+  const loaded = configuration ? !!settings : !!summary;
+  useEffect(() => {
+    if (loaded && section) {
+      document.getElementById(`settings-${section}`)?.scrollIntoView({ block: 'start' });
+    }
+  }, [loaded, section]);
+
   if (error) {
     return (
-      <div role="alert">
-        {error}
-        <Button variant="outline" onClick={() => setRevision((value) => value + 1)}>
-          Retry
-        </Button>
-      </div>
+      <ErrorState
+        title={`Could not load project ${configuration ? 'settings' : 'overview'}`}
+        message={error}
+        onRetry={() => setRevision((value) => value + 1)}
+      />
     );
   }
   if (configuration && settings) {
@@ -62,5 +72,5 @@ export function ProjectSummary({
   if (!configuration && summary) {
     return <ProjectOverview projectId={projectId} data={summary} />;
   }
-  return <p role="status">Loading project {configuration ? 'settings' : 'overview'}…</p>;
+  return <LoadingState label={`Loading project ${configuration ? 'settings' : 'overview'}…`} />;
 }

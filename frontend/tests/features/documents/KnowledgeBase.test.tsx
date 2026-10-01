@@ -100,7 +100,10 @@ test('shows upload progress and storage failure', async () => {
   await waitFor(() => expect(input).toBeEnabled());
   await userEvent.upload(input, new File(['test'], 'source.txt', { type: 'text/plain' }));
   await userEvent.click(screen.getByRole('button', { name: 'Upload document' }));
-  expect(screen.getByRole('button', { name: 'Uploading…' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Uploading…' })).toHaveAttribute(
+    'aria-disabled',
+    'true',
+  );
   reject(new Error('Storage unavailable.'));
   expect(await screen.findByRole('alert')).toHaveTextContent('Storage unavailable');
   expect(screen.queryByRole('heading', { name: 'Process: source.txt' })).toBeNull();
@@ -201,7 +204,10 @@ test('shows processing progress and cancels a queued run', async () => {
   await userEvent.click(screen.getByRole('button', { name: 'Add document' }));
   await userEvent.click(await screen.findByRole('button', { name: 'View progress: source.txt' }));
   expect(await screen.findByText(/Waiting for a worker/)).toBeVisible();
-  expect(screen.getByRole('button', { name: 'Start processing' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Start processing' })).toHaveAttribute(
+    'aria-disabled',
+    'true',
+  );
   await userEvent.click(screen.getByRole('button', { name: 'Cancel run' }));
   await waitFor(() => expect(api.cancelProcessingRun).toHaveBeenCalledWith('p1', 'd1', 'r1'));
   expect(await screen.findByText(/Run cancelled. In-flight parsing/)).toBeVisible();
@@ -233,10 +239,15 @@ test('retains upload settings errors when the document list succeeds and offers 
   render(<KnowledgeBase projectId="p1" />);
   await userEvent.click(screen.getByRole('button', { name: 'Add document' }));
   expect(await screen.findByRole('alert')).toHaveTextContent('Settings unavailable');
-  expect(screen.getByRole('button', { name: 'Upload document' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Upload document' })).toHaveAttribute(
+    'aria-disabled',
+    'true',
+  );
   await userEvent.click(screen.getByRole('button', { name: 'Retry upload settings' }));
   await waitFor(() =>
-    expect(screen.getByRole('button', { name: 'Upload document' })).toBeEnabled(),
+    expect(screen.getByRole('button', { name: 'Upload document' })).not.toHaveAttribute(
+      'aria-disabled',
+    ),
   );
   expect(screen.queryByRole('alert')).toBeNull();
 });

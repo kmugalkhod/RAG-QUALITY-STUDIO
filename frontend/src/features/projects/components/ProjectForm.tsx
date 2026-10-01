@@ -46,33 +46,42 @@ export function ProjectForm({
   }
 
   return (
-    <section className="create-project-panel" aria-labelledby="create-title">
-      <header className="create-project-header">
-        <span className="create-project-icon" aria-hidden="true">
-          <FolderPlus />
+    <section
+      className="flex flex-col rounded-card border border-border bg-surface"
+      aria-labelledby="create-title"
+    >
+      <header className="flex items-start gap-4 border-b border-border p-6">
+        <span
+          className="hidden size-control-md shrink-0 items-center justify-center rounded-control border border-border text-foreground-muted md:flex"
+          aria-hidden="true"
+        >
+          <FolderPlus className="size-(--icon-lg)" />
         </span>
-        <div className="create-project-heading">
-          <p>New workspace</p>
-          <h2 id="create-title">Create a project</h2>
-          <span>Give your sources, pipelines, and experiments a shared home.</span>
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
+          <p className="text-xs text-foreground-muted">New workspace</p>
+          <h2 id="create-title" className="text-base font-semibold text-foreground">
+            Create a project
+          </h2>
+          <p className="text-sm text-foreground-muted">
+            Give your sources, pipelines, and experiments a shared home.
+          </p>
         </div>
         <Button
-          className="create-project-close"
           variant="ghost"
-          size="icon"
+          icon
           aria-label="Close project form"
           disabled={saving}
           onClick={onClose}
         >
-          <X />
+          <X aria-hidden="true" />
         </Button>
       </header>
-      <form className="create-project-form" onSubmit={submit} noValidate aria-busy={saving}>
-        <div className="create-project-fields">
-          <div className="create-project-field">
-            <div className="create-project-label">
+      <form onSubmit={submit} noValidate aria-busy={saving}>
+        <div className="grid gap-6 p-6 md:grid-cols-2">
+          <div className="flex flex-col">
+            <div className="flex items-baseline justify-between gap-2">
               <Label htmlFor="project-name">Project name</Label>
-              <span>Required</span>
+              <span className="text-xs text-foreground-muted">Required</span>
             </div>
             <Input
               ref={nameInput}
@@ -89,15 +98,17 @@ export function ProjectForm({
               aria-describedby={error ? 'name-hint name-count form-error' : 'name-hint name-count'}
               placeholder="Customer support knowledge"
             />
-            <div className="create-project-field-meta">
+            <div className="mt-2 flex justify-between gap-4 text-xs text-foreground-muted">
               <p id="name-hint">Used in navigation and experiment history.</p>
-              <span id="name-count">{name.length}/120</span>
+              <span id="name-count" className="tabular-nums">
+                {name.length}/120
+              </span>
             </div>
           </div>
-          <div className="create-project-field">
-            <div className="create-project-label">
+          <div className="flex flex-col">
+            <div className="flex items-baseline justify-between gap-2">
               <Label htmlFor="project-description">Description</Label>
-              <span>Optional</span>
+              <span className="text-xs text-foreground-muted">Optional</span>
             </div>
             <Textarea
               id="project-description"
@@ -112,26 +123,30 @@ export function ProjectForm({
               aria-describedby="description-hint description-count"
               placeholder="What will this project evaluate?"
             />
-            <div className="create-project-field-meta">
+            <div className="mt-2 flex justify-between gap-4 text-xs text-foreground-muted">
               <p id="description-hint">Help collaborators understand the project’s scope.</p>
-              <span id="description-count">{description.length}/2,000</span>
+              <span id="description-count" className="tabular-nums">
+                {description.length}/2,000
+              </span>
             </div>
           </div>
         </div>
         {error && (
-          <p id="form-error" role="alert" className="error-message">
+          <p id="form-error" role="alert" className="px-6 pb-4 text-sm text-danger">
             {error}
           </p>
         )}
-        <footer className="create-project-footer">
-          <p>You can add documents and configure pipelines after creation.</p>
-          <div className="create-project-actions">
+        <footer className="flex flex-col gap-4 border-t border-border p-6 md:flex-row md:items-center md:justify-between">
+          <p className="text-xs text-foreground-muted">
+            You can add documents and configure pipelines after creation.
+          </p>
+          <div className="flex flex-col-reverse gap-2 md:flex-row">
             <Button type="button" variant="outline" disabled={saving} onClick={onClose}>
               Cancel
             </Button>
-            <Button type="submit" disabled={saving}>
-              {saving ? 'Creating…' : 'Create project'}
-              <ArrowRight />
+            <Button type="submit" loading={saving}>
+              Create project
+              <ArrowRight aria-hidden="true" />
             </Button>
           </div>
         </footer>

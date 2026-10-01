@@ -1,15 +1,14 @@
 import * as React from 'react';
 import { cva, type VariantProps } from 'class-variance-authority';
-import { cn } from 'cn';
+import { cn } from '../../lib/utils';
 
 const alertVariants = cva(
-  'relative grid w-full grid-cols-[0_1fr] items-start gap-y-0.5 rounded-lg border px-4 py-3 text-sm has-[>svg]:grid-cols-[calc(var(--spacing)*4)_1fr] has-[>svg]:gap-x-3 [&>svg]:size-4 [&>svg]:translate-y-0.5 [&>svg]:text-current',
+  'relative grid w-full grid-cols-[0_1fr] items-start gap-y-1 rounded-card border border-border bg-surface p-4 text-sm has-[>svg]:grid-cols-[var(--spacing-4)_1fr] has-[>svg]:gap-x-2 [&>svg]:h-(--icon-lg) [&>svg]:w-4 [&>svg]:text-current',
   {
     variants: {
       variant: {
-        default: 'bg-card text-card-foreground',
-        destructive:
-          'bg-card text-destructive *:data-[slot=alert-description]:text-destructive/90 [&>svg]:text-current',
+        default: 'text-foreground',
+        destructive: 'text-danger *:data-[slot=alert-description]:text-danger',
       },
     },
     defaultVariants: {
@@ -48,7 +47,7 @@ function AlertDescription({ className, ...props }: React.ComponentProps<'div'>) 
     <div
       data-slot="alert-description"
       className={cn(
-        'col-start-2 grid justify-items-start gap-1 text-sm text-muted-foreground [&_p]:leading-relaxed',
+        'col-start-2 grid justify-items-start gap-1 text-sm text-foreground-muted',
         className,
       )}
       {...props}

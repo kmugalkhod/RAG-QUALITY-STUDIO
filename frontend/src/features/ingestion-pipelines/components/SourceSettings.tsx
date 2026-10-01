@@ -1,11 +1,12 @@
-import { CircleAlert } from 'lucide-react';
-
+import { Callout, SUMMARY } from '../../../components/parts';
+import { Checkbox } from '../../../components/ui/checkbox';
 import { Input } from '../../../components/ui/input';
 import { Label } from '../../../components/ui/label';
 import { NativeSelect, NativeSelectOption } from '../../../components/ui/native-select';
 import { Textarea } from '../../../components/ui/textarea';
 import type { SourceConnection } from '../../connections/model';
 import type { ConfluenceConfig, NotionConfig, S3Config, WebsiteConfig } from '../model';
+import { CHECK_ROW, DETAILS, FIELD_GRID, FIELDSET, HINT, STACK } from './settingsStyles';
 
 const lines = (value: string) =>
   value
@@ -86,7 +87,7 @@ export function WebsiteSettings({
 
   return (
     <>
-      <p className="field-hint">
+      <p className={HINT}>
         Choose the pages to ingest. Preview checks the scope; a run publishes an index after all
         required pages succeed.
       </p>
@@ -139,9 +140,9 @@ export function WebsiteSettings({
           onChange={(event) => update({ ...config, allowed_origins: lines(event.target.value) })}
         />
       </Label>
-      <details className="ingestion-advanced">
-        <summary>Scope & fetch limits · up to {config.max_pages} pages</summary>
-        <div className="field-stack">
+      <details className={DETAILS}>
+        <summary className={SUMMARY}>Scope & fetch limits · up to {config.max_pages} pages</summary>
+        <div className={STACK}>
           <Label>
             Include path prefixes (one per line)
             <Textarea
@@ -162,7 +163,7 @@ export function WebsiteSettings({
               }
             />
           </Label>
-          <div className="website-limit-grid">
+          <div className={FIELD_GRID}>
             {numberField('max_pages', 'Maximum pages', 1)}
             {numberField('max_depth', 'Maximum crawl depth', 0)}
             {numberField('max_response_bytes', 'Bytes per response', 1)}
@@ -180,11 +181,10 @@ export function WebsiteSettings({
               onChange={(event) => update({ ...config, user_agent: event.target.value })}
             />
           </Label>
-          <label className="website-checkbox">
-            <input
-              type="checkbox"
+          <label className={CHECK_ROW}>
+            <Checkbox
               checked={config.respect_robots ?? true}
-              onChange={(event) => update({ ...config, respect_robots: event.target.checked })}
+              onCheckedChange={(checked) => update({ ...config, respect_robots: checked === true })}
             />
             Respect robots.txt
           </label>
@@ -228,13 +228,12 @@ export function S3Settings({
   );
   return (
     <>
-      <div className="website-preview-notice">
-        <CircleAlert size={17} />
+      <Callout>
         <p>
           S3 reads only the selected bucket and prefix, accepts the explicitly selected supported
           formats, and publishes atomically after every required object succeeds.
         </p>
-      </div>
+      </Callout>
       <Label>
         S3 connection
         <NativeSelect
@@ -250,7 +249,7 @@ export function S3Settings({
         </NativeSelect>
       </Label>
       {s3Connections.length === 0 && (
-        <p className="field-hint">
+        <p className={HINT}>
           No S3 connection is available.{' '}
           <a href={`#/projects/${projectId}/settings`}>Add one in project settings</a>.
         </p>
@@ -290,29 +289,31 @@ export function S3Settings({
           }
         />
       </Label>
-      <fieldset className="s3-file-types">
+      <fieldset className={FIELDSET}>
         <legend>Allowed file types</legend>
-        {(['txt', 'pdf', 'md', 'html', 'docx', 'pptx', 'csv', 'tsv', 'xlsx'] as const).map(
-          (kind) => (
-            <label key={kind}>
-              <input
-                type="checkbox"
-                checked={config.allowed_file_types.includes(kind)}
-                onChange={(event) =>
-                  update({
-                    ...config,
-                    allowed_file_types: event.target.checked
-                      ? [...config.allowed_file_types, kind]
-                      : config.allowed_file_types.filter((value) => value !== kind),
-                  })
-                }
-              />
-              {kind.toUpperCase()}
-            </label>
-          ),
-        )}
+        <div className="grid grid-cols-2 gap-x-4 md:grid-cols-3">
+          {(['txt', 'pdf', 'md', 'html', 'docx', 'pptx', 'csv', 'tsv', 'xlsx'] as const).map(
+            (kind) => (
+              <label key={kind} className={CHECK_ROW}>
+                <Checkbox
+                  checked={config.allowed_file_types.includes(kind)}
+                  onCheckedChange={(checked) =>
+                    update({
+                      ...config,
+                      allowed_file_types:
+                        checked === true
+                          ? [...config.allowed_file_types, kind]
+                          : config.allowed_file_types.filter((value) => value !== kind),
+                    })
+                  }
+                />
+                {kind.toUpperCase()}
+              </label>
+            ),
+          )}
+        </div>
       </fieldset>
-      <div className="website-limit-grid">
+      <div className={FIELD_GRID}>
         {numberField('max_objects', 'Maximum objects', 1)}
         {numberField('max_pages', 'Maximum list pages', 1)}
         {numberField('max_object_bytes', 'Bytes per object', 1024)}
@@ -364,13 +365,12 @@ export function NotionSettings({
   );
   return (
     <>
-      <div className="website-preview-notice">
-        <CircleAlert size={17} />
+      <Callout>
         <p>
           Notion reads only content shared with the selected integration, extracts supported text
           blocks, and publishes only after every required page succeeds.
         </p>
-      </div>
+      </Callout>
       <Label>
         Notion connection
         <NativeSelect
@@ -386,7 +386,7 @@ export function NotionSettings({
         </NativeSelect>
       </Label>
       {notionConnections.length === 0 && (
-        <p className="field-hint">
+        <p className={HINT}>
           No Notion connection is available.{' '}
           <a href={`#/projects/${projectId}/settings`}>Add one in project settings</a>.
         </p>
@@ -436,7 +436,7 @@ export function NotionSettings({
           />
         </Label>
       )}
-      <div className="website-limit-grid">
+      <div className={FIELD_GRID}>
         {numberField('max_pages', 'Maximum pages', 1)}
         {numberField('max_api_pages', 'Maximum API requests', 1)}
         {numberField('max_blocks_per_page', 'Blocks per page', 1)}
@@ -488,14 +488,13 @@ export function ConfluenceSettings({
   );
   return (
     <>
-      <div className="website-preview-notice">
-        <CircleAlert size={17} />
+      <Callout>
         <p>
           Confluence reads only pages visible to the selected account. Credentials stay in the
           encrypted server vault, and a new index is published only after every included page
           succeeds.
         </p>
-      </div>
+      </Callout>
       <Label>
         Confluence connection
         <NativeSelect
@@ -511,7 +510,7 @@ export function ConfluenceSettings({
         </NativeSelect>
       </Label>
       {available.length === 0 && (
-        <p className="field-hint">
+        <p className={HINT}>
           No Confluence connection is available.{' '}
           <a href={`#/projects/${projectId}/settings`}>Add one in project settings</a>.
         </p>
@@ -584,7 +583,7 @@ export function ConfluenceSettings({
           onChange={(event) => update({ ...config, label_ids: lines(event.target.value) })}
         />
       </Label>
-      <div className="website-limit-grid">
+      <div className={FIELD_GRID}>
         {numberField('max_pages', 'Maximum pages', 1)}
         {numberField('max_api_pages', 'Maximum API requests', 1)}
         {numberField('max_response_bytes', 'Bytes per API response', 1024)}

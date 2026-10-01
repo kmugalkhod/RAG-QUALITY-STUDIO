@@ -1,5 +1,9 @@
-import type { FormEvent, ReactNode } from 'react';
+import type { FormEvent } from 'react';
+import { InlineError, Notice } from '../../../components/parts';
+import { PageHeader } from '../../../components/PageHeader';
+import { ErrorState } from '../../../components/states/ErrorState';
 import { Button } from '../../../components/ui/button';
+import { docsHref } from '../../../lib/docs';
 import type { RetrievalSettings } from '../../../lib/retrieval';
 import type { Evidence, IndexVersion } from '../../documents/model';
 import type {
@@ -71,142 +75,197 @@ export interface PlaygroundViewProps {
   onInspectPassage: (passage: Evidence) => void;
   onQuestionChange: (question: string) => void;
   onSubmit: (event: FormEvent) => void;
+  /** Loads the catalog again after it failed. */
+  onRetry?: () => void;
+}
+
+const GUIDE = 'text-accent hover:underline';
+
+function panelTitle(panel: PlaygroundPanel, mode: PlaygroundMode) {
+  switch (panel) {
+    case 'settings':
+      return mode === 'pipeline' ? 'Pipeline settings' : 'Retrieval settings';
+    case 'history':
+      return 'Past questions';
+    case 'sources':
+    case 'details':
+      return 'Answer inspection';
+    case 'retrieval':
+      return 'Retrieved passage';
+    default:
+      return '';
+  }
 }
 
 export function PlaygroundView(props: PlaygroundViewProps) {
-  const messages: ReactNode = (
-    <>
-      {props.loading && <p role="status">Loading documents and pipelines…</p>}
-      {props.loadError && <p role="alert">{props.loadError}</p>}
-      {props.pollError && (
-        <p role="alert" className="error-message">
-          {props.pollError}
-        </p>
-      )}
-      {props.error && (
-        <p role="alert" className="error-message">
-          {props.error}
-        </p>
-      )}
-      {props.notice && (
-        <p role="status" className="success-message">
-          {props.notice}
-        </p>
-      )}
-    </>
-  );
+  // Options arrive with the rest of the catalog, so their absence after loading means the
+  // catalog request itself failed rather than a linked version being unavailable.
+  const catalogFailed = !props.loading && !!props.loadError && !props.options;
   return (
-    <>
-      <div className="page-heading">
-        <div>
-          <h1>Playground</h1>
-          <p>Run a question and inspect the evidence behind the answer.</p>
-        </div>
-      </div>
-      <PlaygroundToolbar
-        mode={props.mode}
-        panel={props.panel}
-        disabled={props.running || props.saving}
-        saved={props.versions.find((version) => version.id === props.selectedVersion)}
-        dirty={props.dirty}
-        hasRun={!!props.run}
-        onModeChange={props.onModeChange}
-        onTogglePanel={props.onTogglePanel}
+    <div className="flex min-w-0 flex-col gap-4 desktop:min-h-0 desktop:flex-1">
+      <PageHeader
+        title="Playground"
+        meta={
+          <>
+            Run a question and inspect the evidence behind the answer. Guides:{' '}
+            <a
+              className={GUIDE}
+              href={docsHref('answers/playground')}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Playground guide
+            </a>
+            {' · '}
+            <a
+              className={GUIDE}
+              href={docsHref('answers/retrieval')}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Retrieval settings guide
+            </a>
+            {' · '}
+            <a
+              className={GUIDE}
+              href={docsHref('answers/evidence')}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              How to inspect evidence
+            </a>
+          </>
+        }
       />
-      {messages}
-      <div className={`playground-layout ${props.panel ? 'settings-open' : ''}`}>
-        <PlaygroundSidePanel open={!!props.panel} onClose={props.onClosePanel}>
-          {props.panel === 'settings' &&
-            (props.mode === 'pipeline' ? (
-              <PipelineTestSettings
-                pipelines={props.pipelines}
-                versions={props.versions}
-                indexes={props.indexes}
-                options={props.options}
-                pipelineId={props.selectedPipeline}
-                versionId={props.selectedVersion}
-                draft={props.draft}
-                dirty={props.dirty}
-                disabled={props.running || props.saving || props.versionsLoading}
-                errors={props.draftErrors}
-                onPipeline={props.onPipeline}
-                onVersion={props.onVersion}
-                onChange={props.onDraftChange}
-                onSave={props.onSave}
-                onReset={props.onReset}
-              />
-            ) : (
-              <RetrievalTestSettings
-                indexes={props.indexes}
-                indexId={props.indexId}
-                retrieval={props.retrieval}
-                disabled={props.running}
-                onIndexChange={props.onIndex}
-                onChange={props.onRetrievalChange}
-              />
-            ))}
-          {props.panel === 'history' && (
-            <RunHistory
-              runs={props.runs}
-              total={props.total}
-              offset={props.offset}
-              running={props.running}
-              onRefresh={props.onRefreshHistory}
-              onPage={props.onHistoryPage}
-              onSelect={props.onRunSelect}
-            />
-          )}
-          {props.run && (props.panel === 'sources' || props.panel === 'details') && (
-            <>
-              <div className="inspector-tabs" role="group" aria-label="Answer inspection">
-                <Button
-                  variant="outline"
-                  aria-pressed={props.panel === 'sources'}
-                  onClick={() => props.onPanelChange('sources')}
-                >
-                  Sources
-                </Button>
-                <Button
-                  variant="outline"
-                  aria-pressed={props.panel === 'details'}
-                  onClick={() => props.onPanelChange('details')}
-                >
-                  Answer details
-                </Button>
-              </div>
-              <RunInspector
-                run={props.run}
-                mode={props.panel}
-                sourceLabel={props.sourceLabel}
-                focusRequest={props.focusRequest}
-              />
-            </>
-          )}
-          {props.panel === 'retrieval' && props.selectedPassage && (
-            <RetrievalInspector item={props.selectedPassage} />
-          )}
-        </PlaygroundSidePanel>
-        <PlaygroundConversation
-          projectId={props.projectId}
-          mode={props.mode}
-          run={props.run}
-          retrievalResult={props.retrievalResult}
-          busy={props.running}
-          loading={props.loading}
-          hasIndexes={props.indexes.length > 0}
-          onCitation={props.onCitation}
-          onInspect={props.onInspectPassage}
-        >
-          <QuestionComposer
+      {catalogFailed ? (
+        <ErrorState
+          headingLevel="h2"
+          title="We couldn’t load the Playground"
+          message={props.loadError}
+          onRetry={props.onRetry}
+        />
+      ) : (
+        <>
+          <PlaygroundToolbar
             mode={props.mode}
-            question={props.question}
-            running={props.running}
-            canTest={props.canTest}
-            onQuestionChange={props.onQuestionChange}
-            onSubmit={props.onSubmit}
+            panel={props.panel}
+            disabled={props.running || props.saving}
+            saved={props.versions.find((version) => version.id === props.selectedVersion)}
+            dirty={props.dirty}
+            hasRun={!!props.run}
+            onModeChange={props.onModeChange}
+            onTogglePanel={props.onTogglePanel}
           />
-        </PlaygroundConversation>
-      </div>
-    </>
+          {props.loadError && <InlineError>{props.loadError}</InlineError>}
+          {props.pollError && <InlineError>{props.pollError}</InlineError>}
+          {props.error && <InlineError>{props.error}</InlineError>}
+          <Notice>{props.notice}</Notice>
+          <div className="flex min-w-0 flex-col gap-6 desktop:min-h-0 desktop:flex-1 desktop:flex-row">
+            <PlaygroundConversation
+              projectId={props.projectId}
+              mode={props.mode}
+              run={props.run}
+              retrievalResult={props.retrievalResult}
+              busy={props.running}
+              loading={props.loading}
+              hasIndexes={props.indexes.length > 0}
+              onCitation={props.onCitation}
+              onInspect={props.onInspectPassage}
+            >
+              <QuestionComposer
+                mode={props.mode}
+                question={props.question}
+                running={props.running}
+                canTest={props.canTest}
+                onQuestionChange={props.onQuestionChange}
+                onSubmit={props.onSubmit}
+              />
+            </PlaygroundConversation>
+            <PlaygroundSidePanel
+              open={!!props.panel}
+              title={panelTitle(props.panel, props.mode)}
+              onClose={props.onClosePanel}
+            >
+              {props.panel === 'settings' &&
+                (props.mode === 'pipeline' ? (
+                  <PipelineTestSettings
+                    pipelines={props.pipelines}
+                    versions={props.versions}
+                    indexes={props.indexes}
+                    options={props.options}
+                    pipelineId={props.selectedPipeline}
+                    versionId={props.selectedVersion}
+                    draft={props.draft}
+                    dirty={props.dirty}
+                    disabled={props.running || props.saving || props.versionsLoading}
+                    errors={props.draftErrors}
+                    onPipeline={props.onPipeline}
+                    onVersion={props.onVersion}
+                    onChange={props.onDraftChange}
+                    onSave={props.onSave}
+                    onReset={props.onReset}
+                  />
+                ) : (
+                  <RetrievalTestSettings
+                    indexes={props.indexes}
+                    indexId={props.indexId}
+                    retrieval={props.retrieval}
+                    disabled={props.running}
+                    onIndexChange={props.onIndex}
+                    onChange={props.onRetrievalChange}
+                  />
+                ))}
+              {props.panel === 'history' && (
+                <RunHistory
+                  runs={props.runs}
+                  total={props.total}
+                  offset={props.offset}
+                  running={props.running}
+                  onRefresh={props.onRefreshHistory}
+                  onPage={props.onHistoryPage}
+                  onSelect={props.onRunSelect}
+                />
+              )}
+              {props.run && (props.panel === 'sources' || props.panel === 'details') && (
+                <div className="flex flex-col gap-4 p-4">
+                  <div
+                    className="grid grid-cols-2 gap-1 rounded-control border border-border bg-background p-1"
+                    role="group"
+                    aria-label="Inspection view"
+                  >
+                    {(
+                      [
+                        ['sources', 'Sources'],
+                        ['details', 'Answer details'],
+                      ] as const
+                    ).map(([value, label]) => (
+                      <Button
+                        key={value}
+                        variant="ghost"
+                        size="sm"
+                        className="text-foreground-muted aria-pressed:bg-surface-hover aria-pressed:text-foreground"
+                        aria-pressed={props.panel === value}
+                        onClick={() => props.onPanelChange(value)}
+                      >
+                        {label}
+                      </Button>
+                    ))}
+                  </div>
+                  <RunInspector
+                    run={props.run}
+                    mode={props.panel}
+                    sourceLabel={props.sourceLabel}
+                    focusRequest={props.focusRequest}
+                  />
+                </div>
+              )}
+              {props.panel === 'retrieval' && props.selectedPassage && (
+                <RetrievalInspector item={props.selectedPassage} />
+              )}
+            </PlaygroundSidePanel>
+          </div>
+        </>
+      )}
+    </div>
   );
 }

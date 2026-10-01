@@ -1,5 +1,15 @@
 import { KeyRound, Plus, RefreshCw, RotateCcw, ShieldCheck } from 'lucide-react';
 import { useEffect, useState, type FormEvent } from 'react';
+import {
+  CARD,
+  InlineError,
+  LINK,
+  LIST,
+  LIST_ROW,
+  SELECT_ROW,
+  SectionHeading,
+} from '../../components/parts';
+import { LoadingState } from '../../components/states/LoadingState';
 import { StatusBadge } from '../../components/StatusBadge';
 import { Alert, AlertDescription, AlertTitle } from '../../components/ui/alert';
 import { Button } from '../../components/ui/button';
@@ -8,6 +18,7 @@ import { Label } from '../../components/ui/label';
 import { NativeSelect, NativeSelectOption } from '../../components/ui/native-select';
 import { allPages } from '../../lib/pagination';
 import { docsHref } from '../../lib/docs';
+import { cn } from '../../lib/utils';
 import * as api from './api';
 import type { ConnectionKind, ConnectionSettings, Credentials, SourceConnection } from './model';
 
@@ -78,7 +89,7 @@ function CredentialFields({
           <Input {...field('secretKey')} type="password" autoComplete="new-password" required />
         </Label>
         <Label>
-          Session token <span className="quiet-label">Optional</span>
+          Session token <span className="font-normal">(optional)</span>
           <Input {...field('sessionToken')} type="password" autoComplete="new-password" />
         </Label>
       </>
@@ -145,7 +156,10 @@ function ConnectionForm({
   }
 
   return (
-    <form className="connection-form grid gap-4" onSubmit={(event) => void submit(event)}>
+    <form
+      className="flex flex-col gap-4 [&>label]:mb-0 [&>label>input]:mt-2 [&>label>[data-slot=native-select-wrapper]]:mt-2"
+      onSubmit={(event) => void submit(event)}
+    >
       {mode === 'create' ? (
         <>
           <Label>
@@ -176,17 +190,15 @@ function ConnectionForm({
           </Label>
         </>
       ) : (
-        <p>Replace every credential field for this {labels[selectedKind]} connection.</p>
+        <p className="text-sm text-foreground-muted">
+          Replace every credential field for this {labels[selectedKind]} connection.
+        </p>
       )}
       <CredentialFields kind={selectedKind} draft={draft} setDraft={setDraft} />
-      <div className="flex flex-wrap gap-2">
-        <Button type="submit" disabled={busy}>
-          {mode === 'create' ? <Plus /> : <RotateCcw />}
-          {busy
-            ? 'Submitting…'
-            : mode === 'create'
-              ? 'Save encrypted connection'
-              : 'Rotate credentials'}
+      <div className="flex flex-col gap-2 md:flex-row-reverse md:justify-end">
+        <Button type="submit" loading={busy} disabled={busy}>
+          {mode === 'create' ? <Plus aria-hidden="true" /> : <RotateCcw aria-hidden="true" />}
+          {mode === 'create' ? 'Save encrypted connection' : 'Rotate credentials'}
         </Button>
         <Button type="button" variant="ghost" onClick={onCancel} disabled={busy}>
           Cancel
@@ -268,130 +280,154 @@ export function ConnectionVault({
   }
 
   return (
-    <div className="connection-vault grid grid-cols-[minmax(240px,0.8fr)_minmax(300px,1.2fr)] gap-8">
-      <div>
-        <div className="section-heading flex items-center justify-between gap-3">
-          <div>
-            <h3>Saved connections</h3>
-            <p>
+    <div className="grid gap-6 desktop:grid-cols-3">
+      <div className="flex min-w-0 flex-col gap-4">
+        <SectionHeading
+          title="Saved connections"
+          description={
+            <>
               {items.length} encrypted connection{items.length === 1 ? '' : 's'}
-            </p>
-            <a href={docsHref('ingestion/connections')} target="_blank" rel="noopener noreferrer">
-              Source connection guide
-            </a>
-            <a href={docsHref('operate/security')} target="_blank" rel="noopener noreferrer">
-              Credential security boundary
-            </a>
-          </div>
-          <Button variant="outline" onClick={() => setForm('create')} disabled={busy}>
-            <Plus /> Add connection
-          </Button>
+            </>
+          }
+          action={
+            <Button variant="outline" size="sm" onClick={() => setForm('create')} disabled={busy}>
+              <Plus aria-hidden="true" /> Add connection
+            </Button>
+          }
+        />
+        <div className="flex flex-wrap gap-x-4">
+          <a
+            className={LINK}
+            href={docsHref('ingestion/connections')}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Source connection guide
+          </a>
+          <a
+            className={LINK}
+            href={docsHref('operate/security')}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Credential security boundary
+          </a>
         </div>
-        {loading && <p role="status">Loading encrypted connections…</p>}
+        {loading && <LoadingState label="Loading encrypted connections…" rows={2} />}
         {!loading && !items.length && (
-          <p className="inline-empty">No credentials are stored for this project.</p>
-        )}
-        <ul
-          className="connection-list compact-list m-0 list-none p-0"
-          aria-label="Source connections"
-        >
-          {items.map((item) => (
-            <li key={item.id}>
-              <button
-                type="button"
-                className={
-                  item.id === selectedId ? 'connection-choice selected' : 'connection-choice'
-                }
-                aria-pressed={item.id === selectedId}
-                onClick={() => {
-                  setSelectedId(item.id);
-                  setForm('');
-                }}
-              >
-                <span>
-                  <strong>{item.name}</strong>
-                  <small>
-                    {labels[item.kind]} · {item.redacted_summary.join(' · ')}
-                  </small>
-                </span>
-                <StatusBadge status={item.status}>{item.status}</StatusBadge>
-              </button>
-            </li>
-          ))}
-        </ul>
-      </div>
-      <div className="connection-detail">
-        {error && (
-          <p role="alert" className="error-message">
-            {error}
+          <p className={cn(CARD, 'p-4 text-sm text-foreground-muted')}>
+            No credentials are stored for this project.
           </p>
         )}
-        {form === 'create' ? (
-          <>
-            <h3>Add an encrypted connection</h3>
-            <p>Credentials are submitted once and replaced by redacted metadata.</p>
-            <ConnectionForm
-              mode="create"
-              busy={busy}
-              onCancel={() => setForm('')}
-              onSubmit={async (name, _kind, value) =>
-                action(() => api.createConnection(projectId, name, value))
-              }
-            />
-          </>
-        ) : selected ? (
-          <>
-            <div className="connection-identity flex items-start justify-between gap-4">
-              <div>
-                <h3>{selected.name}</h3>
-                <p>
-                  {labels[selected.kind]} · {selected.redacted_summary.join(' · ')}
-                </p>
-              </div>
-              <ShieldCheck aria-hidden="true" />
-            </div>
-            {selected.last_error && <p className="field-hint">{selected.last_error}</p>}
-            {selected.last_tested_at && (
-              <p className="field-hint">
-                Last checked {new Date(selected.last_tested_at).toLocaleString()}
-              </p>
-            )}
-            {form === 'rotate' ? null : (
-              <div className="flex flex-wrap gap-2 mt-5">
-                <Button
-                  onClick={() => void action(() => api.testConnection(projectId, selected.id))}
-                  disabled={busy}
-                >
-                  <RefreshCw /> {busy ? 'Checking…' : 'Test connection'}
-                </Button>
-                <Button variant="outline" onClick={() => setForm('rotate')} disabled={busy}>
-                  <RotateCcw /> Rotate credentials
-                </Button>
+        {items.length > 0 && (
+          <ul className={LIST} aria-label="Source connections">
+            {items.map((item) => (
+              <li key={item.id} className={LIST_ROW}>
                 <Button
                   variant="ghost"
-                  onClick={() => void action(() => api.rewrapConnection(projectId, selected.id))}
-                  disabled={busy}
+                  className={cn(SELECT_ROW, 'rounded-none')}
+                  aria-pressed={item.id === selectedId}
+                  onClick={() => {
+                    setSelectedId(item.id);
+                    setForm('');
+                  }}
                 >
-                  <KeyRound /> Re-encrypt with active key
+                  <span className="flex items-center justify-between gap-2">
+                    <strong className="min-w-0 text-sm font-medium wrap-anywhere">
+                      {item.name}
+                    </strong>
+                    <StatusBadge status={item.status}>{item.status}</StatusBadge>
+                  </span>
+                  <small className="text-xs font-normal text-foreground-muted wrap-anywhere">
+                    {labels[item.kind]} · {item.redacted_summary.join(' · ')}
+                  </small>
                 </Button>
-              </div>
-            )}
-            {form === 'rotate' && (
-              <ConnectionForm
-                mode="rotate"
-                kind={selected.kind}
-                busy={busy}
-                onCancel={() => setForm('')}
-                onSubmit={async (_name, _kind, value) =>
-                  action(() => api.rotateConnection(projectId, selected.id, value))
-                }
-              />
-            )}
-          </>
-        ) : (
-          <div className="inline-empty">Select a connection to inspect its safe metadata.</div>
+              </li>
+            ))}
+          </ul>
         )}
       </div>
+      {(form || items.length > 0 || error) && (
+        <div className={cn(CARD, 'flex min-w-0 flex-col gap-4 p-4 md:p-6 desktop:col-span-2')}>
+          {error && <InlineError>{error}</InlineError>}
+          {form === 'create' ? (
+            <>
+              <SectionHeading
+                title="Add an encrypted connection"
+                description="Credentials are submitted once and replaced by redacted metadata."
+              />
+              <ConnectionForm
+                mode="create"
+                busy={busy}
+                onCancel={() => setForm('')}
+                onSubmit={async (name, _kind, value) =>
+                  action(() => api.createConnection(projectId, name, value))
+                }
+              />
+            </>
+          ) : selected ? (
+            <>
+              <SectionHeading
+                title={
+                  <>
+                    <ShieldCheck aria-hidden="true" />
+                    {selected.name}
+                  </>
+                }
+                description={
+                  <>
+                    {labels[selected.kind]} · {selected.redacted_summary.join(' · ')}
+                  </>
+                }
+              />
+              {selected.last_error && (
+                <p className="text-sm text-foreground-muted wrap-anywhere">{selected.last_error}</p>
+              )}
+              {selected.last_tested_at && (
+                <p className="text-xs text-foreground-muted">
+                  Last checked {new Date(selected.last_tested_at).toLocaleString()}
+                </p>
+              )}
+              {form === 'rotate' ? null : (
+                <div className="flex flex-col gap-2 md:flex-row-reverse md:justify-end">
+                  <Button
+                    loading={busy}
+                    onClick={() => void action(() => api.testConnection(projectId, selected.id))}
+                    disabled={busy}
+                  >
+                    <RefreshCw aria-hidden="true" /> Test connection
+                  </Button>
+                  <Button variant="outline" onClick={() => setForm('rotate')} disabled={busy}>
+                    <RotateCcw aria-hidden="true" /> Rotate credentials
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    onClick={() => void action(() => api.rewrapConnection(projectId, selected.id))}
+                    disabled={busy}
+                  >
+                    <KeyRound aria-hidden="true" /> Re-encrypt with active key
+                  </Button>
+                </div>
+              )}
+              {form === 'rotate' && (
+                <ConnectionForm
+                  mode="rotate"
+                  kind={selected.kind}
+                  busy={busy}
+                  onCancel={() => setForm('')}
+                  onSubmit={async (_name, _kind, value) =>
+                    action(() => api.rotateConnection(projectId, selected.id, value))
+                  }
+                />
+              )}
+            </>
+          ) : (
+            <p className="text-sm text-foreground-muted">
+              Select a connection to inspect its safe metadata.
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }

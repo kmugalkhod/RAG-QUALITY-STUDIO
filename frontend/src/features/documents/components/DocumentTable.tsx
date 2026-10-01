@@ -14,6 +14,11 @@ import { Label } from '../../../components/ui/label';
 import { NativeSelect, NativeSelectOption } from '../../../components/ui/native-select';
 import { StatusBadge } from '../../../components/StatusBadge';
 import { Pagination } from '../../../components/Pagination';
+import { EmptyState } from '../../../components/states/EmptyState';
+import { ErrorState } from '../../../components/states/ErrorState';
+import { LoadingState } from '../../../components/states/LoadingState';
+import { cn } from '../../../lib/utils';
+import { InlineError, LIST, LIST_ROW, META, SectionHeading } from '../../../components/parts';
 import { active, bytes, date } from '../documentPresentation';
 import type { Document } from '../model';
 
@@ -146,16 +151,17 @@ export function DocumentTable({
   }
 
   return (
-    <section className="document-library" aria-labelledby="documents-title">
-      <div className="document-library-heading">
-        <div>
-          <h2 ref={heading} tabIndex={-1} id="documents-title">
-            Your documents
-          </h2>
-          <p>Each source appears once, with its latest preparation state and next action.</p>
-        </div>
-        <div className="document-library-controls">
-          <div className="document-sort-control">
+    <section className="flex flex-col gap-4" aria-labelledby="documents-title">
+      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+        <SectionHeading
+          id="documents-title"
+          level="h2"
+          headingRef={heading}
+          title="Your documents"
+          description="Each source appears once, with its latest preparation state and next action."
+        />
+        <div className="flex items-end gap-2">
+          <div className="flex min-w-0 flex-1 flex-col md:flex-none">
             <Label htmlFor="document-sort">Sort by date and time</Label>
             <NativeSelect
               id="document-sort"
@@ -167,93 +173,97 @@ export function DocumentTable({
               <NativeSelectOption value="oldest">Oldest added</NativeSelectOption>
             </NativeSelect>
           </div>
-          <Button variant="outline" onClick={onRefresh} disabled={loading}>
-            <RotateCw />
+          <Button variant="outline" size="sm" onClick={onRefresh} disabled={loading}>
+            <RotateCw aria-hidden="true" />
             Refresh
           </Button>
         </div>
       </div>
-      {error && (
-        <div role="alert" className="inline-error document-library-error">
-          <p>{error}</p>
-          <Button variant="outline" size="sm" onClick={onRefresh}>
-            Retry
-          </Button>
-        </div>
-      )}
-      {!groups && !error ? (
-        <p role="status" className="document-loading">
-          <LoaderCircle /> Loading documents…
-        </p>
-      ) : groups?.length === 0 ? (
-        <div className="empty-state document-empty">
-          <div className="document-empty-mark" aria-hidden="true">
-            <FileText size={22} />
-          </div>
-          <div>
-            <h3>No documents yet</h3>
-            <p>
-              Add a supported document. You can inspect its extracted passages before publishing a
-              searchable collection.
-            </p>
-          </div>
-          <Button onClick={onAdd}>Add your first document</Button>
-        </div>
+      {error && groups && <InlineError onRetry={onRefresh}>{error}</InlineError>}
+      {!groups ? (
+        error ? (
+          <ErrorState title="Documents couldn’t be loaded" message={error} onRetry={onRefresh} />
+        ) : (
+          <LoadingState label="Loading documents…" />
+        )
+      ) : groups.length === 0 ? (
+        <EmptyState
+          icon={<FileText />}
+          title="No documents yet"
+          headingLevel="h3"
+          description="Add a supported document. You can inspect its extracted passages before publishing a searchable collection."
+          action={
+            <Button variant="outline" onClick={onAdd}>
+              Add your first document
+            </Button>
+          }
+        />
       ) : (
-        <ul className="document-list" aria-label="Documents">
-          {groups?.map(({ document, uploadCount, createdAt }) => {
+        <ul className={LIST} aria-label="Documents">
+          {groups.map(({ document, uploadCount, createdAt }) => {
             const view = presentation(document);
             const Icon = view.icon;
+            const running = active(document.latest_run);
+            const isSelected = selectedId === document.id;
             return (
               <li
                 key={document.content_hash || document.id}
-                data-selected={selectedId === document.id}
+                data-selected={isSelected}
+                className={cn(
+                  LIST_ROW,
+                  'flex flex-col gap-3 px-4 py-3 md:flex-row md:items-center md:gap-4',
+                  isSelected && 'bg-surface-hover',
+                )}
               >
-                <div className="document-file-mark" aria-hidden="true">
-                  <Icon className={active(document.latest_run) ? 'is-spinning' : ''} />
-                </div>
-                <div className="document-card-main">
-                  <Button
-                    variant="ghost"
-                    className="document-name"
-                    onClick={() => onSelect(document)}
+                <div className="flex min-w-0 flex-1 items-start gap-3">
+                  <span
+                    aria-hidden="true"
+                    className="flex size-control-md shrink-0 items-center justify-center rounded-control border border-border text-foreground-subtle"
                   >
-                    {document.filename}
-                  </Button>
-                  <p className="document-file-meta">
-                    {bytes(document.size_bytes)} · added{' '}
-                    <time dateTime={createdAt}>{date(createdAt)}</time>
-                    {uploadCount > 1 ? ` · ${uploadCount} identical uploads consolidated` : ''}
-                  </p>
-                  {document.latest_run?.error && (
-                    <p className="document-inline-error">{document.latest_run.error}</p>
-                  )}
+                    <Icon className={cn('size-4', running && 'motion-safe:animate-spin')} />
+                  </span>
+                  <div className="flex min-w-0 flex-1 flex-col items-start">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="-ml-2 max-w-full justify-start font-semibold"
+                      onClick={() => onSelect(document)}
+                    >
+                      <span className="truncate">{document.filename}</span>
+                    </Button>
+                    <p className={META}>
+                      {bytes(document.size_bytes)} · added{' '}
+                      <time dateTime={createdAt}>{date(createdAt)}</time>
+                      {uploadCount > 1 ? ` · ${uploadCount} identical uploads consolidated` : ''}
+                    </p>
+                    {document.latest_run?.error && (
+                      <p className="text-xs text-danger wrap-anywhere">
+                        {document.latest_run.error}
+                      </p>
+                    )}
+                  </div>
                 </div>
-                <div className="document-readiness">
+                <div className="flex min-w-0 flex-col items-start gap-1 md:w-1/4 md:shrink-0">
                   <StatusBadge status={view.status}>{view.label}</StatusBadge>
-                  <p>{view.detail}</p>
+                  <p className={META}>{view.detail}</p>
                 </div>
-                <div className="document-row-actions">
+                <div className="flex shrink-0 items-center gap-2 max-md:*:flex-1">
                   <Button
-                    variant={document.latest_run?.status === 'succeeded' ? 'outline' : 'default'}
-                    className="document-next-action"
+                    variant="outline"
+                    size="sm"
                     onClick={() => onSelect(document)}
                     aria-label={`${view.action}: ${document.filename}`}
                   >
-                    {view.action} <ArrowRight />
+                    {view.action} <ArrowRight aria-hidden="true" />
                   </Button>
                   <Button
-                    variant="outline"
-                    className="document-delete-action"
-                    disabled={deletingId === document.id}
+                    variant="ghost"
+                    size="sm"
+                    loading={deletingId === document.id}
                     onClick={() => onDelete(document, uploadCount)}
                     aria-label={`Delete document: ${document.filename}`}
                   >
-                    {deletingId === document.id ? (
-                      <LoaderCircle className="is-spinning" />
-                    ) : (
-                      <Trash2 />
-                    )}
+                    <Trash2 aria-hidden="true" />
                     {deletingId === document.id ? 'Deleting…' : 'Delete'}
                   </Button>
                 </div>

@@ -1,140 +1,103 @@
-import { Button } from '../components/ui/button';
 import { NativeSelect, NativeSelectOption } from '../components/ui/native-select';
 import { Label } from '../components/ui/label';
-import { BookOpen, Folder, Layers3, Menu, X } from 'lucide-react';
-import type { Dispatch, SetStateAction } from 'react';
+import { BookOpen, Folder, Layers3 } from 'lucide-react';
 import type { Project } from '../features/projects/api';
-import { pages } from './pages';
+import { cn } from '../lib/utils';
+import { pageHref, pages } from './pages';
 import { docsHref } from '../lib/docs';
+
 type WorkspaceSidebarProps = {
   projectId?: string;
   page: string;
   current?: Project;
   projects: Project[];
-  mobile: boolean;
-  setMobile: Dispatch<SetStateAction<boolean>>;
 };
-export function WorkspaceSidebar({
-  projectId,
-  page,
-  current,
-  projects,
-  mobile,
-  setMobile,
-}: WorkspaceSidebarProps) {
-  const base = `#/projects/${projectId}`;
+
+const NAV_LINK =
+  'flex h-row items-center gap-3 rounded-control px-3 text-sm outline-none hover:bg-surface-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent';
+
+function navLinkClass(active: boolean) {
+  return cn(
+    NAV_LINK,
+    active ? 'bg-surface-hover font-medium text-foreground' : 'text-foreground-muted',
+  );
+}
+
+// Spec 0002, AC-5. The 224px desktop sidebar; below 768px the bottom tab bar replaces it.
+export function WorkspaceSidebar({ projectId, page, current, projects }: WorkspaceSidebarProps) {
   return (
-    <aside
-      className={`sidebar border-r flex flex-col shrink-0 bg-secondary sticky top-0 h-dvh w-54 border-border py-5 px-3 ${mobile ? 'sidebar-open' : ''}`}
-      onKeyDown={(e) => {
-        if (e.key === 'Escape') {
-          setMobile(false);
-          document.querySelector<HTMLButtonElement>('.mobile-toggle')?.focus();
-        }
-      }}
-    >
+    <aside className="sticky top-0 hidden h-dvh w-sidebar shrink-0 flex-col gap-6 border-r border-border bg-surface p-4 md:flex">
       <a
-        className="brand flex gap-2.5 items-center text-[15px] font-semibold leading-snug py-0 px-2"
+        className="flex h-control-md items-center gap-2 rounded-control px-2 text-sm font-semibold text-foreground outline-none focus-visible:outline-2 focus-visible:outline-accent"
         href="#/"
         aria-label="RAG Quality Studio home"
       >
-        <Layers3 size={27} />
+        <Layers3 aria-hidden="true" className="size-(--icon-lg) text-accent" />
         <span>
-          RAG Quality
-          <span className="brand-secondary block font-normal text-xs text-muted-foreground mt-0.25">
-            Studio
-          </span>
+          RAG Quality <span className="font-normal text-foreground-muted">Studio</span>
         </span>
       </a>
-      <Button
-        variant="ghost"
-        size="icon"
-        className="mobile-toggle hidden max-[760px]:inline-flex icon-button p-1.25 border-0 bg-transparent items-center justify-center text-muted-foreground rounded-sm min-w-7.5 min-h-7.5"
-        aria-label={mobile ? 'Close navigation' : 'Open navigation'}
-        aria-expanded={mobile}
-        aria-controls="workspace-navigation"
-        onClick={() => setMobile((v) => !v)}
-      >
-        {mobile ? <X /> : <Menu />}
-      </Button>
-      <div id="workspace-navigation" className="sidebar-content flex flex-col flex-1 min-h-0">
-        <Label className="project-switcher block text-muted-foreground mt-6 mx-1.5 mb-0 text-xs font-medium">
-          Project
-          <NativeSelect
-            aria-label="Switch project"
-            value={projectId || ''}
-            onChange={(e) => {
-              const destination = e.target.value;
-              window.location.hash = destination
-                ? ((page === 'knowledge-base' || page === 'playground' || page === 'pipelines') &&
-                    sessionStorage.getItem(`${page}:${destination}`)) ||
-                  `/projects/${destination}/${pages.some((p) => p[0] === page) ? page : 'overview'}`
-                : '/';
-            }}
-          >
-            <NativeSelectOption value="">All projects</NativeSelectOption>
-            {current && !projects.some((p) => p.id === current.id) && (
-              <NativeSelectOption value={current.id}>{current.name}</NativeSelectOption>
-            )}
-            {projects.map((p) => (
-              <NativeSelectOption key={p.id} value={p.id}>
-                {p.name}
-              </NativeSelectOption>
-            ))}
-          </NativeSelect>
-        </Label>
-        <nav aria-label="Project navigation">
-          {projectId ? (
-            pages.map(([path, label, Icon]) => (
-              <a
-                key={path}
-                href={
-                  path === 'playground' || path === 'knowledge-base' || path === 'pipelines'
-                    ? sessionStorage.getItem(`${path}:${projectId}`) || `${base}/${path}`
-                    : `${base}/${path}`
-                }
-                className={
-                  page === path
-                    ? 'nav-active flex items-center gap-3 p-3 bg-sidebar-accent rounded-md text-sm font-semibold'
-                    : ''
-                }
-                aria-current={page === path ? 'page' : undefined}
-              >
-                <Icon size={18} />
-                {label}
-              </a>
-            ))
-          ) : (
-            <a
-              href="#/"
-              className="nav-active flex items-center gap-3 p-3 bg-sidebar-accent rounded-md text-sm font-semibold"
-              aria-current="page"
-            >
-              <Folder size={18} />
-              Projects
-            </a>
+      <div>
+        <Label htmlFor="workspace-project">Project</Label>
+        <NativeSelect
+          id="workspace-project"
+          aria-label="Switch project"
+          value={projectId || ''}
+          onChange={(e) => {
+            const destination = e.target.value;
+            const samePage = pages.find((p) => p[0] === page)?.[0];
+            window.location.hash = destination
+              ? pageHref(destination, samePage ?? 'overview').replace(/^#/, '')
+              : '/';
+          }}
+        >
+          <NativeSelectOption value="">All projects</NativeSelectOption>
+          {current && !projects.some((p) => p.id === current.id) && (
+            <NativeSelectOption value={current.id}>{current.name}</NativeSelectOption>
           )}
-        </nav>
+          {projects.map((p) => (
+            <NativeSelectOption key={p.id} value={p.id}>
+              {p.name}
+            </NativeSelectOption>
+          ))}
+        </NativeSelect>
+      </div>
+      <nav aria-label="Project navigation" className="flex flex-col gap-1">
+        {projectId ? (
+          pages.map(([path, label, Icon]) => (
+            <a
+              key={path}
+              href={pageHref(projectId, path)}
+              className={navLinkClass(page === path)}
+              aria-current={page === path ? 'page' : undefined}
+            >
+              <Icon aria-hidden="true" className="size-4" />
+              {label}
+            </a>
+          ))
+        ) : (
+          <a href="#/" className={navLinkClass(true)} aria-current="page">
+            <Folder aria-hidden="true" className="size-4" />
+            Projects
+          </a>
+        )}
+      </nav>
+      <div className="mt-auto flex flex-col gap-1 border-t border-border pt-4">
         {projectId && (
-          <a
-            className="all-projects-link text-xs no-underline underline-offset-4 text-muted-foreground my-6 mx-2.5"
-            href="#/"
-          >
+          <a href="#/" className={navLinkClass(false)}>
+            <Folder aria-hidden="true" className="size-4" />
             Manage projects
           </a>
         )}
         <a
-          className="all-projects-link text-xs no-underline underline-offset-4 text-muted-foreground my-2 mx-2.5 flex items-center gap-2"
+          className={navLinkClass(false)}
           href={docsHref('start')}
           target="_blank"
           rel="noopener noreferrer"
         >
-          <BookOpen size={15} /> Help &amp; documentation
+          <BookOpen aria-hidden="true" className="size-4" />
+          Help &amp; documentation
         </a>
-        <div className="sidebar-note mt-auto text-muted-foreground text-xs py-3 px-2.25">
-          <span className="local-dot inline-block w-1.5 h-1.5 rounded-full bg-muted-foreground mr-1.75" />
-          Project workspace<p>Sources → pipelines → grounded answers.</p>
-        </div>
       </div>
     </aside>
   );

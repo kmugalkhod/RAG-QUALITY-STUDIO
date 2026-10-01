@@ -22,25 +22,24 @@ export function RetrievalTestSettings({
   onChange,
 }: RetrievalTestSettingsProps) {
   return (
-    <div className="retrieval-test-settings">
-      <h2>Retrieval settings</h2>
-      <fieldset disabled={disabled}>
-        <Label>
-          Documents to search
-          <NativeSelect value={indexId} onChange={(event) => onIndexChange(event.target.value)}>
-            <NativeSelectOption value="">Choose prepared documents</NativeSelectOption>
-            {indexes.map((index) => (
-              <NativeSelectOption key={index.id} value={index.id}>
-                {formatIndexOption(index)}
-              </NativeSelectOption>
-            ))}
-          </NativeSelect>
-        </Label>
-        <RetrievalSettingsForm value={retrieval} onChange={onChange} />
-        <p className="field-hint text-[11px] text-muted-foreground mt-2 leading-relaxed">
-          This test does not call an answer model.
-        </p>
-      </fieldset>
-    </div>
+    <fieldset disabled={disabled} className="flex min-w-0 flex-col gap-3 p-4">
+      <Label>
+        Documents to search
+        <NativeSelect
+          className="mt-2"
+          value={indexId}
+          onChange={(event) => onIndexChange(event.target.value)}
+        >
+          <NativeSelectOption value="">Choose prepared documents</NativeSelectOption>
+          {indexes.map((index) => (
+            <NativeSelectOption key={index.id} value={index.id}>
+              {formatIndexOption(index)}
+            </NativeSelectOption>
+          ))}
+        </NativeSelect>
+      </Label>
+      <RetrievalSettingsForm value={retrieval} onChange={onChange} />
+      <p className="text-xs text-foreground-muted">This test does not call an answer model.</p>
+    </fieldset>
   );
 }

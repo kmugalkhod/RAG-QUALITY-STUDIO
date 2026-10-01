@@ -7,14 +7,11 @@ import {
   TableHeader,
   TableRow,
 } from '../../../components/ui/table';
+import { TABLE_REGION } from './parts';
 
 export function Questions({ rows }: { rows: Row[] }) {
   return (
-    <div
-      className="experiment-table max-h-120 overflow-auto my-4"
-      tabIndex={0}
-      aria-label="Dataset questions"
-    >
+    <div className={TABLE_REGION} tabIndex={0} aria-label="Dataset questions">
       <Table>
         <TableHeader>
           <TableRow>
@@ -25,8 +22,8 @@ export function Questions({ rows }: { rows: Row[] }) {
         <TableBody>
           {rows.map((r, i) => (
             <TableRow key={i}>
-              <TableCell>{r.question}</TableCell>
-              <TableCell>
+              <TableCell className="py-3 align-top whitespace-normal">{r.question}</TableCell>
+              <TableCell className="py-3 align-top whitespace-normal text-foreground-muted">
                 {r.reference_answer || 'No reference — context recall unavailable'}
               </TableCell>
             </TableRow>

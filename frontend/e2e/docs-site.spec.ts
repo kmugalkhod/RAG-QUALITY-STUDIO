@@ -151,25 +151,35 @@ test('operator procedures, diagrams, screenshot alternatives and limits work on 
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto(`${docs}/docs/operate/deploy/`);
   await expect(page.getByRole('heading', { name: 'Deploy the local workspace' })).toBeVisible();
-  await expect(page.getByRole('img', { name: /local API and worker share PostgreSQL/ })).toBeVisible();
+  await expect(
+    page.getByRole('img', { name: /local API and worker share PostgreSQL/ }),
+  ).toBeVisible();
   expect((await page.request.get(`${docs}/img/deploy-boundary.svg`)).status()).toBe(200);
   await page.goto(`${docs}/docs/operate/security/`);
   await expect(page.getByRole('heading', { name: 'Security and permissions' })).toBeVisible();
-  await expect(page.getByRole('img', { name: /Local loopback requests and configured OIDC/ })).toBeVisible();
+  await expect(
+    page.getByRole('img', { name: /Local loopback requests and configured OIDC/ }),
+  ).toBeVisible();
   await page.goto(`${docs}/docs/operate/backup-restore/`);
-  await expect(page.getByRole('heading', { name: 'Back up and restore a workspace' })).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: 'Back up and restore a workspace' }),
+  ).toBeVisible();
   await expect(page.getByRole('img', { name: /Pause writers, capture PostgreSQL/ })).toBeVisible();
   await page.goto(`${docs}/docs/operate/operations/`);
   await expect(page.getByRole('heading', { name: 'Operate jobs and storage' })).toBeVisible();
   await expect(page.getByRole('img', { name: /Jobs move from queued to running/ })).toBeVisible();
   await page.goto(`${docs}/docs/operate/troubleshooting/`);
-  await expect(page.getByRole('heading', { name: 'Troubleshoot a blocked workflow' })).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: 'Troubleshoot a blocked workflow' }),
+  ).toBeVisible();
   for (const image of ['17-provider-unavailable.png', '18-provider-unavailable-mobile.png']) {
     expect((await page.request.get(`${docs}/img/screenshots/${image}`)).status()).toBe(200);
   }
   expect(await page.locator('img:not([alt])').count()).toBe(0);
   await page.getByRole('textbox', { name: 'Search' }).fill('Back up and restore a workspace');
-  await expect(page.getByRole('option', { name: /Back up and restore a workspace/ }).first()).toBeVisible();
+  await expect(
+    page.getByRole('option', { name: /Back up and restore a workspace/ }).first(),
+  ).toBeVisible();
   await page.goto(`${docs}/docs/reference/limits-faq/`);
   await expect(page.getByRole('heading', { name: 'Limits and FAQ' })).toBeVisible();
   await page.screenshot({ path: 'test-results/docs-operator-desktop.png' });

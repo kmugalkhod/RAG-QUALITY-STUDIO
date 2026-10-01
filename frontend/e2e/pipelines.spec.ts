@@ -109,16 +109,19 @@ test('pipeline create configure save reopen run evidence and immutable versions'
   await page.getByRole('link', { name: 'Playground', exact: true }).click();
   await expect(page).toHaveURL(savedPlaygroundUrl);
   await page.reload();
-  await expect(page.locator('.playground-context')).toHaveText('Orchard answers · Version 1');
+  await expect(page.getByTestId('playground-context')).toHaveText('Orchard answers · Version 1');
   await page.getByLabel('Question', { exact: true }).fill('What does the orchard grow?');
   await page.getByRole('button', { name: 'Run pipeline test', exact: true }).click();
   const result = page.getByRole('region', { name: 'Query result' });
-  await expect(result.locator('.formatted-answer')).toHaveText('The orchard grows apples. [S1]', {
-    timeout: 30000,
-  });
+  await expect(result.locator('[data-slot="answer-text"]')).toHaveText(
+    'The orchard grows apples. [S1]',
+    {
+      timeout: 30000,
+    },
+  );
   await result.getByRole('button', { name: '[S1]', exact: true }).click();
   await expect(page.locator('#evidence-S1')).toBeFocused();
-  const composer = await page.locator('.playground-chat-composer').boundingBox();
+  const composer = await page.getByTestId('playground-composer').boundingBox();
   expect(composer!.y + composer!.height).toBeLessThanOrEqual(page.viewportSize()!.height);
   expect(composer!.y + composer!.height).toBeGreaterThan(page.viewportSize()!.height - 32);
   expect(await page.evaluate(() => window.scrollY)).toBe(0);
@@ -141,9 +144,11 @@ test('pipeline create configure save reopen run evidence and immutable versions'
   await page.getByLabel('Selected node').selectOption('question');
   await page.getByLabel('Selected node').selectOption('retriever');
   await expect(
-    page.locator('.react-flow__node[data-id="retriever"] .workflow-selected'),
+    page.locator(
+      '.react-flow__node[data-id="retriever"] [data-testid="node-card"][data-selected="true"]',
+    ),
   ).toBeVisible();
-  const canvas = page.locator('.pipeline-canvas');
+  const canvas = page.getByTestId('pipeline-canvas');
   const canvasBefore = (await canvas.boundingBox())!;
   expect(canvasBefore.height).toBeGreaterThan(660);
   await page.getByRole('button', { name: 'Hide settings', exact: true }).click();
@@ -155,7 +160,9 @@ test('pipeline create configure save reopen run evidence and immutable versions'
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByLabel('Selected node').selectOption('question');
   await page.getByLabel('Selected node').selectOption('retriever');
-  await page.locator('.pipeline-editor').screenshot({ path: 'test-results/pipeline-mobile.png' });
+  await page
+    .getByTestId('pipeline-editor')
+    .screenshot({ path: 'test-results/pipeline-mobile.png' });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.getByRole('button', { name: 'Duplicate pipeline', exact: true }).click();
   await expect(page.getByLabel('Pipeline name', { exact: true })).toHaveValue(

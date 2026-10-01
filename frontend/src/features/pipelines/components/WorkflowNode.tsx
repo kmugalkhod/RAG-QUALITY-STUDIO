@@ -1,51 +1,65 @@
 import { useEffect } from 'react';
 import { useUpdateNodeInternals, Position, Handle, type NodeProps, type Node } from '@xyflow/react';
 import { MessageSquare, Search, TextQuote, Cpu, CheckCheck } from 'lucide-react';
-import { getNodeRetrievalSettings, formatRetrievalSummary } from '../../../lib/retrieval';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../../../components/ui/tooltip';
+import { cn } from '../../../lib/utils';
 import type { PipelineNodeConfig } from '../model';
+import { summarizeNodeConfig } from './summarizeNodeConfig';
+
 export type FlowNode = Node<{
   label: string;
   config: PipelineNodeConfig;
   vertical: boolean;
 }>;
+
+const icons = {
+  question: MessageSquare,
+  retriever: Search,
+  prompt: TextQuote,
+  llm: Cpu,
+  answer: CheckCheck,
+};
+
+// Node card (spec 0002, AC-9): 288 by 80 in a vertical layout, 220px wide in a saved
+// horizontal layout. The selected outline sits inside the border, so nothing shifts.
 export function WorkflowNode({ id, data, selected }: NodeProps<FlowNode>) {
   const updateNodeInternals = useUpdateNodeInternals();
   useEffect(() => {
     updateNodeInternals(id);
   }, [id, data.vertical, updateNodeInternals]);
-  const c = data.config;
-  const Icon = {
-    question: MessageSquare,
-    retriever: Search,
-    prompt: TextQuote,
-    llm: Cpu,
-    answer: CheckCheck,
-  }[c.type];
-  const detail =
-    c.type === 'retriever'
-      ? `${formatRetrievalSummary(getNodeRetrievalSettings(c))} · ${c.index_id ? 'Documents selected' : 'Choose documents'}`
-      : c.type === 'llm'
-        ? c.model || 'Choose a model'
-        : c.type === 'prompt'
-          ? 'Answer with evidence'
-          : c.type === 'question'
-            ? 'User input · single turn'
-            : 'Response + citations';
+  const config = data.config;
+  const Icon = icons[config.type];
+  const summary = summarizeNodeConfig(config.type, config);
   return (
     <div
-      className={`workflow-node w-80 border border-border rounded-[10px] bg-background text-foreground h-21 flex items-center gap-4 shadow-none py-4.5 px-5.5 ${data.vertical ? 'vertical-node' : 'horizontal-node'}${selected ? ' workflow-selected border-primary outline-2 -outline-offset-1 outline-primary shadow-none' : ''}`}
+      data-testid="node-card"
+      data-selected={selected ? 'true' : 'false'}
+      className={cn(
+        'flex h-node-h items-center gap-3 rounded-control border border-border bg-surface p-4 text-foreground',
+        data.vertical ? 'w-node' : 'w-node-legacy',
+        selected && 'outline-2 -outline-offset-1 outline-accent',
+      )}
     >
-      {c.type !== 'question' && (
+      {config.type !== 'question' && (
         <Handle type="target" position={data.vertical ? Position.Top : Position.Left} />
       )}
-      <Icon className="node-symbol shrink-0 text-muted-foreground" size={22} />
-      <div className="node-copy min-w-0">
-        <strong>{data.label}</strong>
-        <div className="workflow-node-content p-0 text-xs wrap-anywhere mt-1 text-muted-foreground whitespace-nowrap overflow-hidden text-ellipsis">
-          {detail}
-        </div>
+      <Icon
+        aria-hidden="true"
+        className={cn(
+          'size-(--icon-lg) shrink-0',
+          selected ? 'text-accent' : 'text-foreground-muted',
+        )}
+      />
+      <div className="flex min-w-0 flex-col gap-1">
+        <strong className="truncate text-base font-medium">{data.label}</strong>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <p className="truncate text-xs text-foreground-muted">{summary}</p>
+          </TooltipTrigger>
+          <TooltipContent>{summary}</TooltipContent>
+        </Tooltip>
       </div>
-      {c.type !== 'answer' && (
+      {config.type !== 'answer' && (
         <Handle type="source" position={data.vertical ? Position.Bottom : Position.Right} />
       )}
     </div>

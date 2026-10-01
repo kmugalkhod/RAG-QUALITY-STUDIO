@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Plus } from 'lucide-react';
+import { PageHeader } from '../../components/PageHeader';
 import { Button } from '../../components/ui/button';
 import { listProjects, type Project, type ProjectPage } from './api';
 import { ProjectForm } from './components/ProjectForm';
@@ -15,10 +16,10 @@ function ClaimExistingProjects({ onClaimed }: { onClaimed: () => void }) {
     return null;
   }
   return (
-    <div className="mb-6">
+    <div className="flex flex-col items-start gap-2">
       <Button
         variant="outline"
-        disabled={busy}
+        loading={busy}
         onClick={async () => {
           setBusy(true);
           try {
@@ -36,7 +37,11 @@ function ClaimExistingProjects({ onClaimed }: { onClaimed: () => void }) {
       >
         Claim existing projects
       </Button>
-      {message && <p role="status">{message}</p>}
+      {message && (
+        <p role="status" className="text-sm text-foreground-muted">
+          {message}
+        </p>
+      )}
     </div>
   );
 }
@@ -98,26 +103,26 @@ export function ProjectsPage({ onCreated }: { onCreated?: () => void }) {
     formOpen && !loading && !error && page?.items.length === 0 && offset === 0;
 
   return (
-    <>
-      <div className="page-heading mb-8 flex items-start justify-between gap-6">
-        <div>
-          <h1>Projects</h1>
-          <p>Manage your sources, pipelines, and answers.</p>
-        </div>
-        <Button
-          ref={newButton}
-          onClick={() => {
-            setFormOpen(true);
-            setNotice('');
-          }}
-          disabled={formOpen}
-        >
-          <Plus />
-          New project
-        </Button>
-      </div>
+    <div className="flex flex-col gap-8">
+      <PageHeader
+        title="Projects"
+        meta="Manage your sources, pipelines, and answers."
+        action={
+          <Button
+            ref={newButton}
+            onClick={() => {
+              setFormOpen(true);
+              setNotice('');
+            }}
+            disabled={formOpen}
+          >
+            <Plus aria-hidden="true" />
+            New project
+          </Button>
+        }
+      />
       {notice && (
-        <p role="status" className="success-message">
+        <p role="status" className="text-sm font-medium text-success">
           {notice}
         </p>
       )}
@@ -142,6 +147,6 @@ export function ProjectsPage({ onCreated }: { onCreated?: () => void }) {
           onCreate={() => setFormOpen(true)}
         />
       )}
-    </>
+    </div>
   );
 }

@@ -4,7 +4,10 @@ import { ExperimentForm } from './components/ExperimentForm';
 import { ExperimentHistory } from './components/ExperimentHistory';
 import { readDraft, saveDraft, emptyDraft } from './draft';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { Button } from '../../components/ui/button';
+import { InlineError, Notice } from '../../components/parts';
+import { PageHeader } from '../../components/PageHeader';
+import { ErrorState } from '../../components/states/ErrorState';
+import { LoadingState } from '../../components/states/LoadingState';
 import { listPipelines, listPipelineVersions } from '../pipelines/api';
 import { type PipelineVersion } from '../pipelines/model';
 import { allPages } from '../../lib/pagination';
@@ -25,6 +28,7 @@ export function ExperimentsPage({
   const [history, setHistory] = useState<Experiment[]>([]);
   const [options, setOptions] = useState<Awaited<ReturnType<typeof api.getEvaluationOptions>>>();
   const [error, setError] = useState('');
+  const [loadError, setLoadError] = useState('');
   const [loading, setLoading] = useState(true);
   const [revision, setRevision] = useState(0);
   const [initial] = useState(() => readDraft(projectId));
@@ -65,7 +69,7 @@ export function ExperimentsPage({
   useEffect(() => {
     let disposed = false;
     setLoading(true);
-    setError('');
+    setLoadError('');
     void Promise.all([
       allPages((o) => api.listDatasets(projectId, o)),
       allPages((o) => api.listExperiments(projectId, o)),
@@ -89,7 +93,7 @@ export function ExperimentsPage({
       })
       .catch((e) => {
         if (!disposed) {
-          setError((e as Error).message);
+          setLoadError((e as Error).message);
         }
       })
       .finally(() => {
@@ -157,27 +161,28 @@ export function ExperimentsPage({
     return <Comparison projectId={projectId} experimentId={experimentId} />;
   }
   return (
-    <section className="experiments max-w-300 my-0 mx-auto">
-      <header className="experiment-heading flex items-center justify-between gap-5 mb-5">
-        <div>
-          <h1>Experiments</h1>
-          <p>Compare saved pipelines against the same reviewed questions.</p>
-        </div>
-      </header>
-      {error && (
-        <div role="alert">
-          {error}{' '}
-          <Button variant="outline" onClick={() => setRevision((v) => v + 1)}>
-            Retry loading
-          </Button>
-        </div>
-      )}
-      {message && <p role="status">{message}</p>}
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        title="Experiments"
+        meta="Compare saved pipelines against the same reviewed questions."
+      />
       {loading ? (
-        <p role="status">Loading datasets and saved versions…</p>
+        <LoadingState label="Loading datasets and saved versions…" rows={4} />
+      ) : loadError ? (
+        <ErrorState
+          headingLevel="h2"
+          title="We couldn’t load experiments"
+          message={loadError}
+          onRetry={() => setRevision((value) => value + 1)}
+          retryLabel="Retry loading"
+        />
       ) : (
         <>
-          <div className="experiment-setup">
+          {error && <InlineError>{error}</InlineError>}
+          <Notice>{message}</Notice>
+          {/* Stages on the left, the run summary in a 320px column on the right; below 1152px
+              the summary stacks under the stages (spec 0002 layout rules). */}
+          <div className="flex flex-col gap-4 desktop:grid desktop:grid-cols-[minmax(0,1fr)_var(--spacing-panel)] desktop:items-start desktop:gap-x-6">
             <DatasetImport
               projectId={projectId}
               datasets={datasets}
@@ -214,6 +219,6 @@ export function ExperimentsPage({
           <ExperimentHistory projectId={projectId} experiments={history} />
         </>
       )}
-    </section>
+    </div>
   );
 }

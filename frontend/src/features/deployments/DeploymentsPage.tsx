@@ -1,11 +1,18 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { ArrowLeft, Copy, KeyRound, Pause, Play, Plus, RotateCcw, ShieldCheck } from 'lucide-react';
 
+import { InlineError, Notice } from '../../components/parts';
+import { PageHeader } from '../../components/PageHeader';
+import { EmptyState } from '../../components/states/EmptyState';
+import { ErrorState } from '../../components/states/ErrorState';
+import { LoadingState } from '../../components/states/LoadingState';
+import { StatusBadge } from '../../components/StatusBadge';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { NativeSelect, NativeSelectOption } from '../../components/ui/native-select';
 import { allPages, type Page } from '../../lib/pagination';
+import { cn } from '../../lib/utils';
 import { listIndexes } from '../documents/indexApi';
 import { formatIndexOption, type IndexVersion } from '../documents/model';
 import { listPipelines, listPipelineVersions } from '../pipelines/api';
@@ -230,7 +237,7 @@ export function DeploymentsPage({ projectId, deploymentId }: Props) {
   const picker = (
     <>
       {!deployment && (
-        <div className="space-y-2">
+        <div>
           <Label htmlFor="deployment-pipeline">Answer pipeline</Label>
           <NativeSelect
             id="deployment-pipeline"
@@ -249,7 +256,7 @@ export function DeploymentsPage({ projectId, deploymentId }: Props) {
           </NativeSelect>
         </div>
       )}
-      <div className="space-y-2">
+      <div>
         <Label htmlFor="deployment-version">Saved pipeline version</Label>
         <NativeSelect
           id="deployment-version"
@@ -264,7 +271,7 @@ export function DeploymentsPage({ projectId, deploymentId }: Props) {
           ))}
         </NativeSelect>
       </div>
-      <div className="text-sm text-muted-foreground">
+      <div className="text-sm text-foreground-muted">
         {chosenVersion ? (
           <>
             <span className="block">Pinned index from this saved retriever:</span>
@@ -282,7 +289,7 @@ export function DeploymentsPage({ projectId, deploymentId }: Props) {
           'A saved version determines the exact index. To change indexes, save a new answer pipeline version.'
         )}
       </div>
-      <div className="space-y-2">
+      <div>
         <Label htmlFor="deployment-note">Release note</Label>
         <Input
           id="deployment-note"
@@ -296,36 +303,27 @@ export function DeploymentsPage({ projectId, deploymentId }: Props) {
   );
 
   return (
-    <section className="mx-auto max-w-300 space-y-7 pb-14">
-      <div className="page-heading">
-        <h1>Answer deployments</h1>
-        <p>
-          Pin a saved answer pipeline and ready index, then control when its server endpoint accepts
-          questions.
-        </p>
-      </div>
-      {error && (
-        <div
-          role="alert"
-          className="rounded-md border border-destructive p-3 text-sm text-foreground"
-        >
-          {error}{' '}
-          <Button variant="outline" onClick={() => setRevision((value) => value + 1)}>
-            Retry
-          </Button>
-        </div>
-      )}
-      {message && (
-        <p role="status" className="text-sm text-success">
-          {message}
-        </p>
-      )}
+    <section className="flex flex-col gap-6 pb-16">
+      <PageHeader
+        title="Answer deployments"
+        meta="Pin a saved answer pipeline and ready index, then control when its server endpoint accepts questions."
+      />
+      {error && !loading && !permission ? (
+        <ErrorState
+          title="We couldn’t load deployments"
+          message={error}
+          onRetry={() => setRevision((value) => value + 1)}
+        />
+      ) : error ? (
+        <InlineError onRetry={() => setRevision((value) => value + 1)}>{error}</InlineError>
+      ) : null}
+      <Notice>{message}</Notice>
       {loading ? (
-        <p role="status">Loading deployments…</p>
+        <LoadingState label="Loading deployments…" />
       ) : !permission ? null : (
-        <div className="grid gap-7 lg:grid-cols-[minmax(220px,300px)_minmax(0,1fr)]">
+        <div className="grid gap-6 desktop:grid-cols-[var(--spacing-panel)_minmax(0,1fr)]">
           <nav aria-label="Answer deployments" className="min-w-0">
-            <div className="mb-3 flex items-center justify-between">
+            <div className="mb-4 flex items-center justify-between gap-2">
               <h2 className="text-base font-semibold">Deployments</h2>
               {canManage && (
                 <Button variant="outline" size="sm" asChild>
@@ -336,15 +334,24 @@ export function DeploymentsPage({ projectId, deploymentId }: Props) {
               )}
             </div>
             {!items?.length ? (
-              <p className="text-sm text-muted-foreground">No answer deployments yet.</p>
+              <EmptyState
+                className="p-6"
+                title="No answer deployments yet"
+                description="Create one to pin a saved pipeline version behind a server endpoint."
+              />
             ) : (
-              <ul className="space-y-1">
+              <ul className="flex flex-col gap-1">
                 {items.map((item) => (
                   <li key={item.id}>
                     <a
                       href={path(projectId, item.id)}
                       aria-current={deploymentId === item.id ? 'page' : undefined}
-                      className={`block rounded-md px-3 py-2 text-sm hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring ${deploymentId === item.id ? 'bg-accent text-foreground' : 'text-muted-foreground'}`}
+                      className={cn(
+                        'flex min-h-row flex-col justify-center rounded-control px-4 py-2 text-sm outline-none hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-accent',
+                        deploymentId === item.id
+                          ? 'bg-surface-hover text-foreground'
+                          : 'text-foreground-muted',
+                      )}
                     >
                       <span className="block truncate font-medium text-foreground">
                         {item.name}
@@ -363,13 +370,15 @@ export function DeploymentsPage({ projectId, deploymentId }: Props) {
               canManage ? (
                 <form
                   onSubmit={create}
-                  className="space-y-5 rounded-xl border border-border bg-card p-5"
+                  className="flex flex-col gap-4 rounded-card border border-border bg-surface p-4 md:p-6"
                 >
-                  <h2 className="text-lg font-semibold">Create a paused deployment</h2>
-                  <p className="text-sm text-muted-foreground">
+                  <h2 className="text-base font-semibold text-foreground">
+                    Create a paused deployment
+                  </h2>
+                  <p className="text-sm text-foreground-muted">
                     Creation saves release 1. It sends no traffic until you promote it.
                   </p>
-                  <div className="space-y-2">
+                  <div>
                     <Label htmlFor="deployment-name">Deployment name</Label>
                     <Input
                       id="deployment-name"
@@ -389,50 +398,55 @@ export function DeploymentsPage({ projectId, deploymentId }: Props) {
                   </Button>
                 </form>
               ) : (
-                <p className="text-sm text-muted-foreground">
+                <p className="text-sm text-foreground-muted">
                   Only a project owner or admin can create answer deployments.
                 </p>
               )
             ) : detailLoading ? (
-              <p role="status">Loading deployment…</p>
+              <LoadingState label="Loading deployment…" />
             ) : !deployment ? null : (
-              <div className="space-y-8">
-                <div className="space-y-3">
+              <div className="flex flex-col gap-8">
+                <div className="flex flex-col items-start gap-2">
                   <Button variant="ghost" size="sm" asChild>
                     <a href={path(projectId)}>
                       <ArrowLeft /> All deployments
                     </a>
                   </Button>
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <h2 className="text-xl font-semibold">{deployment.name}</h2>
-                      <p className="text-sm text-muted-foreground capitalize">
+                  <div className="flex w-full flex-wrap items-center justify-between gap-4">
+                    <div className="flex min-w-0 flex-col gap-1">
+                      <h2 className="text-lg font-semibold text-foreground wrap-anywhere">
+                        {deployment.name}
+                      </h2>
+                      <p className="text-sm text-foreground-muted capitalize">
                         {deployment.state} · revision {deployment.revision}
                       </p>
                     </div>
-                    <span
-                      className={`rounded-full px-3 py-1 text-xs ${deployment.accepting_questions ? 'bg-[var(--status-success-bg)] text-success' : 'bg-[var(--status-neutral-bg)] text-muted-foreground'}`}
-                    >
+                    <StatusBadge status={deployment.accepting_questions ? 'succeeded' : 'uploaded'}>
                       {deployment.accepting_questions
                         ? 'Accepting questions'
                         : 'Not accepting questions'}
-                    </span>
+                    </StatusBadge>
                   </div>
-                  <p className="text-xs text-muted-foreground break-all">
+                  <p className="text-xs text-foreground-muted break-all">
                     Pipeline {deployment.pipeline_id}
                   </p>
                 </div>
 
-                <WidgetSettings projectId={projectId} deployment={deployment} canManage={canManage} onSaved={() => setRevision(value => value + 1)} />
+                <WidgetSettings
+                  projectId={projectId}
+                  deployment={deployment}
+                  canManage={canManage}
+                  onSaved={() => setRevision((value) => value + 1)}
+                />
 
-                <section aria-labelledby="release-heading" className="space-y-4">
+                <section aria-labelledby="release-heading" className="flex flex-col gap-4">
                   <h3 id="release-heading" className="text-base font-semibold">
                     Release history
                   </h3>
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-sm text-foreground-muted">
                     A saved edit or newly ready index does not change the active release.
                   </p>
-                  <ul className="space-y-2">
+                  <ul className="flex flex-col gap-2">
                     {releases.map((release) => {
                       const active = release.id === deployment.active_release_id;
                       const rollback =
@@ -440,17 +454,17 @@ export function DeploymentsPage({ projectId, deploymentId }: Props) {
                       return (
                         <li
                           key={release.id}
-                          className="rounded-lg border border-border bg-card p-4 text-sm"
+                          className="rounded-card border border-border bg-surface p-4 text-sm"
                         >
-                          <div className="flex flex-wrap items-start justify-between gap-3">
-                            <div className="min-w-0 space-y-1">
-                              <p className="font-semibold">
-                                Release {release.release_number}{' '}
+                          <div className="flex flex-wrap items-start justify-between gap-4">
+                            <div className="flex min-w-0 flex-col gap-1">
+                              <p className="flex flex-wrap items-center gap-2 font-semibold">
+                                Release {release.release_number}
                                 {active && (
-                                  <span className="ml-2 text-success">Active selection</span>
+                                  <StatusBadge status="succeeded">Active selection</StatusBadge>
                                 )}
                               </p>
-                              <p className="text-muted-foreground">
+                              <p className="text-foreground-muted">
                                 Saved {date(release.created_at)}{' '}
                                 {release.note && `· ${release.note}`}
                               </p>
@@ -460,7 +474,7 @@ export function DeploymentsPage({ projectId, deploymentId }: Props) {
                               <p className="break-all">
                                 Index version <code>{release.index_id}</code>
                               </p>
-                              <p className="break-all text-xs text-muted-foreground">
+                              <p className="break-all text-xs text-foreground-muted">
                                 Execution SHA-256 {release.execution_sha256}
                               </p>
                             </div>
@@ -497,8 +511,8 @@ export function DeploymentsPage({ projectId, deploymentId }: Props) {
                     })}
                   </ul>
                   {canManage && deployment.state !== 'archived' && (
-                    <div className="space-y-5 rounded-lg border border-border p-4">
-                      <div className="space-y-2">
+                    <div className="flex flex-col gap-4 rounded-card border border-border p-4">
+                      <div>
                         <Label htmlFor="deployment-reason">Promotion or rollback reason</Label>
                         <Input
                           id="deployment-reason"
@@ -508,8 +522,13 @@ export function DeploymentsPage({ projectId, deploymentId }: Props) {
                           placeholder="Why this release is being selected"
                         />
                       </div>
-                      <form onSubmit={stage} className="space-y-4 border-t border-border pt-4">
-                        <h4 className="font-semibold">Stage another saved version</h4>
+                      <form
+                        onSubmit={stage}
+                        className="flex flex-col gap-4 border-t border-border pt-4 [&>[data-slot=button]]:self-start"
+                      >
+                        <h4 className="text-sm font-semibold text-foreground">
+                          Stage another saved version
+                        </h4>
                         {picker}
                         <Button
                           type="submit"
@@ -526,7 +545,7 @@ export function DeploymentsPage({ projectId, deploymentId }: Props) {
                 {canManage && deployment.state !== 'archived' && (
                   <section
                     aria-labelledby="controls-heading"
-                    className="space-y-4 border-t border-border pt-6"
+                    className="flex flex-col gap-4 border-t border-border pt-6"
                   >
                     <h3 id="controls-heading" className="text-base font-semibold">
                       Traffic controls
@@ -558,7 +577,7 @@ export function DeploymentsPage({ projectId, deploymentId }: Props) {
                         </Button>
                       ) : null}
                     </div>
-                    <div className="space-y-2">
+                    <div>
                       <Label htmlFor="archive-reason">Archive reason</Label>
                       <Input
                         id="archive-reason"
@@ -591,21 +610,23 @@ export function DeploymentsPage({ projectId, deploymentId }: Props) {
 
                 <section
                   aria-labelledby="limits-heading"
-                  className="space-y-4 border-t border-border pt-6"
+                  className="flex flex-col gap-4 border-t border-border pt-6"
                 >
                   <h3 id="limits-heading" className="text-base font-semibold">
                     Admission limits
                   </h3>
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-sm text-foreground-muted">
                     These limits apply to new questions. Organization and operator ceilings still
                     apply.
                   </p>
                   {limitDraft && (
                     <form
-                      className="grid gap-4 sm:grid-cols-2"
+                      className="grid gap-4 md:grid-cols-2"
                       onSubmit={(event) => {
                         event.preventDefault();
-                        if (!canManage) {return;}
+                        if (!canManage) {
+                          return;
+                        }
                         void act(async () => {
                           await api.updateLimits(
                             projectId,
@@ -625,7 +646,7 @@ export function DeploymentsPage({ projectId, deploymentId }: Props) {
                           ['monthly_budget_usd', 'Monthly budget (USD)'],
                         ] as const
                       ).map(([field, label]) => (
-                        <div className="space-y-2" key={field}>
+                        <div key={field}>
                           <Label htmlFor={`deployment-${field}`}>{label}</Label>
                           <Input
                             id={`deployment-${field}`}
@@ -649,7 +670,7 @@ export function DeploymentsPage({ projectId, deploymentId }: Props) {
                         </div>
                       ))}
                       {canManage && deployment.state !== 'archived' && (
-                        <div className="sm:col-span-2">
+                        <div className="md:col-span-2">
                           <Button type="submit" variant="outline" disabled={busy}>
                             Save limits
                           </Button>
@@ -662,7 +683,7 @@ export function DeploymentsPage({ projectId, deploymentId }: Props) {
                 {canManage && (
                   <section
                     aria-labelledby="keys-heading"
-                    className="space-y-4 border-t border-border pt-6"
+                    className="flex flex-col gap-4 border-t border-border pt-6"
                   >
                     <h3
                       id="keys-heading"
@@ -670,14 +691,14 @@ export function DeploymentsPage({ projectId, deploymentId }: Props) {
                     >
                       <KeyRound size={17} /> Server keys
                     </h3>
-                    <p className="text-sm text-muted-foreground">
+                    <p className="text-sm text-foreground-muted">
                       Use these keys only on a server. They cannot be recovered after this screen is
                       dismissed.
                     </p>
                     {oneTimeKey && (
                       <div
                         role="status"
-                        className="space-y-3 rounded-lg border border-warning bg-[var(--status-warning-bg)] p-4"
+                        className="flex flex-col gap-2 rounded-card border border-warning bg-surface p-4"
                       >
                         <p className="font-semibold">Copy this key now</p>
                         <p className="text-sm">
@@ -686,7 +707,7 @@ export function DeploymentsPage({ projectId, deploymentId }: Props) {
                         </p>
                         <output
                           aria-label="New deployment key"
-                          className="block break-all rounded-md bg-background p-3 font-mono text-sm text-foreground"
+                          className="block rounded-control border border-border bg-background p-4 font-mono text-sm break-all text-foreground"
                         >
                           {oneTimeKey.secret}
                         </output>
@@ -701,8 +722,11 @@ export function DeploymentsPage({ projectId, deploymentId }: Props) {
                       </div>
                     )}
                     {deployment.state !== 'archived' && (
-                      <form onSubmit={makeKey} className="flex flex-wrap items-end gap-3">
-                        <div className="min-w-50 flex-1 space-y-2">
+                      <form
+                        onSubmit={makeKey}
+                        className="flex flex-col gap-4 md:flex-row md:items-end"
+                      >
+                        <div className="min-w-0 flex-1">
                           <Label htmlFor="key-label">Key label</Label>
                           <Input
                             id="key-label"
@@ -719,20 +743,20 @@ export function DeploymentsPage({ projectId, deploymentId }: Props) {
                       </form>
                     )}
                     {!keys.length ? (
-                      <p className="text-sm text-muted-foreground">No keys issued.</p>
+                      <p className="text-sm text-foreground-muted">No keys issued.</p>
                     ) : (
-                      <ul className="space-y-2">
+                      <ul className="flex flex-col gap-2">
                         {keys.map((key) => (
                           <li
                             key={key.id}
-                            className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border p-3 text-sm"
+                            className="flex flex-wrap items-center justify-between gap-4 rounded-card border border-border p-4 text-sm"
                           >
                             <div>
                               <p className="font-medium">
                                 {key.label}{' '}
-                                <code className="text-muted-foreground">{key.prefix}</code>
+                                <code className="text-foreground-muted">{key.prefix}</code>
                               </p>
-                              <p className="text-xs text-muted-foreground">
+                              <p className="text-xs text-foreground-muted">
                                 {key.revoked_at
                                   ? `Revoked ${date(key.revoked_at)}`
                                   : `Created ${date(key.created_at)} · Expires ${date(key.expires_at)}`}
@@ -777,30 +801,30 @@ export function DeploymentsPage({ projectId, deploymentId }: Props) {
 
                 <section
                   aria-labelledby="runs-heading"
-                  className="space-y-4 border-t border-border pt-6"
+                  className="flex flex-col gap-4 border-t border-border pt-6"
                 >
                   <h3 id="runs-heading" className="flex items-center gap-2 text-base font-semibold">
                     <ShieldCheck size={17} /> Accepted runs
                   </h3>
                   {!runPage?.items.length ? (
-                    <p className="text-sm text-muted-foreground">
+                    <p className="text-sm text-foreground-muted">
                       No customer questions have been accepted.
                     </p>
                   ) : (
-                    <ul className="space-y-2">
+                    <ul className="flex flex-col gap-2">
                       {runPage.items.map((run) => (
                         <li
                           key={run.id}
-                          className="flex flex-wrap justify-between gap-3 rounded-lg border border-border p-3 text-sm"
+                          className="flex flex-wrap justify-between gap-4 rounded-card border border-border p-4 text-sm"
                         >
                           <div>
                             <p className="font-medium capitalize">
                               {run.status.replaceAll('_', ' ')}{' '}
-                              <span className="font-mono text-muted-foreground">
+                              <span className="font-mono text-foreground-muted">
                                 {short(run.id)}
                               </span>
                             </p>
-                            <p className="text-xs text-muted-foreground">
+                            <p className="text-xs text-foreground-muted">
                               Release {short(run.release_id)} · {date(run.created_at)} · reserved $
                               {run.cost_reservation_usd}
                             </p>
@@ -827,7 +851,7 @@ export function DeploymentsPage({ projectId, deploymentId }: Props) {
                     </ul>
                   )}
                   {runPage && runPage.total > runPage.limit && (
-                    <div className="flex items-center gap-3 text-sm">
+                    <div className="flex items-center gap-4 text-sm tabular-nums">
                       <Button
                         variant="outline"
                         size="sm"

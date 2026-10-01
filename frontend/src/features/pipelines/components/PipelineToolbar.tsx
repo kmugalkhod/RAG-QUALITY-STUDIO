@@ -1,4 +1,5 @@
 import { Play, Save } from 'lucide-react';
+import { StatusBadge } from '../../../components/StatusBadge';
 import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
 import { Label } from '../../../components/ui/label';
@@ -20,6 +21,8 @@ interface PipelineToolbarProps {
   onOpenPlayground: () => void;
 }
 
+// Mirrored groups (spec 0002 layout rules): identity on the left, actions on the right with
+// the one primary action at the right end. On phones the actions stack at full width.
 export function PipelineToolbar({
   name,
   saved,
@@ -34,62 +37,77 @@ export function PipelineToolbar({
   onDiscard,
   onOpenPlayground,
 }: PipelineToolbarProps) {
+  // Save leads while there are changes; a clean saved version leads to the Playground.
+  const playgroundReady = !!saved && !dirty;
   return (
-    <div className="pipeline-toolbar flex flex-wrap m-0 gap-2.5 items-end border-b border-border py-3.5 px-5.5">
-      <Label>
-        Pipeline name
-        <Input value={name} maxLength={120} onChange={(e) => onNameChange(e.target.value)} />
-      </Label>
-      <Label>
-        Saved version
-        <NativeSelect
-          aria-label="Saved version"
-          value={saved?.id ?? ''}
-          disabled={dirty}
-          onChange={(e) => {
-            const v = versions.find((v) => v.id === e.target.value);
-            if (v) {
-              onVersionSelect(v);
-            }
-          }}
+    <div className="flex flex-col gap-4 desktop:flex-row desktop:items-end desktop:justify-between">
+      <div className="flex min-w-0 flex-col gap-4 md:flex-row md:items-end">
+        <Label className="mb-0 min-w-0 md:w-panel">
+          Pipeline name
+          <Input
+            className="mt-2"
+            value={name}
+            maxLength={120}
+            onChange={(e) => onNameChange(e.target.value)}
+          />
+        </Label>
+        <Label className="mb-0 md:w-sidebar">
+          Saved version
+          <NativeSelect
+            className="mt-2"
+            aria-label="Saved version"
+            value={saved?.id ?? ''}
+            disabled={dirty}
+            onChange={(e) => {
+              const v = versions.find((v) => v.id === e.target.value);
+              if (v) {
+                onVersionSelect(v);
+              }
+            }}
+          >
+            <NativeSelectOption value="">Not saved</NativeSelectOption>
+            {versions.map((v) => (
+              <NativeSelectOption key={v.id} value={v.id}>
+                Version {v.version}
+              </NativeSelectOption>
+            ))}
+          </NativeSelect>
+        </Label>
+        <p role="status" className="flex h-control-md items-center pointer-coarse:h-control-lg">
+          <StatusBadge status={dirty ? 'running' : saved ? 'succeeded' : 'uploaded'}>
+            {dirty
+              ? 'Unsaved changes'
+              : saved
+                ? `Saved version ${saved.version}`
+                : 'No saved version'}
+          </StatusBadge>
+        </p>
+      </div>
+      <div className="flex flex-col gap-2 md:flex-row md:flex-wrap md:items-center md:justify-end">
+        <Button variant="ghost" disabled={!dirty} onClick={onDiscard}>
+          Discard changes
+        </Button>
+        <Button variant="outline" disabled={!saved || dirty} onClick={onDuplicate}>
+          Duplicate pipeline
+        </Button>
+        <Button
+          variant={playgroundReady ? 'primary' : 'outline'}
+          disabled={!saved || dirty || busy}
+          onClick={onOpenPlayground}
         >
-          <NativeSelectOption value="">Not saved</NativeSelectOption>
-          {versions.map((v) => (
-            <NativeSelectOption key={v.id} value={v.id}>
-              Version {v.version}
-            </NativeSelectOption>
-          ))}
-        </NativeSelect>
-      </Label>
-      <span
-        className={`draft-status text-[10px] text-muted-foreground [align-self:center] py-0 px-2 ${dirty ? 'is-dirty' : ''}`}
-        role="status"
-      >
-        {dirty ? 'Unsaved changes' : saved ? `Saved version ${saved.version}` : 'No saved version'}
-      </span>
-      <Button
-        variant={dirty ? 'default' : 'outline'}
-        aria-describedby="save-guidance"
-        disabled={!canSave}
-        onClick={onSave}
-      >
-        <Save size={15} />
-        Save version
-      </Button>
-      <Button
-        variant={saved && !dirty ? 'default' : 'outline'}
-        disabled={!saved || dirty || busy}
-        onClick={onOpenPlayground}
-      >
-        <Play size={15} />
-        Open Playground
-      </Button>
-      <Button variant="outline" disabled={!saved || dirty} onClick={onDuplicate}>
-        Duplicate pipeline
-      </Button>
-      <Button variant="outline" disabled={!dirty} onClick={onDiscard}>
-        Discard changes
-      </Button>
+          <Play aria-hidden="true" />
+          Open Playground
+        </Button>
+        <Button
+          variant={playgroundReady ? 'outline' : 'primary'}
+          aria-describedby="save-guidance"
+          disabled={!canSave}
+          onClick={onSave}
+        >
+          <Save aria-hidden="true" />
+          Save version
+        </Button>
+      </div>
     </div>
   );
 }

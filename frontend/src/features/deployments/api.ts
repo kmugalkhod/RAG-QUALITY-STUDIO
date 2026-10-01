@@ -143,8 +143,23 @@ export type WidgetSettings = {
   enabled: boolean;
   public_enabled: boolean;
   allowed_origins: string[];
-  branding: { title: string; greeting: string; color: 'blue'|'slate'|'green'; position: 'left'|'right' };
+  branding: {
+    title: string;
+    greeting: string;
+    color: 'blue' | 'slate' | 'green';
+    position: 'left' | 'right';
+  };
   revision: number;
 };
-export const widgetSettings = (projectId: string, id: string) => request<WidgetSettings>(`${item(projectId,id)}/widget`);
-export const updateWidgetSettings = (projectId: string, id: string, body: Omit<WidgetSettings,'deployment_id'|'revision'>, revision: number) => request<WidgetSettings>(`${item(projectId,id)}/widget`, { ...json(body,revision), method:'PUT' });
+export const widgetSettings = (projectId: string, id: string) =>
+  request<WidgetSettings>(`${item(projectId, id)}/widget`);
+export const updateWidgetSettings = (
+  projectId: string,
+  id: string,
+  body: Omit<WidgetSettings, 'deployment_id' | 'revision'>,
+  revision: number,
+) =>
+  request<WidgetSettings>(`${item(projectId, id)}/widget`, {
+    ...json(body, revision),
+    method: 'PUT',
+  });

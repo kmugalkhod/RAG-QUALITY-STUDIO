@@ -42,7 +42,10 @@ describe('experiment setup', () => {
   it('explains requirements and prevents running without saved inputs', async () => {
     render(<ExperimentsPage projectId="p" />);
     expect(await screen.findByText('Requires reference answer.')).toBeVisible();
-    expect(screen.getByRole('button', { name: 'Run experiment' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Run experiment' })).toHaveAttribute(
+      'aria-disabled',
+      'true',
+    );
     expect(screen.getByRole('button', { name: 'Download example CSV' })).toBeVisible();
   });
   it('shows row errors, blocks import, and clears preview when the file changes', async () => {
@@ -59,7 +62,10 @@ describe('experiment setup', () => {
     );
     await user.click(screen.getByRole('button', { name: 'Preview CSV' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Row 2: Question is empty.');
-    expect(screen.getByRole('button', { name: 'Import reviewed dataset' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Import reviewed dataset' })).toHaveAttribute(
+      'aria-disabled',
+      'true',
+    );
     await user.upload(
       screen.getByLabelText('CSV file'),
       new File(['question\nvalid'], 'good.csv', { type: 'text/csv' }),
@@ -98,5 +104,8 @@ it('removes stale saved IDs before allowing a run', async () => {
   render(<ExperimentsPage projectId="p" />);
   expect(await screen.findByLabelText('Dataset version')).toHaveValue('');
   expect(screen.getByLabelText('Candidate A')).toHaveValue('');
-  expect(screen.getByRole('button', { name: 'Run experiment' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Run experiment' })).toHaveAttribute(
+    'aria-disabled',
+    'true',
+  );
 });

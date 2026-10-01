@@ -1,8 +1,16 @@
-import { ArrowRight, FolderPlus, Plus, RotateCw } from 'lucide-react';
+import { ChevronRight, FolderPlus, Plus, RotateCw } from 'lucide-react';
 import { Button } from '../../../components/ui/button';
-import { Skeleton } from '../../../components/ui/skeleton';
+import { EmptyState } from '../../../components/states/EmptyState';
+import { ErrorState } from '../../../components/states/ErrorState';
+import { LoadingState } from '../../../components/states/LoadingState';
 import { Pagination } from '../../../components/Pagination';
 import type { ProjectPage } from '../api';
+
+const DATE = new Intl.DateTimeFormat(undefined, {
+  day: 'numeric',
+  month: 'short',
+  year: 'numeric',
+});
 
 export function ProjectList({
   page,
@@ -24,72 +32,85 @@ export function ProjectList({
   onCreate: () => void;
 }) {
   return (
-    <section className="project-section mt-8" aria-labelledby="all-projects">
-      <div className="section-heading flex items-center justify-between gap-4 py-3">
-        <h2 id="all-projects">
-          All projects {page && !loading && !error && <span className="count">{page.total}</span>}
+    <section className="flex flex-col gap-4" aria-labelledby="all-projects">
+      <div className="flex items-center justify-between gap-4">
+        <h2
+          id="all-projects"
+          className="flex items-center gap-2 text-base font-semibold text-foreground"
+        >
+          All projects
+          {page && !loading && !error && (
+            <span className="text-sm font-normal text-foreground-muted tabular-nums">
+              {page.total}
+            </span>
+          )}
         </h2>
-        <Button variant="outline" disabled={loading} onClick={onRefresh}>
-          <RotateCw />
+        <Button variant="ghost" size="sm" disabled={loading} onClick={onRefresh}>
+          <RotateCw aria-hidden="true" />
           Refresh
         </Button>
       </div>
       {loading ? (
-        <div className="loading-state py-6" role="status">
-          Loading projects…
-          <Skeleton className="mt-4 h-15" />
-          <Skeleton className="mt-4 h-15" />
-        </div>
+        <LoadingState label="Loading projects…" />
       ) : error ? (
-        <div className="error-state rounded-lg bg-destructive/10 p-6">
-          <h3>Projects couldn’t be loaded</h3>
-          <p role="alert">{error}</p>
-          <Button variant="outline" onClick={onRefresh}>
-            Try again
-          </Button>
-        </div>
+        <ErrorState
+          title="Projects couldn’t be loaded"
+          message={error}
+          onRetry={onRefresh}
+          retryLabel="Try again"
+        />
       ) : page?.items.length === 0 ? (
-        <div className="empty-state py-16 text-center text-muted-foreground">
-          <FolderPlus size={36} />
-          <h3>{offset ? 'No projects on this page' : 'Your first project starts here'}</h3>
-          <p>
-            {offset
+        <EmptyState
+          icon={<FolderPlus />}
+          title={offset ? 'No projects on this page' : 'Your first project starts here'}
+          description={
+            offset
               ? 'Return to the previous page to see your projects.'
-              : 'Create a project to organize sources, pipelines, and experiments.'}
-          </p>
-          {!offset && !formOpen && (
-            <Button variant="outline" onClick={onCreate}>
-              <Plus />
-              Create your first project
-            </Button>
-          )}
-        </div>
+              : 'Create a project to organize sources, pipelines, and experiments.'
+          }
+          action={
+            !offset && !formOpen ? (
+              <Button variant="outline" onClick={onCreate}>
+                <Plus aria-hidden="true" />
+                Create your first project
+              </Button>
+            ) : null
+          }
+        />
       ) : (
-        <ul className="project-list m-0 list-none border-t border-border p-0">
+        <ul className="overflow-hidden rounded-card border border-border bg-surface">
           {page?.items.map((project) => (
-            <li key={project.id}>
-              <div className="project-initial" aria-hidden="true">
+            <li
+              key={project.id}
+              className="relative flex items-center gap-4 border-b border-border px-4 py-3 last:border-b-0 hover:bg-surface-hover"
+            >
+              <span
+                aria-hidden="true"
+                className="flex size-control-md shrink-0 items-center justify-center rounded-control border border-border text-sm font-semibold text-foreground-muted"
+              >
                 {project.name.slice(0, 1).toUpperCase()}
-              </div>
-              <div className="project-content min-w-0 flex-1">
-                <h3>
-                  <a className="project-link" href={`#/projects/${project.id}/overview`}>
+              </span>
+              <div className="flex min-w-0 flex-1 flex-col gap-1">
+                <h3 className="truncate text-sm font-semibold text-foreground">
+                  {/* The link covers the whole row, so the row is one large target. */}
+                  <a
+                    className="outline-none after:absolute after:inset-0 after:rounded-card focus-visible:after:outline-2 focus-visible:after:-outline-offset-2 focus-visible:after:outline-accent"
+                    href={`#/projects/${project.id}/overview`}
+                  >
                     {project.name}
-                    <ArrowRight />
                   </a>
                 </h3>
-                <p>{project.description || 'No description added.'}</p>
+                <p className="truncate text-xs text-foreground-muted">
+                  {project.description || 'No description added.'}
+                </p>
               </div>
-              <div className="project-date shrink-0 text-right">
+              <p className="hidden shrink-0 flex-col items-end text-xs text-foreground-muted md:flex">
                 <span>Created</span>
-                <time dateTime={project.created_at}>
-                  {new Intl.DateTimeFormat(undefined, {
-                    day: 'numeric',
-                    month: 'short',
-                    year: 'numeric',
-                  }).format(new Date(project.created_at))}
+                <time dateTime={project.created_at} className="text-foreground tabular-nums">
+                  {DATE.format(new Date(project.created_at))}
                 </time>
-              </div>
+              </p>
+              <ChevronRight aria-hidden="true" className="size-4 shrink-0 text-foreground-subtle" />
             </li>
           ))}
         </ul>

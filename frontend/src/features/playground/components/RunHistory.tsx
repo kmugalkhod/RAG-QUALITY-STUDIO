@@ -1,5 +1,7 @@
-import { Button } from '../../../components/ui/button';
+import { RefreshCw } from 'lucide-react';
+import { LIST, LIST_ROW, META } from '../../../components/parts';
 import { Pagination } from '../../../components/Pagination';
+import { Button } from '../../../components/ui/button';
 import { docsHref } from '../../../lib/docs';
 
 import { type QueryRun } from '../model';
@@ -14,52 +16,56 @@ interface Props {
 }
 export function RunHistory({ runs, total, offset, running, onRefresh, onPage, onSelect }: Props) {
   return (
-    <div className="playground-history">
-      <section aria-labelledby="history-title">
-        <div className="section-heading flex flex-wrap justify-between items-center gap-2.5 m-0 py-4 px-7">
-          <h2 id="history-title">Past questions</h2>
-          <a href={docsHref('answers/history')} target="_blank" rel="noopener noreferrer">
-            Query history guide
-          </a>
-          <Button variant="outline" disabled={!!running} onClick={onRefresh}>
-            Refresh
-          </Button>
-        </div>
-        {!runs.length && <p>No saved questions yet.</p>}
-        <ul className="document-list">
+    <div className="flex flex-col gap-4 p-4">
+      <div className="flex items-center justify-between gap-2">
+        <a
+          className="text-sm text-accent hover:underline"
+          href={docsHref('answers/history')}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Query history guide
+        </a>
+        <Button variant="outline" size="sm" disabled={!!running} onClick={onRefresh}>
+          <RefreshCw aria-hidden="true" />
+          Refresh
+        </Button>
+      </div>
+      {!runs.length ? (
+        <p className="text-sm text-foreground-muted">No saved questions yet.</p>
+      ) : (
+        <ul className={LIST}>
           {runs.map((item) => (
-            <li key={item.id}>
-              <div>
-                <Button
-                  variant="ghost"
-                  className="document-name h-auto min-h-0 justify-start whitespace-normal border-0 bg-transparent p-0 text-left text-foreground wrap-anywhere text-xs leading-normal font-medium"
-                  disabled={!!running}
-                  onClick={() => onSelect(item)}
-                >
-                  {item.question}
-                </Button>
-                <p>
-                  {item.snapshot.pipeline_preview
-                    ? 'Test draft'
-                    : item.pipeline_version_id
-                      ? `Pipeline v${item.snapshot.pipeline_version}`
-                      : 'Default settings'}{' '}
-                  · {item.status.replaceAll('_', ' ')}
-                </p>
-              </div>
+            <li key={item.id} className={`${LIST_ROW} flex flex-col gap-1 px-2 py-2`}>
+              <Button
+                variant="ghost"
+                className="h-auto min-h-row justify-start px-2 py-2 text-left whitespace-normal pointer-coarse:h-auto [&>span]:line-clamp-2"
+                disabled={!!running}
+                onClick={() => onSelect(item)}
+              >
+                <span>{item.question}</span>
+              </Button>
+              <p className={`${META} px-2`}>
+                {item.snapshot.pipeline_preview
+                  ? 'Test draft'
+                  : item.pipeline_version_id
+                    ? `Pipeline v${item.snapshot.pipeline_version}`
+                    : 'Default settings'}{' '}
+                · {item.status.replaceAll('_', ' ')}
+              </p>
             </li>
           ))}
         </ul>
-        <Pagination
-          offset={offset}
-          total={total}
-          onChange={onPage}
-          busy={running}
-          label="Query history pages"
-          previousLabel="Previous queries"
-          nextLabel="Next queries"
-        />
-      </section>
+      )}
+      <Pagination
+        offset={offset}
+        total={total}
+        onChange={onPage}
+        busy={running}
+        label="Query history pages"
+        previousLabel="Previous queries"
+        nextLabel="Next queries"
+      />
     </div>
   );
 }

@@ -101,12 +101,14 @@ test('documentation T2: Existing Files preview and ingestion run', async ({ page
   await page.getByRole('button', { name: 'Save version' }).click();
   await expect(page.getByText('Saved version 1', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Run ingestion' }).click();
-  await expect(page.locator('.ingestion-run-state[data-status="succeeded"]')).toBeVisible({
+  await expect(
+    page.locator('[data-testid="ingestion-run-state"][data-status="succeeded"]'),
+  ).toBeVisible({
     timeout: 60000,
   });
   await expect(page.getByRole('link', { name: 'Inspect published index' })).toBeVisible();
   await page.screenshot({ path: `${screenshots}/07-ingestion-run.png` });
   await page
-    .locator('.ingestion-published-index')
+    .getByTestId('published-index')
     .screenshot({ path: `${screenshots}/08-published-index.png` });
 });

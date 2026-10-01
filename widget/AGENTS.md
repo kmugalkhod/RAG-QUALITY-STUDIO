@@ -12,6 +12,8 @@ This area is a separate React and Vite app for the customer facing chat widget. 
 
 From `widget/`, you can run `npm ci`, `npm run dev`, `npm run typecheck`, `npm run test`, and `npm run build`. The widget dev server uses `http://127.0.0.1:5274`. Follow `../docs/development.md` for the isolated customer fixture and the Studio Playwright widget journey.
 
+`npm run serve` serves the packaged `dist/` assets on `127.0.0.1:5274` through `scripts/serve.mjs` and forwards to `WIDGET_API_ORIGIN` (default `http://127.0.0.1:8000`). `npm run build:layout-fixtures` builds the React and Vue layout fixtures into the ignored `.local/`. `frame.html` is the Vite iframe entry, and `demo-static/index.html` is a plain embed test page.
+
 ## Conventions
 
 Keep the public deployment ID separate from authorization. In private mode, the customer's backend authenticates visitors and keeps the `rqs_live_...` deployment key; the loader calls only its same origin token path. In opt-in public mode, the iframe obtains a bounded anonymous token from Studio after checking the allowed parent origin, and the customer's script contains no token path. Keep widget tokens in iframe memory, and check message source, origin, nonce, deployment, and protocol version. Render answer and citation text as text. Keep widget assets independent of the Studio shell, Clerk, React Flow, and Studio styles. Preserve versioned paths and the asset size checks when packaging.

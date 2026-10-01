@@ -79,7 +79,9 @@ test('retains form values after a failed creation', async () => {
   await user.click(screen.getByRole('button', { name: 'Create project' }));
   expect(await screen.findByRole('alert')).toHaveTextContent('service is temporarily unavailable');
   expect(screen.getByLabelText(/Project name/)).toHaveValue('Keep this');
-  expect(screen.getByRole('button', { name: 'Create project' })).toBeEnabled();
+  expect(screen.getByRole('button', { name: 'Create project' })).not.toHaveAttribute(
+    'aria-disabled',
+  );
 });
 
 test('paginates with the API offset', async () => {

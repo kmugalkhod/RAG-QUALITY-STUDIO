@@ -2,11 +2,13 @@ import { useState } from 'react';
 import { ArrowDown, ArrowUp, Plus, RotateCcw, Trash2 } from 'lucide-react';
 
 import { Button } from '../../../components/ui/button';
+import { Checkbox } from '../../../components/ui/checkbox';
 import { Input } from '../../../components/ui/input';
 import { Label } from '../../../components/ui/label';
 import { NativeSelect, NativeSelectOption } from '../../../components/ui/native-select';
 import { Textarea } from '../../../components/ui/textarea';
 import type { CleaningTransform, ExtractionCapabilities, IngestionNode } from '../model';
+import { FACTS, FIELD_GRID, HINT, OPTION, STACK } from './settingsStyles';
 
 type CleanNode = Extract<IngestionNode, { type: 'clean' }>;
 
@@ -129,15 +131,15 @@ export function CleaningTransformSettings({
 
   if (node.profile !== 'structure-aware-v1') {
     return (
-      <div className="field-stack">
-        <p className="field-hint">
+      <div className={STACK}>
+        <p className={HINT}>
           This saved version uses the compatibility cleaner. Upgrade the draft to configure ordered,
           attributable transforms; historical versions remain unchanged.
         </p>
         <Button type="button" variant="outline" disabled={!supported} onClick={useStructureProfile}>
           Use {supported?.name ?? 'structure-aware profile'}
         </Button>
-        <dl className="ingestion-stage-facts">
+        <dl className={FACTS}>
           <dt>Normalize whitespace</dt>
           <dd>{node.normalize_whitespace === false ? 'Off' : 'On'}</dd>
           <dt>Exact-content deduplication</dt>
@@ -150,11 +152,13 @@ export function CleaningTransformSettings({
   }
 
   return (
-    <div className="field-stack cleaning-transform-settings">
-      <div className="cleaning-profile-heading">
-        <div>
-          <strong>{supported?.name ?? 'Structure-aware standard'}</strong>
-          <p className="field-hint">Transforms run from top to bottom in this saved order.</p>
+    <div className={STACK}>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex min-w-0 flex-col gap-1">
+          <strong className="text-sm font-medium text-foreground">
+            {supported?.name ?? 'Structure-aware standard'}
+          </strong>
+          <p className={HINT}>Transforms run from top to bottom in this saved order.</p>
         </div>
         <Button
           type="button"
@@ -163,61 +167,66 @@ export function CleaningTransformSettings({
           disabled={!supported}
           onClick={useStructureProfile}
         >
-          <RotateCcw size={14} aria-hidden="true" />
+          <RotateCcw aria-hidden="true" />
           Reset profile
         </Button>
       </div>
 
-      <ol className="cleaning-transform-list" aria-label="Ordered cleaning transforms">
+      <ol className="flex flex-col gap-2" aria-label="Ordered cleaning transforms">
         {steps.map((step, index) => (
-          <li key={step.id} className="cleaning-transform-card">
-            <div className="cleaning-transform-heading">
-              <label>
-                <input
-                  type="checkbox"
+          <li
+            key={step.id}
+            className="flex min-w-0 flex-col gap-4 rounded-card border border-border bg-background p-4"
+          >
+            <div className="flex items-start justify-between gap-2">
+              <label className="flex min-w-0 cursor-pointer items-start gap-3 text-sm text-foreground [&>[data-slot=checkbox]]:mt-1">
+                <Checkbox
                   checked={step.enabled}
-                  onChange={(event) =>
-                    updateStep(index, { ...step, enabled: event.target.checked })
+                  onCheckedChange={(checked) =>
+                    updateStep(index, { ...step, enabled: checked === true })
                   }
                 />
-                <span>
-                  <strong>
+                <span className="flex min-w-0 flex-col gap-1">
+                  <strong className="font-medium">
                     {index + 1}. {names[step.type]}
                   </strong>
-                  <small>{step.type}</small>
+                  <small className="text-xs text-foreground-muted wrap-anywhere">{step.type}</small>
                 </span>
               </label>
-              <div className="cleaning-transform-actions">
+              <div className="flex shrink-0 items-center gap-1">
                 <Button
                   type="button"
-                  size="icon"
+                  size="sm"
+                  icon
                   variant="ghost"
                   aria-label={`Move ${names[step.type]} up`}
                   disabled={index === 0}
                   onClick={() => move(index, -1)}
                 >
-                  <ArrowUp size={14} />
+                  <ArrowUp aria-hidden="true" />
                 </Button>
                 <Button
                   type="button"
-                  size="icon"
+                  size="sm"
+                  icon
                   variant="ghost"
                   aria-label={`Move ${names[step.type]} down`}
                   disabled={index === steps.length - 1}
                   onClick={() => move(index, 1)}
                 >
-                  <ArrowDown size={14} />
+                  <ArrowDown aria-hidden="true" />
                 </Button>
                 <Button
                   type="button"
-                  size="icon"
+                  size="sm"
+                  icon
                   variant="ghost"
                   aria-label={`Remove ${names[step.type]}`}
                   onClick={() =>
                     update({ ...node, steps: steps.filter((_, item) => item !== index) })
                   }
                 >
-                  <Trash2 size={14} />
+                  <Trash2 aria-hidden="true" />
                 </Button>
               </div>
             </div>
@@ -238,7 +247,7 @@ export function CleaningTransformSettings({
               </Label>
             )}
             {step.type === 'remove_repeated_headers_footers' && (
-              <div className="cleaning-transform-grid">
+              <div className={FIELD_GRID}>
                 <Label>
                   Minimum page ratio
                   <Input
@@ -316,7 +325,7 @@ export function CleaningTransformSettings({
               </>
             )}
             {step.type === 'website_selectors' && (
-              <div className="cleaning-transform-grid">
+              <div className={FIELD_GRID}>
                 <Label>
                   Include selectors
                   <Textarea
@@ -348,12 +357,11 @@ export function CleaningTransformSettings({
                     ['remove_repeated_site_chrome', 'Remove cross-page repeated site chrome'],
                   ] as const
                 ).map(([field, label]) => (
-                  <label className="ingestion-document-option" key={field}>
-                    <input
-                      type="checkbox"
+                  <label className={OPTION} key={field}>
+                    <Checkbox
                       checked={step[field]}
-                      onChange={(event) =>
-                        updateStep(index, { ...step, [field]: event.target.checked })
+                      onCheckedChange={(checked) =>
+                        updateStep(index, { ...step, [field]: checked === true })
                       }
                     />
                     <span>
@@ -377,7 +385,7 @@ export function CleaningTransformSettings({
               </>
             )}
             {step.type === 'validate_useful_content' && (
-              <div className="cleaning-transform-grid">
+              <div className={FIELD_GRID}>
                 <Label>
                   Minimum characters
                   <Input
@@ -411,7 +419,7 @@ export function CleaningTransformSettings({
       {available.length > 0 && (
         <Label>
           Add transform
-          <div className="cleaning-transform-add">
+          <div className="flex items-center gap-2 [&>[data-slot=native-select-wrapper]]:min-w-0 [&>[data-slot=native-select-wrapper]]:flex-1">
             <NativeSelect
               value={selectedType}
               aria-label="Transform to add"
@@ -447,18 +455,17 @@ export function CleaningTransformSettings({
                 setSelectedType('');
               }}
             >
-              <Plus size={14} /> Add
+              <Plus aria-hidden="true" /> Add
             </Button>
           </div>
         </Label>
       )}
 
-      <label className="ingestion-document-option">
-        <input
-          type="checkbox"
+      <label className={OPTION}>
+        <Checkbox
           checked={node.exact_content_deduplication !== false}
-          onChange={(event) =>
-            update({ ...node, exact_content_deduplication: event.target.checked })
+          onCheckedChange={(checked) =>
+            update({ ...node, exact_content_deduplication: checked === true })
           }
         />
         <span>

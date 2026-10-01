@@ -16,11 +16,11 @@ The application is a client-rendered React workspace using strict TypeScript, Vi
 - `src/lib/` contains shared transport, pagination, retrieval rules and utilities.
 - `tests/` mirrors application source for Vitest/Testing Library tests; `e2e/` contains Playwright journeys.
 
-The workspace's visual authority is `DESIGN.md`. Preserve its charcoal/lavender operating interface unless the user explicitly authorizes a redesign.
+`DESIGN.md` is the visual authority. It records the token based design system from [spec 0002](specs/0002-workspace-ui-redesign/index.md): the references, tokens, both themes, layout rules and anti slop rules.
 
 ## Component ownership
 
-Use existing UI primitives before adding another abstraction. The current primitive set includes Button, Input, Label, Textarea, Native Select, Checkbox, Table, Badge, Tabs, Separator, Alert, Skeleton, Accordion and Progress.
+Use existing UI primitives before adding another abstraction. The current primitive set includes Button, Input, Label, Textarea, Native Select, Checkbox, Radio Group, Table, Badge, Tabs, Separator, Alert, Skeleton, Accordion, Progress, Sheet and Tooltip. Shared product components include PageHeader, the LoadingState, EmptyState and ErrorState components in `src/components/states/`, and the parts in `src/components/parts.tsx`.
 
 - Shared primitive variants belong in `src/components/ui/`.
 - Shared product behavior belongs in `src/components/`.
@@ -52,24 +52,23 @@ Application code should import `cn` through `src/lib/utils.ts`. Some existing ge
 
 Current structure:
 
-- The supported dark palette is defined as semantic custom properties under `:root`.
-- Tailwind maps those variables through `@theme inline`.
-- Inter is self-hosted from `public/fonts/`; `Inter-LICENSE.txt` keeps its OFL text beside the committed font asset.
-- Tailwind utilities handle ordinary component layout and spacing.
-- Central custom selectors handle formatted answers, complex workspace geometry, responsive inspectors and React Flow vendor integration.
-- Unlayered custom rules intentionally outrank Tailwind's utility layer in parts of the current stylesheet.
+- The token block (between `/* @tokens:start */` and `/* @tokens:end */`) defines the dark palette under `:root`, the light palette under `:root[data-theme='light']`, and the approved Tailwind keys. Tailwind's default spacing, type, color, radius, shadow and blur scales are reset, so only the keys listed in `DESIGN.md` generate CSS.
+- `@layer base` holds the font face, the page defaults, the focus ring and the few element rules the screens still rely on.
+- `@layer components` is for shared selectors, when a pattern cannot be a primitive variant. It is empty today.
+- The React Flow vendor block (between `/* @vendor:react-flow:start */` and `/* @vendor:react-flow:end */`) stays unlayered, because React Flow's own stylesheet is unlayered. It maps React Flow variables onto the tokens.
+- `public/theme-init.js` sets `data-theme` before the stylesheet loads, from the stored choice or the OS setting. `src/app/useTheme.ts` owns the header toggle, the OS listener and cross tab sync.
+- Inter is self hosted from `public/fonts/`; `Inter-LICENSE.txt` keeps its OFL text beside the committed font asset.
 
 Rules for changes:
 
-- Define palette literals only when declaring semantic tokens at the root. Outside token definitions, use semantic variables or Tailwind token utilities.
-- Existing isolated literals in the Overview action, queued/running status, pipeline shadow and React Flow vendor variables are legacy exceptions, not examples to copy. Normalize the touched selector to a semantic token when its visual behavior can be verified.
-- Use utilities such as `flex`, `grid`, `gap-4`, `p-6`, `border-border`, `bg-background` and `text-muted-foreground` for ordinary layout.
-- Put reusable control appearance in the primitive's CVA/utility variants. A one-off layout requirement may use `className` at the call site.
-- Keep necessary content and vendor selectors in the central stylesheet, grouped by feature or responsibility. Remove superseded declarations in the same change instead of appending override chains at the end.
-- Check computed styles before changing a utility that competes with an unlayered custom selector. Do not move the entire stylesheet into a cascade layer without regression testing every major route.
-- Keep visible focus, disabled and invalid states. Preserve the existing reduced-motion behavior and ensure any new motion has a non-motion state change.
-- Use semantic foreground/background pairs. Do not use opacity to repair low text contrast or introduce a second ad hoc dark palette.
-- Keep license text with every committed third-party font. Do not add or replace fonts without recording their source and license.
+- Use only token utilities and the approved keys: grid spacing (`p-4`, `gap-2`), named sizes (`h-control-md`, `w-panel`), the five text sizes, token colors (`bg-surface`, `text-foreground-muted`, `border-border-strong`), `rounded-control`, `rounded-card` and `shadow-popover`. The guard rejects anything else.
+- Define color literals only in the token block. For a one off size, use a token variable through the `(--var)` shorthand, such as `h-(--editor-canvas)`, and declare that variable in `@layer base`.
+- Put reusable control appearance in the primitive's CVA variants. A one off layout need may use `className` at the call site.
+- Every interactive element needs a 44px target on touch; primitives grow to 48px under `pointer: coarse` without JavaScript.
+- Keep visible focus, pressed, disabled, loading, invalid, empty and error states. Disabled buttons use `aria-disabled`, never native `disabled`.
+- Verify every change in both themes. Do not use opacity to repair low contrast, and keep status colors paired with a text label.
+- Follow the anti slop rules in `DESIGN.md`: no gradients, glow, blur, glass, sparkle icons, purple hues or colored card backgrounds.
+- Keep license text with every committed third party font. Do not add or replace fonts without recording their source and license.
 - Do not edit generated `dist/` CSS; it is build output, not source.
 
 ## Routing, state and async behavior
@@ -130,7 +129,7 @@ Test observable behavior: invalid settings, exact endpoint payloads, immutable v
 
 The jsdom `ResizeObserver` stub belongs in `tests/setup.ts`; browser journeys exercise the real observer and layout. Use deterministic API/provider fixtures in automated tests. Run opt-in live providers separately and with explicit bounds.
 
-`npm run lint` first runs `scripts/check-structure.mjs`, which checks `src/` for extra CSS files, test/spec files and empty directories. ESLint enforces braces in application code, blocks test imports from `src/`, and prevents shared libraries/components from importing feature or app modules. These checks do not replace code review of feature-to-feature ownership or stylesheet cascade behavior.
+`npm run lint` first runs `scripts/check-structure.mjs`, which checks `src/` for extra CSS files, test/spec files and empty directories, then runs the design token guard: it rejects color literals, off scale font sizes, style props other than custom properties, pixel bracket values, keys outside the approved set, banned utilities, raw form elements under `src/features/`, and any stylesheet rule outside the token block, `@layer base`, `@layer components` and the React Flow vendor block. `LEGACY_ALLOWANCE` is zero. ESLint enforces braces in application code, blocks test imports from `src/`, and prevents shared libraries/components from importing feature or app modules. These checks do not replace code review of feature-to-feature ownership or stylesheet cascade behavior.
 
 Run from `frontend/`:
 
@@ -147,9 +146,8 @@ Run Playwright against the isolated services documented in [development instruct
 ## Known frontend constraints
 
 - Workspace routes are lazy-loaded from `WorkspacePage`; keep new route entry points behind the shared accessible Suspense boundary and review production chunk output when adding a feature.
-- `src/app/styles.css` contains a substantial incumbent custom-selector cascade. New work should reduce touched duplication, but a wholesale layering or stylesheet rewrite requires route-wide computed-style and visual regression checks.
 - Pipeline and Playground controller hooks are intentionally longer than presentation components because they coordinate cohesive async lifecycles. Split them only around a real responsibility, not an arbitrary line limit.
-- The app currently supports one dark theme. Do not add a nonfunctional theme switch or partial light theme.
+- The visual journey (`e2e/visual.spec.ts`) is reviewed by eye; there are no committed pixel baselines yet, so a layout regression is caught only when someone reviews the screenshots.
 
 ## Primary guidance
 

@@ -32,7 +32,7 @@ test('plain HTML authenticated embed submits, polls and inspects citations', asy
   const frame = page.frameLocator('iframe[title="Website question assistant"]');
   await expect(frame.getByRole('button', { name: /Open .* assistant/i })).toBeEnabled();
   await frame.getByRole('button', { name: /Open .* assistant/i }).click();
-  await expect(frame.getByRole('region', { name: 'Help assistant' })).toBeVisible();
+  await expect(frame.getByRole('region', { name: /assistant/i })).toBeVisible();
   await expect(frame.getByRole('dialog')).toHaveCount(0);
   await expect(frame.getByRole('status')).toContainText('Sign in');
   await expect(frame.getByRole('status')).toBeVisible();
@@ -148,7 +148,7 @@ test('zoom-sized viewport and reduced motion keep the chat usable', async ({ pag
   await page.goto(customer);
   const frame = page.frameLocator('iframe[title="Website question assistant"]');
   await frame.getByRole('button', { name: /Open .* assistant/i }).click();
-  await expect(frame.getByRole('region', { name: 'Help assistant' })).toBeVisible();
+  await expect(frame.getByRole('region', { name: /assistant/i })).toBeVisible();
   expect(
     await frame.locator('.panel').evaluate((element) => element.scrollWidth <= element.clientWidth),
   ).toBe(true);

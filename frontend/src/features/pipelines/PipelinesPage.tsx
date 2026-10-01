@@ -1,10 +1,16 @@
 import { useEffect, useState } from 'react';
 import { ArrowRight, Plus, Workflow } from 'lucide-react';
 
+import { LIST, LIST_ROW } from '../../components/parts';
+import { PageHeader } from '../../components/PageHeader';
+import { EmptyState } from '../../components/states/EmptyState';
+import { ErrorState } from '../../components/states/ErrorState';
+import { LoadingState } from '../../components/states/LoadingState';
 import { StatusBadge } from '../../components/StatusBadge';
 import { Button } from '../../components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '../../components/ui/tabs';
 import { allPages } from '../../lib/pagination';
+import { cn } from '../../lib/utils';
 import { listIngestionPipelineVersions } from '../ingestion-pipelines/api';
 import * as api from './api';
 import { type Pipeline, type PipelineKind, validatePipelineExecution } from './model';
@@ -97,53 +103,71 @@ export function PipelinesPage({
 
   const isAnswer = kind === 'answer';
   const collection = error ? (
-    <div role="alert" className="flex items-center gap-3">
-      <p>{error}</p>
-      <Button variant="outline" onClick={() => setRevision((value) => value + 1)}>
-        Retry
-      </Button>
-    </div>
+    <ErrorState
+      title={`We couldn’t load ${kind} pipelines`}
+      message={error}
+      onRetry={() => setRevision((value) => value + 1)}
+    />
   ) : !pipelines ? (
-    <p role="status">Loading {kind} pipelines…</p>
+    <LoadingState label={`Loading ${kind} pipelines…`} />
   ) : !pipelines.length ? (
-    <div className="empty-state border-0 border-border px-6 py-17.5 text-center text-muted-foreground">
-      <h2>{isAnswer ? 'Build your first answer pipeline' : 'No ingestion pipelines yet'}</h2>
-      <p>
-        {isAnswer
+    <EmptyState
+      icon={<Workflow />}
+      headingLevel="h2"
+      title={isAnswer ? 'Build your first answer pipeline' : 'No ingestion pipelines yet'}
+      description={
+        isAnswer
           ? 'Create a pipeline, choose the documents to search, and save a version to test in Playground.'
-          : 'Build a source-to-index workflow from explicitly selected, processed project files.'}
-      </p>
-    </div>
+          : 'Build a source-to-index workflow from explicitly selected, processed project files.'
+      }
+    />
   ) : (
-    <ul className="project-list pipeline-list m-0 mt-0 list-none border-t border-border p-0">
+    <ul className={LIST}>
       {pipelines.map((pipeline) => {
         const details = metadata[pipeline.id];
         return (
-          <li key={pipeline.id}>
-            <Workflow className="list-symbol" size={20} />
-            <div className="project-content min-w-0 flex-1 wrap-anywhere">
-              <div className="pipeline-row-title">
-                <h2>{pipeline.name}</h2>
-                {details && (
-                  <StatusBadge status={details.ready ? 'configured' : 'uploaded'}>
-                    {details.ready ? (isAnswer ? 'Ready to test' : 'Ready to run') : 'Needs setup'}
-                  </StatusBadge>
-                )}
+          <li
+            key={pipeline.id}
+            className={cn(
+              LIST_ROW,
+              'flex min-h-row flex-col gap-3 px-4 py-3 md:flex-row md:items-center md:gap-4',
+            )}
+          >
+            <div className="flex min-w-0 flex-1 items-start gap-3">
+              <Workflow
+                aria-hidden="true"
+                className="mt-1 size-4 shrink-0 text-foreground-subtle"
+              />
+              <div className="flex min-w-0 flex-1 flex-col gap-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="text-sm font-semibold text-foreground wrap-anywhere">
+                    {pipeline.name}
+                  </h2>
+                  {details && (
+                    <StatusBadge status={details.ready ? 'configured' : 'uploaded'}>
+                      {details.ready
+                        ? isAnswer
+                          ? 'Ready to test'
+                          : 'Ready to run'
+                        : 'Needs setup'}
+                    </StatusBadge>
+                  )}
+                </div>
+                <p className="text-xs text-foreground-muted tabular-nums">
+                  {details
+                    ? `Version ${details.version} · updated ${new Date(details.updatedAt).toLocaleDateString()}`
+                    : isAnswer
+                      ? 'No saved version details available'
+                      : 'Saved ingestion configuration'}
+                </p>
               </div>
-              <p>
-                {details
-                  ? `Version ${details.version} · updated ${new Date(details.updatedAt).toLocaleDateString()}`
-                  : isAnswer
-                    ? 'No saved version details available'
-                    : 'Saved ingestion configuration'}
-              </p>
             </div>
-            <Button variant="ghost" asChild>
+            <Button variant="outline" size="sm" className="self-start md:self-auto" asChild>
               <a
                 href={`#/projects/${projectId}/pipelines/${pipeline.id}${isAnswer ? '' : '?kind=ingestion'}`}
               >
                 Open<span className="sr-only"> {pipeline.name}</span>
-                <ArrowRight />
+                <ArrowRight aria-hidden="true" />
               </a>
             </Button>
           </li>
@@ -152,32 +176,23 @@ export function PipelinesPage({
     </ul>
   );
   return (
-    <>
-      <div className="page-heading mb-7 flex items-center justify-between gap-5">
-        <div>
-          <h1>Pipelines</h1>
-          <p>
-            {isAnswer
-              ? 'Saved configurations for answering questions with evidence.'
-              : 'Saved configurations for acquiring and indexing project knowledge.'}
-          </p>
-        </div>
-        {isAnswer ? (
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        title="Pipelines"
+        meta={
+          isAnswer
+            ? 'Saved configurations for answering questions with evidence.'
+            : 'Saved configurations for acquiring and indexing project knowledge.'
+        }
+        action={
           <Button asChild>
-            <a href={`#/projects/${projectId}/pipelines/new`}>
-              <Plus size={14} />
-              New answer pipeline
+            <a href={`#/projects/${projectId}/pipelines/new${isAnswer ? '' : '?kind=ingestion'}`}>
+              <Plus aria-hidden="true" />
+              {isAnswer ? 'New answer pipeline' : 'New ingestion pipeline'}
             </a>
           </Button>
-        ) : (
-          <Button asChild>
-            <a href={`#/projects/${projectId}/pipelines/new?kind=ingestion`}>
-              <Plus size={14} />
-              New ingestion pipeline
-            </a>
-          </Button>
-        )}
-      </div>
+        }
+      />
       <Tabs
         key={kind}
         value={kind}
@@ -201,11 +216,11 @@ export function PipelinesPage({
           id="pipeline-kind-panel"
           role="tabpanel"
           aria-labelledby={`${kind}-pipelines-tab`}
-          className="pt-5 outline-none"
+          className="pt-6 outline-none"
         >
           {collection}
         </div>
       </Tabs>
-    </>
+    </div>
   );
 }

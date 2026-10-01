@@ -1,5 +1,8 @@
 import { lazy, Suspense } from 'react';
 import type { parseRoute } from './navigation';
+import { Button } from '../components/ui/button';
+import { EmptyState } from '../components/states/EmptyState';
+import { LoadingState } from '../components/states/LoadingState';
 
 const ExperimentsPage = lazy(() =>
   import('../features/experiments/ExperimentsPage').then((module) => ({
@@ -50,10 +53,15 @@ type WorkspacePageProps = {
 };
 function PageNotFound() {
   return (
-    <>
-      <h1>Page not found</h1>
-      <a href="#/">Return to projects</a>
-    </>
+    <EmptyState
+      title="Page not found"
+      description="This address does not match a page in the workspace."
+      action={
+        <Button variant="outline" asChild>
+          <a href="#/">Return to projects</a>
+        </Button>
+      }
+    />
   );
 }
 function WorkspaceRoute({ route, onProjectCreated }: WorkspacePageProps) {
@@ -68,7 +76,13 @@ function WorkspaceRoute({ route, onProjectCreated }: WorkspacePageProps) {
     case 'overview':
       return <ProjectSummary projectId={projectId} />;
     case 'settings':
-      return <ProjectSummary projectId={projectId} configuration />;
+      return (
+        <ProjectSummary
+          projectId={projectId}
+          configuration
+          section={query.get('section') || undefined}
+        />
+      );
     case 'experiments':
       return <ExperimentsPage projectId={projectId} experimentId={detail} />;
     case 'knowledge-base':
@@ -111,7 +125,7 @@ function WorkspaceRoute({ route, onProjectCreated }: WorkspacePageProps) {
 
 export function WorkspacePage(props: WorkspacePageProps) {
   return (
-    <Suspense fallback={<p role="status">Loading page…</p>}>
+    <Suspense fallback={<LoadingState label="Loading page…" />}>
       <WorkspaceRoute {...props} />
     </Suspense>
   );

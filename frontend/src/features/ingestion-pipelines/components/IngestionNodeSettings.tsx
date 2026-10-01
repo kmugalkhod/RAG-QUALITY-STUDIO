@@ -1,10 +1,11 @@
-import { CircleAlert, Database } from 'lucide-react';
-
+import { Callout, LINK, SUMMARY } from '../../../components/parts';
 import { Button } from '../../../components/ui/button';
+import { Checkbox } from '../../../components/ui/checkbox';
 import { Input } from '../../../components/ui/input';
 import { Label } from '../../../components/ui/label';
 import { NativeSelect, NativeSelectOption } from '../../../components/ui/native-select';
 import { docsHref } from '../../../lib/docs';
+import { cn } from '../../../lib/utils';
 import type { ConnectionSettings, SourceConnection } from '../../connections/model';
 import type { Document, KnowledgeSet } from '../../documents/model';
 import {
@@ -24,6 +25,17 @@ import type {
 } from '../model';
 import { ConfluenceSettings, NotionSettings, S3Settings, WebsiteSettings } from './SourceSettings';
 import { CleaningTransformSettings } from './CleaningTransformSettings';
+import {
+  CHECK_ROW,
+  DETAILS,
+  FACTS,
+  FIELD_ERROR,
+  FIELDSET,
+  FORM,
+  HINT,
+  OPTION,
+  STACK,
+} from './settingsStyles';
 
 type SourceKind = 'existing_files' | 'website' | 's3' | 'notion' | 'confluence';
 
@@ -162,16 +174,16 @@ export function IngestionNodeSettings({
   return (
     <aside
       id="node-settings"
-      className="node-settings"
+      className="flex min-w-0 flex-col border-t border-border bg-surface desktop:w-panel desktop:shrink-0 desktop:overflow-y-auto desktop:overscroll-contain desktop:border-t-0 desktop:border-l"
       aria-labelledby="ingestion-settings-heading"
     >
-      <div className="ingestion-settings-header">
-        <h2 id="ingestion-settings-heading">
+      <div className="flex shrink-0 flex-col gap-1 border-b border-border bg-surface px-4 py-4 md:px-6 desktop:sticky desktop:top-0 desktop:z-10">
+        <h2 id="ingestion-settings-heading" className="text-base font-semibold text-foreground">
           {selected
             ? `${selected.type === 'source' ? (selected.config.kind === 'website' ? 'Website' : selected.config.kind === 's3' ? 'Amazon S3' : selected.config.kind === 'notion' ? 'Notion' : selected.config.kind === 'confluence' ? 'Confluence' : 'Existing files') : labels[selected.type]} settings`
             : 'Node settings'}
         </h2>
-        <p>
+        <p className="text-xs text-foreground-muted">
           Stage {nodes.findIndex((node) => node.id === selectedNode) + 1} of {nodes.length} ·{' '}
           {dirty
             ? 'Draft configuration'
@@ -181,6 +193,7 @@ export function IngestionNodeSettings({
         </p>
         {selected && (
           <a
+            className={cn(LINK, 'self-start')}
             href={
               selected.type === 'source'
                 ? docsHref('ingestion/sources')
@@ -201,23 +214,25 @@ export function IngestionNodeSettings({
       </div>
       <div
         id="ingestion-settings-body"
-        className="ingestion-settings-body"
+        className={cn(
+          FORM,
+          'p-4 outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent md:p-6',
+        )}
         tabIndex={0}
         role="region"
         aria-label="Stage settings"
       >
         {validation.length > 0 && (
-          <div className="pipeline-validation" role="status">
-            <strong>Complete the configuration</strong>
-            <ul>
+          <Callout tone="warning" role="status" title="Complete the configuration">
+            <ul className="flex flex-col gap-1">
               {validation.map((reason) => (
                 <li key={reason}>{reason}</li>
               ))}
             </ul>
-          </div>
+          </Callout>
         )}
         {selected?.type === 'source' && (
-          <div className="field-stack">
+          <div className={STACK}>
             <Label>
               Source type
               <NativeSelect
@@ -248,17 +263,16 @@ export function IngestionNodeSettings({
               </NativeSelect>
             </Label>
             {!connectionSettings?.enabled && (
-              <div className="website-preview-notice" role="note">
-                <CircleAlert size={17} aria-hidden="true" />
+              <Callout role="note">
                 <p>
                   Amazon S3, Notion, and Confluence need the local encrypted connection vault.{' '}
                   <a href={`#/projects/${projectId}/settings`}>Review setup in project settings</a>.
                 </p>
-              </div>
+              </Callout>
             )}
             {selected.config.kind === 'existing_files' ? (
               <>
-                <p className="field-hint">
+                <p className={HINT}>
                   {schemaVersion === 2
                     ? 'Choose explicit project files. The saved extraction settings process new or failed uploads when the run starts.'
                     : 'Choose explicit project files. Legacy pipelines require a successful processing version.'}
@@ -283,28 +297,29 @@ export function IngestionNodeSettings({
                         : `Processing ${document.latest_run?.status ?? 'required'}`;
                   return (
                     <div key={document.id}>
-                      <label className="ingestion-document-option">
-                        <input
-                          type="checkbox"
+                      <label className={OPTION}>
+                        <Checkbox
                           checked={checked}
                           disabled={disabled}
-                          onChange={(event) =>
+                          onCheckedChange={(checked) =>
                             updateNode(selected.id, (node) =>
                               node.type === 'source' && node.config.kind === 'existing_files'
                                 ? {
                                     ...node,
                                     config: {
                                       ...node.config,
-                                      document_ids: event.target.checked
-                                        ? [...node.config.document_ids, document.id]
-                                        : node.config.document_ids.filter(
-                                            (id: string) => id !== document.id,
-                                          ),
-                                      optional_document_ids: event.target.checked
-                                        ? (node.config.optional_document_ids ?? [])
-                                        : (node.config.optional_document_ids ?? []).filter(
-                                            (id: string) => id !== document.id,
-                                          ),
+                                      document_ids:
+                                        checked === true
+                                          ? [...node.config.document_ids, document.id]
+                                          : node.config.document_ids.filter(
+                                              (id: string) => id !== document.id,
+                                            ),
+                                      optional_document_ids:
+                                        checked === true
+                                          ? (node.config.optional_document_ids ?? [])
+                                          : (node.config.optional_document_ids ?? []).filter(
+                                              (id: string) => id !== document.id,
+                                            ),
                                     },
                                   }
                                 : node,
@@ -317,27 +332,27 @@ export function IngestionNodeSettings({
                         </span>
                       </label>
                       {schemaVersion === 2 && checked && (
-                        <label className="ingestion-document-option">
-                          <input
-                            type="checkbox"
+                        <label className={OPTION}>
+                          <Checkbox
                             checked={(sourceConfig.optional_document_ids ?? []).includes(
                               document.id,
                             )}
-                            onChange={(event) =>
+                            onCheckedChange={(checked) =>
                               updateNode(selected.id, (node) =>
                                 node.type === 'source' && node.config.kind === 'existing_files'
                                   ? {
                                       ...node,
                                       config: {
                                         ...node.config,
-                                        optional_document_ids: event.target.checked
-                                          ? [
-                                              ...(node.config.optional_document_ids ?? []),
-                                              document.id,
-                                            ]
-                                          : (node.config.optional_document_ids ?? []).filter(
-                                              (id: string) => id !== document.id,
-                                            ),
+                                        optional_document_ids:
+                                          checked === true
+                                            ? [
+                                                ...(node.config.optional_document_ids ?? []),
+                                                document.id,
+                                              ]
+                                            : (node.config.optional_document_ids ?? []).filter(
+                                                (id: string) => id !== document.id,
+                                              ),
                                       },
                                     }
                                   : node,
@@ -406,20 +421,19 @@ export function IngestionNodeSettings({
           </div>
         )}
         {selected?.type === 'chunk' && (
-          <div className="field-stack">
-            <p className="field-hint">
+          <div className={STACK}>
+            <p className={HINT}>
               Choose the saved chunking algorithm used for this index variant. Token limits use the
               stable UTF-8 byte tokenizer, a conservative model-independent upper bound.
             </p>
             {websiteSource && (
-              <div className="website-preview-notice">
-                <Database size={17} />
+              <Callout>
                 <p>
                   To try new chunk settings without another Website request: save a new version,
                   choose an exact ready snapshot, then select{' '}
                   <strong>Reprocess saved source</strong>.
                 </p>
-              </div>
+              </Callout>
             )}
             <Label>
               Chunking algorithm
@@ -517,13 +531,13 @@ export function IngestionNodeSettings({
                     />
                   </Label>
                 ))}
-                <p className="field-hint">
+                <p className={HINT}>
                   Child chunks are embedded. Retrieval supplies their saved parent text as evidence.
                 </p>
               </>
             ) : (
               <>
-                <div className="chunk-presets" aria-label="Chunking presets">
+                <div className="flex flex-wrap gap-2" role="group" aria-label="Chunking presets">
                   {(
                     [
                       ['Precise', 600, 80],
@@ -535,11 +549,9 @@ export function IngestionNodeSettings({
                       key={label}
                       type="button"
                       size="sm"
-                      variant={
-                        selected.size === size && selected.overlap === overlap
-                          ? 'default'
-                          : 'outline'
-                      }
+                      variant="outline"
+                      className="aria-pressed:border-accent aria-pressed:text-accent"
+                      aria-pressed={selected.size === size && selected.overlap === overlap}
                       onClick={() =>
                         updateNode(selected.id, (node) =>
                           node.type === 'chunk' &&
@@ -589,14 +601,13 @@ export function IngestionNodeSettings({
               </>
             )}
             {'add_heading_context' in selected && (
-              <label className="toggle-row">
-                <input
-                  type="checkbox"
+              <label className={CHECK_ROW}>
+                <Checkbox
                   checked={selected.add_heading_context}
-                  onChange={(event) =>
+                  onCheckedChange={(checked) =>
                     updateNode(selected.id, (node) =>
                       node.type === 'chunk' && 'add_heading_context' in node
-                        ? { ...node, add_heading_context: event.target.checked }
+                        ? { ...node, add_heading_context: checked === true }
                         : node,
                     )
                   }
@@ -607,8 +618,8 @@ export function IngestionNodeSettings({
           </div>
         )}
         {selected?.type === 'publish_index' && (
-          <div className="field-stack">
-            <p className="field-hint">
+          <div className={STACK}>
+            <p className={HINT}>
               Make the embedded passages available as an immutable, reusable index version.
               Publishing does not embed the passages again.
             </p>
@@ -656,14 +667,14 @@ export function IngestionNodeSettings({
           </div>
         )}
         {selected?.type === 'extract' && (
-          <div className="field-stack">
-            <p className="field-hint">
+          <div className={STACK}>
+            <p className={HINT}>
               Extract readable text with page-level provenance. PDF layout and OCR fallbacks run
               offline inside bounded workers.
             </p>
             {schemaVersion === 1 || selected.config_version !== 'layout-ocr-v1' ? (
               <>
-                <dl className="ingestion-stage-facts">
+                <dl className={FACTS}>
                   <dt>Strategy</dt>
                   <dd>
                     {schemaVersion === 1
@@ -751,33 +762,34 @@ export function IngestionNodeSettings({
                   </NativeSelect>
                 </Label>
                 {!extractionCapabilities?.ocr.available && (
-                  <div className="website-preview-notice" role="note">
-                    <CircleAlert size={17} aria-hidden="true" />
+                  <Callout role="note">
                     <p>
                       {extractionCapabilities?.ocr.reason ??
                         'OCR capability information is unavailable.'}
                     </p>
-                  </div>
+                  </Callout>
                 )}
                 {selectedOcr && selectedOcr.mode !== 'off' && (
                   <>
-                    <fieldset className="ingestion-inline-fieldset">
+                    <fieldset className={FIELDSET}>
                       <legend>OCR languages</legend>
                       {(extractionCapabilities?.ocr.languages ?? []).map((language) => {
                         const checked = selectedOcr.languages.includes(language);
                         return (
-                          <label className="ingestion-document-option" key={language}>
-                            <input
-                              type="checkbox"
+                          <label className={OPTION} key={language}>
+                            <Checkbox
                               checked={checked}
                               disabled={checked && selectedOcr.languages.length === 1}
-                              onChange={(event) =>
+                              onCheckedChange={(checked) =>
                                 updateExtract({
                                   ocr: {
                                     ...selectedOcr,
-                                    languages: event.target.checked
-                                      ? [...selectedOcr.languages, language].slice(0, 3)
-                                      : selectedOcr.languages.filter((value) => value !== language),
+                                    languages:
+                                      checked === true
+                                        ? [...selectedOcr.languages, language].slice(0, 3)
+                                        : selectedOcr.languages.filter(
+                                            (value) => value !== language,
+                                          ),
                                   },
                                 })
                               }
@@ -790,13 +802,12 @@ export function IngestionNodeSettings({
                         );
                       })}
                     </fieldset>
-                    <label className="ingestion-document-option">
-                      <input
-                        type="checkbox"
+                    <label className={OPTION}>
+                      <Checkbox
                         checked={selectedOcr.rotate_pages}
-                        onChange={(event) =>
+                        onCheckedChange={(checked) =>
                           updateExtract({
-                            ocr: { ...selectedOcr, rotate_pages: event.target.checked },
+                            ocr: { ...selectedOcr, rotate_pages: checked === true },
                           })
                         }
                       />
@@ -805,12 +816,11 @@ export function IngestionNodeSettings({
                         <small>Apply only bounded 90-degree orientation correction.</small>
                       </span>
                     </label>
-                    <label className="ingestion-document-option">
-                      <input
-                        type="checkbox"
+                    <label className={OPTION}>
+                      <Checkbox
                         checked={selectedOcr.deskew}
-                        onChange={(event) =>
-                          updateExtract({ ocr: { ...selectedOcr, deskew: event.target.checked } })
+                        onCheckedChange={(checked) =>
+                          updateExtract({ ocr: { ...selectedOcr, deskew: checked === true } })
                         }
                       />
                       <span>
@@ -833,7 +843,7 @@ export function IngestionNodeSettings({
                         }
                       />
                       {serverFieldErrors['ocr.dpi'] && (
-                        <small role="alert" className="error-message">
+                        <small role="alert" className={FIELD_ERROR}>
                           {serverFieldErrors['ocr.dpi']}
                         </small>
                       )}
@@ -853,7 +863,7 @@ export function IngestionNodeSettings({
                         }
                       />
                       {serverFieldErrors['ocr.max_pages'] && (
-                        <small role="alert" className="error-message">
+                        <small role="alert" className={FIELD_ERROR}>
                           {serverFieldErrors['ocr.max_pages']}
                         </small>
                       )}
@@ -876,7 +886,7 @@ export function IngestionNodeSettings({
                         }
                       />
                       {serverFieldErrors['ocr.timeout_seconds'] && (
-                        <small role="alert" className="error-message">
+                        <small role="alert" className={FIELD_ERROR}>
                           {serverFieldErrors['ocr.timeout_seconds']}
                         </small>
                       )}
@@ -926,7 +936,7 @@ export function IngestionNodeSettings({
                     )}
                   </NativeSelect>
                 </Label>
-                <p className="field-hint">
+                <p className={HINT}>
                   {extractionCapabilities?.quality_policies.find(
                     (value) => value.id === selectedQualityId,
                   )?.description ?? 'Saved extraction thresholds control publication.'}
@@ -967,9 +977,9 @@ export function IngestionNodeSettings({
                     <NativeSelectOption value="exclude">Exclude and report</NativeSelectOption>
                   </NativeSelect>
                 </Label>
-                <details>
-                  <summary>Quality thresholds</summary>
-                  <div className="field-stack">
+                <details className={DETAILS}>
+                  <summary className={SUMMARY}>Quality thresholds</summary>
+                  <div className={STACK}>
                     <Label>
                       Maximum empty-page ratio
                       <Input
@@ -1053,48 +1063,46 @@ export function IngestionNodeSettings({
                         }
                       />
                     </Label>
-                    <Label>
-                      <input
-                        type="checkbox"
+                    <label className={CHECK_ROW}>
+                      <Checkbox
                         checked={selectedQuality.thresholds.fail_on_suspicious_reading_order}
-                        onChange={(event) =>
+                        onCheckedChange={(checked) =>
                           updateExtract({
                             quality_policy: {
                               ...selectedQuality,
                               thresholds: {
                                 ...selectedQuality.thresholds,
-                                fail_on_suspicious_reading_order: event.target.checked,
+                                fail_on_suspicious_reading_order: checked === true,
                               },
                             },
                           })
                         }
                       />
                       Fail on suspicious reading order
-                    </Label>
-                    <Label>
-                      <input
-                        type="checkbox"
+                    </label>
+                    <label className={CHECK_ROW}>
+                      <Checkbox
                         checked={selectedQuality.thresholds.fail_on_malformed_tables}
-                        onChange={(event) =>
+                        onCheckedChange={(checked) =>
                           updateExtract({
                             quality_policy: {
                               ...selectedQuality,
                               thresholds: {
                                 ...selectedQuality.thresholds,
-                                fail_on_malformed_tables: event.target.checked,
+                                fail_on_malformed_tables: checked === true,
                               },
                             },
                           })
                         }
                       />
                       Fail on malformed tables
-                    </Label>
+                    </label>
                   </div>
                 </details>
-                <details>
-                  <summary>Language policy</summary>
-                  <div className="field-stack">
-                    <p className="field-hint">
+                <details className={DETAILS}>
+                  <summary className={SUMMARY}>Language policy</summary>
+                  <div className={STACK}>
+                    <p className={HINT}>
                       Detection records model/version and confidence. Source text is never
                       translated.
                     </p>
@@ -1179,13 +1187,13 @@ export function IngestionNodeSettings({
           </div>
         )}
         {selected?.type === 'clean' && (
-          <div className="field-stack">
-            <p className="field-hint">
+          <div className={STACK}>
+            <p className={HINT}>
               Prepare extracted text before splitting it into searchable passages. These settings
               are recorded with the saved version.
             </p>
             {schemaVersion === 1 ? (
-              <dl className="ingestion-stage-facts">
+              <dl className={FACTS}>
                 <dt>Normalize whitespace</dt>
                 <dd>{selected.normalize_whitespace === false ? 'Off' : 'On'}</dd>
                 <dt>Exact-content deduplication</dt>
@@ -1206,9 +1214,9 @@ export function IngestionNodeSettings({
                     updateNode(selected.id, (node) => (node.type === 'clean' ? value : node))
                   }
                 />
-                <details>
-                  <summary>Duplicate policy</summary>
-                  <div className="field-stack">
+                <details className={DETAILS}>
+                  <summary className={SUMMARY}>Duplicate policy</summary>
+                  <div className={STACK}>
                     {(
                       [
                         ['exact_raw', 'Exact raw-content hash'],
@@ -1217,18 +1225,17 @@ export function IngestionNodeSettings({
                         ['near_duplicate', 'Near-duplicate SimHash'],
                       ] as const
                     ).map(([key, label]) => (
-                      <Label key={key}>
-                        <input
-                          type="checkbox"
+                      <label className={CHECK_ROW} key={key}>
+                        <Checkbox
                           checked={selectedDuplicate[key]}
-                          onChange={(event) =>
+                          onCheckedChange={(checked) =>
                             updateNode(selected.id, (node) =>
                               node.type === 'clean'
                                 ? {
                                     ...node,
                                     duplicate_policy: {
                                       ...selectedDuplicate,
-                                      [key]: event.target.checked,
+                                      [key]: checked === true,
                                     },
                                   }
                                 : node,
@@ -1236,7 +1243,7 @@ export function IngestionNodeSettings({
                           }
                         />
                         {label}
-                      </Label>
+                      </label>
                     ))}
                     {selectedDuplicate.near_duplicate && (
                       <Label>
@@ -1286,27 +1293,26 @@ export function IngestionNodeSettings({
                         }
                       />
                     </Label>
-                    <p className="field-hint">
+                    <p className={HINT}>
                       Canonical order: pinned source, connector priority, first stable identity,
                       then lexical identity. Overrides are saved in a new pipeline version.
                     </p>
                   </div>
                 </details>
-                <details>
-                  <summary>Sensitive-data policy</summary>
-                  <div className="field-stack">
-                    <Label>
-                      <input
-                        type="checkbox"
+                <details className={DETAILS}>
+                  <summary className={SUMMARY}>Sensitive-data policy</summary>
+                  <div className={STACK}>
+                    <label className={CHECK_ROW}>
+                      <Checkbox
                         checked={selectedSensitive.enabled}
-                        onChange={(event) =>
+                        onCheckedChange={(checked) =>
                           updateNode(selected.id, (node) =>
                             node.type === 'clean'
                               ? {
                                   ...node,
                                   sensitive_data_policy: {
                                     ...selectedSensitive,
-                                    enabled: event.target.checked,
+                                    enabled: checked === true,
                                   },
                                 }
                               : node,
@@ -1314,8 +1320,8 @@ export function IngestionNodeSettings({
                         }
                       />
                       Redact sensitive values before chunking and embedding
-                    </Label>
-                    <p className="field-hint">
+                    </label>
+                    <p className={HINT}>
                       Redaction is irreversible in cleaned passages, embeddings, retrieval evidence,
                       and provider requests. Raw artifacts and full diffs are encrypted, retained
                       for 30 days, and limited to project owners and admins.
@@ -1357,7 +1363,7 @@ export function IngestionNodeSettings({
                         </NativeSelect>
                       </Label>
                     ))}
-                    <p className="field-hint">
+                    <p className={HINT}>
                       Deterministic pattern detectors cover the listed classes but cannot detect
                       every sensitive value. Review synthetic false-positive and false-negative
                       cases before relying on this policy.
@@ -1369,12 +1375,12 @@ export function IngestionNodeSettings({
           </div>
         )}
         {selected?.type === 'embed' && (
-          <div className="field-stack">
-            <p className="field-hint">
+          <div className={STACK}>
+            <p className={HINT}>
               Convert each passage into a vector for retrieval. The embedding model and dimensions
               must match the destination index.
             </p>
-            <dl className="ingestion-stage-facts">
+            <dl className={FACTS}>
               <dt>Provider</dt>
               <dd>{selected.provider}</dd>
               <dt>Model</dt>
@@ -1384,7 +1390,7 @@ export function IngestionNodeSettings({
               <dt>Configuration version</dt>
               <dd>{selected.config_version}</dd>
             </dl>
-            <p className="field-hint">
+            <p className={HINT}>
               Model configuration is managed by the backend and saved with this pipeline version.
             </p>
           </div>

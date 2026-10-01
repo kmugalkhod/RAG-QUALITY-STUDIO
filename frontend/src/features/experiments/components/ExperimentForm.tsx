@@ -1,4 +1,6 @@
 import { useState, type FormEvent } from 'react';
+import { ChevronDown } from 'lucide-react';
+import { Callout, CARD, InlineError } from '../../../components/parts';
 import { Button } from '../../../components/ui/button';
 import { Checkbox } from '../../../components/ui/checkbox';
 import { Input } from '../../../components/ui/input';
@@ -11,7 +13,14 @@ import { type Dataset, type Metric, metricLabel } from '../model';
 import { Configuration } from './Configuration';
 import { docsHref } from '../../../lib/docs';
 
+import { StageNumber } from './parts';
+
 const metrics = Object.keys(metricLabel) as Metric[];
+const STAGE = `${CARD} group flex min-w-0 flex-col`;
+const STAGE_SUMMARY =
+  'flex min-h-row list-none items-start gap-3 rounded-card p-4 outline-none focus-visible:outline-2 focus-visible:outline-accent md:p-6 [&::-webkit-details-marker]:hidden';
+const CHEVRON =
+  'mt-1 size-4 shrink-0 text-foreground-subtle transition-transform duration-(--transition-fast) group-open:rotate-180';
 type EvaluationOptions = Awaited<ReturnType<typeof api.getEvaluationOptions>>;
 
 export function ExperimentForm({
@@ -86,97 +95,119 @@ export function ExperimentForm({
   const selectedDataset = datasets.find((dataset) => dataset.id === datasetId);
   const selectedCandidateCount = [candidateA, candidateB].filter(Boolean).length;
 
+  const candidateNote =
+    candidateIndexes.length === 2 ? (
+      sameSnapshot ? (
+        <Callout tone="success">
+          Same source snapshot · Snapshot {candidateIndexes[0]?.source_snapshot_number}
+        </Callout>
+      ) : (
+        <Callout tone="warning">
+          Comparison caveat: these candidates use different source snapshots, or legacy lineage is
+          unavailable. Content changes may affect results.
+        </Callout>
+      )
+    ) : null;
   return (
-    <form className="experiment-workbench" onSubmit={onSubmit}>
-      <div className="experiment-stage-stack">
+    // display: contents lets the stages and the summary join the page grid while staying one form.
+    <form className="contents" onSubmit={onSubmit}>
+      <div className="flex min-w-0 flex-col gap-4 desktop:col-start-1">
         <details
-          className="experiment-stage"
+          className={STAGE}
           open={candidateStageOpen}
           onToggle={(event) => setCandidateStageOpen(event.currentTarget.open)}
         >
-          <summary>
-            <span className="experiment-stage-index" aria-hidden="true">
-              2
+          <summary className={STAGE_SUMMARY}>
+            <StageNumber>2</StageNumber>
+            <span className="flex min-w-0 flex-1 flex-col gap-1">
+              <strong className="text-base font-semibold text-foreground">
+                Candidate configurations
+              </strong>
+              <small className="text-sm text-foreground-muted">
+                Select one saved version to evaluate, or two to compare.
+              </small>
             </span>
-            <span>
-              <strong>Candidate configurations</strong>
-              <small>Select one saved version to evaluate, or two to compare.</small>
-            </span>
+            <ChevronDown aria-hidden="true" className={CHEVRON} />
           </summary>
-          <div className="experiment-stage-body">
-            {candidateIndexes.length === 2 && (
-              <p className={sameSnapshot ? 'success-message' : 'index-difference'}>
-                {sameSnapshot
-                  ? `Same source snapshot · Snapshot ${candidateIndexes[0]?.source_snapshot_number}`
-                  : 'Comparison caveat: these candidates use different source snapshots, or legacy lineage is unavailable. Content changes may affect results.'}
-              </p>
-            )}
-            <div className="candidate-columns">
-              {candidates.map((candidate) => (
-                <div className="candidate-column" key={candidate.label}>
-                  <Label>
-                    Candidate {candidate.label}
-                    {candidate.required ? '' : ' (optional)'}
-                    <NativeSelect
-                      required={candidate.required}
-                      value={candidate.value}
-                      onChange={(event) => candidate.onChange(event.target.value)}
-                    >
-                      <NativeSelectOption value="">
-                        {candidate.required
-                          ? 'Select a saved pipeline version'
-                          : 'Single candidate'}
-                      </NativeSelectOption>
-                      {pipelines
-                        .filter((pipeline) => pipeline.id !== candidate.other)
-                        .map((pipeline) => (
-                          <NativeSelectOption key={pipeline.id} value={pipeline.id}>
-                            {pipeline.name} · v{pipeline.version}
-                          </NativeSelectOption>
-                        ))}
-                    </NativeSelect>
-                  </Label>
-                  {pipelines.find((pipeline) => pipeline.id === candidate.value) && (
-                    <Configuration
-                      version={pipelines.find((pipeline) => pipeline.id === candidate.value)!}
-                    />
-                  )}
-                </div>
-              ))}
+          <div className="flex flex-col gap-4 px-4 pb-4 md:px-6 md:pb-6">
+            {candidateNote}
+            <div className="grid gap-4 md:grid-cols-2">
+              {candidates.map((candidate) => {
+                const version = pipelines.find((pipeline) => pipeline.id === candidate.value);
+                return (
+                  <div className="flex min-w-0 flex-col gap-3" key={candidate.label}>
+                    <Label className="mb-0">
+                      Candidate {candidate.label}
+                      {candidate.required ? '' : ' (optional)'}
+                      <NativeSelect
+                        className="mt-2"
+                        required={candidate.required}
+                        value={candidate.value}
+                        onChange={(event) => candidate.onChange(event.target.value)}
+                      >
+                        <NativeSelectOption value="">
+                          {candidate.required
+                            ? 'Select a saved pipeline version'
+                            : 'Single candidate'}
+                        </NativeSelectOption>
+                        {pipelines
+                          .filter((pipeline) => pipeline.id !== candidate.other)
+                          .map((pipeline) => (
+                            <NativeSelectOption key={pipeline.id} value={pipeline.id}>
+                              {pipeline.name} · v{pipeline.version}
+                            </NativeSelectOption>
+                          ))}
+                      </NativeSelect>
+                    </Label>
+                    {version && <Configuration version={version} />}
+                  </div>
+                );
+              })}
             </div>
           </div>
         </details>
         <details
-          className="experiment-stage"
+          className={STAGE}
           open={metricsStageOpen}
           onToggle={(event) => setMetricsStageOpen(event.currentTarget.open)}
         >
-          <summary>
-            <span className="experiment-stage-index" aria-hidden="true">
-              3
+          <summary className={STAGE_SUMMARY}>
+            <StageNumber>3</StageNumber>
+            <span className="flex min-w-0 flex-1 flex-col gap-1">
+              <strong className="text-base font-semibold text-foreground">
+                Metrics &amp; execution
+              </strong>
+              <small className="text-sm text-foreground-muted">
+                Name the run, choose measures, then review the execution summary.
+              </small>
             </span>
-            <span>
-              <strong>Metrics &amp; execution</strong>
-              <small>Name the run, choose measures, then review the execution summary.</small>
-            </span>
+            <ChevronDown aria-hidden="true" className={CHEVRON} />
           </summary>
-          <div className="experiment-stage-body">
-            <Label className="experiment-name-field">
+          <div className="flex flex-col gap-4 px-4 pb-4 md:px-6 md:pb-6">
+            <Label className="mb-0">
               Experiment name
               <Input
+                className="mt-2"
                 required
                 maxLength={120}
                 value={name}
                 onChange={(event) => onNameChange(event.target.value)}
               />
             </Label>
-            <fieldset>
-              <legend>Evaluation metrics</legend>
-              <div className="metric-grid">
+            <fieldset className="flex min-w-0 flex-col gap-3">
+              <legend className="mb-3 text-sm font-semibold text-foreground">
+                Evaluation metrics
+              </legend>
+              <div className="grid gap-2 md:grid-cols-2">
                 {metrics.map((metric) => (
-                  <Label className="metric-choice" key={metric} htmlFor={`metric-${metric}`}>
+                  <Label
+                    className="mb-0 flex min-h-row cursor-pointer items-start gap-3 rounded-control border border-border bg-background p-3 has-data-[state=checked]:border-accent"
+                    key={metric}
+                    htmlFor={`metric-${metric}`}
+                  >
                     <Checkbox
                       id={`metric-${metric}`}
+                      className="mt-1"
                       checked={selectedMetrics.includes(metric)}
                       onCheckedChange={(checked) =>
                         onMetricsChange(
@@ -186,80 +217,98 @@ export function ExperimentForm({
                         )
                       }
                     />
-                    <span>
-                      <strong>{metricLabel[metric]}</strong>
-                      <small>{options?.metrics[metric]}</small>
+                    <span className="flex min-w-0 flex-col gap-1">
+                      <strong className="text-sm font-medium text-foreground">
+                        {metricLabel[metric]}
+                      </strong>
+                      <small className="text-xs font-normal text-foreground-muted">
+                        {options?.metrics[metric]}
+                      </small>
                     </span>
                   </Label>
                 ))}
               </div>
             </fieldset>
-            <p className="evaluator-note">
-              Evaluator: <strong>{options?.model || 'Not configured'}</strong>. Scores use paid
-              model calls, can vary between runs, and require human review.
+            <p className="text-sm text-foreground-muted">
+              Evaluator:{' '}
+              <strong className="font-medium text-foreground">
+                {options?.model || 'Not configured'}
+              </strong>
+              . Scores use paid model calls, can vary between runs, and require human review.
             </p>
           </div>
         </details>
       </div>
-      <aside className="experiment-run-summary" aria-label="Experiment run summary">
-        <div>
-          <h2>Run summary</h2>
-          <a href={docsHref('experiments/runs')} target="_blank" rel="noopener noreferrer">
+      <aside
+        className="flex flex-col gap-4 rounded-card border border-border bg-surface p-4 desktop:sticky desktop:top-16 desktop:col-start-2 desktop:row-span-2 desktop:row-start-1"
+        aria-label="Experiment run summary"
+      >
+        <div className="flex flex-col gap-1 border-b border-border pb-4">
+          <h2 className="text-base font-semibold text-foreground">Run summary</h2>
+          <a
+            className="self-start text-sm text-accent hover:underline"
+            href={docsHref('experiments/runs')}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
             Experiment run guide
           </a>
-          <p className="draft-notice" role="status">
+          <p
+            className={storageError ? 'text-xs text-warning' : 'text-xs text-foreground-muted'}
+            role="status"
+          >
             {storageError || 'Draft saved in this browser tab.'}
           </p>
         </div>
-        {options?.error && (
-          <p role="alert" className="error-message">
-            {options.error}
-          </p>
-        )}
+        {options?.error && <InlineError>{options.error}</InlineError>}
         {!pipelines.length && (
-          <p>
-            Save a pipeline in <a href={`#/projects/${projectId}/pipelines`}>Pipelines</a> before
-            running an experiment.
+          <p className="text-sm text-foreground-muted">
+            Save a pipeline in{' '}
+            <a className="text-accent hover:underline" href={`#/projects/${projectId}/pipelines`}>
+              Pipelines
+            </a>{' '}
+            before running an experiment.
           </p>
         )}
-        <dl>
-          <div>
-            <dt>Dataset</dt>
-            <dd>
-              {selectedDataset
-                ? `${selectedDataset.name} · v${selectedDataset.version}`
-                : 'Not selected'}
-            </dd>
-          </div>
-          <div>
-            <dt>Candidates</dt>
-            <dd>{selectedCandidateCount || 'None selected'}</dd>
-          </div>
-          <div>
-            <dt>Metrics</dt>
-            <dd>{selectedMetrics.length}</dd>
-          </div>
-          <div>
-            <dt>Evaluator</dt>
-            <dd>{options?.model || 'Unavailable'}</dd>
-          </div>
+        <dl className="flex flex-col gap-3 text-sm">
+          {(
+            [
+              [
+                'Dataset',
+                selectedDataset
+                  ? `${selectedDataset.name} · v${selectedDataset.version}`
+                  : 'Not selected',
+              ],
+              ['Candidates', selectedCandidateCount || 'None selected'],
+              ['Metrics', selectedMetrics.length],
+              ['Evaluator', options?.model || 'Unavailable'],
+            ] as const
+          ).map(([term, value]) => (
+            <div key={term} className="flex flex-col gap-1">
+              <dt className="text-xs text-foreground-muted">{term}</dt>
+              <dd className="text-foreground tabular-nums wrap-anywhere">{value}</dd>
+            </div>
+          ))}
         </dl>
-        <Button
-          type="submit"
-          disabled={
-            busy ||
-            !!options?.error ||
-            !datasetId ||
-            !candidateA ||
-            !selectedMetrics.length ||
-            !name.trim()
-          }
-        >
-          {busy ? 'Submitting…' : 'Run experiment'}
-        </Button>
-        <Button variant="ghost" disabled={busy} onClick={onReset}>
-          Reset draft
-        </Button>
+        <div className="flex flex-col gap-2">
+          <Button
+            type="submit"
+            loading={busy}
+            disabled={
+              busy ||
+              !!options?.error ||
+              !datasetId ||
+              !candidateA ||
+              !selectedMetrics.length ||
+              !name.trim()
+            }
+          >
+            Run experiment
+          </Button>
+          <Button variant="ghost" disabled={busy} onClick={onReset}>
+            Reset draft
+          </Button>
+        </div>
       </aside>
     </form>
   );

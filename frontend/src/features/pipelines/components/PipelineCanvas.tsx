@@ -10,7 +10,7 @@ import {
   type ReactFlowInstance,
   type XYPosition,
 } from '@xyflow/react';
-import { ArrowDown } from 'lucide-react';
+import { ArrowDown, Plus, SlidersHorizontal } from 'lucide-react';
 import { Button } from '../../../components/ui/button';
 import { getNodeLabel, pipelineNodeOrder, type PipelineNodeKind } from '../model';
 import { WorkflowNode, type FlowNode } from './WorkflowNode';
@@ -75,91 +75,114 @@ export function PipelineCanvas({
 
   return (
     <div
-      className={`pipeline-editor grid border border-border bg-background grid-cols-[90px_minmax(280px,_1fr)_260px] ${paletteOpen ? 'palette-open' : ''}  ${inspectorOpen ? 'inspector-open' : ''}`}
+      data-testid="pipeline-editor"
+      className="flex flex-col border-t border-border desktop:h-(--editor-canvas) desktop:flex-row"
     >
-      <Button
-        className="inspector-toggle absolute right-4 top-3.5 z-5"
-        variant="outline"
-        aria-expanded={inspectorOpen}
-        aria-controls="node-settings"
-        onClick={() => onInspectorOpenChange(!inspectorOpen)}
+      <div
+        data-slot="flow-canvas"
+        className="relative h-(--canvas-compact) min-w-0 bg-background desktop:h-auto desktop:flex-1"
       >
-        {inspectorOpen ? 'Hide settings' : 'Node settings'}
-      </Button>
-      <div className="pipeline-palette block gap-3 p-0 col-auto flex-col flex-nowrap items-stretch border-border absolute top-3.5 left-4 z-5 border-0">
-        <div className="canvas-tools">
+        {/* One wrapping row, so the tools never overlap on narrow screens. The row itself lets
+            pointer events through to the canvas; only its controls take them. */}
+        <div className="pointer-events-none absolute inset-x-4 top-4 z-10 flex flex-wrap items-start justify-between gap-2 *:pointer-events-auto">
+          <div className="flex flex-col items-start gap-2">
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                aria-expanded={paletteOpen}
+                aria-controls="node-palette"
+                onClick={() => setPaletteOpen((v) => !v)}
+              >
+                <Plus aria-hidden="true" />
+                {paletteOpen ? 'Hide nodes' : 'Nodes'}
+              </Button>
+              <Button variant="outline" size="sm" onClick={onArrange}>
+                <ArrowDown aria-hidden="true" />
+                Arrange vertically
+              </Button>
+            </div>
+            <div
+              id="node-palette"
+              hidden={!paletteOpen}
+              className="w-sidebar rounded-card border border-border bg-surface-raised p-4 shadow-popover"
+            >
+              <h2 className="text-sm font-semibold text-foreground">Node palette</h2>
+              <p className="mt-2 text-xs text-foreground-muted">
+                Add by clicking or dragging. One of each type.
+              </p>
+              <div className="mt-4 flex flex-col gap-2">
+                {pipelineNodeOrder.map((k) => (
+                  <Button
+                    key={k}
+                    variant="outline"
+                    size="sm"
+                    className="w-full justify-start"
+                    draggable={!nodes.some((n) => n.data.config.type === k)}
+                    disabled={nodes.some((n) => n.data.config.type === k)}
+                    onDragStart={(e) => e.dataTransfer.setData('application/rag-node', k)}
+                    onClick={() => onAddNode(k)}
+                  >
+                    Add {getNodeLabel(k)}
+                  </Button>
+                ))}
+                <Button variant="ghost" size="sm" className="w-full" onClick={onRestoreTemplate}>
+                  Restore template
+                </Button>
+              </div>
+            </div>
+          </div>
           <Button
             variant="outline"
-            aria-expanded={paletteOpen}
-            onClick={() => setPaletteOpen((v) => !v)}
+            size="sm"
+            aria-expanded={inspectorOpen}
+            aria-controls="node-settings"
+            onClick={() => onInspectorOpenChange(!inspectorOpen)}
           >
-            {paletteOpen ? 'Hide nodes' : 'Nodes'}
-          </Button>
-          <Button variant="outline" onClick={onArrange}>
-            <ArrowDown size={14} />
-            Arrange vertically
+            <SlidersHorizontal aria-hidden="true" />
+            {inspectorOpen ? 'Hide settings' : 'Node settings'}
           </Button>
         </div>
-        <div hidden={!paletteOpen}>
-          <h2>Node palette</h2>
-          <p className="field-hint text-[11px] text-muted-foreground mt-2 leading-relaxed">
-            Add by clicking or dragging. One of each type.
-          </p>
-          {pipelineNodeOrder.map((k) => (
-            <Button
-              key={k}
-              variant="outline"
-              draggable={!nodes.some((n) => n.data.config.type === k)}
-              disabled={nodes.some((n) => n.data.config.type === k)}
-              onDragStart={(e) => e.dataTransfer.setData('application/rag-node', k)}
-              onClick={() => onAddNode(k)}
-            >
-              Add {getNodeLabel(k)}
-            </Button>
-          ))}
-          <Button variant="outline" onClick={onRestoreTemplate}>
-            Restore template
-          </Button>
-        </div>
-      </div>
-      <div
-        ref={canvasRef}
-        className="pipeline-canvas h-full min-w-0 min-h-0 col-start-1 row-start-1"
-        aria-label="Pipeline canvas"
-        onDragOver={(e) => {
-          e.preventDefault();
-          e.dataTransfer.dropEffect = 'move';
-        }}
-        onDrop={(e) => {
-          e.preventDefault();
-          const k = e.dataTransfer.getData('application/rag-node') as PipelineNodeKind;
-          if (pipelineNodeOrder.includes(k) && flow) {
-            onAddNode(k, flow.screenToFlowPosition({ x: e.clientX, y: e.clientY }));
-          }
-        }}
-      >
-        <ReactFlow
-          fitView
-          fitViewOptions={{ padding: 0.12, maxZoom: 1 }}
-          nodeTypes={nodeTypes}
-          nodes={nodes}
-          edges={edges}
-          onInit={onInit}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onConnect={onConnect}
-          onNodeClick={(_, node) => onNodeSelect(node.id)}
-          defaultViewport={{ x: 24, y: 80, zoom: 0.9 }}
-          minZoom={0.15}
-          nodesDraggable={!busy}
-          nodesConnectable={!busy}
-          zoomOnScroll={false}
-          preventScrolling={false}
-          deleteKeyCode={busy ? null : ['Backspace', 'Delete']}
+        <div
+          ref={canvasRef}
+          data-testid="pipeline-canvas"
+          className="size-full"
+          aria-label="Pipeline canvas"
+          onDragOver={(e) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+          }}
+          onDrop={(e) => {
+            e.preventDefault();
+            const k = e.dataTransfer.getData('application/rag-node') as PipelineNodeKind;
+            if (pipelineNodeOrder.includes(k) && flow) {
+              onAddNode(k, flow.screenToFlowPosition({ x: e.clientX, y: e.clientY }));
+            }
+          }}
         >
-          <Background gap={22} size={1.2} />
-          <Controls />
-        </ReactFlow>
+          <ReactFlow
+            fitView
+            fitViewOptions={{ padding: 0.12, maxZoom: 1 }}
+            nodeTypes={nodeTypes}
+            nodes={nodes}
+            edges={edges}
+            onInit={onInit}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            onConnect={onConnect}
+            onNodeClick={(_, node) => onNodeSelect(node.id)}
+            defaultViewport={{ x: 24, y: 80, zoom: 0.9 }}
+            minZoom={0.15}
+            nodesDraggable={!busy}
+            nodesConnectable={!busy}
+            zoomOnScroll={false}
+            preventScrolling={false}
+            deleteKeyCode={busy ? null : ['Backspace', 'Delete']}
+          >
+            <Background gap={24} size={1} />
+            <Controls />
+          </ReactFlow>
+        </div>
       </div>
       {children}
     </div>

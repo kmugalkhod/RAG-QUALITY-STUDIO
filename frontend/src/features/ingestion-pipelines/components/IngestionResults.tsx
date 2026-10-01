@@ -1,12 +1,14 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 import { ArrowRight, Check, FileText, Square, X } from 'lucide-react';
 
 import { Pagination } from '../../../components/Pagination';
+import { CARD, LINK, LIST, LIST_ROW, META, PRE, Callout } from '../../../components/parts';
 import { Button } from '../../../components/ui/button';
 import { Label } from '../../../components/ui/label';
 import { NativeSelect, NativeSelectOption } from '../../../components/ui/native-select';
 import type { Page } from '../../../lib/pagination';
 import { docsHref } from '../../../lib/docs';
+import { cn } from '../../../lib/utils';
 import { terminalIngestionStatuses } from '../editorModel';
 import * as api from '../api';
 import type {
@@ -20,6 +22,28 @@ import type {
   SourcePreviewItem,
   SourcePreviewRepresentation,
 } from '../model';
+
+// Result sections on the spec 0002 tokens and grid.
+const SECTION = 'flex flex-col gap-6 border-t border-border px-4 py-6 md:px-6';
+const HEADING_ROW = 'flex flex-wrap items-start justify-between gap-4';
+const HEADING_COPY =
+  'flex min-w-0 flex-col gap-1 [&>h2]:text-base [&>h2]:font-semibold [&>h2]:text-foreground [&>h3]:text-base [&>h3]:font-semibold [&>h3]:text-foreground [&>p]:text-sm [&>p]:text-foreground-muted [&>small]:text-xs [&>small]:text-foreground-muted';
+/** Item rows: an icon, a title with detail lines, and one action. */
+const ITEM = cn(
+  LIST_ROW,
+  'flex flex-col gap-3 p-4 md:flex-row md:items-start [&>svg]:size-4 [&>svg]:shrink-0 [&>svg]:text-foreground-subtle [&>div]:flex [&>div]:min-w-0 [&>div]:flex-1 [&>div]:flex-col [&>div]:gap-1 [&_p]:text-sm [&_p]:text-foreground-muted [&_small]:text-xs [&_small]:wrap-anywhere [&_small:not([role=alert])]:text-foreground-muted [&_strong]:text-sm [&_strong]:font-medium [&_strong]:wrap-anywhere',
+);
+const INSPECTOR = cn(
+  CARD,
+  'flex flex-col gap-4 p-4 md:p-6 [&>p]:text-sm [&>p]:text-foreground-muted',
+);
+const TAB = 'aria-selected:border-accent aria-selected:text-accent';
+const QUALITY =
+  'grid grid-cols-2 gap-x-4 gap-y-2 text-sm text-foreground [&_dd]:wrap-anywhere [&_dt]:text-foreground-muted';
+/** Stacked record cards: a heading block, labeled text and optional detail. */
+const RECORDS =
+  'flex flex-col gap-2 [&>li]:flex [&>li]:min-w-0 [&>li]:flex-col [&>li]:gap-2 [&>li]:rounded-control [&>li]:border [&>li]:border-border [&>li]:bg-background [&>li]:p-4 [&>li[data-selected=true]]:border-accent [&_section]:flex [&_section]:min-w-0 [&_section]:flex-col [&_section]:gap-1 [&_small]:text-xs [&_small]:text-foreground-muted [&_span]:text-sm [&_span]:text-foreground-muted [&_strong]:text-sm [&_strong]:font-medium [&_strong]:text-foreground [&>li>div:first-child]:flex [&>li>div:first-child]:flex-col [&>li>div:first-child]:gap-1';
+const ERROR_TEXT = 'text-sm text-danger wrap-anywhere';
 
 function previewLanguage(metrics: Record<string, unknown>) {
   const value = metrics.language;
@@ -61,11 +85,11 @@ function overlayStyle(block: ContentBlock) {
     return undefined;
   }
   return {
-    left: `${box.left * 100}%`,
-    top: `${box.top * 100}%`,
-    width: `${(box.right - box.left) * 100}%`,
-    height: `${(box.bottom - box.top) * 100}%`,
-  };
+    '--box-left': `${box.left * 100}%`,
+    '--box-top': `${box.top * 100}%`,
+    '--box-width': `${(box.right - box.left) * 100}%`,
+    '--box-height': `${(box.bottom - box.top) * 100}%`,
+  } as CSSProperties;
 }
 
 function sourceSpanLabel(span: Record<string, unknown>) {
@@ -168,15 +192,16 @@ export function IngestionPreviewResults({
   }
 
   return (
-    <section
-      id="ingestion-preview"
-      className="surface-section ingestion-results"
-      aria-live="polite"
-    >
-      <div className="section-heading">
-        <div>
-          <p className="eyebrow">Processing preview</p>
-          <a href={docsHref('ingestion/previews')} target="_blank" rel="noopener noreferrer">
+    <section id="ingestion-preview" className={SECTION} aria-live="polite">
+      <div className={HEADING_ROW}>
+        <div className={HEADING_COPY}>
+          <p className={META}>Processing preview</p>
+          <a
+            className={LINK}
+            href={docsHref('ingestion/previews')}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
             Preview and stage guide
           </a>
           <h2>
@@ -190,7 +215,12 @@ export function IngestionPreviewResults({
             Quality: {preview.pass_count} pass · {preview.warn_count} warn · {preview.exclude_count}{' '}
             exclude · {preview.quality_fail_count} fail
           </p>
-          <a href={docsHref('ingestion/quality')} target="_blank" rel="noopener noreferrer">
+          <a
+            className={LINK}
+            href={docsHref('ingestion/quality')}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
             Interpret quality findings
           </a>
           <small>
@@ -217,14 +247,14 @@ export function IngestionPreviewResults({
         )}
       </div>
       {preview.error && (
-        <p role="alert" className="error-message">
+        <p role="alert" className={ERROR_TEXT}>
           {preview.error}
         </p>
       )}
-      <ul className="project-list">
+      <ul className={LIST}>
         {page.items.map((item) => (
-          <li key={`${item.source_node_id}-${item.ordinal}`}>
-            {item.status === 'included' ? <Check size={18} /> : <X size={18} />}
+          <li key={`${item.source_node_id}-${item.ordinal}`} className={ITEM}>
+            {item.status === 'included' ? <Check aria-hidden="true" /> : <X aria-hidden="true" />}
             <div>
               <strong>{item.display_name}</strong>
               <p>
@@ -284,19 +314,20 @@ export function IngestionPreviewResults({
         ))}
       </ul>
       {selectedItem && (
-        <section className="content-derivation-inspector" aria-busy={inspectionBusy}>
-          <div className="section-heading">
-            <div>
-              <p className="eyebrow">Exact processing preview</p>
+        <section className={INSPECTOR} aria-busy={inspectionBusy}>
+          <div className={HEADING_ROW}>
+            <div className={HEADING_COPY}>
+              <p className={META}>Exact processing preview</p>
               <h3>{selectedItem.display_name}</h3>
             </div>
-            <div className="content-derivation-tabs" role="tablist" aria-label="Preview stage">
+            <div className="flex flex-wrap gap-1" role="tablist" aria-label="Preview stage">
               {(['raw', 'extracted', 'cleaned', 'diff', 'chunks'] as const).map((value) => (
                 <Button
                   key={value}
                   role="tab"
                   size="sm"
-                  variant={stage === value ? 'default' : 'outline'}
+                  variant="outline"
+                  className={TAB}
                   aria-selected={stage === value}
                   onClick={() => {
                     setStage(value);
@@ -309,14 +340,14 @@ export function IngestionPreviewResults({
             </div>
           </div>
           {inspectionError && (
-            <p role="alert" className="error-message">
+            <p role="alert" className={ERROR_TEXT}>
               {inspectionError}
             </p>
           )}
           {!inspectionBusy && representations?.total === 0 && (
             <p>No {stage} preview records are available for this item.</p>
           )}
-          <ol className="content-block-list">
+          <ol className={RECORDS}>
             {representations?.items.map((item) => (
               <li key={`${item.stage}-${item.ordinal}`}>
                 <div>
@@ -328,12 +359,12 @@ export function IngestionPreviewResults({
                 {stage === 'diff' && typeof item.metadata.before_text === 'string' && (
                   <section aria-label={`Preview record ${item.ordinal + 1} before`}>
                     <small>Before · {String(item.metadata.action)}</small>
-                    <pre>{item.metadata.before_text}</pre>
+                    <pre className={PRE}>{item.metadata.before_text}</pre>
                   </section>
                 )}
                 <section aria-label={`Preview record ${item.ordinal + 1} ${stage}`}>
                   <small>{stage === 'diff' ? 'After' : stage}</small>
-                  <pre>{item.text || 'Binary artifact metadata only'}</pre>
+                  <pre className={PRE}>{item.text || 'Binary artifact metadata only'}</pre>
                 </section>
                 {stage === 'chunks' && typeof item.metadata.embedding_prefix === 'string' && (
                   <small>
@@ -579,17 +610,24 @@ export function IngestionRunResults({
   }
 
   return (
-    <section
-      className="surface-section ingestion-results ingestion-run-details"
-      aria-labelledby="ingestion-run-details-heading"
-    >
-      <div className="section-heading">
-        <div>
+    <section className={SECTION} aria-labelledby="ingestion-run-details-heading">
+      <div className={HEADING_ROW}>
+        <div className={HEADING_COPY}>
           <h2 id="ingestion-run-details-heading">Run details</h2>
-          <a href={docsHref('ingestion/runs')} target="_blank" rel="noopener noreferrer">
+          <a
+            className={LINK}
+            href={docsHref('ingestion/runs')}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
             Run and failure guide
           </a>
-          <a href={docsHref('operate/operations')} target="_blank" rel="noopener noreferrer">
+          <a
+            className={LINK}
+            href={docsHref('operate/operations')}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
             Jobs and recovery
           </a>
           {(run.new_count > 0 ||
@@ -604,24 +642,25 @@ export function IngestionRunResults({
         </div>
       </div>
       {run.error && (
-        <p role="alert" className="error-message">
+        <p role="alert" className={ERROR_TEXT}>
           {run.error}
         </p>
       )}
       {run.status === 'succeeded' && run.published_index_id && (
-        <div className="ingestion-published-index">
-          <div>
-            <strong>Index version {run.published_index_version} is ready to use</strong>
-            <p>
-              Select this same version in an answer pipeline. It will not ingest the source or embed
-              these passages again.
-            </p>
-          </div>
-          <div className="ingestion-published-index-actions">
+        <Callout
+          data-testid="published-index"
+          tone="success"
+          title={`Index version ${run.published_index_version} is ready to use`}
+        >
+          <p>
+            Select this same version in an answer pipeline. It will not ingest the source or embed
+            these passages again.
+          </p>
+          <div className="flex flex-col gap-2 md:flex-row md:flex-wrap">
             <Button asChild>
               <a href={`#/projects/${projectId}/pipelines/new?index=${run.published_index_id}`}>
                 Use in answer pipeline
-                <ArrowRight size={15} aria-hidden="true" />
+                <ArrowRight aria-hidden="true" />
               </a>
             </Button>
             <Button asChild variant="outline">
@@ -641,12 +680,15 @@ export function IngestionRunResults({
               </Button>
             )}
           </div>
-        </div>
+        </Callout>
       )}
-      <ul className="project-list">
+      <ul className={LIST}>
         {items.map((item) => (
-          <li key={item.source_kind !== 'existing_files' ? item.ordinal : item.document_id}>
-            <FileText size={18} />
+          <li
+            key={item.source_kind !== 'existing_files' ? item.ordinal : item.document_id}
+            className={ITEM}
+          >
+            <FileText aria-hidden="true" />
             <div>
               {item.source_kind !== 'existing_files' ? (
                 <>
@@ -669,7 +711,7 @@ export function IngestionRunResults({
                     </small>
                   )}
                   {item.error && (
-                    <small role="alert" className="error-message">
+                    <small role="alert" className={ERROR_TEXT}>
                       {item.error}
                     </small>
                   )}
@@ -696,7 +738,7 @@ export function IngestionRunResults({
                     </small>
                   )}
                   {item.error && (
-                    <small role="alert" className="error-message">
+                    <small role="alert" className={ERROR_TEXT}>
                       {item.error}
                     </small>
                   )}
@@ -721,19 +763,20 @@ export function IngestionRunResults({
         ))}
       </ul>
       {selectedRunId && (
-        <section className="content-derivation-inspector" aria-busy={busy}>
-          <div className="section-heading">
-            <div>
-              <p className="eyebrow">Canonical processing record</p>
+        <section className={INSPECTOR} aria-busy={busy}>
+          <div className={HEADING_ROW}>
+            <div className={HEADING_COPY}>
+              <p className={META}>Canonical processing record</p>
               <h3>Extracted and cleaned content</h3>
             </div>
-            <div className="content-derivation-tabs" role="tablist" aria-label="Content stage">
+            <div className="flex flex-wrap gap-1" role="tablist" aria-label="Content stage">
               {(['extracted', 'cleaned', 'diff', 'chunks'] as const).map((value) => (
                 <Button
                   key={value}
                   role="tab"
                   size="sm"
-                  variant={kind === value ? 'default' : 'outline'}
+                  variant="outline"
+                  className={TAB}
                   aria-selected={kind === value}
                   onClick={() => {
                     setKind(value);
@@ -754,7 +797,7 @@ export function IngestionRunResults({
             </div>
           </div>
           {error && (
-            <p role="alert" className="error-message">
+            <p role="alert" className={ERROR_TEXT}>
               {error}
             </p>
           )}
@@ -772,7 +815,7 @@ export function IngestionRunResults({
                 {selectedDerivation.measurements.character_count} characters · engine{' '}
                 {selectedDerivation.engine_version}
               </p>
-              <dl className="ingestion-stage-facts content-quality-summary">
+              <dl className={QUALITY}>
                 <dt>Quality decision</dt>
                 <dd>{selectedDerivation.measurements.quality_decision ?? 'not recorded'}</dd>
                 <dt>Language</dt>
@@ -793,7 +836,7 @@ export function IngestionRunResults({
                 <dd>{selectedDerivation.measurements.extraction_duration_ms ?? 0} ms</dd>
               </dl>
               {selectedDerivation.findings.length > 0 && (
-                <ul className="content-quality-findings" aria-label="Extraction findings">
+                <ul className={RECORDS} aria-label="Extraction findings">
                   {selectedDerivation.findings.map((finding) => (
                     <li key={`${finding.code}-${finding.page_numbers?.join('-') ?? 'document'}`}>
                       <strong>
@@ -811,7 +854,7 @@ export function IngestionRunResults({
                 </ul>
               )}
               {(selectedDerivation.sensitive_findings?.length ?? 0) > 0 && (
-                <ul className="content-quality-findings" aria-label="Sensitive-data findings">
+                <ul className={RECORDS} aria-label="Sensitive-data findings">
                   {selectedDerivation.sensitive_findings?.map((finding, index) => (
                     <li
                       key={`${finding.entity_class}-${finding.block_ordinal}-${finding.start_char}-${index}`}
@@ -830,7 +873,7 @@ export function IngestionRunResults({
               )}
               {kind === 'cleaned' && selectedDerivation.transforms.length > 0 && (
                 <>
-                  <dl className="ingestion-stage-facts content-quality-summary">
+                  <dl className={QUALITY}>
                     <dt>Repeated margins removed</dt>
                     <dd>
                       {selectedDerivation.transforms.find(
@@ -852,7 +895,7 @@ export function IngestionRunResults({
                       )}
                     </dd>
                   </dl>
-                  <ol className="cleaning-audit-list" aria-label="Cleaning transform audit">
+                  <ol className={RECORDS} aria-label="Cleaning transform audit">
                     {selectedDerivation.transforms.map((transform, index) => (
                       <li key={`${transform.transform}-${index}`}>
                         <strong>
@@ -875,7 +918,7 @@ export function IngestionRunResults({
               {kind === 'extracted' &&
                 selectedDerivation.media_type === 'application/pdf' &&
                 previewPage && (
-                  <div className="content-page-inspector">
+                  <div className="grid gap-4 desktop:grid-cols-3">
                     <Label>
                       Preview page
                       <NativeSelect
@@ -893,7 +936,7 @@ export function IngestionRunResults({
                       </NativeSelect>
                     </Label>
                     {pageDetail && (
-                      <dl className="ingestion-stage-facts content-quality-summary">
+                      <dl className={QUALITY}>
                         <dt>Page origin</dt>
                         <dd>{pageDetail.origin.toUpperCase()}</dd>
                         <dt>Fallback reason</dt>
@@ -908,16 +951,14 @@ export function IngestionRunResults({
                         </dd>
                       </dl>
                     )}
-                    <figure>
-                      <div className="content-page-canvas">
+                    <figure className="m-0 flex min-w-0 flex-col gap-2 desktop:col-span-2">
+                      <div className="relative w-full overflow-hidden rounded-card border border-border bg-background">
                         <img
+                          className="block h-auto w-full"
                           src={api.contentPageThumbnailUrl(projectId, selectedRunId, previewPage)}
                           alt={`Rendered PDF page ${previewPage}`}
                         />
-                        <div
-                          className="content-page-overlays"
-                          aria-label="Extracted block overlays"
-                        >
+                        <div className="absolute inset-0" aria-label="Extracted block overlays">
                           {blocks?.items
                             .filter(
                               (block) =>
@@ -925,29 +966,28 @@ export function IngestionRunResults({
                                 overlayStyle(block) !== undefined,
                             )
                             .map((block) => (
-                              <button
+                              <Button
                                 type="button"
+                                variant="ghost"
                                 key={block.block_id}
                                 style={overlayStyle(block)}
-                                className={selectedBlockId === block.block_id ? 'is-selected' : ''}
+                                aria-pressed={selectedBlockId === block.block_id}
+                                className="absolute top-(--box-top) left-(--box-left) h-(--box-height) w-(--box-width) rounded-none border border-accent p-0 not-aria-disabled:hover:bg-accent/30 aria-pressed:border-2 aria-pressed:bg-accent/30 pointer-coarse:h-(--box-height)"
                                 aria-label={`Select ${blockOrigin(block) ?? ''} ${block.block_type} block ${block.ordinal + 1}`}
                                 onClick={() => setSelectedBlockId(block.block_id)}
                               />
                             ))}
                         </div>
                       </div>
-                      <figcaption>
+                      <figcaption className={META}>
                         Select an overlay to match normalized geometry with the extracted block.
                       </figcaption>
                     </figure>
                   </div>
                 )}
-              <ul className="content-block-list">
+              <ul className={RECORDS}>
                 {blocks?.items.map((block) => (
-                  <li
-                    key={block.block_id}
-                    className={selectedBlockId === block.block_id ? 'is-selected' : ''}
-                  >
+                  <li key={block.block_id} data-selected={selectedBlockId === block.block_id}>
                     <div>
                       <strong>
                         {block.ordinal + 1}. {block.block_type}
@@ -959,11 +999,18 @@ export function IngestionRunResults({
                       )}
                       <small>Source: {sourceSpanLabel(block.source_span)}</small>
                     </div>
-                    <pre>{block.text}</pre>
+                    <pre className={PRE}>{block.text}</pre>
                     {tableRows(block) && (
-                      <div className="content-table-scroll" tabIndex={0}>
-                        <table>
-                          <caption>Structured table cells for block {block.ordinal + 1}</caption>
+                      <div
+                        className="overflow-x-auto rounded-control border border-border"
+                        tabIndex={0}
+                        role="region"
+                        aria-label={`Table cells for block ${block.ordinal + 1}`}
+                      >
+                        <table className="w-full border-collapse text-xs [&_td]:border-t [&_td]:border-border [&_td]:p-2 [&_td]:align-top [&_th]:p-2 [&_th]:text-left [&_th]:font-medium">
+                          <caption className="p-2 text-left text-foreground-muted">
+                            Structured table cells for block {block.ordinal + 1}
+                          </caption>
                           <thead>
                             <tr>
                               {tableRows(block)?.[0].map((cell, index) => (
@@ -1011,24 +1058,24 @@ export function IngestionRunResults({
                 {diff.items.filter((item) => item.action !== 'unchanged').length} changed or removed
                 blocks on this page · reconstructed from immutable derivations
               </p>
-              <ol className="cleaning-diff-list">
+              <ol className={RECORDS}>
                 {diff.items.map((item) => (
                   <li key={item.block_id}>
-                    <div className="cleaning-diff-heading">
+                    <div>
                       <strong>
                         {item.block_type}
                         {item.page_number ? ` · page ${item.page_number}` : ''}
                       </strong>
                       <span>{item.action}</span>
                     </div>
-                    <div className="cleaning-diff-columns">
+                    <div className="grid gap-4 md:grid-cols-2">
                       <section aria-label="Before cleaning">
                         <small>Before</small>
-                        <pre>{item.before_text}</pre>
+                        <pre className={PRE}>{item.before_text}</pre>
                       </section>
                       <section aria-label="After cleaning">
                         <small>After</small>
-                        <pre>{item.after_text ?? 'Removed'}</pre>
+                        <pre className={PRE}>{item.after_text ?? 'Removed'}</pre>
                       </section>
                     </div>
                     <small>
@@ -1054,7 +1101,7 @@ export function IngestionRunResults({
           )}
           {kind === 'chunks' && chunks && (
             <>
-              <dl className="ingestion-stage-facts content-quality-summary">
+              <dl className={QUALITY}>
                 <dt>Indexed chunks</dt>
                 <dd>{chunks.summary.indexed_count}</dd>
                 <dt>Saved parents</dt>
@@ -1067,7 +1114,7 @@ export function IngestionRunResults({
                 <dt>Oversize findings</dt>
                 <dd>{chunks.summary.oversize_finding_count}</dd>
               </dl>
-              <ol className="content-block-list chunk-inspection-list">
+              <ol className={RECORDS}>
                 {chunks.items.map((chunk) => (
                   <li key={chunk.ordinal}>
                     <div>
@@ -1088,7 +1135,7 @@ export function IngestionRunResults({
                     </div>
                     <section aria-label={`Chunk ${chunk.ordinal + 1} evidence text`}>
                       <small>Evidence text</small>
-                      <pre>{chunk.evidence_text}</pre>
+                      <pre className={PRE}>{chunk.evidence_text}</pre>
                     </section>
                     {chunk.embedding_prefix && (
                       <section aria-label={`Chunk ${chunk.ordinal + 1} embedding prefix`}>
@@ -1096,11 +1143,11 @@ export function IngestionRunResults({
                           Embedding-only prefix · {chunk.embedding_token_count ?? 'unknown'} total
                           tokens
                         </small>
-                        <pre>{chunk.embedding_prefix}</pre>
+                        <pre className={PRE}>{chunk.embedding_prefix}</pre>
                       </section>
                     )}
                     {chunk.findings.length > 0 && (
-                      <ul className="content-quality-findings">
+                      <ul className={RECORDS}>
                         {chunk.findings.map((finding, index) => (
                           <li key={`${finding.code}-${index}`}>
                             <strong>{finding.code.replaceAll('_', ' ')}</strong>

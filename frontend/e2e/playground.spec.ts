@@ -71,9 +71,12 @@ test('retrieval-only search, editable pipeline draft, immutable save, answers an
   await page.getByLabel('Question', { exact: true }).fill('What does the orchard grow?');
   await page.getByRole('button', { name: 'Run pipeline test', exact: true }).click();
   const result = page.getByRole('region', { name: 'Query result' });
-  await expect(result.locator('.formatted-answer')).toHaveText('The orchard grows apples. [S1]', {
-    timeout: 30000,
-  });
+  await expect(result.locator('[data-slot="answer-text"]')).toHaveText(
+    'The orchard grows apples. [S1]',
+    {
+      timeout: 30000,
+    },
+  );
   await result.getByRole('button', { name: '[S1]', exact: true }).click();
   await expect(page.locator('#evidence-S1')).toBeFocused();
   await page.getByRole('button', { name: 'Answer details', exact: true }).click();
@@ -116,9 +119,12 @@ test('retrieval-only search, editable pipeline draft, immutable save, answers an
   await page.reload();
   await page.getByRole('button', { name: 'Past questions', exact: true }).click();
   await page.getByRole('button', { name: 'What does the orchard grow?', exact: true }).click();
-  await expect(result.locator('.formatted-answer')).toHaveText('The orchard grows apples. [S1]');
+  await expect(result.locator('[data-slot="answer-text"]')).toHaveText(
+    'The orchard grows apples. [S1]',
+  );
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.screenshot({ path: 'test-results/playground-desktop.png' });
-  const composer = await page.locator('.playground-chat-composer').boundingBox();
-  expect(composer!.y + composer!.height).toBe(980);
+  const composer = await page.getByTestId('playground-composer').boundingBox();
+  // The desktop Playground fills the viewport; the composer sits on the 24px page gutter.
+  expect(composer!.y + composer!.height).toBe(1000 - 24);
 });

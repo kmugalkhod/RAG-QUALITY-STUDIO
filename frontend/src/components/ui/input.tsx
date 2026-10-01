@@ -7,9 +7,10 @@ function Input({ className, type, ...props }: React.ComponentProps<'input'>) {
       type={type}
       data-slot="input"
       className={cn(
-        'h-9 max-[720px]:min-h-11 w-full min-w-0 rounded-md border border-input bg-background px-3 py-1 text-base shadow-xs transition-[color,box-shadow] outline-none selection:bg-primary selection:text-primary-foreground file:inline-flex file:h-7 file:border-0 file:bg-background file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-xs dark:bg-input/30',
-        'focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50',
-        'aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40',
+        // 16px text on phones keeps iOS from zooming the page on focus.
+        'h-control-md w-full min-w-0 rounded-control border border-border-strong bg-surface px-2 text-base text-foreground outline-none pointer-coarse:h-control-lg md:text-sm',
+        'file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-foreground-muted disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)',
+        'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent aria-invalid:border-danger',
         className,
       )}
       {...props}

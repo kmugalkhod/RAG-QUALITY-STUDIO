@@ -52,7 +52,9 @@ test('Confluence preview publishes and incrementally refreshes an exact index', 
   ).toBeVisible();
   await expect(schedules.getByText('Active', { exact: true })).toBeVisible();
   await schedules.getByRole('button', { name: 'Run now' }).click();
-  await expect(page.locator('.ingestion-run-state[data-status="succeeded"]')).toBeVisible({
+  await expect(
+    page.locator('[data-testid="ingestion-run-state"][data-status="succeeded"]'),
+  ).toBeVisible({
     timeout: 60000,
   });
   await expect(page.getByText('2 new · 0 changed · 0 unchanged · 0 removed')).toBeVisible();
@@ -62,7 +64,9 @@ test('Confluence preview publishes and incrementally refreshes an exact index', 
   await expect(page.getByText('1 new · 0 changed · 1 unchanged · 1 removed')).toBeVisible({
     timeout: 60000,
   });
-  await expect(page.locator('.ingestion-run-state[data-status="succeeded"]')).toBeVisible({
+  await expect(
+    page.locator('[data-testid="ingestion-run-state"][data-status="succeeded"]'),
+  ).toBeVisible({
     timeout: 60000,
   });
   await expect(page.getByRole('link', { name: 'Use in answer pipeline' })).toBeVisible();

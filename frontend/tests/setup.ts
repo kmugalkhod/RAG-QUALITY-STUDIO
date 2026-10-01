@@ -16,3 +16,20 @@ class ResizeObserverStub {
   disconnect = vi.fn();
 }
 vi.stubGlobal('ResizeObserver', ResizeObserverStub);
+
+// jsdom has no media queries: every query reports no match (dark theme, fine pointer).
+// Suites that need a match, such as touch vibration, stub their own.
+vi.stubGlobal(
+  'matchMedia',
+  (query: string): MediaQueryList =>
+    ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }) as MediaQueryList,
+);

@@ -37,7 +37,9 @@ test('website discovery publishes and incrementally refreshes an exact index', a
   await page.getByRole('button', { name: 'Save version' }).click();
   await expect(page.getByText('Saved version 1', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Collect source & publish index' }).click();
-  await expect(page.locator('.ingestion-run-state[data-status="succeeded"]')).toBeVisible({
+  await expect(
+    page.locator('[data-testid="ingestion-run-state"][data-status="succeeded"]'),
+  ).toBeVisible({
     timeout: 60000,
   });
   await expect(page.getByText('2 new · 0 changed · 0 unchanged · 0 removed')).toBeVisible();
@@ -211,7 +213,9 @@ test('existing files publish an exact index that grounds an answer pipeline', as
   await page.getByRole('button', { name: 'Save version' }).click();
   await expect(page.getByText('Saved version 1', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Run ingestion' }).click();
-  await expect(page.locator('.ingestion-run-state[data-status="succeeded"]')).toBeVisible({
+  await expect(
+    page.locator('[data-testid="ingestion-run-state"][data-status="succeeded"]'),
+  ).toBeVisible({
     timeout: 60000,
   });
   await expect(page.getByText(/processing v2 · 1 chunks/)).toHaveCount(2);

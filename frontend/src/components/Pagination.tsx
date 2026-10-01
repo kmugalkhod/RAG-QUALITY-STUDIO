@@ -20,19 +20,21 @@ export function Pagination({
 }) {
   return total > pageSize || offset > 0 ? (
     <nav
-      className="pagination flex justify-end items-center gap-2 text-[11px] p-3 m-0"
+      className="flex items-center justify-end gap-2 text-xs text-foreground-muted"
       aria-label={label}
     >
       <Button
         variant="outline"
+        size="sm"
         disabled={busy || !offset}
         onClick={() => onChange(Math.max(0, offset - pageSize))}
       >
         {previousLabel}
       </Button>
-      <span>Page {Math.floor(offset / pageSize) + 1}</span>
+      <span className="tabular-nums">Page {Math.floor(offset / pageSize) + 1}</span>
       <Button
         variant="outline"
+        size="sm"
         disabled={busy || offset + pageSize >= total}
         onClick={() => onChange(offset + pageSize)}
       >

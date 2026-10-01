@@ -21,9 +21,9 @@ export function IndexesWorkspace({ projectId }: { projectId: string }) {
     setMode(next);
   }
   return (
-    <div>
+    <div className="flex flex-col gap-6">
       <Tabs value={mode} onValueChange={change}>
-        <TabsList className="index-mode-tabs" aria-label="Collection workspace views">
+        <TabsList aria-label="Collection workspace views" className="max-md:w-full">
           <TabsTrigger value="indexes">Collections</TabsTrigger>
           <TabsTrigger value="snapshots">Source history</TabsTrigger>
         </TabsList>

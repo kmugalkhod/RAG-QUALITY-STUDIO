@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, expect, it } from 'vitest';
@@ -12,17 +11,7 @@ const project = {
 };
 
 function Sidebar({ page = 'playground' }: { page?: string }) {
-  const [mobile, setMobile] = useState(false);
-  return (
-    <WorkspaceSidebar
-      projectId={project.id}
-      current={project}
-      projects={[]}
-      page={page}
-      mobile={mobile}
-      setMobile={setMobile}
-    />
-  );
+  return <WorkspaceSidebar projectId={project.id} current={project} projects={[]} page={page} />;
 }
 
 beforeEach(() => sessionStorage.clear());
@@ -50,8 +39,6 @@ it('restores pipeline tab URLs only from the destination project', async () => {
       current={project}
       projects={[{ ...project, id: other, name: 'Other' }]}
       page="pipelines"
-      mobile={false}
-      setMobile={() => undefined}
     />,
   );
   expect(screen.getByRole('link', { name: 'Pipelines' })).toHaveAttribute(
@@ -60,21 +47,4 @@ it('restores pipeline tab URLs only from the destination project', async () => {
   );
   await user.selectOptions(screen.getByRole('combobox', { name: 'Switch project' }), other);
   expect(window.location.hash).toBe(`#/projects/${other}/pipelines?kind=answer`);
-});
-
-it('closes navigation with Escape and returns focus to the toggle', async () => {
-  const user = userEvent.setup();
-  render(<Sidebar />);
-  await user.click(screen.getByRole('button', { name: 'Open navigation' }));
-  expect(screen.getByRole('button', { name: 'Close navigation' })).toHaveAttribute(
-    'aria-expanded',
-    'true',
-  );
-  screen.getByRole('link', { name: 'Overview' }).focus();
-  await user.keyboard('{Escape}');
-  expect(screen.getByRole('button', { name: 'Open navigation' })).toHaveFocus();
-  expect(screen.getByRole('button', { name: 'Open navigation' })).toHaveAttribute(
-    'aria-expanded',
-    'false',
-  );
 });

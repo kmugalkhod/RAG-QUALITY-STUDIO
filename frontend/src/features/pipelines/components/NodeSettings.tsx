@@ -5,7 +5,7 @@ import { Label } from '../../../components/ui/label';
 import { Button } from '../../../components/ui/button';
 import { RetrievalSettingsForm } from '../../../components/RetrievalSettingsForm';
 import { getNodeRetrievalSettings } from '../../../lib/retrieval';
-import { CircleAlert } from 'lucide-react';
+import { Callout, META } from '../../../components/parts';
 
 import { formatIndexOption, type IndexVersion } from '../../documents/model';
 import type { PipelineNodeConfig, PipelineOptions } from '../model';
@@ -48,13 +48,17 @@ export function NodeSettings({
   return (
     <aside
       id="node-settings"
-      className="pipeline-config border-l col-start-2 row-start-1 overflow-auto bg-background border-border pt-16 px-6 pb-6"
+      aria-labelledby="node-settings-title"
+      className="flex min-w-0 flex-col gap-6 border-t border-border bg-surface p-4 md:p-6 desktop:w-panel desktop:shrink-0 desktop:overflow-y-auto desktop:overscroll-contain desktop:border-t-0 desktop:border-l"
       hidden={!open}
     >
-      <h2>{config ? getNodeLabel(config.type) : 'Node settings'}</h2>
-      <Label>
+      <h2 id="node-settings-title" className="text-base font-semibold text-foreground">
+        {config ? getNodeLabel(config.type) : 'Node settings'}
+      </h2>
+      <Label className="mb-0">
         Selected node
         <NativeSelect
+          className="mt-2"
           aria-label="Selected node"
           value={selected}
           onChange={(e) => onSelect(e.target.value)}
@@ -69,10 +73,11 @@ export function NodeSettings({
       </Label>
       {config?.type === 'retriever' && (
         <>
-          <h3>Inputs</h3>
-          <Label>
+          <h3 className="text-sm font-semibold text-foreground">Inputs</h3>
+          <Label className="mb-0">
             Documents to search
             <NativeSelect
+              className="mt-2"
               aria-label="Documents to search"
               value={config.index_id}
               onChange={(e) => onUpdate({ index_id: e.target.value })}
@@ -86,34 +91,31 @@ export function NodeSettings({
             </NativeSelect>
           </Label>
           {currentIndex && selectedIndex && (
-            <div className="stale-index-warning" role="status">
-              <CircleAlert />
-              <div>
-                <strong>This pipeline uses an older index</strong>
-                <p>
-                  Version {selectedIndex.version} has {selectedIndex.chunk_count.toLocaleString()}{' '}
-                  passages. Current version {currentIndex.version} has{' '}
-                  {currentIndex.chunk_count.toLocaleString()} passages.
-                </p>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => onUpdate({ index_id: currentIndex.id })}
-                >
-                  Use current version {currentIndex.version}
-                </Button>
-              </div>
-            </div>
+            <Callout tone="warning" role="status" title="This pipeline uses an older index">
+              <p>
+                Version {selectedIndex.version} has {selectedIndex.chunk_count.toLocaleString()}{' '}
+                passages. Current version {currentIndex.version} has{' '}
+                {currentIndex.chunk_count.toLocaleString()} passages.
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="self-start"
+                onClick={() => onUpdate({ index_id: currentIndex.id })}
+              >
+                Use current version {currentIndex.version}
+              </Button>
+            </Callout>
           )}
           {selectedIndex && !currentIndex && (
-            <p className="current-index-confirmation">
+            <p className="text-sm text-foreground">
               Using {selectedIndex.knowledge_set_name} version {selectedIndex.version} ·{' '}
               {selectedIndex.chunk_count.toLocaleString()} passages
             </p>
           )}
           {selectedIndex?.source_snapshot_id && (
-            <p className="field-hint">
+            <p className={META}>
               Source snapshot {selectedIndex.source_snapshot_number} · collected{' '}
               {selectedIndex.source_snapshot_collected_at
                 ? new Date(selectedIndex.source_snapshot_collected_at).toLocaleDateString()
@@ -121,29 +123,32 @@ export function NodeSettings({
             </p>
           )}
           {!indexes.length && (
-            <p>Prepare a document set in the Knowledge Base to start asking questions.</p>
+            <p className="text-sm text-foreground-muted">
+              Prepare a document set in the Knowledge Base to start asking questions.
+            </p>
           )}
           <RetrievalSettingsForm
             value={getNodeRetrievalSettings(config)}
             onChange={(retrieval) => onUpdate({ retrieval })}
           />
-          <p className="field-hint text-[11px] text-muted-foreground mt-2 leading-relaxed">
+          <p className={META}>
             Search uses this saved document set. Changing it does not change earlier answers.
           </p>
         </>
       )}
       {config?.type === 'prompt' && (
         <>
-          <Label>
+          <Label className="mb-0">
             Answer instructions
             <Textarea
+              className="mt-2"
               rows={9}
               maxLength={8000}
               value={config.template}
               onChange={(e) => onUpdate({ template: e.target.value })}
             />
           </Label>
-          <p className="field-hint text-[11px] text-muted-foreground mt-2 leading-relaxed">
+          <p className={META}>
             Use {'{question}'} and {'{context}'}. These are literal substitutions, with no
             expressions or code. Context is labeled evidence. Source labels, citation rules and
             grounding instructions are controlled by the application.
@@ -152,9 +157,10 @@ export function NodeSettings({
       )}
       {config?.type === 'llm' && (
         <>
-          <Label>
+          <Label className="mb-0">
             Chat model
             <NativeSelect
+              className="mt-2"
               aria-label="Chat model"
               value={config.model}
               onChange={(e) => onUpdate({ model: e.target.value })}
@@ -165,9 +171,10 @@ export function NodeSettings({
               ))}
             </NativeSelect>
           </Label>
-          <Label>
+          <Label className="mb-0">
             Maximum output tokens
             <Input
+              className="mt-2"
               type="number"
               min={128}
               max={8192}
@@ -175,9 +182,10 @@ export function NodeSettings({
               onChange={(e) => onUpdate({ max_tokens: e.target.valueAsNumber })}
             />
           </Label>
-          <Label>
+          <Label className="mb-0">
             Temperature
             <Input
+              className="mt-2"
               type="number"
               min={0}
               max={2}
@@ -186,22 +194,24 @@ export function NodeSettings({
               onChange={(e) => onUpdate({ temperature: e.target.valueAsNumber })}
             />
           </Label>
-          <p className="field-hint text-[11px] text-muted-foreground mt-2 leading-relaxed">
+          <p className={META}>
             Server context budget: {options?.context_tokens} tokens. Credentials stay on the server.
           </p>
         </>
       )}
       {config?.type === 'question' && (
-        <p>
+        <p className="text-sm text-foreground-muted">
           Each question is independent. Enter your question in Playground after saving this
           pipeline.
         </p>
       )}
       {config?.type === 'answer' && (
-        <p>Displays the generated answer with checked source references, evidence and usage.</p>
+        <p className="text-sm text-foreground-muted">
+          Displays the generated answer with checked source references, evidence and usage.
+        </p>
       )}
       {config && (
-        <Button variant="outline" onClick={onDelete}>
+        <Button variant="outline" className="self-start" onClick={onDelete}>
           Delete selected node
         </Button>
       )}

@@ -1,3 +1,7 @@
+import { ArrowLeft } from 'lucide-react';
+import { PageHeader } from '../../components/PageHeader';
+import { ErrorState } from '../../components/states/ErrorState';
+import { LoadingState } from '../../components/states/LoadingState';
 import { Button } from '../../components/ui/button';
 import { NodeSettings } from './components/NodeSettings';
 import { PipelineCanvas } from './components/PipelineCanvas';
@@ -16,40 +20,47 @@ export function PipelineEditor({
 }) {
   const editor = usePipelineEditor(projectId, pipelineId, versionId);
   return (
-    <div className="editor-workspace">
-      <a className="back-link" href={`#/projects/${projectId}/pipelines`}>
-        All pipelines
-      </a>
-      <div className="editor-title">
-        <h1>Pipeline editor</h1>
-        <span>Question → grounded answer</span>
-      </div>
-      {editor.loading && <p role="status">Loading pipeline and server configuration…</p>}
-      {editor.error && (
-        <p role="alert" className="error-message">
-          {editor.error}
-        </p>
-      )}
-      {editor.error && (
-        <Button variant="outline" onClick={editor.retry}>
-          Retry loading pipeline
+    <div className="flex min-w-0 flex-col">
+      <div className="flex flex-col gap-4 px-4 pt-4 pb-6 md:px-6">
+        <Button variant="ghost" size="sm" className="-ml-2 self-start" asChild>
+          <a href={`#/projects/${projectId}/pipelines`}>
+            <ArrowLeft aria-hidden="true" />
+            All pipelines
+          </a>
         </Button>
-      )}
-      <fieldset className="pipeline-fields" disabled={editor.busy || editor.loading}>
-        <PipelineToolbar
-          name={editor.name}
-          saved={editor.saved}
-          versions={editor.versions}
-          dirty={editor.dirty}
-          busy={editor.busy}
-          canSave={editor.saveReasons.length === 0}
-          onNameChange={editor.setName}
-          onVersionSelect={editor.open}
-          onSave={editor.save}
-          onDuplicate={editor.duplicate}
-          onDiscard={editor.discard}
-          onOpenPlayground={editor.openPlayground}
-        />
+        <PageHeader title="Pipeline editor" meta="Question → grounded answer" />
+        {editor.loading && (
+          <LoadingState label="Loading pipeline and server configuration…" rows={2} />
+        )}
+        {editor.error && (
+          <ErrorState
+            title="The pipeline request failed"
+            message={editor.error}
+            onRetry={editor.retry}
+            retryLabel="Retry loading pipeline"
+          />
+        )}
+      </div>
+      <fieldset
+        className="m-0 flex min-w-0 flex-col border-0 p-0"
+        disabled={editor.busy || editor.loading}
+      >
+        <div className="px-4 pb-6 md:px-6">
+          <PipelineToolbar
+            name={editor.name}
+            saved={editor.saved}
+            versions={editor.versions}
+            dirty={editor.dirty}
+            busy={editor.busy}
+            canSave={editor.saveReasons.length === 0}
+            onNameChange={editor.setName}
+            onVersionSelect={editor.open}
+            onSave={editor.save}
+            onDuplicate={editor.duplicate}
+            onDiscard={editor.discard}
+            onOpenPlayground={editor.openPlayground}
+          />
+        </div>
         <PipelineValidation
           saveReasons={editor.saveReasons}
           alreadySaved={!!editor.saved && !editor.dirty && !editor.loading && !editor.busy}

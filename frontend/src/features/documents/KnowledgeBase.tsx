@@ -6,11 +6,20 @@ import { IndexesWorkspace } from './components/IndexesWorkspace';
 import { useEffect, useMemo, useState } from 'react';
 import { FileText, Plus, X, Files, Database, ArrowRight } from 'lucide-react';
 import { Button } from '../../components/ui/button';
+import { PageHeader } from '../../components/PageHeader';
+import { cn } from '../../lib/utils';
+import { CARD, InlineError, Notice } from '../../components/parts';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/tabs';
 import * as api from './api';
 import { type Document } from './model';
 import { allPages } from '../../lib/pagination';
 const DOCUMENT_PAGE_SIZE = 20;
+const JOURNEY = [
+  'Add documents',
+  'Prepare content',
+  'Publish a collection',
+  'Retrieve in pipelines',
+];
 export function KnowledgeBase({
   projectId,
   documentId = '',
@@ -209,57 +218,58 @@ export function KnowledgeBase({
       setDeletingId(undefined);
     }
   }
+  const inspecting = Boolean(selected && tab === 'documents');
   return (
-    <div className="knowledge-page">
-      <div className="knowledge-heading flex items-center justify-between gap-5 pt-6.5 px-7 pb-5.5">
-        <div>
-          <h1>Knowledge Base</h1>
-          <p>Add sources, prepare their content, then publish a fixed version for retrieval.</p>
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        title="Knowledge Base"
+        meta="Add sources, prepare their content, then publish a fixed version for retrieval."
+        action={
+          <Button
+            variant={selected || showUpload || tab === 'indexes' ? 'outline' : 'primary'}
+            onClick={() => {
+              setTab('documents');
+              setShowUpload((v) => !v);
+            }}
+            aria-expanded={showUpload}
+            aria-controls="upload-panel"
+          >
+            <Plus aria-hidden="true" />
+            Add document
+          </Button>
+        }
+      />
+      <Tabs value={tab} onValueChange={(value) => setTab(value as typeof tab)} className="gap-6">
+        <div className="border-b border-border">
+          <TabsList variant="line" className="justify-start" aria-label="Knowledge Base views">
+            <TabsTrigger value="documents" className="flex-none px-3">
+              <Files aria-hidden="true" />
+              Documents{' '}
+              {documents && (
+                <span className="text-foreground-muted tabular-nums">{documentGroups.length}</span>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="indexes" className="flex-none px-3">
+              <Database aria-hidden="true" />
+              Collections
+            </TabsTrigger>
+          </TabsList>
         </div>
-        <Button
-          variant={selected || showUpload ? 'outline' : 'default'}
-          onClick={() => {
-            setTab('documents');
-            setShowUpload((v) => !v);
-          }}
-          aria-expanded={showUpload}
-          aria-controls="upload-panel"
+        <ol
+          className="flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-foreground-muted"
+          aria-label="How knowledge becomes searchable"
         >
-          <Plus size={15} />
-          Add document
-        </Button>
-      </div>
-      <Tabs value={tab} onValueChange={(value) => setTab(value as typeof tab)}>
-        <TabsList
-          variant="line"
-          className="knowledge-tabs w-full justify-start border-b border-border px-7"
-          aria-label="Knowledge Base views"
-        >
-          <TabsTrigger value="documents">
-            <Files />
-            Documents {documents && <span>{documentGroups.length}</span>}
-          </TabsTrigger>
-          <TabsTrigger value="indexes">
-            <Database />
-            Collections
-          </TabsTrigger>
-        </TabsList>
-        <ol className="knowledge-journey" aria-label="How knowledge becomes searchable">
-          <li>
-            <span>1</span> Add documents
-          </li>
-          <li>
-            <ArrowRight />
-            <span>2</span> Prepare content
-          </li>
-          <li>
-            <ArrowRight />
-            <span>3</span> Publish a collection
-          </li>
-          <li>
-            <ArrowRight />
-            <span>4</span> Retrieve in pipelines
-          </li>
+          {JOURNEY.map((step, index) => (
+            <li key={step} className="flex items-center gap-2">
+              {index > 0 && (
+                <ArrowRight aria-hidden="true" className="size-4 text-foreground-subtle" />
+              )}
+              <span className="flex size-4 items-center justify-center rounded-full border border-border-strong tabular-nums">
+                {index + 1}
+              </span>
+              {step}
+            </li>
+          ))}
         </ol>
         {showUpload && (
           <DocumentUpload
@@ -270,25 +280,11 @@ export function KnowledgeBase({
             onUploaded={handleUploaded}
           />
         )}
-        {notice && (
-          <p role="status" className="success-message mx-7">
-            {notice}
-          </p>
-        )}
-        {mutationError && (
-          <p role="alert" className="inline-error document-mutation-error mx-7">
-            {mutationError}
-          </p>
-        )}
-        {!showUpload && settingsError && (
-          <p role="alert" className="error-message text-xs mt-4 text-destructive">
-            {settingsError}
-          </p>
-        )}
-        <div
-          className={`knowledge-split grid grid-cols-[minmax(0,_1fr)] min-h-[calc(100dvh_-_182px)] ${selected && tab === 'documents' ? 'has-inspector' : ''}`}
-        >
-          <div className="knowledge-body min-w-0">
+        {notice && <Notice>{notice}</Notice>}
+        {mutationError && <InlineError>{mutationError}</InlineError>}
+        {!showUpload && settingsError && <InlineError>{settingsError}</InlineError>}
+        <div className="flex flex-col gap-6 desktop:flex-row desktop:items-start">
+          <div className={cn('min-w-0 flex-1', inspecting && 'max-md:hidden')}>
             <TabsContent value="documents">
               <DocumentTable
                 groups={documents ? visibleDocumentGroups : undefined}
@@ -316,19 +312,26 @@ export function KnowledgeBase({
             </TabsContent>
           </div>
           {selected && tab === 'documents' && (
-            <aside className="document-detail" aria-label="Document details">
-              <div className="detail-toolbar">
-                <span>
-                  <FileText />
+            <aside
+              className={cn(
+                CARD,
+                'flex w-full flex-col gap-4 p-4 desktop:w-panel desktop:shrink-0',
+              )}
+              aria-label="Document details"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="flex items-center gap-2 text-xs font-medium text-foreground-muted">
+                  <FileText aria-hidden="true" className="size-4 text-foreground-subtle" />
                   Preparation details
                 </span>
                 <Button
                   variant="ghost"
-                  size="icon-sm"
+                  size="sm"
+                  icon
                   onClick={() => selectDocument()}
                   aria-label="Close document details"
                 >
-                  <X />
+                  <X aria-hidden="true" />
                 </Button>
               </div>
               <DocumentInspector

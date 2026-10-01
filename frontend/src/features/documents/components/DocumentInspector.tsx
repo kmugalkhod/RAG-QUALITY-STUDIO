@@ -9,6 +9,9 @@ import { Pagination } from '../../../components/Pagination';
 import { active, date, message } from '../documentPresentation';
 import { ChunkInspector } from './ChunkInspector';
 import { StatusBadge } from '../../../components/StatusBadge';
+import { LoadingState } from '../../../components/states/LoadingState';
+import { cn } from '../../../lib/utils';
+import { InlineError, LIST, LIST_ROW, META, Notice, SUMMARY } from '../../../components/parts';
 export function DocumentInspector({
   projectId,
   document,
@@ -124,23 +127,27 @@ export function DocumentInspector({
     }
   }
   return (
-    <section
-      className="inspector mt-9 border-t border-border pt-7 scroll-mt-5"
-      aria-labelledby="inspector-title"
-    >
-      <h2 ref={title} tabIndex={-1} id="inspector-title">
+    <section className="flex min-w-0 flex-col gap-4" aria-labelledby="inspector-title">
+      <h2
+        ref={title}
+        tabIndex={-1}
+        id="inspector-title"
+        className="text-base font-semibold text-foreground outline-none wrap-anywhere"
+      >
         Process: {document.filename}
       </h2>
-      <details className="source-metadata text-[11px] wrap-anywhere text-muted-foreground my-4.5 mx-0">
-        <summary>Source metadata</summary>
-        <p>Document ID: {document.id}</p>
-        <p>SHA-256: {document.content_hash}</p>
+      <details className="border-y border-border">
+        <summary className={SUMMARY}>Source metadata</summary>
+        <div className={cn(META, 'flex flex-col gap-1 pb-3 wrap-anywhere')}>
+          <p>Document ID: {document.id}</p>
+          <p>SHA-256: {document.content_hash}</p>
+        </div>
       </details>
-      <form onSubmit={start} noValidate>
-        <details className="source-metadata text-[11px] wrap-anywhere text-muted-foreground my-4.5 mx-0">
-          <summary>Advanced processing options</summary>
-          <div className="chunk-settings flex items-end flex-wrap gap-3">
-            <div>
+      <form onSubmit={start} noValidate className="flex flex-col gap-3">
+        <details className="border-b border-border">
+          <summary className={SUMMARY}>Advanced processing options</summary>
+          <div className="grid grid-cols-2 gap-3 pb-4">
+            <div className="flex min-w-0 flex-col">
               <Label htmlFor="chunk-size">Chunk size (characters)</Label>
               <Input
                 id="chunk-size"
@@ -152,7 +159,7 @@ export function DocumentInspector({
                 disabled={busy}
               />
             </div>
-            <div>
+            <div className="flex min-w-0 flex-col">
               <Label htmlFor="chunk-overlap">Overlap (characters)</Label>
               <Input
                 id="chunk-overlap"
@@ -165,79 +172,79 @@ export function DocumentInspector({
             </div>
           </div>
         </details>
-        <Button disabled={busy || activeRun || !runs} type="submit">
+        <Button disabled={busy || activeRun || !runs} type="submit" className="w-full">
           {busy ? 'Saving…' : 'Start processing'}
         </Button>
-        <p className="field-hint text-[11px] text-muted-foreground mt-2 leading-relaxed">
+        <p className={META}>
           Each start saves a new version. Fixed character windows preserve whitespace and never
           cross PDF pages. A failed or cancelled run can be retried by starting a new version.
         </p>
       </form>
-      {loadError && (
-        <p role="alert" className="error-message text-xs mt-4 text-destructive">
-          {loadError}
-        </p>
-      )}
-      {error && (
-        <p role="alert" className="error-message text-xs mt-4 text-destructive">
-          {error}
-        </p>
-      )}
-      <p
-        role="status"
-        className="success-message pt-4 px-0 pb-0 text-[11px] wrap-anywhere text-success"
-      >
-        {notice}
-      </p>
-      <div className="section-heading flex justify-between items-center gap-2.5 m-0 py-4 px-7">
-        <h3 ref={historyTitle} tabIndex={-1}>
+      {loadError && <InlineError>{loadError}</InlineError>}
+      {error && <InlineError>{error}</InlineError>}
+      <Notice>{notice}</Notice>
+      <div className="flex items-center justify-between gap-2 border-t border-border pt-4">
+        <h3
+          ref={historyTitle}
+          tabIndex={-1}
+          className="text-sm font-semibold text-foreground outline-none"
+        >
           Processing history
         </h3>
         <Button variant="outline" size="sm" onClick={() => setRevision((n) => n + 1)}>
           Refresh history
         </Button>
       </div>
-      {loading && runs && <p role="status">Loading processing history…</p>}
+      {loading && runs && (
+        <p className={META} role="status">
+          Loading processing history…
+        </p>
+      )}
       {!runs ? (
-        <p role="status">Loading processing history…</p>
+        <LoadingState label="Loading processing history…" rows={2} />
       ) : !runs.total ? (
-        <p>No processing runs yet. Choose your settings above.</p>
+        <p className="text-sm text-foreground-muted">
+          No processing runs yet. Choose your settings above.
+        </p>
       ) : (
-        <ul className="run-list">
+        <ul className={LIST}>
           {runs.items.map((run) => (
-            <li key={run.id}>
-              <div>
-                <h3>
-                  Version {run.version} <StatusBadge status={run.status} />
-                </h3>
-                <p>
-                  {run.chunk_size} characters · {run.overlap} overlap · {date(run.created_at)}
+            <li key={run.id} className={cn(LIST_ROW, 'flex flex-col gap-2 p-3')}>
+              <h3 className="flex flex-wrap items-center gap-2 text-sm font-semibold text-foreground">
+                Version {run.version} <StatusBadge status={run.status} />
+              </h3>
+              <p className={META}>
+                {run.chunk_size} characters · {run.overlap} overlap · {date(run.created_at)}
+              </p>
+              <p className={cn(META, 'wrap-anywhere')}>
+                {run.parser_version} · {run.config_version}
+              </p>
+              {active(run) && (
+                <p role="status" className="text-xs text-foreground">
+                  {run.status === 'queued' ? 'Waiting for a worker' : 'Processing text'} ·{' '}
+                  {run.progress}% · attempt {run.attempts}/3
                 </p>
-                <p className="field-hint text-[11px] text-muted-foreground mt-2 leading-relaxed">
-                  {run.parser_version} · {run.config_version}
-                </p>
-                {active(run) && (
-                  <p role="status">
-                    {run.status === 'queued' ? 'Waiting for a worker' : 'Processing text'} ·{' '}
-                    {run.progress}% · attempt {run.attempts}/3
-                  </p>
-                )}
-                {run.error && (
-                  <p className="error-message text-xs mt-4 text-destructive">{run.error}</p>
-                )}
-              </div>
-              <div>
-                {active(run) && (
-                  <Button variant="outline" disabled={busy} onClick={() => void cancel(run)}>
-                    Cancel run
-                  </Button>
-                )}
-                {run.status === 'succeeded' && (
-                  <Button variant="outline" onClick={() => setSelectedRun(run)}>
-                    Inspect {run.chunk_count} chunks
-                  </Button>
-                )}
-              </div>
+              )}
+              {run.error && <p className="text-xs text-danger wrap-anywhere">{run.error}</p>}
+              {(active(run) || run.status === 'succeeded') && (
+                <div className="flex flex-wrap gap-2">
+                  {active(run) && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={busy}
+                      onClick={() => void cancel(run)}
+                    >
+                      Cancel run
+                    </Button>
+                  )}
+                  {run.status === 'succeeded' && (
+                    <Button variant="outline" size="sm" onClick={() => setSelectedRun(run)}>
+                      Inspect {run.chunk_count} chunks
+                    </Button>
+                  )}
+                </div>
+              )}
             </li>
           ))}
         </ul>

@@ -33,7 +33,9 @@ test('documentation T3: reuse one Website snapshot through the UI for a second i
   await page.getByRole('button', { name: 'Save version' }).click();
   await expect(page.getByText('Saved version 1', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Collect source & publish index' }).click();
-  await expect(page.locator('.ingestion-run-state[data-status="succeeded"]')).toBeVisible({
+  await expect(
+    page.locator('[data-testid="ingestion-run-state"][data-status="succeeded"]'),
+  ).toBeVisible({
     timeout: 60000,
   });
   const snapshots = (await (
@@ -61,7 +63,7 @@ test('documentation T3: reuse one Website snapshot through the UI for a second i
     'http://127.0.0.1:3000/docs/ingestion/source-history/',
   );
   await page
-    .locator('.snapshot-detail')
+    .getByTestId('snapshot-detail')
     .screenshot({ path: `${screenshots}/11-source-snapshot.png` });
   await page
     .getByLabel('Ingestion pipeline version')
@@ -81,7 +83,7 @@ test('documentation T3: reuse one Website snapshot through the UI for a second i
   await expect(page.getByRole('link', { name: /Controlled website variant · v1/ })).toBeVisible();
   await expect(page.getByRole('link', { name: /Ingested knowledge · v1/ })).toBeVisible();
   await page
-    .locator('.snapshot-detail')
+    .getByTestId('snapshot-detail')
     .screenshot({ path: `${screenshots}/12-snapshot-variant.png` });
   await page.setViewportSize({ width: 390, height: 844 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -177,12 +179,16 @@ test('documentation T5: strict finding, repaired source and redacted publication
   await page.getByRole('button', { name: 'Save version' }).click();
   await expect(page.getByText('Saved version 1', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Run ingestion' }).click();
-  await expect(page.locator('.ingestion-run-state[data-status="succeeded"]')).toBeVisible({
+  await expect(
+    page.locator('[data-testid="ingestion-run-state"][data-status="succeeded"]'),
+  ).toBeVisible({
     timeout: 60000,
   });
   await expect(page.getByRole('link', { name: 'Inspect published index' })).toBeVisible();
-  await expect(page.locator('.ingestion-run-details')).toContainText('harbor-quality-repaired.txt');
-  await expect(page.locator('.ingestion-run-details')).not.toContainText(
+  await expect(page.getByRole('region', { name: 'Run details' })).toContainText(
+    'harbor-quality-repaired.txt',
+  );
+  await expect(page.getByRole('region', { name: 'Run details' })).not.toContainText(
     'harbor-quality-corrupt.txt',
   );
   await page.setViewportSize({ width: 390, height: 844 });

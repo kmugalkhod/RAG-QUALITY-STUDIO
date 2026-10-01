@@ -51,7 +51,10 @@ test('shows missing server configuration and keeps paid action disabled', async 
   });
   render(<IndexPanel projectId="p1" />);
   expect(await screen.findByText(/Set OPENROUTER_API_KEY/)).toBeVisible();
-  expect(screen.getByRole('button', { name: 'Publish prepared documents' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Publish prepared documents' })).toHaveAttribute(
+    'aria-disabled',
+    'true',
+  );
   expect(screen.getByRole('heading', { name: 'No searchable collections yet' })).toBeVisible();
 });
 
@@ -64,7 +67,9 @@ test('creates an index, shows progress and cancels', async () => {
   vi.mocked(api.cancelIndex).mockResolvedValue({ ...queued, status: 'cancelled' });
   render(<IndexPanel projectId="p1" />);
   await waitFor(() =>
-    expect(screen.getByRole('button', { name: 'Publish prepared documents' })).toBeEnabled(),
+    expect(screen.getByRole('button', { name: 'Publish prepared documents' })).not.toHaveAttribute(
+      'aria-disabled',
+    ),
   );
   await userEvent.click(screen.getByRole('button', { name: 'Publish prepared documents' }));
   expect(
@@ -74,7 +79,10 @@ test('creates an index, shows progress and cancels', async () => {
     'aria-valuenow',
     '33.33333333333333',
   );
-  expect(screen.getByRole('button', { name: 'Publish prepared documents' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Publish prepared documents' })).toHaveAttribute(
+    'aria-disabled',
+    'true',
+  );
   await userEvent.click(screen.getByRole('tab', { name: 'Versions' }));
   await userEvent.click(screen.getByRole('button', { name: 'Cancel collection version 1' }));
   expect(api.cancelIndex).toHaveBeenCalledWith('p1', 'i1');

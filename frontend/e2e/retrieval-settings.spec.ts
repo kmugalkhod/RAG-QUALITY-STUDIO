@@ -92,7 +92,7 @@ test('legacy pipeline upgrades to hybrid, persists all six settings and tests ke
   await page.screenshot({ path: 'test-results/retrieval-settings-desktop.png' });
   await page.setViewportSize({ width: 390, height: 844 });
   await page
-    .locator('.pipeline-config')
+    .locator('#node-settings')
     .screenshot({ path: 'test-results/retrieval-settings-mobile.png' });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.setViewportSize({ width: 1440, height: 1000 });

@@ -28,10 +28,9 @@ test('operator help links and unavailable-provider Settings at desktop and mobil
     'href',
     'http://127.0.0.1:3000/docs/reference/limits-faq/',
   );
-  await expect(page.getByRole('link', { name: 'Troubleshoot unavailable settings' })).toHaveAttribute(
-    'href',
-    'http://127.0.0.1:3000/docs/operate/troubleshooting/',
-  );
+  await expect(
+    page.getByRole('link', { name: 'Troubleshoot unavailable settings' }),
+  ).toHaveAttribute('href', 'http://127.0.0.1:3000/docs/operate/troubleshooting/');
   const models = page.locator('section.settings-section').filter({
     has: page.getByRole('heading', { name: 'Models', exact: true }),
   });

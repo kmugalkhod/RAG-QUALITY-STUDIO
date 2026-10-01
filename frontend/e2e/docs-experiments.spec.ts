@@ -60,7 +60,7 @@ test('documentation T4: compare two saved versions on reviewed fictional questio
   await expect(page.getByRole('heading', { name: 'Preview · 2 questions' })).toBeVisible();
   await expect(page.getByLabel('Dataset questions')).toContainText('What is the launch code?');
   await page
-    .locator('.dataset-preview')
+    .getByTestId('dataset-preview')
     .screenshot({ path: `${screenshots}/13-reviewed-dataset.png` });
   await page.getByRole('button', { name: 'Import reviewed dataset' }).click();
   await expect(
@@ -87,23 +87,17 @@ test('documentation T4: compare two saved versions on reviewed fictional questio
     timeout: 150000,
   });
   await expect(page.getByRole('heading', { name: 'Paired comparison' })).toBeVisible();
-  const summaries = page.locator('.experiment-section').filter({
-    has: page.getByRole('heading', { name: 'Candidate summaries' }),
-  });
+  const summaries = page.getByRole('region', { name: 'Candidate summaries', exact: true });
   await expect(summaries).toContainText('unavailable');
   await expect(page.getByRole('link', { name: 'Interpret metrics and costs' })).toHaveAttribute(
     'href',
     'http://127.0.0.1:3000/docs/experiments/metrics/',
   );
   await summaries.screenshot({ path: `${screenshots}/14-candidate-summary.png` });
-  const paired = page.locator('.experiment-section').filter({
-    has: page.getByRole('heading', { name: 'Paired comparison' }),
-  });
+  const paired = page.getByRole('region', { name: 'Paired comparison', exact: true });
   await expect(paired).toContainText('Shared sample');
   await paired.screenshot({ path: `${screenshots}/15-paired-comparison.png` });
-  const questions = page.locator('.experiment-section').filter({
-    has: page.getByRole('heading', { name: 'Per-question comparison' }),
-  });
+  const questions = page.getByRole('region', { name: 'Per-question comparison', exact: true });
   await expect(questions).toContainText('Insufficient evidence');
   await questions.screenshot({ path: `${screenshots}/16-question-comparison.png` });
   await page.getByRole('button', { name: 'What does the orchard grow?', exact: true }).click();

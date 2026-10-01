@@ -1,4 +1,10 @@
+import { readFileSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
+
+// Recorded from the e2e backend's ingestion-capabilities response.
+const capabilities: unknown = JSON.parse(
+  readFileSync('e2e/fixtures/ingestion-capabilities.json', 'utf8'),
+);
 
 async function settledViewport(page: Page) {
   let previous: string | null = null;
@@ -37,6 +43,7 @@ test.beforeEach(async ({ page }) => {
         config: { provider: 'test', model: 'fixture-embedding', dimensions: 3, revision: '1' },
       };
     else if (path.endsWith('/source-connections/settings')) body = { enabled: false };
+    else if (path.endsWith('/ingestion-capabilities')) body = capabilities;
     else if (route.request().method() !== 'GET') {
       await route.abort();
       return;
@@ -86,7 +93,7 @@ test('all desktop stages preserve canvas position and zoom while the inspector s
   page,
 }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
-  const canvas = page.locator('.pipeline-canvas');
+  const canvas = page.getByTestId('pipeline-canvas');
   const settings = page.locator('#node-settings');
   const originalBox = await canvas.boundingBox();
   await page.getByText(/Scope & fetch limits/).click();
@@ -169,7 +176,7 @@ test('tablet stacks the inspector and preserves editable state across every stag
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
       true,
     );
-    const canvas = (await page.locator('.pipeline-canvas').boundingBox())!;
+    const canvas = (await page.getByTestId('pipeline-canvas').boundingBox())!;
     const settings = (await page.locator('#node-settings').boundingBox())!;
     expect(settings.y).toBeGreaterThanOrEqual(canvas.y + canvas.height);
     expect(canvas.width).toBeGreaterThan(700);
@@ -185,7 +192,7 @@ test('mobile stages and long source settings remain reachable without horizontal
   await chunk.focus();
   await page.keyboard.press('Enter');
   await expect(page.getByRole('heading', { name: 'Chunk settings' })).toBeVisible();
-  await page.getByLabel('Chunk size (characters)').fill('1200');
+  await page.getByLabel('Target tokens').fill('700');
   await page.getByRole('button', { name: '1 Source', exact: true }).click();
   await page.getByLabel('Starting URL').fill('https://example.org/');
   await page.getByText(/Scope & fetch limits/).click();
@@ -193,11 +200,11 @@ test('mobile stages and long source settings remain reachable without horizontal
   await expect(page.getByLabel('User agent')).toBeInViewport();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
   await page.getByRole('button', { name: '4 Chunk', exact: true }).click();
-  await expect(page.getByLabel('Chunk size (characters)')).toHaveValue('1200');
-  expect(await page.locator('.pipeline-canvas').evaluate((element) => element.clientHeight)).toBe(
-    440,
-  );
-  const canvas = (await page.locator('.pipeline-canvas').boundingBox())!;
+  await expect(page.getByLabel('Target tokens')).toHaveValue('700');
+  expect(
+    await page.getByTestId('pipeline-canvas').evaluate((element) => element.clientHeight),
+  ).toBe(480);
+  const canvas = (await page.getByTestId('pipeline-canvas').boundingBox())!;
   const settings = (await page.locator('#node-settings').boundingBox())!;
   expect(canvas.y + canvas.height).toBeLessThanOrEqual(settings.y);
 });
@@ -221,16 +228,16 @@ test('saving records the draft and discard restores the saved stage settings', a
   await expect(page.getByText('Saved version 1', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Collect source & publish index' })).toBeEnabled();
   await page.getByRole('button', { name: '4 Chunk', exact: true }).click();
-  await page.getByLabel('Chunk size (characters)').fill('1500');
+  await page.getByLabel('Target tokens').fill('700');
   await expect(page.getByRole('button', { name: 'Collect source & publish index' })).toBeDisabled();
   await page.getByRole('button', { name: 'Discard changes' }).click();
-  await expect(page.getByLabel('Chunk size (characters)')).toHaveValue('1000');
+  await expect(page.getByLabel('Target tokens')).toHaveValue('600');
   await expect(page.getByText('Saved version 1', { exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Automatic sync' })).not.toBeVisible();
   await page.getByRole('button', { name: 'Automatic sync' }).click();
   await expect(page.getByRole('heading', { name: 'Automatic sync' })).toBeVisible();
   await page.setViewportSize({ width: 1440, height: 900 });
-  const canvas = (await page.locator('.pipeline-canvas').boundingBox())!;
+  const canvas = (await page.getByTestId('pipeline-canvas').boundingBox())!;
   const syncPanel = (await page.locator('#automatic-sync-panel').boundingBox())!;
   const inspector = (await page.locator('#node-settings').boundingBox())!;
   expect(Math.abs(syncPanel.x - canvas.x)).toBeLessThanOrEqual(1);
@@ -424,19 +431,23 @@ test('real run checkpoints move accessible execution state across the canvas', a
   );
 
   await page.getByRole('button', { name: 'Collect source & publish index' }).click();
-  const source = page.locator('.react-flow__node[data-id="source"] .ingestion-flow-node');
-  const extract = page.locator('.react-flow__node[data-id="extract"] .ingestion-flow-node');
-  const clean = page.locator('.react-flow__node[data-id="clean"] .ingestion-flow-node');
-  const chunk = page.locator('.react-flow__node[data-id="chunk"] .ingestion-flow-node');
-  const embed = page.locator('.react-flow__node[data-id="embed"] .ingestion-flow-node');
-  const publish = page.locator('.react-flow__node[data-id="publish"] .ingestion-flow-node');
+  const source = page.locator('.react-flow__node[data-id="source"] [data-testid="ingestion-node"]');
+  const extract = page.locator(
+    '.react-flow__node[data-id="extract"] [data-testid="ingestion-node"]',
+  );
+  const clean = page.locator('.react-flow__node[data-id="clean"] [data-testid="ingestion-node"]');
+  const chunk = page.locator('.react-flow__node[data-id="chunk"] [data-testid="ingestion-node"]');
+  const embed = page.locator('.react-flow__node[data-id="embed"] [data-testid="ingestion-node"]');
+  const publish = page.locator(
+    '.react-flow__node[data-id="publish"] [data-testid="ingestion-node"]',
+  );
   await expect(source).toHaveAttribute('data-execution-status', 'running');
   await expect(extract).toHaveAttribute('data-execution-status', 'running');
   await expect(clean).toHaveAttribute('data-execution-status', 'running');
   await expect(chunk).toHaveAttribute('data-execution-status', 'running');
   await expect(embed).toHaveAttribute('data-execution-status', 'running');
   await embed.click();
-  await expect(embed).toHaveClass(/workflow-selected/);
+  await expect(embed).toHaveAttribute('data-selected', 'true');
   await expect(embed.getByText('Running now', { exact: true })).toBeVisible();
   await page.screenshot({ path: 'test-results/ingestion-execution-desktop.png', fullPage: true });
   await expect(publish).toHaveAttribute('data-execution-status', 'running');
@@ -457,9 +468,9 @@ test('real run checkpoints move accessible execution state across the canvas', a
       }),
   );
   await page.reload();
-  await expect(page.locator('.ingestion-flow-node[data-execution-status="succeeded"]')).toHaveCount(
-    6,
-  );
+  await expect(
+    page.locator('[data-testid="ingestion-node"][data-execution-status="succeeded"]'),
+  ).toHaveCount(6);
   await expect(page.getByText('Complete', { exact: true }).first()).toBeVisible();
 
   await page.setViewportSize({ width: 390, height: 844 });
@@ -478,7 +489,7 @@ test('unavailable embedding configuration shows an actionable error instead of e
   );
   page.on('dialog', (dialog) => dialog.accept());
   await page.reload();
-  await expect(page.getByRole('alert')).toHaveText('Configure an embedding provider.');
+  await expect(page.getByRole('alert')).toContainText('Configure an embedding provider.');
   await expect(page.getByRole('button', { name: 'Retry loading pipeline' })).toBeVisible();
 });
 
@@ -494,7 +505,23 @@ test('preview feedback is brought into view, cancellation works, and failures st
     excluded_count: 0,
     duplicate_count: 0,
     failed_count: 0,
+    pass_count: 0,
+    warn_count: 0,
+    exclude_count: 0,
+    quality_fail_count: 0,
+    known_compute_ms: 0,
+    configuration_hash: 'fixture-configuration',
+    fetch_mode: 'network',
+    cost_basis: {},
+    attempts: 1,
+    failures: 0,
     error: null,
+    project_id: '11111111-1111-4111-8111-111111111111',
+    created_at: '2026-09-21T00:00:00Z',
+    updated_at: '2026-09-21T00:00:00Z',
+    started_at: '2026-09-21T00:00:00Z',
+    finished_at: null,
+    expires_at: '2026-09-22T00:00:00Z',
   };
   await page.route('**/api/projects/*/ingestion-previews', (route) =>
     route.fulfill({ json: preview }),
@@ -522,14 +549,17 @@ test('preview feedback is brought into view, cancellation works, and failures st
   await expect(page.getByRole('button', { name: 'Preview processing', exact: true })).toBeEnabled();
 });
 
-test('invalid chunk settings expose field errors and block saving and preview', async ({
+test('invalid chunk settings list blocking reasons and block saving and preview', async ({
   page,
 }) => {
   await page.getByLabel('Starting URL').fill('https://example.org/');
   await page.getByRole('button', { name: '4 Chunk', exact: true }).click();
+  await page.getByLabel('Chunking algorithm').selectOption('character_window');
   await page.getByLabel('Chunk size (characters)').fill('50');
-  await expect(page.getByLabel('Chunk size (characters)')).toHaveAttribute('aria-invalid', 'true');
-  await expect(page.getByLabel('Overlap (characters)')).toHaveAttribute('aria-invalid', 'true');
+  // Chunk fields have no per field error state; the stage lists the blocking reasons.
+  await expect(
+    page.getByRole('status').filter({ hasText: 'Complete the configuration' }),
+  ).toBeVisible();
   await expect(page.getByRole('button', { name: 'Save version', exact: true })).toBeDisabled();
   await expect(
     page.getByRole('button', { name: 'Preview processing', exact: true }),
@@ -545,7 +575,7 @@ test('canvas node clicks and source form variants never resize or refit the grap
 }) => {
   await page.setViewportSize({ width: 1366, height: 768 });
   await page.getByRole('button', { name: 'Fit View', exact: true }).click();
-  const canvas = page.locator('.pipeline-canvas');
+  const canvas = page.getByTestId('pipeline-canvas');
   const height = await canvas.evaluate((element) => element.clientHeight);
   const transform = await settledViewport(page);
   for (const id of ['extract', 'clean', 'chunk', 'embed', 'publish', 'source']) {
@@ -563,7 +593,7 @@ test('canvas node clicks and source form variants never resize or refit the grap
   }
   await page.getByLabel('Source type').selectOption('existing_files');
   await expect(
-    page.getByText('No uploaded documents. Add and process files in Knowledge Base first.'),
+    page.getByText('No uploaded documents. Add files in Knowledge Base first.'),
   ).toBeVisible();
   expect(await canvas.evaluate((element) => element.clientHeight)).toBe(height);
 });

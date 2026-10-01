@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-test('project navigation, isolated state, direct links, history and mobile menu', async ({
+test('project navigation, isolated state, direct links, history and mobile tab bar', async ({
   page,
   request,
 }) => {
@@ -49,7 +49,8 @@ test('project navigation, isolated state, direct links, history and mobile menu'
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.screenshot({ path: 'test-results/workspace-desktop.png' });
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.getByRole('button', { name: 'Open navigation' }).click();
+  const tabs = page.getByRole('navigation', { name: 'Project sections' });
+  await tabs.getByRole('button', { name: 'More' }).click();
   await page.screenshot({ path: 'test-results/workspace-mobile-navigation.png' });
   await page.getByRole('link', { name: 'Settings', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Settings', exact: true })).toBeVisible();
@@ -59,12 +60,11 @@ test('project navigation, isolated state, direct links, history and mobile menu'
   await expect(
     page.getByText(/Document preparation uses versioned character chunks/),
   ).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Open navigation' })).toBeVisible();
+  await expect(tabs.getByRole('button', { name: 'More' })).toHaveAttribute('aria-current', 'page');
   await page.screenshot({ path: 'test-results/settings-mobile.png', fullPage: true });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-  await page.getByRole('button', { name: 'Open navigation' }).click();
-  await page.getByRole('link', { name: 'Knowledge Base', exact: true }).click();
+  await tabs.getByRole('link', { name: 'Knowledge', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Knowledge Base', exact: true })).toBeVisible();
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
 });

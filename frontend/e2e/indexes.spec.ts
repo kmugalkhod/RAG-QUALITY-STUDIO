@@ -71,7 +71,7 @@ test('indexes and retrieves persisted source evidence using the isolated provide
   await expect(results.getByText(/Cosine distance 0.0000/)).toBeVisible();
   await expect(results.getByText(/1 passages from immutable collection version 1/)).toBeVisible();
   await page.setViewportSize({ width: 1440, height: 1000 });
-  const indexWorkspace = page.locator('.index-workspace');
+  const indexWorkspace = page.getByTestId('index-workspace');
   await page.getByRole('heading', { name: 'Searchable collections' }).scrollIntoViewIfNeeded();
   await indexWorkspace.screenshot({ path: 'test-results/index-desktop.png' });
   await page.setViewportSize({ width: 390, height: 844 });
