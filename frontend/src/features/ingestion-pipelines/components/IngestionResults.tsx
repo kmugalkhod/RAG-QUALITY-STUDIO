@@ -1,8 +1,8 @@
 import { useEffect, useState, type CSSProperties } from 'react';
-import { ArrowRight, Check, FileText, Square, X } from 'lucide-react';
+import { Check, FileText, Square, X } from 'lucide-react';
 
 import { Pagination } from '../../../components/Pagination';
-import { CARD, LINK, LIST, LIST_ROW, META, PRE, Callout } from '../../../components/parts';
+import { CARD, LINK, LIST, LIST_ROW, META, PRE } from '../../../components/parts';
 import { Button } from '../../../components/ui/button';
 import { Label } from '../../../components/ui/label';
 import { NativeSelect, NativeSelectOption } from '../../../components/ui/native-select';
@@ -614,6 +614,8 @@ export function IngestionRunResults({
       <div className={HEADING_ROW}>
         <div className={HEADING_COPY}>
           <h2 id="ingestion-run-details-heading">Run details</h2>
+        </div>
+        <div className="flex flex-wrap gap-x-4">
           <a
             className={LINK}
             href={docsHref('ingestion/runs')}
@@ -630,137 +632,102 @@ export function IngestionRunResults({
           >
             Jobs and recovery
           </a>
-          {(run.new_count > 0 ||
-            run.changed_count > 0 ||
-            run.unchanged_count > 0 ||
-            run.removed_count > 0) && (
-            <p>
-              {run.new_count} new · {run.changed_count} changed · {run.unchanged_count} unchanged ·{' '}
-              {run.removed_count} removed
-            </p>
+          {run.source_snapshot_id && (
+            <a
+              className={LINK}
+              href={`#/projects/${projectId}/knowledge-base?view=indexes&mode=snapshots&snapshot=${run.source_snapshot_id}`}
+            >
+              Inspect source snapshot
+            </a>
           )}
         </div>
       </div>
-      {run.error && (
-        <p role="alert" className={ERROR_TEXT}>
-          {run.error}
-        </p>
-      )}
-      {run.status === 'succeeded' && run.published_index_id && (
-        <Callout
-          data-testid="published-index"
-          tone="success"
-          title={`Index version ${run.published_index_version} is ready to use`}
-        >
-          <p>
-            Select this same version in an answer pipeline. It will not ingest the source or embed
-            these passages again.
-          </p>
-          <div className="flex flex-col gap-2 md:flex-row md:flex-wrap">
-            <Button asChild>
-              <a href={`#/projects/${projectId}/pipelines/new?index=${run.published_index_id}`}>
-                Use in answer pipeline
-                <ArrowRight aria-hidden="true" />
-              </a>
-            </Button>
-            <Button asChild variant="outline">
-              <a
-                href={`#/projects/${projectId}/knowledge-base?view=indexes&index=${run.published_index_id}`}
-              >
-                Inspect published index
-              </a>
-            </Button>
-            {run.source_snapshot_id && (
-              <Button asChild variant="ghost">
-                <a
-                  href={`#/projects/${projectId}/knowledge-base?view=indexes&mode=snapshots&snapshot=${run.source_snapshot_id}`}
-                >
-                  Inspect source snapshot
-                </a>
-              </Button>
-            )}
-          </div>
-        </Callout>
-      )}
       <ul className={LIST}>
-        {items.map((item) => (
-          <li
-            key={item.source_kind !== 'existing_files' ? item.ordinal : item.document_id}
-            className={ITEM}
-          >
-            <FileText aria-hidden="true" />
-            <div>
-              {item.source_kind !== 'existing_files' ? (
-                <>
-                  <strong>{item.display_name}</strong>
-                  <p>
-                    {item.outcome} · {item.status} · {item.chunk_count} chunks · {item.reason}
-                  </p>
-                  {item.canonical_location && <small>{item.canonical_location}</small>}
-                  {item.processing_versions && (
-                    <small>
-                      Extractor {item.processing_versions.extractor} · cleaner{' '}
-                      {item.processing_versions.cleaner} · chunker{' '}
-                      {item.processing_versions.chunker}
-                    </small>
-                  )}
-                  {item.duplicate_decision && (
-                    <small>
-                      Duplicate {item.duplicate_decision.outcome} · {item.duplicate_decision.method}
-                      {' · '}retained {item.duplicate_decision.retained_identity}
-                    </small>
-                  )}
-                  {item.error && (
-                    <small role="alert" className={ERROR_TEXT}>
-                      {item.error}
-                    </small>
-                  )}
-                </>
-              ) : (
-                <>
-                  <strong>{item.filename}</strong>
-                  <p>
-                    {item.status} · processing v{item.processing_version} · {item.chunk_count}{' '}
-                    chunks · {item.content_hash.slice(0, 12)}
-                  </p>
-                  {item.is_optional && <small>Optional source</small>}
-                  {item.processing_versions && (
-                    <small>
-                      Extractor {item.processing_versions.extractor} · cleaner{' '}
-                      {item.processing_versions.cleaner} · chunker{' '}
-                      {item.processing_versions.chunker}
-                    </small>
-                  )}
-                  {item.duplicate_decision && (
-                    <small>
-                      Duplicate {item.duplicate_decision.outcome} · {item.duplicate_decision.method}
-                      {' · '}retained {item.duplicate_decision.retained_identity}
-                    </small>
-                  )}
-                  {item.error && (
-                    <small role="alert" className={ERROR_TEXT}>
-                      {item.error}
-                    </small>
-                  )}
-                </>
+        {/* Failed items lead, so the reason a run failed is the first thing in the list. */}
+        {[...items]
+          .sort(
+            (left, right) => Number(right.status === 'failed') - Number(left.status === 'failed'),
+          )
+          .map((item) => (
+            <li
+              key={item.source_kind !== 'existing_files' ? item.ordinal : item.document_id}
+              className={ITEM}
+            >
+              <FileText aria-hidden="true" />
+              <div>
+                {item.source_kind !== 'existing_files' ? (
+                  <>
+                    <strong>{item.display_name}</strong>
+                    <p>
+                      {item.outcome} · {item.status} · {item.chunk_count} chunks · {item.reason}
+                    </p>
+                    {item.canonical_location && <small>{item.canonical_location}</small>}
+                    {item.processing_versions && (
+                      <small>
+                        Extractor {item.processing_versions.extractor} · cleaner{' '}
+                        {item.processing_versions.cleaner} · chunker{' '}
+                        {item.processing_versions.chunker}
+                      </small>
+                    )}
+                    {item.duplicate_decision && (
+                      <small>
+                        Duplicate {item.duplicate_decision.outcome} ·{' '}
+                        {item.duplicate_decision.method}
+                        {' · '}retained {item.duplicate_decision.retained_identity}
+                      </small>
+                    )}
+                    {item.error && (
+                      <small role="alert" className={ERROR_TEXT}>
+                        {item.error}
+                      </small>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <strong>{item.filename}</strong>
+                    <p>
+                      {item.status} · processing v{item.processing_version} · {item.chunk_count}{' '}
+                      chunks · {item.content_hash.slice(0, 12)}
+                    </p>
+                    {item.is_optional && <small>Optional source</small>}
+                    {item.processing_versions && (
+                      <small>
+                        Extractor {item.processing_versions.extractor} · cleaner{' '}
+                        {item.processing_versions.cleaner} · chunker{' '}
+                        {item.processing_versions.chunker}
+                      </small>
+                    )}
+                    {item.duplicate_decision && (
+                      <small>
+                        Duplicate {item.duplicate_decision.outcome} ·{' '}
+                        {item.duplicate_decision.method}
+                        {' · '}retained {item.duplicate_decision.retained_identity}
+                      </small>
+                    )}
+                    {item.error && (
+                      <small role="alert" className={ERROR_TEXT}>
+                        {item.error}
+                      </small>
+                    )}
+                  </>
+                )}
+              </div>
+              {processingRunId(item) && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  aria-pressed={selectedRunId === processingRunId(item)}
+                  onClick={() => {
+                    setDerivations([]);
+                    setKind('extracted');
+                    setSelectedRunId(processingRunId(item));
+                  }}
+                >
+                  Inspect content
+                </Button>
               )}
-            </div>
-            {processingRunId(item) && (
-              <Button
-                variant="outline"
-                size="sm"
-                aria-pressed={selectedRunId === processingRunId(item)}
-                onClick={() => {
-                  setDerivations([]);
-                  setKind('extracted');
-                  setSelectedRunId(processingRunId(item));
-                }}
-              >
-                Inspect content
-              </Button>
-            )}
-          </li>
-        ))}
+            </li>
+          ))}
       </ul>
       {selectedRunId && (
         <section className={INSPECTOR} aria-busy={busy}>

@@ -44,10 +44,7 @@ test('documentation T3: reuse one Website snapshot through the UI for a second i
   expect(snapshots.items).toHaveLength(1);
   const snapshotId = snapshots.items[0].id;
 
-  await page
-    .getByRole('navigation', { name: 'Ingestion stages' })
-    .getByRole('button', { name: /Chunk/ })
-    .click();
+  await page.getByLabel('Selected stage').selectOption('chunk');
   await page.getByLabel('Chunking algorithm').selectOption('character_window');
   await page.getByLabel('Chunk size (characters)').fill('600');
   await page.getByRole('button', { name: 'Save version' }).click();
@@ -115,17 +112,11 @@ test('documentation T5: strict finding, repaired source and redacted publication
   await page.getByRole('link', { name: 'New ingestion pipeline' }).click();
   await page.getByLabel('Pipeline name').fill('Harbor quality repair');
   await page.getByText('harbor-quality-corrupt.txt', { exact: true }).click();
-  await page
-    .getByRole('navigation', { name: 'Ingestion stages' })
-    .getByRole('button', { name: /Extract/ })
-    .click();
+  await page.getByLabel('Selected stage').selectOption('extract');
   await page.getByLabel('Quality policy').selectOption('strict-v1');
   await page.getByText('Quality thresholds', { exact: true }).click();
   await page.getByLabel('Maximum replacement-character ratio').fill('0');
-  await page
-    .getByRole('navigation', { name: 'Ingestion stages' })
-    .getByRole('button', { name: /Clean/ })
-    .click();
+  await page.getByLabel('Selected stage').selectOption('clean');
   await expect(
     page.getByLabel('Redact sensitive values before chunking and embedding'),
   ).toBeChecked();
@@ -147,10 +138,7 @@ test('documentation T5: strict finding, repaired source and redacted publication
     '[EMAIL]',
   );
 
-  await page
-    .getByRole('navigation', { name: 'Ingestion stages' })
-    .getByRole('button', { name: /Source/ })
-    .click();
+  await page.getByLabel('Selected stage').selectOption('source');
   await page
     .getByRole('region', { name: 'Stage settings' })
     .getByText('harbor-quality-corrupt.txt', { exact: true })
@@ -171,10 +159,7 @@ test('documentation T5: strict finding, repaired source and redacted publication
   await page
     .locator('#ingestion-preview .content-derivation-inspector')
     .screenshot({ path: `${screenshots}/10-quality-repaired.png` });
-  await page
-    .getByRole('navigation', { name: 'Ingestion stages' })
-    .getByRole('button', { name: /Publish/ })
-    .click();
+  await page.getByLabel('Selected stage').selectOption('publish');
   await page.getByLabel('New knowledge set name').fill('Harbor repaired quality');
   await page.getByRole('button', { name: 'Save version' }).click();
   await expect(page.getByText('Saved version 1', { exact: true })).toBeVisible();
@@ -185,6 +170,7 @@ test('documentation T5: strict finding, repaired source and redacted publication
     timeout: 60000,
   });
   await expect(page.getByRole('link', { name: 'Inspect published index' })).toBeVisible();
+  await page.getByRole('button', { name: 'Run details' }).click();
   await expect(page.getByRole('region', { name: 'Run details' })).toContainText(
     'harbor-quality-repaired.txt',
   );

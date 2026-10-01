@@ -27,7 +27,7 @@ Use an isolated project, configured embeddings, retained encrypted raw artifacts
 
 3. Return to the saved ingestion pipeline. Change the **Chunking algorithm** or its target/overlap in **Stage settings → Chunk**, then select **Save version**. This creates a distinct immutable pipeline version. Do not edit the original run or snapshot.
 4. Return to the same snapshot. Under **Create an index variant from this snapshot**, choose the new **Ingestion pipeline version**, choose **New index**, enter a distinct **Index name**, and select **Create index variant**. Wait for `Run succeeded` and refresh the snapshot if needed.
-5. Under **Derived indexes**, open both ready versions. Compare their pipeline version, chunk count and source membership. Both should link back to the same snapshot; their passages may differ. The editor also offers **Ready source snapshot → Reprocess saved source** for a saved Website version.
+5. Under **Derived indexes**, open both ready versions. Compare their pipeline version, chunk count and source membership. Both should link back to the same snapshot; their passages may differ. The editor also offers **More actions → Ready source snapshot → Reprocess saved source** for a saved Website version.
 
    ![Same synthetic snapshot after a second ready index variant was built with ingestion pipeline version two](/img/screenshots/12-snapshot-variant.png)
 

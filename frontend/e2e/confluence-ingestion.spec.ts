@@ -42,7 +42,7 @@ test('Confluence preview publishes and incrementally refreshes an exact index', 
 
   await page.getByRole('button', { name: 'Save version' }).click();
   await page.getByRole('button', { name: 'Automatic sync' }).click();
-  const schedules = page.getByRole('region', { name: 'Automatic sync' });
+  const schedules = page.getByRole('dialog', { name: 'Automatic sync' });
   await schedules.getByLabel('Schedule name').fill('Every fifteen minutes');
   await schedules.getByLabel('Sync frequency').selectOption('15');
   await schedules.getByRole('button', { name: 'Start automatic sync' }).click();

@@ -43,6 +43,7 @@ test('website discovery publishes and incrementally refreshes an exact index', a
     timeout: 60000,
   });
   await expect(page.getByText('2 new · 0 changed · 0 unchanged · 0 removed')).toBeVisible();
+  await page.getByRole('button', { name: 'Run details' }).click();
   await expect(page.getByText(/new · succeeded/)).toHaveCount(2);
   await expect(page.getByRole('link', { name: 'Use in answer pipeline' })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Inspect published index' })).toBeVisible();

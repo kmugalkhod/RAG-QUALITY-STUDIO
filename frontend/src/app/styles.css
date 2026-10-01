@@ -152,8 +152,12 @@
     /* The widget appearance preview matches the widget panel on a desktop site. */
     --widget-preview-height: 480px;
     --widget-preview-width: 400px;
-    /* The ingestion workspace fills the viewport below the shell and editor headers. */
-    --ingestion-workspace: max(520px, calc(100dvh - 96px));
+    /* The ingestion editor fills the viewport below the 48px shell header; its toolbar, status
+       strips and canvas share that height. Preview and run results take part of the canvas. */
+    --ingestion-workspace: max(560px, calc(100dvh - 48px));
+    --ingestion-drawer: 45%;
+    /* The ingestion toolbar name field narrows to this before its actions wrap to a new row. */
+    --toolbar-name-min: 128px;
     font-family: var(--font-sans);
     font-size: var(--text-base);
     line-height: 1.5;

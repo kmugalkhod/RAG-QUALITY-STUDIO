@@ -330,7 +330,9 @@ test('shows the safe per-item processing failure', () => {
     />,
   );
 
-  expect(screen.getAllByRole('alert')).toHaveLength(2);
+  // The run level error is shown by the editor's run strip; the drawer lists item failures.
+  expect(screen.getAllByRole('alert')).toHaveLength(1);
+  expect(screen.queryByText('One or more files failed.')).not.toBeInTheDocument();
   expect(screen.getByText(/Review the source and extraction settings/)).toBeVisible();
 });
 

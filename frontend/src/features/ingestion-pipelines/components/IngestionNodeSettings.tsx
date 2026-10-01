@@ -39,6 +39,18 @@ import {
 
 type SourceKind = 'existing_files' | 'website' | 's3' | 'notion' | 'confluence';
 
+const sourceNames: Record<SourceKind, string> = {
+  existing_files: 'Existing files',
+  website: 'Website',
+  s3: 'Amazon S3',
+  notion: 'Notion',
+  confluence: 'Confluence',
+};
+
+function stageName(node: IngestionNode) {
+  return node.type === 'source' ? sourceNames[node.config.kind] : labels[node.type];
+}
+
 export function IngestionNodeSettings({
   projectId,
   selected,
@@ -57,6 +69,7 @@ export function IngestionNodeSettings({
   schemaVersion,
   updateNode,
   changeSourceKind,
+  onSelectNode,
 }: {
   projectId: string;
   selected?: IngestionNode;
@@ -75,6 +88,7 @@ export function IngestionNodeSettings({
   schemaVersion: 1 | 2;
   updateNode: (id: string, update: (node: IngestionNode) => IngestionNode) => void;
   changeSourceKind: (nodeId: string, kind: SourceKind) => void;
+  onSelectNode: (nodeId: string) => void;
 }) {
   const selectedOcr =
     selected?.type === 'extract'
@@ -179,9 +193,7 @@ export function IngestionNodeSettings({
     >
       <div className="flex shrink-0 flex-col gap-1 border-b border-border bg-surface px-4 py-4 md:px-6 desktop:sticky desktop:top-0 desktop:z-10">
         <h2 id="ingestion-settings-heading" className="text-base font-semibold text-foreground">
-          {selected
-            ? `${selected.type === 'source' ? (selected.config.kind === 'website' ? 'Website' : selected.config.kind === 's3' ? 'Amazon S3' : selected.config.kind === 'notion' ? 'Notion' : selected.config.kind === 'confluence' ? 'Confluence' : 'Existing files') : labels[selected.type]} settings`
-            : 'Node settings'}
+          {selected ? `${stageName(selected)} settings` : 'Node settings'}
         </h2>
         <p className="text-xs text-foreground-muted">
           Stage {nodes.findIndex((node) => node.id === selectedNode) + 1} of {nodes.length} ·{' '}
@@ -211,6 +223,21 @@ export function IngestionNodeSettings({
             About this stage
           </a>
         )}
+        {/* Keyboard and screen reader route to every stage, outside canvas clicks. */}
+        <Label className="mt-3 mb-0">
+          Selected stage
+          <NativeSelect
+            className="mt-2"
+            value={selectedNode}
+            onChange={(event) => onSelectNode(event.target.value)}
+          >
+            {nodes.map((node, index) => (
+              <NativeSelectOption key={node.id} value={node.id}>
+                {index + 1} · {stageName(node)}
+              </NativeSelectOption>
+            ))}
+          </NativeSelect>
+        </Label>
       </div>
       <div
         id="ingestion-settings-body"

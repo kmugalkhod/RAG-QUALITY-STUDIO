@@ -162,7 +162,8 @@ export function IngestionPipelineCanvas({
         fitViewOptions={{ padding: 0.12, maxZoom: 1 }}
       >
         <Background gap={24} size={1} />
-        <Controls showInteractive={false} />
+        {/* Top left, like the answer editor's rail, so nothing covers the node cards. */}
+        <Controls position="top-left" showInteractive={false} />
       </ReactFlow>
     </div>
   );

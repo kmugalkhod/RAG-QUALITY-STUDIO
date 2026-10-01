@@ -118,23 +118,11 @@ test('all desktop stages preserve canvas position and zoom while the inspector s
     width: element.clientWidth,
     height: element.clientHeight,
   }));
-  for (const stage of [
-    '2 Extract',
-    '3 Clean',
-    '4 Chunk',
-    '5 Embed',
-    '6 Publish reusable index',
-    '1 Source',
-  ]) {
+  const stageSelect = page.getByLabel('Selected stage');
+  for (const stage of ['extract', 'clean', 'chunk', 'embed', 'publish', 'source']) {
     const transform = await page.locator('.react-flow__viewport').getAttribute('style');
-    await page
-      .getByRole('navigation', { name: 'Ingestion stages' })
-      .getByRole('button', { name: stage, exact: true })
-      .click();
-    await expect(page.getByRole('button', { name: stage, exact: true })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    );
+    await stageSelect.selectOption(stage);
+    await expect(stageSelect).toHaveValue(stage);
     expect(
       await canvas.evaluate((element) => ({
         width: element.clientWidth,
@@ -163,15 +151,8 @@ test('tablet stacks the inspector and preserves editable state across every stag
 }) => {
   await page.setViewportSize({ width: 1024, height: 768 });
   await page.getByLabel('Starting URL').fill('https://example.org/guide');
-  for (const stage of [
-    '2 Extract',
-    '3 Clean',
-    '4 Chunk',
-    '5 Embed',
-    '6 Publish reusable index',
-    '1 Source',
-  ]) {
-    await page.getByRole('button', { name: stage, exact: true }).click();
+  for (const stage of ['extract', 'clean', 'chunk', 'embed', 'publish', 'source']) {
+    await page.getByLabel('Selected stage').selectOption(stage);
     await expect(page.locator('#ingestion-settings-heading')).toBeInViewport();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
       true,
@@ -188,18 +169,17 @@ test('mobile stages and long source settings remain reachable without horizontal
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  const chunk = page.getByRole('button', { name: '4 Chunk', exact: true });
-  await chunk.focus();
-  await page.keyboard.press('Enter');
+  const stageSelect = page.getByLabel('Selected stage');
+  await stageSelect.selectOption('chunk');
   await expect(page.getByRole('heading', { name: 'Chunk settings' })).toBeVisible();
   await page.getByLabel('Target tokens').fill('700');
-  await page.getByRole('button', { name: '1 Source', exact: true }).click();
+  await stageSelect.selectOption('source');
   await page.getByLabel('Starting URL').fill('https://example.org/');
   await page.getByText(/Scope & fetch limits/).click();
   await page.getByLabel('User agent').scrollIntoViewIfNeeded();
   await expect(page.getByLabel('User agent')).toBeInViewport();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
-  await page.getByRole('button', { name: '4 Chunk', exact: true }).click();
+  await stageSelect.selectOption('chunk');
   await expect(page.getByLabel('Target tokens')).toHaveValue('700');
   expect(
     await page.getByTestId('pipeline-canvas').evaluate((element) => element.clientHeight),
@@ -227,23 +207,20 @@ test('saving records the draft and discard restores the saved stage settings', a
   await page.getByRole('button', { name: 'Save version', exact: true }).click();
   await expect(page.getByText('Saved version 1', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Collect source & publish index' })).toBeEnabled();
-  await page.getByRole('button', { name: '4 Chunk', exact: true }).click();
+  await page.getByLabel('Selected stage').selectOption('chunk');
   await page.getByLabel('Target tokens').fill('700');
   await expect(page.getByRole('button', { name: 'Collect source & publish index' })).toBeDisabled();
   await page.getByRole('button', { name: 'Discard changes' }).click();
   await expect(page.getByLabel('Target tokens')).toHaveValue('600');
   await expect(page.getByText('Saved version 1', { exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Automatic sync' })).not.toBeVisible();
+  // Automatic sync opens as a popover from the toolbar, so the canvas never moves.
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const canvas = await page.getByTestId('pipeline-canvas').boundingBox();
   await page.getByRole('button', { name: 'Automatic sync' }).click();
   await expect(page.getByRole('heading', { name: 'Automatic sync' })).toBeVisible();
-  await page.setViewportSize({ width: 1440, height: 900 });
-  const canvas = (await page.getByTestId('pipeline-canvas').boundingBox())!;
-  const syncPanel = (await page.locator('#automatic-sync-panel').boundingBox())!;
-  const inspector = (await page.locator('#node-settings').boundingBox())!;
-  expect(Math.abs(syncPanel.x - canvas.x)).toBeLessThanOrEqual(1);
-  expect(syncPanel.width).toBeGreaterThanOrEqual(canvas.width + inspector.width - 1);
-  await page.getByRole('button', { name: '5 Embed', exact: true }).click();
-  await expect(page.locator('#automatic-sync-panel')).toHaveCount(1);
+  await expect(page.locator('#automatic-sync-panel')).toBeInViewport({ ratio: 1 });
+  expect(await page.getByTestId('pipeline-canvas').boundingBox()).toEqual(canvas);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole('heading', { name: 'Automatic sync' }).scrollIntoViewIfNeeded();
   await expect(page.getByRole('button', { name: 'Start automatic sync' })).toBeVisible();
@@ -453,6 +430,10 @@ test('real run checkpoints move accessible execution state across the canvas', a
   await expect(publish).toHaveAttribute('data-execution-status', 'running');
   await expect(publish).toHaveAttribute('data-execution-status', 'succeeded');
   await expect(page.locator('.react-flow__attribution')).toBeVisible();
+  await expect(page.getByTestId('published-index')).toContainText(
+    'Index version 1 is ready to use',
+  );
+  await page.getByRole('button', { name: 'Run details' }).click();
   await expect(page.getByRole('heading', { name: 'Run details' })).toBeVisible();
 
   await page.route('**/api/projects/*/pipelines/pipeline-1/versions?offset=0', (route) =>
@@ -553,7 +534,7 @@ test('invalid chunk settings list blocking reasons and block saving and preview'
   page,
 }) => {
   await page.getByLabel('Starting URL').fill('https://example.org/');
-  await page.getByRole('button', { name: '4 Chunk', exact: true }).click();
+  await page.getByLabel('Selected stage').selectOption('chunk');
   await page.getByLabel('Chunking algorithm').selectOption('character_window');
   await page.getByLabel('Chunk size (characters)').fill('50');
   // Chunk fields have no per field error state; the stage lists the blocking reasons.

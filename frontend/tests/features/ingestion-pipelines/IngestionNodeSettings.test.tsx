@@ -33,6 +33,7 @@ function Harness() {
       schemaVersion={2}
       updateNode={(_, update) => setNode((current) => update(current))}
       changeSourceKind={() => undefined}
+      onSelectNode={() => undefined}
     />
   );
 }
@@ -105,6 +106,7 @@ function PolicyHarness({ kind }: { kind: 'extract' | 'clean' }) {
       schemaVersion={2}
       updateNode={(_, update) => setNode((current) => update(current))}
       changeSourceKind={() => undefined}
+      onSelectNode={() => undefined}
     />
   );
 }

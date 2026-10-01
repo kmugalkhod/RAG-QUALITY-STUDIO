@@ -1,0 +1,683 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Ingestion Pipeline Canvas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+/* Wireframe only. Colors mirror the token block in frontend/src/app/styles.css (dark is :root). */
+:root {
+  --background: #0b0c0e; --surface: #131518; --surface-raised: #1a1d21; --surface-hover: #1f2226;
+  --border: rgb(255 255 255 / 8%); --border-strong: rgb(255 255 255 / 40%);
+  --foreground: #e6e7e9; --foreground-muted: #9a9ea6; --foreground-subtle: #6b7079;
+  --accent: #4b8bd4; --accent-fill: #2b62ad; --accent-foreground: #fff;
+  --success: #3f9a5e; --warning: #c48a2a; --danger: #d9625a;
+  --dot: rgb(255 255 255 / 10%); --shadow: 0 1px 2px rgb(0 0 0 / 40%);
+  --cut: rgb(217 98 90 / 10%); --keep: rgb(63 154 94 / 10%);
+  color-scheme: dark;
+}
+:root[data-theme="light"] {
+  --background: #f7f7f8; --surface: #ffffff; --surface-raised: #ffffff; --surface-hover: #f1f2f3;
+  --border: rgb(0 0 0 / 8%); --border-strong: rgb(0 0 0 / 45%);
+  --foreground: #16181b; --foreground-muted: #5d6269; --foreground-subtle: #8a8f97;
+  --accent: #2a63b5; --accent-fill: #2a63b5;
+  --success: #2e7d4a; --warning: #8f6210; --danger: #b23c33;
+  --dot: rgb(0 0 0 / 12%); --shadow: 0 1px 2px rgb(0 0 0 / 6%);
+  --cut: rgb(178 60 51 / 7%); --keep: rgb(46 125 74 / 7%);
+  color-scheme: light;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --background: #f7f7f8; --surface: #ffffff; --surface-raised: #ffffff; --surface-hover: #f1f2f3;
+    --border: rgb(0 0 0 / 8%); --border-strong: rgb(0 0 0 / 45%);
+    --foreground: #16181b; --foreground-muted: #5d6269; --foreground-subtle: #8a8f97;
+    --accent: #2a63b5; --accent-fill: #2a63b5;
+    --success: #2e7d4a; --warning: #8f6210; --danger: #b23c33;
+    --dot: rgb(0 0 0 / 12%); --shadow: 0 1px 2px rgb(0 0 0 / 6%);
+    --cut: rgb(178 60 51 / 7%); --keep: rgb(46 125 74 / 7%);
+    color-scheme: light;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--background); color: var(--foreground);
+  font: 400 14px/20px Inter, -apple-system, "Segoe UI", sans-serif; }
+h1, h2, h3 { margin: 0; font-weight: 600; }
+h1 { font-size: 20px; line-height: 28px; }
+h2 { font-size: 16px; line-height: 24px; }
+h3 { font-size: 14px; line-height: 20px; }
+p { margin: 0; }
+ul, ol { margin: 0; padding-left: 18px; }
+.muted { color: var(--foreground-muted); }
+.xs { font-size: 12px; line-height: 16px; }
+.page { max-width: 1320px; margin: 0 auto; padding: 24px; }
+.top { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; justify-content: space-between; }
+.tabs { display: flex; flex-wrap: wrap; gap: 4px; margin: 24px 0 16px; border-bottom: 1px solid var(--border); }
+.tab { appearance: none; border: 0; background: none; color: var(--foreground-muted);
+  font-family: inherit; font-size: 14px; font-weight: 500; padding: 10px 12px; border-bottom: 2px solid transparent; cursor: pointer; min-height: 44px; }
+.tab[aria-selected="true"] { color: var(--foreground); border-bottom-color: var(--accent); }
+.tab:focus-visible, .btn:focus-visible, .seg:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.panel[hidden] { display: none; }
+.btn { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border-radius: 4px;
+  border: 1px solid var(--border-strong); background: var(--surface); color: var(--foreground);
+  font-family: inherit; font-size: 13px; font-weight: 500; line-height: 1; white-space: nowrap; }
+.btn.primary { background: var(--accent-fill); border-color: transparent; color: var(--accent-foreground); }
+.btn.ghost { border-color: transparent; background: transparent; }
+.btn.icon { width: 32px; padding: 0; justify-content: center; }
+.btn.sm { height: 28px; padding: 0 10px; font-size: 12px; }
+.btn[disabled] { opacity: .5; }
+.badge { display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 8px; border-radius: 999px;
+  border: 1px solid var(--border); font-size: 12px; color: var(--foreground-muted); white-space: nowrap; }
+.badge.warn { color: var(--warning); border-color: color-mix(in oklab, var(--warning), transparent 60%); }
+.badge.ok { color: var(--success); border-color: color-mix(in oklab, var(--success), transparent 60%); }
+.badge.danger { color: var(--danger); border-color: color-mix(in oklab, var(--danger), transparent 60%); }
+.badge.run { color: var(--accent); border-color: color-mix(in oklab, var(--accent), transparent 60%); }
+
+/* Mock app frame */
+.frame { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--background); }
+.appbar { height: 48px; display: flex; align-items: center; gap: 12px; padding: 0 16px; border-bottom: 1px solid var(--border); background: var(--surface); }
+.crumb { color: var(--foreground-muted); }
+.crumb b { color: var(--foreground); font-weight: 500; }
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 16px; border-bottom: 1px solid var(--border); background: var(--surface); }
+.toolbar .spacer { flex: 1; }
+.nameinput { height: 32px; width: 224px; border: 1px solid var(--border-strong); border-radius: 4px; padding: 0 10px;
+  display: flex; align-items: center; background: var(--background); }
+.select { height: 32px; border: 1px solid var(--border-strong); border-radius: 4px; padding: 0 10px;
+  display: inline-flex; align-items: center; gap: 10px; background: var(--background); white-space: nowrap; }
+.select::after { content: "▾"; color: var(--foreground-muted); font-size: 11px; }
+.vsep { width: 1px; height: 20px; background: var(--border); margin: 0 2px; }
+.editor { display: flex; height: 700px; min-height: 0; position: relative; }
+.canvas { position: relative; flex: 1; min-width: 0; overflow: hidden; background-color: var(--background);
+  background-image: radial-gradient(var(--dot) 1px, transparent 1px); background-size: 24px 24px; }
+.settings { width: 320px; flex: none; border-left: 1px solid var(--border); background: var(--surface); overflow: auto; }
+.settings header { padding: 16px; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 4px; }
+.settings .body { padding: 16px; display: flex; flex-direction: column; gap: 16px; }
+.field label { display: block; font-weight: 500; margin-bottom: 8px; }
+.input { height: 40px; border: 1px solid var(--border-strong); border-radius: 4px; padding: 0 12px; display: flex;
+  align-items: center; justify-content: space-between; gap: 8px; background: var(--background); }
+.input.chev::after { content: "▾"; color: var(--foreground-muted); font-size: 11px; }
+.help { margin-top: 6px; font-size: 12px; line-height: 16px; color: var(--foreground-muted); }
+.note { border: 1px solid var(--border); border-radius: 4px; padding: 12px; font-size: 13px; color: var(--foreground-muted); }
+
+/* Nodes */
+.flow-v { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; }
+.node { width: 288px; height: 72px; display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 4px;
+  border: 1px solid var(--border); background: var(--surface); position: relative; }
+.node.sel { outline: 2px solid var(--accent); outline-offset: -1px; }
+.node.warn { border-color: color-mix(in oklab, var(--warning), transparent 30%); }
+.node .ico { width: 32px; height: 32px; border-radius: 4px; flex: none; display: grid; place-items: center;
+  background: var(--surface-hover); color: var(--foreground-muted); font-size: 12px; font-weight: 600; }
+.node.sel .ico { color: var(--accent); }
+.node .meta { min-width: 0; flex: 1; }
+.node:has(.state) .meta { padding-right: 88px; }
+.node .t { font-weight: 500; font-size: 15px; line-height: 22px; }
+.node .s { font-size: 12px; line-height: 16px; color: var(--foreground-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.node .state { position: absolute; top: 8px; right: 8px; }
+.wire-v { width: 2px; height: 24px; background: var(--border-strong); opacity: .5; position: relative; }
+.wire-v::after { content: ""; position: absolute; left: -4px; bottom: -1px; border: 5px solid transparent; border-top-color: var(--border-strong); border-bottom: 0; }
+.float { position: absolute; z-index: 2; }
+.cluster { display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: 4px; background: var(--surface); box-shadow: var(--shadow); overflow: hidden; }
+.cluster .btn { border: 0; border-radius: 0; border-bottom: 1px solid var(--border); }
+.cluster .btn:last-child { border-bottom: 0; }
+
+/* Strips under the toolbar */
+.strip { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 8px 16px; border-bottom: 1px solid var(--border); background: var(--surface); font-size: 13px; }
+.strip .grow { flex: 1; min-width: 0; }
+.bar { width: 200px; height: 6px; border-radius: 99px; background: var(--surface-hover); overflow: hidden; }
+.bar i { display: block; height: 100%; width: 62%; background: var(--accent); }
+.counts { color: var(--foreground-muted); }
+.counts b { color: var(--foreground); font-weight: 500; }
+
+/* Popover + drawer */
+.popover { position: absolute; z-index: 5; width: 360px; background: var(--surface-raised); border: 1px solid var(--border);
+  border-radius: 8px; box-shadow: 0 8px 24px rgb(0 0 0 / 25%); padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.menu { position: absolute; z-index: 5; width: 260px; background: var(--surface-raised); border: 1px solid var(--border);
+  border-radius: 8px; box-shadow: 0 8px 24px rgb(0 0 0 / 25%); padding: 4px; }
+.menu .mi { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border-radius: 4px; }
+.menu .mi:hover, .menu .mi.hl { background: var(--surface-hover); }
+.menu hr { border: 0; border-top: 1px solid var(--border); margin: 4px 0; }
+.drawer { position: absolute; left: 0; right: 0; bottom: 0; height: 46%; z-index: 4; background: var(--surface);
+  border-top: 1px solid var(--border-strong); box-shadow: 0 -8px 24px rgb(0 0 0 / 20%); display: flex; flex-direction: column; }
+.drawer header { display: flex; align-items: center; gap: 12px; padding: 8px 16px; border-bottom: 1px solid var(--border); }
+.drawer .grip { width: 36px; height: 4px; border-radius: 99px; background: var(--border-strong); opacity: .5; margin: 6px auto 0; }
+.drawer .cols { flex: 1; min-height: 0; display: grid; grid-template-columns: 340px 1fr; }
+.drawer .list { border-right: 1px solid var(--border); overflow: auto; }
+.drawer .row { padding: 8px 16px; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 2px; }
+.drawer .row.sel { background: var(--surface-hover); box-shadow: inset 2px 0 0 var(--accent); }
+.drawer .detail { padding: 12px 16px; overflow: auto; display: flex; flex-direction: column; gap: 10px; }
+.segs { display: inline-flex; border: 1px solid var(--border); border-radius: 4px; overflow: hidden; }
+.seg { appearance: none; border: 0; border-right: 1px solid var(--border); background: transparent; color: var(--foreground-muted);
+  font-family: inherit; font-size: 12px; padding: 4px 10px; }
+.seg:last-child { border-right: 0; }
+.seg.on { background: var(--surface-hover); color: var(--foreground); font-weight: 500; }
+.chunk { border: 1px solid var(--border); border-radius: 4px; padding: 8px 10px; font-size: 12px; line-height: 18px; color: var(--foreground-muted); }
+
+/* Annotation */
+.callout { position: absolute; z-index: 6; background: var(--warning); color: #111; font-size: 12px; font-weight: 600;
+  padding: 2px 8px; border-radius: 99px; white-space: nowrap; }
+.brace { position: absolute; z-index: 6; border: 2px dashed var(--warning); border-radius: 6px; pointer-events: none; }
+.explain { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-top: 16px; }
+.card { border: 1px solid var(--border); border-radius: 8px; background: var(--surface); padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+.card ul li { margin: 4px 0; color: var(--foreground-muted); }
+.card ul li b { color: var(--foreground); font-weight: 500; }
+.del { color: var(--danger); }
+.add { color: var(--success); }
+.cmp { width: 100%; border-collapse: collapse; font-size: 13px; }
+.cmp th, .cmp td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.cmp th { color: var(--foreground-muted); font-weight: 500; font-size: 12px; }
+
+/* Old layout replica (the "Current" tab) */
+.old-head { padding: 8px 16px; border-bottom: 1px solid var(--border); background: var(--surface); display: flex; gap: 16px; align-items: center; }
+.old-block { padding: 16px; border-bottom: 1px solid var(--border); background: var(--surface); display: flex; flex-direction: column; gap: 16px; }
+.old-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+.old-row.end { justify-content: flex-end; }
+.lbl { display: flex; flex-direction: column; gap: 8px; font-weight: 500; }
+.lbl .select, .lbl .nameinput { height: 40px; }
+.stages { display: flex; gap: 4px; padding: 6px 16px; border-bottom: 1px solid var(--border); background: var(--surface); }
+.stages span { padding: 4px 8px; border-radius: 4px; font-size: 13px; }
+.stages span.on { background: var(--surface-hover); color: var(--accent); }
+.old-results { padding: 16px; display: flex; flex-direction: column; gap: 12px; background: var(--background); }
+.old-item { border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; background: var(--surface); display: flex; justify-content: space-between; gap: 12px; font-size: 12px; }
+
+/* Phone */
+.phone { width: 390px; margin: 0 auto; border: 1px solid var(--border); border-radius: 24px; overflow: hidden; background: var(--background); }
+.phone .toolbar { padding: 8px 16px; }
+.phone .nameinput { flex: 1; width: auto; }
+.phone .canvas { height: 520px; }
+.phone .node { width: 260px; height: 64px; }
+@media (max-width: 900px) {
+  .page { padding: 16px; }
+  .settings { display: none; }
+  .drawer .cols { grid-template-columns: 1fr; }
+  .drawer .detail { display: none; }
+  .phone { width: 100%; }
+}
+</style>
+</head>
+<body>
+<main class="page">
+  <div class="top">
+    <div>
+      <h1>Ingestion pipeline editor — compact layout</h1>
+      <p class="muted">Mock for review. No app code changed. It applies the same treatment the answer editor got in commit 4bfcd17: one toolbar row and a canvas that fills the viewport. The run details move to the Knowledge Base.</p>
+    </div>
+    <button class="btn" type="button" id="theme">Toggle theme</button>
+  </div>
+
+  <div class="tabs" role="tablist" aria-label="Mock states">
+    <button class="tab" role="tab" aria-selected="true" aria-controls="p-now" id="t-now">Current (today)</button>
+    <button class="tab" role="tab" aria-selected="false" aria-controls="p-idle" id="t-idle">Proposed · saved</button>
+    <button class="tab" role="tab" aria-selected="false" aria-controls="p-dirty" id="t-dirty">Proposed · unsaved + menus</button>
+    <button class="tab" role="tab" aria-selected="false" aria-controls="p-run" id="t-run">Proposed · running</button>
+    <button class="tab" role="tab" aria-selected="false" aria-controls="p-done" id="t-done">Proposed · finished</button>
+    <button class="tab" role="tab" aria-selected="false" aria-controls="p-prev" id="t-prev">Proposed · preview</button>
+    <button class="tab" role="tab" aria-selected="false" aria-controls="p-phone" id="t-phone">Proposed · phone</button>
+    <button class="tab" role="tab" aria-selected="false" aria-controls="p-sum" id="t-sum">What changes</button>
+  </div>
+
+  <!-- ============ CURRENT ============ -->
+  <section class="panel" id="p-now" role="tabpanel" aria-labelledby="t-now">
+    <p class="muted xs" style="margin-bottom:8px">Replica of today's screen at 1440×900, taken from the running app. About 300px of controls sit above the canvas, and a long run list (~50 rows on the LangChain docs run) follows below it.</p>
+    <div class="frame" style="position:relative">
+      <div class="appbar"><span class="crumb">Chatbot / <b>Pipelines / Editor</b></span></div>
+      <div class="old-head">
+        <span class="btn ghost sm">← All ingestion pipelines</span>
+        <h2 style="font-size:15px">Ingestion editor</h2>
+        <span class="muted xs">Website → ready index</span>
+        <span style="flex:1"></span>
+        <a class="xs" style="color:var(--accent)">Website source guide</a>
+      </div>
+      <div class="old-block">
+        <div class="old-row">
+          <div class="lbl">Pipeline name<div class="nameinput" style="width:320px">ingestion pipeline</div></div>
+          <div class="lbl">Saved version<div class="select" style="width:224px;justify-content:space-between">Version 2</div></div>
+          <span class="badge ok">Saved version 2</span>
+        </div>
+        <div class="old-row end">
+          <span class="btn ghost">⏱ Automatic sync ▾</span>
+          <span class="btn">Preview processing</span>
+          <div class="lbl">Ready source snapshot<div class="select" style="width:224px;justify-content:space-between">Snapshot 1 · https://docs.la…</div></div>
+          <span class="btn">Reprocess saved source</span>
+          <span class="btn" disabled>Save version</span>
+          <span class="btn primary">▶ Collect source &amp; publish index</span>
+        </div>
+      </div>
+      <div class="stages"><span class="on">1 Source</span><span>2 Extract</span><span>3 Clean</span><span>4 Chunk</span><span>5 Embed</span><span>6 Publish reusable index</span></div>
+      <div class="brace" style="left:4px;top:52px;right:4px;height:262px"></div>
+      <span class="callout" style="right:16px;top:290px">≈ 300px before the canvas</span>
+      <div class="editor" style="height:300px">
+        <div class="canvas">
+          <div class="flow-v" style="transform:translate(-50%,-50%) scale(.55)">
+            <div class="node sel"><div class="ico">WEB</div><div class="meta"><div class="t">Website</div><div class="s">https://docs.langchain.com…</div></div></div>
+            <div class="wire-v"></div>
+            <div class="node"><div class="ico">EX</div><div class="meta"><div class="t">Extract</div><div class="s">Native · OCR auto</div></div></div>
+            <div class="wire-v"></div>
+            <div class="node"><div class="ico">CL</div><div class="meta"><div class="t">Clean</div><div class="s">9 ordered transforms</div></div></div>
+            <div class="wire-v"></div>
+            <div class="node"><div class="ico">CH</div><div class="meta"><div class="t">Chunk</div><div class="s">2000 characters · 100 overlap</div></div></div>
+          </div>
+          <span class="callout" style="left:16px;bottom:12px">Canvas squeezed; nodes rendered tiny</span>
+        </div>
+        <aside class="settings"><header><h2>Website settings</h2><p class="muted xs">Stage 1 of 6 · Version 2</p></header></aside>
+      </div>
+      <div class="old-results" style="position:relative">
+        <h2>Run details</h2>
+        <a class="xs" style="color:var(--accent)">Run and failure guide</a>
+        <a class="xs" style="color:var(--accent)">Jobs and recovery</a>
+        <p class="muted xs">10 new · 0 changed · 0 unchanged · 0 removed</p>
+        <div class="note" style="border-color:color-mix(in oklab,var(--success),transparent 50%)"><b style="color:var(--foreground)">Index version 1 is ready to use</b> · Use in answer pipeline · Inspect published index · Inspect source snapshot</div>
+        <div class="old-item"><div><b>https://docs.langchain.com/oss/python/deepagents/overview</b><br><span class="muted">new · succeeded · 11 chunks · Website revision is new.<br>Extractor html-main-v2 · cleaner structure-clean-v1 · chunker character-window-v1<br>Duplicate retained · unique</span></div><span class="btn sm">Inspect content</span></div>
+        <div class="old-item"><div><b>https://docs.langchain.com/llms.txt</b><br><span class="muted">excluded · succeeded · 0 chunks · Only HTML pages are supported in Website preview.</span></div></div>
+        <div class="old-item"><div><b>https://interrupt.langchain.com/london</b><br><span class="muted">excluded · succeeded · 0 chunks · URL origin is outside the configured allowlist.</span></div></div>
+        <p class="muted xs" style="text-align:center">… 47 more rows like these …</p>
+        <span class="callout" style="right:16px;top:16px">Duplicates the Knowledge Base snapshot and index views</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ PROPOSED · SAVED ============ -->
+  <section class="panel" id="p-idle" role="tabpanel" aria-labelledby="t-idle" hidden>
+    <p class="muted xs" style="margin-bottom:8px">A saved version with no run in progress. One 48px toolbar row, then the canvas fills the rest of the viewport. Same structure as the answer editor.</p>
+    <div class="frame">
+      <div class="appbar"><span class="crumb">Chatbot / <b>Pipelines / Editor</b></span></div>
+      <div class="toolbar">
+        <span class="btn ghost icon" title="All ingestion pipelines">←</span>
+        <span class="nameinput">ingestion pipeline</span>
+        <span class="select">Version 2</span>
+        <span class="badge ok">Saved version 2</span>
+        <span class="spacer"></span>
+        <span class="btn ghost icon" title="Automatic sync">⏱</span>
+        <span class="btn ghost icon" title="More actions">⋯</span>
+        <span class="btn ghost icon" title="Website source guide">?</span>
+        <span class="vsep"></span>
+        <span class="btn">Preview processing</span>
+        <span class="btn" disabled>Save version</span>
+        <span class="btn primary">▶ Collect &amp; publish</span>
+      </div>
+      <div class="editor">
+        <div class="canvas">
+          <div class="float" style="left:16px;top:16px">
+            <div class="cluster">
+              <span class="btn icon" title="Fit view">⤢</span>
+              <span class="btn icon" title="Zoom in">+</span>
+              <span class="btn icon" title="Zoom out">−</span>
+              <span class="btn icon" title="Hide settings">▣</span>
+            </div>
+          </div>
+          <div class="flow-v" id="nodes-idle"></div>
+        </div>
+        <aside class="settings">
+          <header><h2>Website</h2><p class="muted xs">Stage 1 of 6 · <a style="color:var(--accent)">About this stage</a></p></header>
+          <div class="body">
+            <div class="field"><label>Selected node</label><div class="input chev">1 · Website</div>
+              <p class="help">Replaces the "1 Source · 2 Extract …" stage bar. Clicking a node does the same.</p></div>
+            <div class="field"><label>Source type</label><div class="input chev">Website</div></div>
+            <div class="note">Amazon S3, Notion and Confluence need the local encrypted connection vault. Review setup in project settings.</div>
+            <div class="field"><label>Discovery mode</label><div class="input chev">Crawl from URL</div></div>
+            <div class="field"><label>Start URL</label><div class="input">https://docs.langchain.com/</div></div>
+            <div class="field"><label>Max pages</label><div class="input">25</div></div>
+          </div>
+        </aside>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ PROPOSED · DIRTY + MENUS ============ -->
+  <section class="panel" id="p-dirty" role="tabpanel" aria-labelledby="t-dirty" hidden>
+    <p class="muted xs" style="margin-bottom:8px">Unsaved changes. Discard shows up only now and Save becomes the primary action. The validation strip appears only while something blocks Save. The ⋯ menu and Automatic sync are shown open together here; in the app only one would open at a time.</p>
+    <div class="frame" style="position:relative">
+      <div class="appbar"><span class="crumb">Chatbot / <b>Pipelines / Editor</b></span></div>
+      <div class="toolbar">
+        <span class="btn ghost icon">←</span>
+        <span class="nameinput">ingestion pipeline</span>
+        <span class="select" style="opacity:.5">Version 2</span>
+        <span class="badge run">Unsaved changes</span>
+        <span class="spacer"></span>
+        <span class="btn ghost">Discard changes</span>
+        <span class="btn ghost icon" style="background:var(--surface-hover)">⏱</span>
+        <span class="btn ghost icon" style="background:var(--surface-hover)">⋯</span>
+        <span class="btn ghost icon">?</span>
+        <span class="vsep"></span>
+        <span class="btn" disabled>Preview processing</span>
+        <span class="btn primary" disabled>Save version</span>
+        <span class="btn" disabled>▶ Collect &amp; publish</span>
+      </div>
+      <div class="strip" style="color:var(--foreground-muted)">
+        <span style="color:var(--warning)">▲</span><b style="color:var(--foreground);font-weight:500">To enable Save version</b>
+        <span>Chunk: overlap must be smaller than chunk size.</span>
+        <span class="grow"></span>
+        <span class="btn sm">Go to Chunk</span>
+      </div>
+      <div class="editor">
+        <div class="canvas">
+          <div class="float" style="left:16px;top:16px">
+            <div class="cluster"><span class="btn icon">⤢</span><span class="btn icon">+</span><span class="btn icon">−</span><span class="btn icon">▣</span></div>
+          </div>
+          <div class="flow-v" id="nodes-dirty"></div>
+        </div>
+        <aside class="settings">
+          <header><h2>Chunk</h2><p class="muted xs">Stage 4 of 6</p></header>
+          <div class="body">
+            <div class="field"><label>Selected node</label><div class="input chev">4 · Chunk</div></div>
+            <div class="field"><label>Chunk size (characters)</label><div class="input">2000</div></div>
+            <div class="field"><label>Overlap (characters)</label><div class="input" style="border-color:var(--warning)">2400</div>
+              <p class="help" style="color:var(--warning)">Overlap must be smaller than chunk size.</p></div>
+          </div>
+        </aside>
+      </div>
+      <!-- Sync popover -->
+      <div class="popover" style="right:330px;top:100px">
+        <div style="display:flex;justify-content:space-between;align-items:center"><h3>Automatic sync</h3><span class="btn ghost icon sm">✕</span></div>
+        <p class="muted xs">Runs saved version 2 on a schedule. Unsaved changes are not included.</p>
+        <div class="field"><label class="xs">Schedule name</label><div class="input" style="height:32px">Nightly docs refresh</div></div>
+        <div class="field"><label class="xs">Frequency</label><div class="input chev" style="height:32px">Every day</div></div>
+        <span class="btn primary" style="align-self:flex-start">Start automatic sync</span>
+        <hr style="border:0;border-top:1px solid var(--border);margin:0;width:100%">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <div><b style="font-weight:500">Hourly refresh</b><p class="muted xs">Every hour · next 22:00 · last: succeeded</p></div>
+          <span class="badge ok">Active</span>
+        </div>
+        <div style="display:flex;gap:6px"><span class="btn sm">Run now</span><span class="btn sm">Pause</span><span class="btn sm ghost">Edit</span></div>
+      </div>
+      <!-- More menu -->
+      <div class="menu" style="left:16px;top:440px">
+        <p class="muted xs" style="padding:6px 10px">⋯ More actions</p>
+        <div class="mi hl"><span>Reprocess saved source…</span><span class="muted xs">Choose a ready snapshot (Snapshot 1 · docs.langchain.com) and rebuild the index without refetching</span></div>
+        <div class="mi"><span>Duplicate pipeline</span></div>
+        <hr>
+        <div class="mi"><span>Upgrade as draft</span><span class="muted xs">Only for legacy schema v1 pipelines</span></div>
+        <hr>
+        <div class="mi"><span>Run history in Knowledge Base ↗</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ PROPOSED · RUNNING ============ -->
+  <section class="panel" id="p-run" role="tabpanel" aria-labelledby="t-run" hidden>
+    <p class="muted xs" style="margin-bottom:8px">While a run is active, one 40px strip shows status, progress and Cancel. The nodes show stage state as they do today.</p>
+    <div class="frame">
+      <div class="appbar"><span class="crumb">Chatbot / <b>Pipelines / Editor</b></span></div>
+      <div class="toolbar">
+        <span class="btn ghost icon">←</span>
+        <span class="nameinput">ingestion pipeline</span>
+        <span class="select">Version 2</span>
+        <span class="badge ok">Saved version 2</span>
+        <span class="spacer"></span>
+        <span class="btn ghost icon">⏱</span><span class="btn ghost icon">⋯</span><span class="btn ghost icon">?</span>
+        <span class="vsep"></span>
+        <span class="btn" disabled>Preview processing</span>
+        <span class="btn" disabled>Save version</span>
+        <span class="btn primary" disabled>▶ Collect &amp; publish</span>
+      </div>
+      <div class="strip" aria-live="polite">
+        <span class="badge run">◌ Running</span>
+        <b style="font-weight:500">62%</b>
+        <span class="bar"><i></i></span>
+        <span class="counts">Embedding · <b>48/77</b> chunks</span>
+        <span class="grow"></span>
+        <span class="btn ghost sm">■ Cancel run</span>
+      </div>
+      <div class="editor">
+        <div class="canvas">
+          <div class="float" style="left:16px;top:16px">
+            <div class="cluster"><span class="btn icon">⤢</span><span class="btn icon">+</span><span class="btn icon">−</span><span class="btn icon">▣</span></div>
+          </div>
+          <div class="flow-v" id="nodes-run"></div>
+        </div>
+        <aside class="settings">
+          <header><h2>Embed</h2><p class="muted xs">Stage 5 of 6</p></header>
+          <div class="body">
+            <div class="field"><label>Selected node</label><div class="input chev">5 · Embed</div></div>
+            <div class="field"><label>Provider</label><div class="input chev">openrouter</div></div>
+            <div class="field"><label>Model</label><div class="input chev">openai/text-embedding-3-small</div></div>
+          </div>
+        </aside>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ PROPOSED · FINISHED ============ -->
+  <section class="panel" id="p-done" role="tabpanel" aria-labelledby="t-done" hidden>
+    <p class="muted xs" style="margin-bottom:8px">After a run, one strip shows the result and links to the Knowledge Base, which already has captured items, sources and provenance, and version history. The per-URL list below the canvas goes away.</p>
+    <div class="frame">
+      <div class="appbar"><span class="crumb">Chatbot / <b>Pipelines / Editor</b></span></div>
+      <div class="toolbar">
+        <span class="btn ghost icon">←</span>
+        <span class="nameinput">ingestion pipeline</span>
+        <span class="select">Version 2</span>
+        <span class="badge ok">Saved version 2</span>
+        <span class="spacer"></span>
+        <span class="btn ghost icon">⏱</span><span class="btn ghost icon">⋯</span><span class="btn ghost icon">?</span>
+        <span class="vsep"></span>
+        <span class="btn">Preview processing</span>
+        <span class="btn" disabled>Save version</span>
+        <span class="btn primary">▶ Collect &amp; publish</span>
+      </div>
+      <div class="strip">
+        <span class="badge ok">✓ Index version 1 ready</span>
+        <span class="counts"><b>10</b> new · <b>0</b> changed · <b>0</b> unchanged · <b>0</b> removed · <b>41</b> excluded</span>
+        <span class="grow"></span>
+        <span class="btn primary sm">Use in answer pipeline →</span>
+        <span class="btn sm">Open in Knowledge Base ↗</span>
+        <span class="btn ghost icon sm" title="Dismiss">✕</span>
+      </div>
+      <div class="editor">
+        <div class="canvas">
+          <div class="float" style="left:16px;top:16px">
+            <div class="cluster"><span class="btn icon">⤢</span><span class="btn icon">+</span><span class="btn icon">−</span><span class="btn icon">▣</span></div>
+          </div>
+          <div class="flow-v" id="nodes-done"></div>
+        </div>
+        <aside class="settings">
+          <header><h2>Publish reusable index</h2><p class="muted xs">Stage 6 of 6</p></header>
+          <div class="body">
+            <div class="field"><label>Selected node</label><div class="input chev">6 · Publish reusable index</div></div>
+            <div class="field"><label>Collection</label><div class="input chev">Ingested knowledge</div></div>
+            <p class="muted xs">Last run published index version 1 (10 items · 77 chunks). <a style="color:var(--accent)">Inspect published index ↗</a></p>
+          </div>
+        </aside>
+      </div>
+    </div>
+    <div class="strip" style="margin-top:12px;border:1px solid var(--border);border-radius:8px">
+      <span class="badge danger">✕ Run failed</span>
+      <span class="counts">Embedding failed on 2 of 12 items: provider rate limit. The previous index version 1 is still the ready one.</span>
+      <span class="grow"></span>
+      <span class="btn sm">Retry run</span>
+      <span class="btn sm">View failed items ↗</span>
+      <span class="btn ghost icon sm">✕</span>
+    </div>
+    <p class="muted xs" style="margin-top:6px">↑ The same strip for a failed run. The error text stays visible; the per-item detail is on the Knowledge Base run page.</p>
+  </section>
+
+  <!-- ============ PROPOSED · PREVIEW ============ -->
+  <section class="panel" id="p-prev" role="tabpanel" aria-labelledby="t-prev" hidden>
+    <p class="muted xs" style="margin-bottom:8px">Preview results are part of editing, so they stay in the editor. They open in a bottom drawer you can resize and close, over the canvas, so the page no longer grows. The same drawer is a candidate home for "Inspect content" (see What changes → open question).</p>
+    <div class="frame">
+      <div class="appbar"><span class="crumb">Chatbot / <b>Pipelines / Editor</b></span></div>
+      <div class="toolbar">
+        <span class="btn ghost icon">←</span>
+        <span class="nameinput">ingestion pipeline</span>
+        <span class="select">Version 2</span>
+        <span class="badge ok">Saved version 2</span>
+        <span class="spacer"></span>
+        <span class="btn ghost icon">⏱</span><span class="btn ghost icon">⋯</span><span class="btn ghost icon">?</span>
+        <span class="vsep"></span>
+        <span class="btn" style="background:var(--surface-hover)">Preview processing</span>
+        <span class="btn" disabled>Save version</span>
+        <span class="btn primary">▶ Collect &amp; publish</span>
+      </div>
+      <div class="editor">
+        <div class="canvas">
+          <div class="float" style="left:16px;top:16px">
+            <div class="cluster"><span class="btn icon">⤢</span><span class="btn icon">+</span><span class="btn icon">−</span><span class="btn icon">▣</span></div>
+          </div>
+          <div class="flow-v" id="nodes-prev" style="top:27%;transform:translate(-50%,-50%) scale(.62)"></div>
+          <div class="drawer">
+            <div class="grip"></div>
+            <header>
+              <h3>Preview · version 2</h3>
+              <span class="badge ok">Complete</span>
+              <span class="counts xs">25 discovered · <b>12</b> included · <b>13</b> excluded</span>
+              <span style="flex:1"></span>
+              <span class="segs"><button class="seg on">All</button><button class="seg">Included</button><button class="seg">Excluded</button></span>
+              <span class="btn ghost icon sm" title="Close preview">✕</span>
+            </header>
+            <div class="cols">
+              <div class="list">
+                <div class="row sel"><b style="font-weight:500">/oss/python/deepagents/overview</b><span class="muted xs">included · 11 chunks</span></div>
+                <div class="row"><b style="font-weight:500">/oss/python/langgraph/overview</b><span class="muted xs">included · 3 chunks</span></div>
+                <div class="row"><b style="font-weight:500">/llms.txt</b><span class="muted xs">excluded · only HTML pages are supported</span></div>
+                <div class="row"><b style="font-weight:500">interrupt.langchain.com/london</b><span class="muted xs">excluded · origin outside allowlist</span></div>
+                <div class="row"><span class="muted xs">1–20 of 25 · <a style="color:var(--accent)">Next</a></span></div>
+              </div>
+              <div class="detail">
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+                  <b style="font-weight:500">Deep Agents overview</b>
+                  <span class="segs"><button class="seg">Extracted</button><button class="seg">Cleaned</button><button class="seg">Diff</button><button class="seg on">Chunks</button></span>
+                </div>
+                <div class="chunk"><b style="color:var(--foreground)">Chunk 1</b> · 1,982 chars<br>Deep Agents are agents that can plan, use sub-agents and a virtual filesystem to work on long-running tasks…</div>
+                <div class="chunk"><b style="color:var(--foreground)">Chunk 2</b> · 1,996 chars · 100 overlap<br>…to work on long-running tasks. The planning tool keeps a todo list that the agent updates as it progresses…</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <aside class="settings">
+          <header><h2>Website</h2><p class="muted xs">Stage 1 of 6</p></header>
+          <div class="body">
+            <div class="field"><label>Selected node</label><div class="input chev">1 · Website</div></div>
+            <div class="field"><label>Start URL</label><div class="input">https://docs.langchain.com/</div></div>
+          </div>
+        </aside>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ PROPOSED · PHONE ============ -->
+  <section class="panel" id="p-phone" role="tabpanel" aria-labelledby="t-phone" hidden>
+    <p class="muted xs" style="margin-bottom:8px">Phone width works like the answer editor: the name gets its own row, the two main actions share a row, and the other actions go under ⋯. Settings open as a sheet when you tap a node.</p>
+    <div class="phone">
+      <div class="appbar"><span class="crumb">Chatbot / <b>Editor</b></span></div>
+      <div class="toolbar">
+        <span class="btn ghost icon">←</span>
+        <span class="nameinput">ingestion pipeline</span>
+        <span class="btn ghost icon">⋯</span>
+        <div style="display:flex;gap:8px;width:100%;align-items:center">
+          <span class="select">Version 2</span><span class="badge ok">Saved v2</span>
+        </div>
+        <div style="display:flex;gap:8px;width:100%">
+          <span class="btn" style="flex:1;justify-content:center">Save version</span>
+          <span class="btn primary" style="flex:1;justify-content:center">▶ Collect &amp; publish</span>
+        </div>
+      </div>
+      <div class="strip"><span class="badge ok">✓ Index v1 ready</span><span class="counts xs">10 new · 41 excluded</span><span class="grow"></span><span class="btn sm">Open ↗</span></div>
+      <div class="canvas"><div class="flow-v" id="nodes-phone" style="transform:translate(-50%,-50%) scale(.82)"></div></div>
+    </div>
+  </section>
+
+  <!-- ============ SUMMARY ============ -->
+  <section class="panel" id="p-sum" role="tabpanel" aria-labelledby="t-sum" hidden>
+    <table class="cmp">
+      <thead><tr><th>Area</th><th>Today</th><th>Proposed</th></tr></thead>
+      <tbody>
+        <tr><td>Space above canvas</td><td>≈ 300px: back row, labelled name/version row, a second action row with snapshot select, stage bar</td><td>≈ 48px toolbar (+ 40px strip only while something needs attention)</td></tr>
+        <tr><td>Back / title</td><td>"← All ingestion pipelines" + "Ingestion editor" + "Website → ready index"</td><td>← icon button; title stays as an sr-only h1</td></tr>
+        <tr><td>Name / version</td><td>Labelled 40px fields on their own row</td><td>Inline 32px fields with accessible names (same as answer editor)</td></tr>
+        <tr><td>Source guide link</td><td>Text link top right</td><td>? icon button (label changes with source type)</td></tr>
+        <tr><td>Automatic sync</td><td>Toggle that pushes a full panel above the canvas</td><td>⏱ icon → popover (create, list, pause, run now)</td></tr>
+        <tr><td>Reprocess saved source</td><td>Snapshot select + button always visible for Website</td><td>⋯ menu → small dialog to choose a snapshot</td></tr>
+        <tr><td>Upgrade as draft / legacy note</td><td>Button + full-width callout</td><td>⋯ menu item + "Legacy" badge next to the version</td></tr>
+        <tr><td>Stage bar (1 Source … 6 Publish)</td><td>Separate row</td><td>Removed; "Selected node" select in the panel + node clicks (same as answer editor)</td></tr>
+        <tr><td>Canvas</td><td>Shares the viewport with chrome; React Flow controls bottom-left</td><td>Fills viewport; left rail: Fit view, zoom, hide settings; fits on open</td></tr>
+        <tr><td>Run progress</td><td>Strip (kept)</td><td>Same strip, one line</td></tr>
+        <tr><td>Run details below canvas</td><td>Heading, 2 doc links, counts, success callout, ~50 item rows, content inspector</td><td><span class="del">Removed.</span> Result strip with counts + "Use in answer pipeline" + "Open in Knowledge Base"</td></tr>
+        <tr><td>Preview results</td><td>Section appended below the page</td><td>Bottom drawer over the canvas you can resize and close</td></tr>
+      </tbody>
+    </table>
+    <div class="explain">
+      <div class="card">
+        <h3>Open question: where does "Inspect content" live?</h3>
+        <p class="muted">The run list's <b>Inspect content</b> view (Extracted / Cleaned / Diff / Chunks, page overlays, cleaning audit, sensitive-data findings) is only in the editor today. The Knowledge Base snapshot page lists captured items, but I didn't see this inspector there. Before the run list is removed, pick one:</p>
+        <ul>
+          <li><b>A (recommended):</b> move the inspector to the Knowledge Base run/snapshot item view and link to it from the strip.</li>
+          <li><b>B:</b> keep it in the editor as a "Run items" view in the same bottom drawer that preview uses.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Kept as-is</h3>
+        <ul>
+          <li>Node cards and their stage-state badges</li>
+          <li>Settings panel content per node</li>
+          <li>Error banner (inline, under the toolbar)</li>
+          <li>All actions. Each one moves somewhere else; none is dropped</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Same as the answer editor (4bfcd17)</h3>
+        <ul>
+          <li>One toolbar row: identity on the left, actions on the right, one primary action at the far right</li>
+          <li>Save is primary while there are changes; Collect &amp; publish is primary when the version is clean and saved</li>
+          <li>Discard shows only when there are unsaved changes</li>
+          <li>Validation strip only when Save is blocked</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+const stages = [
+  ['WEB', 'Website', 'https://docs.langchain.com/ · crawl · 25 pages'],
+  ['EX', 'Extract', 'Native · OCR auto'],
+  ['CL', 'Clean', '9 ordered transforms'],
+  ['CH', 'Chunk', '2000 characters · 100 overlap'],
+  ['EM', 'Embed', 'openrouter · openai/text-embedding-3-small'],
+  ['PUB', 'Publish reusable index', 'Ingested knowledge'],
+];
+function render(id, sel, states, warn) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.innerHTML = stages.map(([ico, t, s], i) => {
+    const st = states ? states[i] : '';
+    const badge = st === 'ok' ? '<span class="badge ok state">✓ Complete</span>'
+      : st === 'run' ? '<span class="badge run state">◌ Running</span>'
+      : st === 'wait' ? '<span class="badge state">Queued</span>'
+      : st === 'warn' ? '<span class="badge warn state">▲ Fix</span>' : '';
+    const cls = ['node', i === sel ? 'sel' : '', warn === i ? 'warn' : ''].join(' ');
+    const wire = i < stages.length - 1 ? '<div class="wire-v"></div>' : '';
+    return `<div class="${cls}"><div class="ico">${ico}</div><div class="meta"><div class="t">${t}</div><div class="s">${s}</div></div>${badge}</div>${wire}`;
+  }).join('');
+}
+const allOk = ['ok','ok','ok','ok','ok','ok'];
+render('nodes-idle', 0, allOk);
+render('nodes-dirty', 3, ['','','','warn','',''], 3);
+render('nodes-run', 4, ['ok','ok','ok','ok','run','wait']);
+render('nodes-done', 5, allOk);
+render('nodes-prev', 0, null);
+render('nodes-phone', -1, allOk);
+
+const tabs = [...document.querySelectorAll('[role=tab]')];
+function select(tab) {
+  tabs.forEach(t => {
+    const on = t === tab;
+    t.setAttribute('aria-selected', on);
+    t.tabIndex = on ? 0 : -1;
+    document.getElementById(t.getAttribute('aria-controls')).hidden = !on;
+  });
+}
+tabs.forEach((t, i) => {
+  t.addEventListener('click', () => select(t));
+  t.addEventListener('keydown', e => {
+    const d = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
+    if (d) { const n = tabs[(i + d + tabs.length) % tabs.length]; select(n); n.focus(); }
+  });
+});
+select(tabs[0]);
+document.getElementById('theme').addEventListener('click', () => {
+  const r = document.documentElement;
+  const dark = r.dataset.theme ? r.dataset.theme === 'dark' : !matchMedia('(prefers-color-scheme: light)').matches;
+  r.dataset.theme = dark ? 'light' : 'dark';
+});
+</script>
+</body>
+</html>
