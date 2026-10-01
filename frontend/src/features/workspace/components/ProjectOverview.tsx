@@ -155,7 +155,7 @@ export function ProjectOverview({
         </div>
         <aside
           aria-labelledby="project-details"
-          className="flex flex-col gap-4 rounded-card border border-border bg-surface p-6 desktop:w-panel desktop:shrink-0"
+          className="flex flex-col gap-4 rounded-card border border-border bg-surface p-4 md:p-6 desktop:w-panel desktop:shrink-0"
         >
           <h2 id="project-details" className="text-base font-semibold text-foreground">
             Project details

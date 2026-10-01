@@ -140,7 +140,7 @@ export function PipelinesPage({
               />
               <div className="flex min-w-0 flex-1 flex-col gap-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <h2 className="text-sm font-semibold text-foreground wrap-anywhere">
+                  <h2 className="text-sm font-medium text-foreground wrap-anywhere">
                     {pipeline.name}
                   </h2>
                   {details && (

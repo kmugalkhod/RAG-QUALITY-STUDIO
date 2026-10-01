@@ -16,7 +16,7 @@ function NativeSelect({
         data-slot="native-select"
         data-size={size}
         className={cn(
-          'h-control-md w-full min-w-0 appearance-none rounded-control border border-border-strong bg-surface pr-8 pl-2 text-base text-foreground outline-none pointer-coarse:h-control-lg disabled:cursor-not-allowed data-[size=sm]:h-control-sm pointer-coarse:data-[size=sm]:h-control-lg md:text-sm',
+          'h-control-md w-full min-w-0 appearance-none rounded-control border border-border-strong bg-surface pr-8 pl-2 text-base font-normal text-foreground outline-none pointer-coarse:h-control-lg disabled:cursor-not-allowed data-[size=sm]:h-control-sm pointer-coarse:data-[size=sm]:h-control-lg md:text-sm',
           'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent aria-invalid:border-danger',
           className,
         )}

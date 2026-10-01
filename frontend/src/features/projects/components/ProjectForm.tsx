@@ -50,7 +50,7 @@ export function ProjectForm({
       className="flex flex-col rounded-card border border-border bg-surface"
       aria-labelledby="create-title"
     >
-      <header className="flex items-start gap-4 border-b border-border p-6">
+      <header className="flex items-start gap-4 border-b border-border p-4 md:p-6">
         <span
           className="hidden size-control-md shrink-0 items-center justify-center rounded-control border border-border text-foreground-muted md:flex"
           aria-hidden="true"
@@ -77,7 +77,7 @@ export function ProjectForm({
         </Button>
       </header>
       <form onSubmit={submit} noValidate aria-busy={saving}>
-        <div className="grid gap-6 p-6 md:grid-cols-2">
+        <div className="grid gap-6 p-4 md:grid-cols-2 md:p-6">
           <div className="flex flex-col">
             <div className="flex items-baseline justify-between gap-2">
               <Label htmlFor="project-name">Project name</Label>
@@ -136,7 +136,7 @@ export function ProjectForm({
             {error}
           </p>
         )}
-        <footer className="flex flex-col gap-4 border-t border-border p-6 md:flex-row md:items-center md:justify-between">
+        <footer className="flex flex-col gap-4 border-t border-border p-4 md:flex-row md:p-6 md:items-center md:justify-between">
           <p className="text-xs text-foreground-muted">
             You can add documents and configure pipelines after creation.
           </p>

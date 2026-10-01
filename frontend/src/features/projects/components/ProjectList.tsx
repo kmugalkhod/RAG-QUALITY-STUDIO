@@ -86,12 +86,12 @@ export function ProjectList({
             >
               <span
                 aria-hidden="true"
-                className="flex size-control-md shrink-0 items-center justify-center rounded-control border border-border text-sm font-semibold text-foreground-muted"
+                className="flex size-control-md shrink-0 items-center justify-center rounded-control border border-border text-sm font-medium text-foreground-muted"
               >
                 {project.name.slice(0, 1).toUpperCase()}
               </span>
               <div className="flex min-w-0 flex-1 flex-col gap-1">
-                <h3 className="truncate text-sm font-semibold text-foreground">
+                <h3 className="truncate text-sm font-medium text-foreground">
                   {/* The link covers the whole row, so the row is one large target. */}
                   <a
                     className="outline-none after:absolute after:inset-0 after:rounded-card focus-visible:after:outline-2 focus-visible:after:-outline-offset-2 focus-visible:after:outline-accent"

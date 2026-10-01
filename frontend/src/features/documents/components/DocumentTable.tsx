@@ -226,7 +226,7 @@ export function DocumentTable({
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="-ml-2 max-w-full justify-start font-semibold"
+                      className="-ml-2 max-w-full justify-start font-medium"
                       onClick={() => onSelect(document)}
                     >
                       <span className="truncate">{document.filename}</span>

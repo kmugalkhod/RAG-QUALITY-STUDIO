@@ -11,7 +11,7 @@ export const pages = [
   ['overview', 'Overview', LayoutDashboard],
   ['knowledge-base', 'Knowledge Base', BookOpen],
   ['pipelines', 'Pipelines', Workflow],
-  ['deployments', 'Answer Deployments', Server],
+  ['deployments', 'Deployments', Server],
   ['playground', 'Playground', MessageSquare],
   ['experiments', 'Experiments', FlaskConical],
   ['settings', 'Settings', Settings],

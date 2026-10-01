@@ -42,6 +42,7 @@ export function WorkspaceSidebar({ projectId, page, current, projects }: Workspa
         <NativeSelect
           id="workspace-project"
           aria-label="Switch project"
+          title={current?.name ?? 'All projects'}
           value={projectId || ''}
           onChange={(e) => {
             const destination = e.target.value;
@@ -96,7 +97,7 @@ export function WorkspaceSidebar({ projectId, page, current, projects }: Workspa
           rel="noopener noreferrer"
         >
           <BookOpen aria-hidden="true" className="size-4" />
-          Help &amp; documentation
+          Help &amp; docs
         </a>
       </div>
     </aside>

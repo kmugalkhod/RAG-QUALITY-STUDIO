@@ -35,7 +35,7 @@ export function StageCard({
   return (
     <li
       aria-labelledby={titleId}
-      className="flex min-w-0 flex-col gap-4 rounded-card border border-border bg-surface p-6"
+      className="flex min-w-0 flex-col gap-4 rounded-card border border-border bg-surface p-4 md:p-6"
     >
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 flex-col gap-1">
@@ -62,9 +62,7 @@ export function StageCard({
         />
       ) : (
         <>
-          <p className="text-sm font-medium text-foreground tabular-nums">
-            {result.summary.counts}
-          </p>
+          <p className="text-sm text-foreground tabular-nums">{result.summary.counts}</p>
           <Button
             asChild
             variant={primary ? 'primary' : 'secondary'}

@@ -40,6 +40,13 @@ export const clerkElements = {
   identityPreviewEditButton: link,
   headerBackLink: link,
   backLink: link,
+  // The switcher trigger defaults to Clerk's 13px; the app's control text is 14px.
+  organizationPreviewMainIdentifier__organizationSwitcherTrigger: {
+    fontSize: 'var(--text-sm)',
+    lineHeight: 'var(--text-sm--line-height)',
+  },
+  // Generated organization logos are violet, which the palette never uses.
+  organizationPreviewAvatarBox: { filter: 'grayscale(1)' },
 };
 
 export function useClerkVariables() {
