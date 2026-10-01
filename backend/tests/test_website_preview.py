@@ -407,3 +407,49 @@ def test_async_preview_job(documents_api, monkeypatch):  # noqa: F811
     )
     with Session(engine) as session:
         assert session.get(SourcePreview, UUID(second["id"])).attempts == 0
+
+
+def test_preview_job_saves_the_discovery_limit_marker(documents_api, monkeypatch):  # noqa: F811
+    client, engine, project_id, _ = documents_api
+    monkeypatch.setattr(settings, "openrouter_api_key", SecretStr("test-secret"))
+    monkeypatch.setattr(settings, "embedding_dimensions", 3)
+    embedding = embeddings.configured()
+    payload = ingestion_draft()
+    embed = next(
+        node for node in payload["execution"]["nodes"] if node["type"] == "embed"
+    )
+    embed.update(
+        provider=embedding.provider,
+        model=embedding.model,
+        dimensions=embedding.dimensions,
+        config_version=embedding.revision,
+    )
+    preview_id = client.post(
+        f"/api/projects/{project_id}/ingestion-previews",
+        json={"execution": payload["execution"]},
+    ).json()["id"]
+    # The Website connector records omitted URLs as one item without a location or name.
+    outcomes = [
+        {
+            "source_node_id": "source-0",
+            "external_id": None,
+            "display_name": None,
+            "canonical_location": None,
+            "media_type": None,
+            "status": "excluded",
+            "reason": "Additional URLs were omitted by the discovery limit.",
+            "size_bytes": None,
+            "depth": None,
+            "error_code": None,
+            "_kind": "website",
+        }
+    ]
+    process_preview(UUID(preview_id), engine, connector_factory=lambda *args: outcomes)
+    result = client.get(
+        f"/api/projects/{project_id}/source-previews/{preview_id}"
+    ).json()
+    assert result["status"] == "succeeded" and result["attempts"] == 1
+    items = client.get(
+        f"/api/projects/{project_id}/source-previews/{preview_id}/items"
+    ).json()["items"]
+    assert [item["display_name"] for item in items] == ["Undiscovered website item"]

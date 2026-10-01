@@ -96,7 +96,12 @@ def transition_for_index(db_engine, index, node_type: str):
         transition(db_engine, index.ingestion_run_id, node_type=node_type)
 
 
-def mark_terminal(session: Session, run_id: UUID, status: str):
+def mark_terminal(
+    session: Session, run_id: UUID, status: str, node_type: str | None = None
+):
+    """Record a terminal run on its nodes. A failure caused by a known stage, such as
+    required source items that could not be fetched, names that stage; later stages that
+    were still running stop as cancelled."""
     timestamp = now()
     if status == "succeeded":
         session.execute(
@@ -118,6 +123,24 @@ def mark_terminal(session: Session, run_id: UUID, status: str):
             .values(status="cancelled", finished_at=timestamp, updated_at=timestamp)
         )
         return
+    if node_type is not None:
+        nodes = session.scalars(
+            select(IngestionRunNode)
+            .where(IngestionRunNode.run_id == run_id)
+            .order_by(IngestionRunNode.ordinal)
+        ).all()
+        cause = next((node for node in nodes if node.node_type == node_type), None)
+        if cause is not None:
+            cause.status = "failed"
+            cause.started_at = cause.started_at or timestamp
+            cause.finished_at = timestamp
+            cause.updated_at = timestamp
+            for node in nodes:
+                if node.ordinal > cause.ordinal and node.status == "running":
+                    node.status = "cancelled"
+                    node.finished_at = timestamp
+                    node.updated_at = timestamp
+            return
     active = session.scalar(
         select(IngestionRunNode)
         .where(

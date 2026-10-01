@@ -830,3 +830,44 @@ def test_cancellation_duplicate_delivery_and_website_stale_window(website_api):
     dispatch_ingestion_once(engine, send=lambda value: sent.append(value))
     with Session(engine) as session:
         assert session.get(IngestionRun, stale_id).status == "queued"
+
+
+def test_unfetched_page_fails_the_source_stage_without_a_removal(website_api):
+    client, engine, project_id, _, config, _ = website_api
+    version = save_website(client, project_id, config)
+    stable = page("https://example.com/", b"<main><p>Stable content stays.</p></main>")
+    guide = page("https://example.com/guide", b"<main><p>Guide content.</p></main>")
+    first = start_run(client, project_id, version)
+    publish(engine, first["id"], lambda: WebsiteDouble([stable, guide], []))
+    timed_out = PreviewOutcome(
+        external_id="https://example.com/guide",
+        display_name="https://example.com/guide",
+        canonical_location="https://example.com/guide",
+        media_type=None,
+        status="failed",
+        reason="The website request timed out.",
+        error_code="request_timeout",
+    )
+    second = start_run(client, project_id, version)
+    process_ingestion(
+        UUID(second["id"]),
+        engine,
+        connector_factory=lambda: WebsiteDouble([stable, (timed_out, None)], []),
+    )
+    result = client.get(
+        f"/api/projects/{project_id}/ingestion-runs/{second['id']}"
+    ).json()
+    assert result["status"] == "failed"
+    states = {state["node_type"]: state["status"] for state in result["node_states"]}
+    # The page could not be fetched, so the Source stage failed; nothing is left running.
+    assert states["source"] == "failed"
+    assert "running" not in states.values()
+    assert states["publish_index"] == "queued"
+    with Session(engine) as session:
+        outcomes = session.scalars(
+            select(WebsiteRunItem.outcome).where(
+                WebsiteRunItem.run_id == UUID(second["id"]),
+                WebsiteRunItem.canonical_location == "https://example.com/guide",
+            )
+        ).all()
+    assert outcomes == ["failed"]

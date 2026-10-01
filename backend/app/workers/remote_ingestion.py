@@ -93,13 +93,15 @@ def _apply_duplicate_policy(session, run_id, memberships, clean, source_kind):
     return retained
 
 
-def fail_run(session: Session, job: IngestionRun, message: str):
+def fail_run(
+    session: Session, job: IngestionRun, message: str, node_type: str | None = None
+):
     source_snapshots.mark_terminal(session, job.source_snapshot_id, "failed", message)
     job.status = "failed"
     job.execution_token = None
     job.error = message
     job.updated_at = job.finished_at = now()
-    ingestion_execution.mark_terminal(session, job.id, "failed")
+    ingestion_execution.mark_terminal(session, job.id, "failed", node_type=node_type)
 
 
 def _website_priors(session, job):
@@ -563,6 +565,7 @@ def _advance_credentialed(
         memberships = []
         seen_extracted = {}
         failed = 0
+        failed_keys = set()
         for source_node_id, connection_id, outcomes, artifacts in results:
             artifact_by_location = {
                 artifact.item.canonical_location: artifact for artifact in artifacts
@@ -584,7 +587,9 @@ def _advance_credentialed(
                         media_type=outcome.media_type,
                         error=outcome.error_code,
                     )
-                    failed += outcome.status == "failed"
+                    if outcome.status == "failed":
+                        failed += 1
+                        failed_keys.add((source_node_id, outcome.canonical_location))
                     ordinal += 1
                     continue
                 artifact = artifact_by_location[outcome.canonical_location]
@@ -667,7 +672,8 @@ def _advance_credentialed(
                 ordinal += 1
         memberships = _apply_duplicate_policy(session, job.id, memberships, clean, kind)
         for key, (item, revision) in prior_revisions.items():
-            if key in included:
+            # A page that failed to fetch is reported as failed, not as removed.
+            if key in included or key in failed_keys:
                 continue
             source_node_id, location = key
             website_ingestion.add_run_item(
@@ -692,6 +698,7 @@ def _advance_credentialed(
                 session,
                 job,
                 f"One or more required {label}s failed. The previous ready index remains current.",
+                node_type="source",
             )
             session.commit()
             return
@@ -843,6 +850,7 @@ def _advance_website(run_id, token, db_engine, connector_factory):
         memberships = []
         seen_extracted = {}
         failed = 0
+        failed_locations = set()
         for source_node_id, outcomes, artifacts in results:
             artifact_by_location = {
                 artifact.canonical_location: artifact for artifact in artifacts
@@ -864,7 +872,9 @@ def _advance_website(run_id, token, db_engine, connector_factory):
                         media_type=outcome.media_type,
                         error=outcome.error_code,
                     )
-                    failed += outcome.status == "failed"
+                    if outcome.status == "failed":
+                        failed += 1
+                        failed_locations.add(outcome.canonical_location)
                     ordinal += 1
                     continue
                 artifact = artifact_by_location[outcome.canonical_location]
@@ -931,7 +941,8 @@ def _advance_website(run_id, token, db_engine, connector_factory):
             session, job.id, memberships, clean, "website"
         )
         for location, (revision, prior_source_node_id) in prior_revisions.items():
-            if location in included_locations:
+            # A page that failed to fetch is reported as failed, not as removed.
+            if location in included_locations or location in failed_locations:
                 continue
             item = session.get(SourceItem, revision.source_item_id)
             website_ingestion.add_run_item(
@@ -955,6 +966,7 @@ def _advance_website(run_id, token, db_engine, connector_factory):
                 session,
                 job,
                 "One or more required website pages failed. The previous ready index remains current.",
+                node_type="source",
             )
             session.commit()
             return

@@ -8,7 +8,7 @@ from pathlib import Path
 from uuid import UUID, uuid4
 
 from sqlalchemy import delete, insert, select
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import DataError, IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.core.artifact_crypto import ArtifactKeyring
@@ -583,16 +583,24 @@ def process_preview(preview_id: UUID, db_engine=engine, connector_factory=None):
                 if column.name not in ("preview_id", "ordinal", "created_at")
             }
             for ordinal, item in enumerate(outcomes):
-                session.add(
-                    SourcePreviewItem(
-                        preview_id=preview.id,
-                        ordinal=ordinal,
-                        **{
-                            key: value
-                            for key, value in item.items()
-                            if key in item_columns
-                        },
+                values = {
+                    key: value for key, value in item.items() if key in item_columns
+                }
+                # A discovery-limit marker has no location or name; label it as the
+                # run does, and keep text within the column bounds.
+                values["display_name"] = (
+                    item.get("display_name")
+                    or item.get("canonical_location")
+                    or item.get("external_id")
+                    or (
+                        "Undiscovered website item"
+                        if item.get("_kind") == "website"
+                        else "Undiscovered source item"
                     )
+                )[:500]
+                values["reason"] = (item.get("reason") or "")[:500]
+                session.add(
+                    SourcePreviewItem(preview_id=preview.id, ordinal=ordinal, **values)
                 )
             session.flush()
             if representations:
@@ -666,9 +674,11 @@ def process_preview(preview_id: UUID, db_engine=engine, connector_factory=None):
             preview.updated_at = preview.finished_at = now()
             session.commit()
     except Exception as exc:
-        retryable = isinstance(exc, SQLAlchemyError) or (
-            isinstance(exc, ConnectorFailure) and exc.issue.retryable
-        )
+        # Constraint and data errors repeat on every attempt, so fail without retrying.
+        retryable = (
+            isinstance(exc, SQLAlchemyError)
+            and not isinstance(exc, (IntegrityError, DataError))
+        ) or (isinstance(exc, ConnectorFailure) and exc.issue.retryable)
         safe_error = (
             exc.issue.message
             if isinstance(exc, ConnectorFailure)
