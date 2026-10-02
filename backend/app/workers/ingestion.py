@@ -86,6 +86,92 @@ def _cancel_unpublished_work(session: Session, run_id: UUID):
     )
 
 
+def _create_index(session: Session, job, items, execution, token, db_engine):
+    """Classify duplicates once and create the run's index. Later coordinator
+    passes only poll the index, so duplicate decisions are not recomputed."""
+    retained_items = [item for item in items if item.status == "ready"]
+    if not retained_items:
+        fail_run(
+            session,
+            job,
+            "No selected files passed processing; no index was published.",
+        )
+        session.commit()
+        return
+    clean_node = next(node for node in execution.nodes if node.type == "clean")
+    duplicate_policy = getattr(clean_node, "duplicate_policy", None)
+    if duplicate_policy is not None:
+        candidates = []
+        by_identity = {}
+        for item in retained_items:
+            document = session.get(Document, item.document_id)
+            cleaned = session.scalar(
+                select(ContentDerivation)
+                .join(
+                    ProcessingDerivation,
+                    ProcessingDerivation.derivation_id == ContentDerivation.id,
+                )
+                .where(
+                    ProcessingDerivation.processing_run_id == item.processing_run_id,
+                    ProcessingDerivation.kind == "cleaned",
+                )
+            )
+            blocks = (
+                session.scalars(
+                    select(ContentBlock)
+                    .where(ContentBlock.derivation_id == cleaned.id)
+                    .order_by(ContentBlock.ordinal)
+                ).all()
+                if cleaned is not None
+                else []
+            )
+            identity = f"project-file:{item.document_id}"
+            processing = session.get(ProcessingRun, item.processing_run_id)
+            candidates.append(
+                DuplicateCandidate(
+                    identity=identity,
+                    source_kind="existing_files",
+                    raw_hash=document.content_hash,
+                    cleaned_hash=(
+                        cleaned.output_hash
+                        if cleaned is not None
+                        else (processing.output_hash or document.content_hash)
+                    ),
+                    text="\n".join(block.text for block in blocks),
+                    stable_order=int(document.created_at.timestamp() * 1_000_000),
+                )
+            )
+            by_identity[identity] = item
+        decisions = classify_duplicates(candidates, duplicate_policy)
+        retained_items = []
+        for identity, decision in decisions.items():
+            item = by_identity[identity]
+            item.duplicate_decision = decision.as_dict()
+            if decision.outcome == "retained":
+                retained_items.append(item)
+    job.chunk_count = sum(item.chunk_count for item in retained_items)
+    ingestion_execution.transition(
+        db_engine, job.id, node_type="embed", execution_token=token
+    )
+    indexes.create_index_from_processing_runs(
+        session,
+        job.project_id,
+        job.knowledge_set_id,
+        [item.processing_run_id for item in retained_items],
+        ingestion_run_id=job.id,
+        expected_embedding=job.snapshot.get("embedding"),
+        commit=False,
+    )
+    job.stage = "indexing"
+    job.progress = 40
+    job.status = "queued"
+    job.execution_token = None
+    job.failures = 0
+    job.dispatched_at = None
+    job.updated_at = now()
+    session.commit()
+
+
 def process_ingestion(
     run_id: UUID, db_engine=engine, connector_factory=None, send=None
 ):
@@ -221,91 +307,11 @@ def process_ingestion(
                 session.commit()
                 return
 
-            clean_node = next(node for node in execution.nodes if node.type == "clean")
-            duplicate_policy = getattr(clean_node, "duplicate_policy", None)
-            retained_items = [item for item in items if item.status == "ready"]
-            if not retained_items:
-                fail_run(
-                    session,
-                    job,
-                    "No selected files passed processing; no index was published.",
-                )
-                session.commit()
-                return
-            if duplicate_policy is not None:
-                candidates = []
-                by_identity = {}
-                for item in retained_items:
-                    document = session.get(Document, item.document_id)
-                    cleaned = session.scalar(
-                        select(ContentDerivation)
-                        .join(
-                            ProcessingDerivation,
-                            ProcessingDerivation.derivation_id == ContentDerivation.id,
-                        )
-                        .where(
-                            ProcessingDerivation.processing_run_id
-                            == item.processing_run_id,
-                            ProcessingDerivation.kind == "cleaned",
-                        )
-                    )
-                    blocks = (
-                        session.scalars(
-                            select(ContentBlock)
-                            .where(ContentBlock.derivation_id == cleaned.id)
-                            .order_by(ContentBlock.ordinal)
-                        ).all()
-                        if cleaned is not None
-                        else []
-                    )
-                    identity = f"project-file:{item.document_id}"
-                    processing = session.get(ProcessingRun, item.processing_run_id)
-                    candidate = DuplicateCandidate(
-                        identity=identity,
-                        source_kind="existing_files",
-                        raw_hash=document.content_hash,
-                        cleaned_hash=(
-                            cleaned.output_hash
-                            if cleaned is not None
-                            else (processing.output_hash or document.content_hash)
-                        ),
-                        text="\n".join(block.text for block in blocks),
-                        stable_order=int(document.created_at.timestamp() * 1_000_000),
-                    )
-                    candidates.append(candidate)
-                    by_identity[identity] = item
-                decisions = classify_duplicates(candidates, duplicate_policy)
-                retained_items = []
-                for identity, decision in decisions.items():
-                    item = by_identity[identity]
-                    item.duplicate_decision = decision.as_dict()
-                    if decision.outcome == "retained":
-                        retained_items.append(item)
-            job.chunk_count = sum(item.chunk_count for item in retained_items)
-
             index = session.scalar(
                 select(IndexVersion).where(IndexVersion.ingestion_run_id == run_id)
             )
             if index is None:
-                ingestion_execution.transition(
-                    db_engine, run_id, node_type="embed", execution_token=token
-                )
-                indexes.create_index_from_processing_runs(
-                    session,
-                    job.project_id,
-                    job.knowledge_set_id,
-                    [item.processing_run_id for item in retained_items],
-                    ingestion_run_id=job.id,
-                    commit=False,
-                )
-                job.stage = "indexing"
-                job.progress = 40
-                job.status = "queued"
-                job.execution_token = None
-                job.failures = 0
-                job.dispatched_at = None
-                job.updated_at = now()
-                session.commit()
+                _create_index(session, job, items, execution, token, db_engine)
                 return
             job.stage = "indexing"
             job.chunk_count = index.chunk_count

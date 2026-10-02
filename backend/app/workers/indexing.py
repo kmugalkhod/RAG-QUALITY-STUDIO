@@ -9,6 +9,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from app.db.session import engine
 from app.models.document import Chunk, Document, ProcessingRun
 from app.models.index import IndexChunk, IndexVersion, KnowledgeSet
+from app.models.ingestion import IngestionRun
 from app.providers import embeddings
 from app.services import ingestion_execution, provider_credentials
 from app.workers.celery_app import celery
@@ -46,6 +47,7 @@ def _process_batch(index_id: UUID, db_engine, token, handing_off) -> int | None:
         job.error = None
         config = embeddings.EmbeddingConfig.model_validate(job.embedding_config)
         project_id = job.project_id
+        ingestion_run_id = job.ingestion_run_id
         session.commit()
         ingestion_execution.transition_for_index(db_engine, job, "embed")
     with ExitStack() as credential_scope:
@@ -148,12 +150,31 @@ def _process_batch(index_id: UUID, db_engine, token, handing_off) -> int | None:
                     }
                 )
             with Session(db_engine) as session:
+                # Lock the parent ingestion run before the index, the same order as
+                # cancellation and coordination, so a run cannot become terminal
+                # between this check and publishing its index.
+                if ingestion_run_id is not None:
+                    parent_status = session.scalar(
+                        select(IngestionRun.status)
+                        .where(IngestionRun.id == ingestion_run_id)
+                        .with_for_update()
+                    )
                 job = session.scalar(
                     select(IndexVersion)
                     .where(IndexVersion.id == index_id)
                     .with_for_update()
                 )
                 if job.status != "running" or job.execution_token != token:
+                    return
+                if ingestion_run_id is not None and parent_status not in (
+                    "queued",
+                    "running",
+                ):
+                    job.status = "cancelled"
+                    job.execution_token = None
+                    job.error = "Stopped because the parent ingestion run ended; this index was not published."
+                    job.updated_at = job.finished_at = now()
+                    session.commit()
                     return
                 for (run_id, ordinal), vector in vectors.items():
                     member = session.get(IndexChunk, (index_id, run_id, ordinal))

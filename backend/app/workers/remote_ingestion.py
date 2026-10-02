@@ -477,6 +477,7 @@ def _advance_credentialed_snapshot(
             processing_ids,
             ingestion_run_id=job.id,
             source_snapshot_id=job.source_snapshot_id,
+            expected_embedding=job.snapshot.get("embedding"),
             commit=False,
         )
         session.execute(
@@ -724,6 +725,7 @@ def _advance_credentialed(
             processing_ids,
             ingestion_run_id=job.id,
             source_snapshot_id=job.source_snapshot_id,
+            expected_embedding=job.snapshot.get("embedding"),
             commit=False,
         )
         session.execute(
@@ -989,6 +991,7 @@ def _advance_website(run_id, token, db_engine, connector_factory):
             processing_ids,
             ingestion_run_id=job.id,
             source_snapshot_id=job.source_snapshot_id,
+            expected_embedding=job.snapshot.get("embedding"),
             commit=False,
         )
         session.execute(

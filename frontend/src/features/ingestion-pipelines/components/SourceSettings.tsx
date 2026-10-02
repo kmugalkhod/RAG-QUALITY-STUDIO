@@ -68,7 +68,6 @@ export function WebsiteSettings({
       | 'max_total_bytes'
       | 'request_timeout_seconds'
       | 'deadline_seconds'
-      | 'concurrency'
       | 'requests_per_second'
       | 'redirect_limit',
     label: string,
@@ -170,7 +169,6 @@ export function WebsiteSettings({
             {numberField('max_total_bytes', 'Total byte budget', 1)}
             {numberField('request_timeout_seconds', 'Request timeout (seconds)', 1)}
             {numberField('deadline_seconds', 'Preview deadline (seconds)', 1)}
-            {numberField('concurrency', 'Concurrency', 1)}
             {numberField('requests_per_second', 'Requests per second', 0.1)}
             {numberField('redirect_limit', 'Redirect limit', 0)}
           </div>

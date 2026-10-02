@@ -1,3 +1,5 @@
+import socket
+import threading
 import time
 from uuid import UUID
 from urllib.parse import urlsplit
@@ -8,7 +10,12 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.connectors.base import ConnectorFailure, ConnectorIssue
-from app.connectors.safe_http import SafeHttpClient, canonical_url, resolve_public
+from app.connectors.safe_http import (
+    SafeHttpClient,
+    StdlibTransport,
+    canonical_url,
+    resolve_public,
+)
 from app.connectors.website import PriorWebsiteRevision, WebsiteConnector
 from app.core.config import settings
 from app.models.document import ProcessingRun
@@ -453,3 +460,40 @@ def test_preview_job_saves_the_discovery_limit_marker(documents_api, monkeypatch
         f"/api/projects/{project_id}/source-previews/{preview_id}/items"
     ).json()["items"]
     assert [item["display_name"] for item in items] == ["Undiscovered website item"]
+
+
+def test_trickling_response_is_bounded_by_the_request_timeout():
+    """Each byte arrives inside the socket timeout; the whole read must not."""
+    listener = socket.create_server(("127.0.0.1", 0))
+    port = listener.getsockname()[1]
+    stop = threading.Event()
+
+    def serve():
+        connection, _ = listener.accept()
+        with connection:
+            connection.recv(4096)
+            connection.sendall(b"HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n")
+            while not stop.is_set():
+                try:
+                    connection.sendall(b"x")
+                except OSError:
+                    return
+                time.sleep(0.05)
+
+    thread = threading.Thread(target=serve, daemon=True)
+    thread.start()
+    started = time.monotonic()
+    try:
+        with pytest.raises(ConnectorFailure) as raised:
+            StdlibTransport().request(
+                f"http://example.test:{port}/",
+                "127.0.0.1",
+                0.5,
+                {"Host": f"example.test:{port}", "Connection": "close"},
+                1024 * 1024,
+            )
+    finally:
+        stop.set()
+        listener.close()
+    assert raised.value.issue.code == "request_timeout"
+    assert time.monotonic() - started < 2

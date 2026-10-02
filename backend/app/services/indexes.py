@@ -9,7 +9,7 @@ from app.models.index import IndexChunk, IndexVersion, KnowledgeSet
 from app.models.ingestion import IngestionRun
 from app.models.pipeline import Pipeline, PipelineVersion
 from app.models.project import Project
-from app.models.source import SourceSnapshot
+from app.models.source import SourceItem, SourceRevision, SourceSnapshot
 from app.providers import embeddings
 from app.schemas.index import IndexCreate, RetrievalRequest
 from app.services import provider_credentials
@@ -116,6 +116,7 @@ def create_index_from_processing_runs(
     *,
     ingestion_run_id: UUID | None = None,
     source_snapshot_id: UUID | None = None,
+    expected_embedding: dict | None = None,
     commit: bool = True,
 ):
     if not processing_run_ids:
@@ -125,6 +126,16 @@ def create_index_from_processing_runs(
     project(session, project_id)
     with provider_credentials.bound_for_project(session, project_id):
         config = embeddings.configured()
+    # An ingestion run records the embedding config it starts with; its index must
+    # use exactly that config, or the run snapshot would misreport how it was built.
+    if (
+        expected_embedding is not None
+        and config.model_dump(mode="json") != expected_embedding
+    ):
+        raise HTTPException(
+            409,
+            "Embedding settings changed after this run started. Start a new run to index with the current settings.",
+        )
     knowledge_set = session.scalar(
         select(KnowledgeSet)
         .where(
@@ -371,6 +382,18 @@ def list_index_records(session, project_id, index_id, limit, offset):
         .limit(limit)
         .offset(offset)
     ).all()
+    # Fresh website chunks record where they were fetched from; other connector
+    # chunks inherit the location of the source item their revision belongs to.
+    locations = dict(
+        session.execute(
+            select(SourceRevision.processing_run_id, SourceItem.canonical_location)
+            .join(SourceItem, SourceItem.id == SourceRevision.source_item_id)
+            .where(
+                SourceRevision.processing_run_id.in_({row[2].id for row in rows}),
+                SourceItem.project_id == project_id,
+            )
+        ).all()
+    )
     items = []
     for member, chunk, run, document in rows:
         embedding = member.embedding.tolist() if member.embedding is not None else []
@@ -393,7 +416,8 @@ def list_index_records(session, project_id, index_id, limit, offset):
                 parent_ordinal=chunk.parent_ordinal,
                 findings=chunk.findings or [],
                 embedding_prefix=provenance.get("embedding_prefix") or "",
-                source_url=provenance.get("canonical_url"),
+                source_url=provenance.get("canonical_location")
+                or locations.get(run.id),
                 section_path=provenance.get("section_path") or [],
                 dimensions=member.dimensions,
                 embedded=bool(embedding),

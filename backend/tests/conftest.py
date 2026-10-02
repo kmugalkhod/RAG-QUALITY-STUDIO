@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session
-from app.db.session import get_session
+from app.db.session import get_deployment_session, get_session
 from app.main import app
 
 
@@ -62,5 +62,6 @@ def db_client(database, client):
                 yield session
 
         app.dependency_overrides[get_session] = session_override
+        app.dependency_overrides[get_deployment_session] = session_override
         yield client
         transaction.rollback()

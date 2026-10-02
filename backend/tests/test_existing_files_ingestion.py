@@ -1659,6 +1659,7 @@ def test_existing_file_discovery_order_and_stale_recovery(ingestion_api):
                 attempts=3,
                 failures=2,
                 started_at=now() - timedelta(minutes=4),
+                updated_at=now() - timedelta(minutes=4),
             )
         )
         processing_id = session.scalar(
@@ -1674,3 +1675,217 @@ def test_existing_file_discovery_order_and_stale_recovery(ingestion_api):
         assert recovered.status == "failed" and recovered.failures == 3
         assert session.get(ProcessingRun, processing_id).status == "cancelled"
     assert sent == []
+
+
+def start_processed_run(client, engine, project_id, config, name, contents):
+    documents = [
+        upload(client, project_id, content, f"{name}-{number}.txt")
+        for number, content in enumerate(contents)
+    ]
+    payload = ingestion_draft(
+        [document["id"] for document in documents],
+        config,
+        name=name,
+        schema_version=2,
+    )
+    saved = client.post(f"/api/projects/{project_id}/pipelines", json=payload).json()
+    run = client.post(
+        f"/api/projects/{project_id}/pipelines/{saved['pipeline_id']}"
+        f"/versions/{saved['id']}/ingestion-runs"
+    ).json()
+    run_id = UUID(run["id"])
+    with Session(engine) as session:
+        processing_ids = list(
+            session.scalars(
+                select(IngestionRunItem.processing_run_id).where(
+                    IngestionRunItem.run_id == run_id
+                )
+            )
+        )
+    for processing_id in processing_ids:
+        process(processing_id, engine)
+    return run_id
+
+
+def embed_until_ready(engine, index_id):
+    for _ in range(20):
+        process_index(index_id, engine)
+        with Session(engine) as session:
+            if session.get(IndexVersion, index_id).status == "succeeded":
+                return
+    raise AssertionError("The index did not finish embedding.")
+
+
+def test_cancel_after_publication_is_refused_and_duplicates_are_classified_once(
+    ingestion_api, monkeypatch
+):
+    client, engine, project_id, _, config, _ = ingestion_api
+    import app.workers.ingestion as ingestion_worker
+
+    calls = []
+    classify = ingestion_worker.classify_duplicates
+    monkeypatch.setattr(
+        ingestion_worker,
+        "classify_duplicates",
+        lambda *args: calls.append(1) or classify(*args),
+    )
+    run_id = start_processed_run(
+        client,
+        engine,
+        project_id,
+        config,
+        "Published cancel",
+        [b"Lanterns light the archive. " * 20, b"Maps cover the hall. " * 20],
+    )
+    process_ingestion(run_id, engine)
+    process_ingestion(run_id, engine)
+    with Session(engine) as session:
+        index_id = session.scalar(
+            select(IndexVersion.id).where(IndexVersion.ingestion_run_id == run_id)
+        )
+    embed_until_ready(engine, index_id)
+
+    # The index is live before the coordinator records success; cancelling now
+    # would misreport a published index as unpublished.
+    response = client.post(f"/api/projects/{project_id}/ingestion-runs/{run_id}/cancel")
+    assert response.status_code == 409, response.text
+    assert "already published" in response.json()["detail"]
+    process_ingestion(run_id, engine)
+    result = client.get(f"/api/projects/{project_id}/ingestion-runs/{run_id}").json()
+    assert result["status"] == "succeeded"
+    assert result["published_index_id"] == str(index_id)
+    # Polling while the index embedded did not recompute duplicate decisions.
+    assert calls == [1]
+
+
+def test_index_is_not_published_for_a_terminal_parent_run(ingestion_api):
+    client, engine, project_id, _, config, _ = ingestion_api
+    run_id = start_processed_run(
+        client,
+        engine,
+        project_id,
+        config,
+        "Terminal parent",
+        [b"Lanterns light the archive. " * 20],
+    )
+    process_ingestion(run_id, engine)
+    with Session(engine) as session:
+        run = session.get(IngestionRun, run_id)
+        knowledge_set_id = run.knowledge_set_id
+        index_id = session.scalar(
+            select(IndexVersion.id).where(IndexVersion.ingestion_run_id == run_id)
+        )
+        # A run can end while its index is mid-batch, outside a recorded cancel.
+        session.execute(
+            update(IngestionRun)
+            .where(IngestionRun.id == run_id)
+            .values(status="failed", execution_token=None, finished_at=now())
+        )
+        session.commit()
+    for _ in range(5):
+        process_index(index_id, engine)
+    with Session(engine) as session:
+        index = session.get(IndexVersion, index_id)
+        assert index.status == "cancelled"
+        assert "not published" in index.error
+        assert (
+            session.get(KnowledgeSet, knowledge_set_id).current_ready_index_id
+            != index_id
+        )
+
+
+def test_cancel_keeps_finished_item_outcomes(ingestion_api):
+    client, engine, project_id, _, config, _ = ingestion_api
+    run_id = start_processed_run(
+        client,
+        engine,
+        project_id,
+        config,
+        "Item evidence",
+        [b"Lanterns light the archive. " * 20, b"Maps cover the hall. " * 20],
+    )
+    with Session(engine) as session:
+        excluded, waiting = session.scalars(
+            select(IngestionRunItem)
+            .where(IngestionRunItem.run_id == run_id)
+            .order_by(IngestionRunItem.document_id)
+        ).all()
+        excluded.status = "excluded"
+        excluded.error = "Language is not allowed."
+        waiting.status = "processing"
+        excluded_id, waiting_id = excluded.document_id, waiting.document_id
+        session.commit()
+    response = client.post(f"/api/projects/{project_id}/ingestion-runs/{run_id}/cancel")
+    assert response.status_code == 200, response.text
+    assert response.json()["status"] == "cancelled"
+    with Session(engine) as session:
+        assert session.get(IngestionRunItem, (run_id, excluded_id)).status == (
+            "excluded"
+        )
+        assert session.get(IngestionRunItem, (run_id, waiting_id)).status == (
+            "cancelled"
+        )
+
+
+def test_changed_embedding_settings_fail_the_run_before_indexing(
+    ingestion_api, monkeypatch
+):
+    client, engine, project_id, _, config, _ = ingestion_api
+    run_id = start_processed_run(
+        client,
+        engine,
+        project_id,
+        config,
+        "Embedding drift",
+        [b"Lanterns light the archive. " * 20],
+    )
+    monkeypatch.setattr(settings, "embedding_dimensions", 4)
+    process_ingestion(run_id, engine)
+    with Session(engine) as session:
+        run = session.get(IngestionRun, run_id)
+        assert run.status == "failed"
+        assert "Embedding settings changed" in run.error
+        assert (
+            session.scalar(
+                select(IndexVersion.id).where(IndexVersion.ingestion_run_id == run_id)
+            )
+            is None
+        )
+
+
+def test_reclaimed_run_is_recovered_from_its_last_claim_not_first_start(
+    ingestion_api,
+):
+    client, engine, project_id, _, config, _ = ingestion_api
+    run_id = start_processed_run(
+        client,
+        engine,
+        project_id,
+        config,
+        "Long-lived run",
+        [b"Lanterns light the archive. " * 20],
+    )
+    with Session(engine) as session:
+        session.execute(
+            update(IngestionRun)
+            .where(IngestionRun.id == run_id)
+            .values(
+                status="running",
+                started_at=now() - timedelta(hours=2),
+                updated_at=now(),
+            )
+        )
+        session.commit()
+    sent = []
+    dispatch_ingestion_once(engine, send=sent.append)
+    with Session(engine) as session:
+        assert session.get(IngestionRun, run_id).status == "running"
+        session.execute(
+            update(IngestionRun)
+            .where(IngestionRun.id == run_id)
+            .values(updated_at=now() - timedelta(seconds=181))
+        )
+        session.commit()
+    dispatch_ingestion_once(engine, send=sent.append)
+    with Session(engine) as session:
+        assert session.get(IngestionRun, run_id).status == "queued"

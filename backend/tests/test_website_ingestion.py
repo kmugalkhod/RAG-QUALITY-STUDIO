@@ -240,6 +240,13 @@ def test_rechunks_stored_website_artifacts_without_connector_calls(website_api):
     assert result["published_index_id"] == str(second_index)
     assert str(second_index) != str(first_index)
     assert result["chunk_count"] > 1
+    # Fresh and reused chunks both report where the page was fetched from.
+    for index_id in (first_index, second_index):
+        records = client.get(
+            f"/api/projects/{project_id}/indexes/{index_id}/records?limit=5"
+        ).json()["items"]
+        assert records
+        assert {record["source_url"] for record in records} == {"https://example.com/"}
 
 
 def test_builds_independent_destination_from_ready_snapshot_without_network(
@@ -816,7 +823,7 @@ def test_cancellation_duplicate_delivery_and_website_stale_window(website_api):
     with Session(engine) as session:
         job = session.get(IngestionRun, stale_id)
         job.status = "running"
-        job.started_at = now() - timedelta(seconds=181)
+        job.started_at = job.updated_at = now() - timedelta(seconds=181)
         session.commit()
     sent = []
     dispatch_ingestion_once(engine, send=lambda value: sent.append(value))
@@ -825,7 +832,7 @@ def test_cancellation_duplicate_delivery_and_website_stale_window(website_api):
     assert sent == []
     with Session(engine) as session:
         job = session.get(IngestionRun, stale_id)
-        job.started_at = now() - timedelta(seconds=3661)
+        job.updated_at = now() - timedelta(seconds=3701)
         session.commit()
     dispatch_ingestion_once(engine, send=lambda value: sent.append(value))
     with Session(engine) as session:

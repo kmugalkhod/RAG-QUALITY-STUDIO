@@ -1,12 +1,14 @@
 from uuid import UUID
-from typing import Literal
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Request, Response
+from sqlalchemy.orm import Session
 
 from app.api.connections import require_keyring
 from app.core.auth import CurrentPrincipal, require_project_access
 from app.api.documents import Limit, Offset
 from app.api.routes import Database
+from app.db.session import get_deployment_session
 from app.schemas.ingestion import (
     IngestionExecution,
     IngestionPreviewRequest,
@@ -307,8 +309,12 @@ def page_thumbnail(
     )
 
 
+# Cancellation locks the run and must see rows committed by workers after it waits.
+CommittedDatabase = Annotated[Session, Depends(get_deployment_session)]
+
+
 @router.post("/ingestion-runs/{run_id}/cancel", response_model=IngestionRunRead)
-def cancel_run(project_id: UUID, run_id: UUID, session: Database):
+def cancel_run(project_id: UUID, run_id: UUID, session: CommittedDatabase):
     return ingestion.cancel_run(session, project_id, run_id)
 
 

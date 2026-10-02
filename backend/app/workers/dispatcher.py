@@ -15,6 +15,11 @@ from app.models.document import Document, ProcessingRun
 from app.models.project import Project
 from app.workers.processing import now, process_document
 
+INGESTION_STALE_SECONDS = 180
+# Longer than the `ingestion.coordinate` hard time limit (3670 s), so a live
+# discovery task is never recovered while it can still commit.
+REMOTE_DISCOVERY_STALE_SECONDS = 3700
+
 
 def resend_cutoff(current):
     """A message already sent may still wait in a busy broker; resend it only
@@ -166,6 +171,7 @@ def dispatch_ingestion_once(db_engine=engine, send=None):
     from app.models.ingestion import IngestionRun, IngestionRunItem
     from app.models.index import IndexVersion
     from app.workers.ingestion import coordinate_ingestion, queue_for
+    from app.workers.remote_ingestion import REMOTE_SOURCE_KINDS
 
     queues = {}
     send = send or (
@@ -177,18 +183,25 @@ def dispatch_ingestion_once(db_engine=engine, send=None):
     with Session(
         db_engine.execution_options(isolation_level="READ COMMITTED")
     ) as session:
+        # A claim and every committed checkpoint refresh `updated_at`; `started_at`
+        # is the run's first start and is kept for display. Remote discovery runs
+        # as one task for up to its hard time limit before its first checkpoint.
         stale = session.scalars(
             select(IngestionRun)
             .where(
                 IngestionRun.status == "running",
-                IngestionRun.started_at < current - timedelta(seconds=180),
+                IngestionRun.updated_at
+                < current - timedelta(seconds=INGESTION_STALE_SECONDS),
             )
             .with_for_update(skip_locked=True)
         ).all()
         for job in stale:
-            if job.snapshot.get(
-                "source_kind"
-            ) == "website" and job.started_at >= current - timedelta(seconds=3660):
+            if (
+                job.stage == "discovering"
+                and job.snapshot.get("source_kind") in REMOTE_SOURCE_KINDS
+                and job.updated_at
+                >= current - timedelta(seconds=REMOTE_DISCOVERY_STALE_SECONDS)
+            ):
                 continue
             job.failures += 1
             job.execution_token = None

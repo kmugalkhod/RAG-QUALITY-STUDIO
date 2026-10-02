@@ -12,7 +12,7 @@ from sqlalchemy import delete, func, select, update
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.db.session import get_session
+from app.db.session import get_deployment_session, get_session
 from app.main import app
 from app.models.document import Chunk, Document, ProcessingRun
 from app.models.project import Project
@@ -138,6 +138,7 @@ def documents_api(database, tmp_path, monkeypatch):
             yield session
 
     app.dependency_overrides[get_session] = sessions
+    app.dependency_overrides[get_deployment_session] = sessions
     with TestClient(app) as client:
         p = client.post("/api/projects", json={"name": "Document test"}).json()["id"]
         q = client.post("/api/projects", json={"name": "Other project"}).json()["id"]

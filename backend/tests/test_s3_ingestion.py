@@ -409,12 +409,23 @@ def test_s3_cancellation_duplicate_delivery_and_stale_recovery(
 
     stale = start_run(client, project_id, version)
     stale_id = UUID(stale["id"])
+    # Credentialed discovery runs as one long task; it is not recovered while it
+    # can still be fetching, however long ago the run first started.
     with Session(engine) as session:
         job = session.get(IngestionRun, stale_id)
         job.status = "running"
-        job.started_at = now() - timedelta(seconds=3661)
+        job.started_at = now() - timedelta(hours=3)
+        job.updated_at = now() - timedelta(seconds=181)
         session.commit()
     sent = []
+    dispatch_ingestion_once(engine, send=lambda value: sent.append(value))
+    with Session(engine) as session:
+        assert session.get(IngestionRun, stale_id).status == "running"
+    assert sent == []
+    with Session(engine) as session:
+        job = session.get(IngestionRun, stale_id)
+        job.updated_at = now() - timedelta(seconds=3701)
+        session.commit()
     dispatch_ingestion_once(engine, send=lambda value: sent.append(value))
     with Session(engine) as session:
         assert session.get(IngestionRun, stale_id).status == "queued"

@@ -790,9 +790,29 @@ def list_items(
 
 
 def cancel_run(session: Session, project_id: UUID, run_id: UUID):
-    run = get_run(session, project_id, run_id)
+    """Requires a read-committed session. The index worker locks the run before
+    publishing, so either cancellation wins and the index is never published, or
+    the index is already published and cancellation is refused."""
+    run = session.scalar(
+        select(IngestionRun)
+        .where(IngestionRun.id == run_id, IngestionRun.project_id == project_id)
+        .with_for_update()
+    )
+    if run is None:
+        raise HTTPException(404, "Ingestion run not found in this project.")
     if run.status not in ("queued", "running"):
         return read_run(session, run)
+    if session.scalar(
+        select(IndexVersion.id).where(
+            IndexVersion.ingestion_run_id == run.id,
+            IndexVersion.status == "succeeded",
+        )
+    ):
+        session.rollback()
+        raise HTTPException(
+            409,
+            "This run has already published its index and is finishing; it can no longer be cancelled.",
+        )
     session.execute(
         update(IngestionRun)
         .where(
@@ -816,14 +836,18 @@ def cancel_run(session: Session, project_id: UUID, run_id: UUID):
         "cancelled",
         "Collection was cancelled before a complete source snapshot was ready.",
     )
+    # Only unfinished items stop; failed and excluded outcomes stay as evidence.
     session.execute(
         update(WebsiteRunItem)
-        .where(WebsiteRunItem.run_id == run.id)
+        .where(WebsiteRunItem.run_id == run.id, WebsiteRunItem.status == "ready")
         .values(status="cancelled", updated_at=func.now())
     )
     session.execute(
         update(IngestionRunItem)
-        .where(IngestionRunItem.run_id == run.id)
+        .where(
+            IngestionRunItem.run_id == run.id,
+            IngestionRunItem.status.in_(["processing", "ready"]),
+        )
         .values(status="cancelled", updated_at=func.now())
     )
     created_processing = select(IngestionRunItem.processing_run_id).where(

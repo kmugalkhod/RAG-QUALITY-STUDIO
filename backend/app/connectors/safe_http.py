@@ -152,12 +152,17 @@ class StdlibTransport:
         connection_class = (
             _PinnedHTTPSConnection if parts.scheme == "https" else _PinnedHTTPConnection
         )
+        # `timeout` bounds the whole request. Socket timeouts alone apply to each
+        # read, so a server trickling bytes could otherwise hold the worker.
+        request_deadline = time.monotonic() + timeout
         connection = connection_class(parts.hostname, address, port, timeout)
         target = parts.path or "/"
         if parts.query:
             target += "?" + parts.query
         try:
             connection.request("GET", target, headers=headers)
+            # getresponse() drops connection.sock for `Connection: close` replies.
+            sock = connection.sock
             response = connection.getresponse()
             content_length = response.getheader("Content-Length")
             if content_length is not None:
@@ -174,7 +179,11 @@ class StdlibTransport:
                     ) from exc
             content = bytearray()
             while True:
-                chunk = response.read(min(65536, max_bytes + 1 - len(content)))
+                remaining = request_deadline - time.monotonic()
+                if remaining <= 0:
+                    raise TimeoutError
+                sock.settimeout(remaining)
+                chunk = response.read1(min(65536, max_bytes + 1 - len(content)))
                 if not chunk:
                     break
                 content.extend(chunk)
