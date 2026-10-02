@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ingestion Pipeline Overview</title>
+<style>
+  :root {
+    --bg: #f7f7f5; --card: #ffffff; --text: #1d1d1f; --muted: #5f6368; --line: #c9ccd1;
+    --blue: #2563eb; --blue-bg: #e8effd; --green: #15803d; --green-bg: #e6f4ea;
+    --amber: #b45309; --amber-bg: #fdf3e2; --purple: #7c3aed; --purple-bg: #f1ebfd;
+    --red: #c62828; --red-bg: #fdecec;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #151618; --card: #1f2023; --text: #ececec; --muted: #a0a4ab; --line: #3a3d42;
+      --blue: #7aa7ff; --blue-bg: #1c2a45; --green: #6fcf8f; --green-bg: #1a3324;
+      --amber: #f0b45a; --amber-bg: #3a2c16; --purple: #b79cff; --purple-bg: #2c2342;
+      --red: #ff8a80; --red-bg: #3d1f1f;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 1000px; margin: 0 auto; padding: 32px 16px 64px; }
+  h1 { font-size: 26px; margin: 0 0 4px; }
+  h2 { font-size: 18px; margin: 40px 0 6px; }
+  p.lead, p.note { color: var(--muted); margin: 0 0 16px; }
+
+  .row { display: flex; align-items: stretch; gap: 0; flex-wrap: wrap; }
+  .box { flex: 1 1 150px; background: var(--card); border: 1.5px solid var(--line);
+    border-radius: 10px; padding: 12px 14px; min-width: 140px; }
+  .box b { display: block; font-size: 15px; }
+  .box small { color: var(--muted); display: block; font-size: 13px; }
+  .arrow { flex: 0 0 34px; display: flex; align-items: center; justify-content: center;
+    color: var(--muted); font-size: 20px; }
+
+  .blue   { border-color: var(--blue);   background: var(--blue-bg); }
+  .green  { border-color: var(--green);  background: var(--green-bg); }
+  .amber  { border-color: var(--amber);  background: var(--amber-bg); }
+  .purple { border-color: var(--purple); background: var(--purple-bg); }
+
+  .step { display: inline-flex; width: 22px; height: 22px; border-radius: 50%;
+    background: var(--text); color: var(--bg); font-size: 12px; font-weight: 700;
+    align-items: center; justify-content: center; margin-right: 6px; vertical-align: 1px; }
+  .warn { display: inline-block; margin-top: 6px; font-size: 12px; font-weight: 600;
+    color: var(--red); background: var(--red-bg); border-radius: 6px; padding: 1px 7px; }
+
+  .storage { margin-top: 14px; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+
+  ol.steps { padding-left: 0; list-style: none; margin: 12px 0 0; }
+  ol.steps li { margin: 6px 0; }
+
+  .loop { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; position: relative; }
+  .loop .box { min-height: 86px; }
+  .loop-label { text-align: center; color: var(--muted); font-size: 13px; margin: 6px 0; }
+
+  table { width: 100%; border-collapse: collapse; background: var(--card); border-radius: 10px; overflow: hidden; }
+  th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-size: 13px; color: var(--muted); font-weight: 600; }
+  tr:last-child td { border-bottom: none; }
+
+  @media (max-width: 640px) {
+    .row { flex-direction: column; }
+    .arrow { flex-basis: 26px; transform: rotate(90deg); }
+    .loop { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>Ingestion pipeline: high-level view</h1>
+  <p class="lead">How a document or website turns into a searchable index in RAG Quality Studio. Red tags mark the scaling bottlenecks from the review.</p>
+  <p class="note"><b>Snapshot from the 2026-10-02 scaling review, before its fixes.</b> Bottlenecks 1–5 were addressed in commit <code>e5e9003</code>, and stale-run recovery changed in <code>92f7b44</code>. See <code>docs/architecture.md</code> for current behavior.</p>
+
+  <!-- 1. Components -->
+  <h2>1. Who does what</h2>
+  <p class="note">The API never does heavy work. It saves a job in PostgreSQL and returns immediately. The dispatcher and workers do the rest.</p>
+  <div class="row">
+    <div class="box blue"><b><span class="step">1</span>User (browser)</b><small>Uploads files or picks a source, then clicks Run</small></div>
+    <div class="arrow">→</div>
+    <div class="box blue"><b><span class="step">2</span>FastAPI backend</b><small>Validates, saves the job as <code>queued</code>, returns a run ID</small></div>
+    <div class="arrow">→</div>
+    <div class="box green"><b><span class="step">3</span>Dispatcher</b><small>Wakes every 5 s, picks up to 20 queued jobs, sends them to Redis</small>
+      <span class="warn">Bottleneck 1 · 4 · 5</span></div>
+    <div class="arrow">→</div>
+    <div class="box amber"><b><span class="step">4</span>Redis</b><small>Message queue only. If it loses a message, the dispatcher re-sends it.</small></div>
+    <div class="arrow">→</div>
+    <div class="box purple"><b><span class="step">5</span>Celery workers</b><small>Do the actual work. 2 processes, all job types share one queue.</small>
+      <span class="warn">Bottleneck 4</span></div>
+  </div>
+
+  <div class="storage">
+    <div class="box"><b>PostgreSQL + pgvector</b><small>The source of truth: job status, progress, chunks, embeddings, index versions</small>
+      <span class="warn">Bottleneck 7: no vector index</span></div>
+    <div class="box"><b>Disk volume <code>/data/documents</code></b><small>Raw uploaded and fetched files</small>
+      <span class="warn">Bottleneck 6: one machine only</span></div>
+    <div class="box"><b>OpenRouter</b><small>Creates the embeddings. Limited to 60 requests/min per key (shared counter in Redis).</small>
+      <span class="warn">Bottleneck 3</span></div>
+  </div>
+
+  <!-- 2. Stages -->
+  <h2>2. Life of one ingestion run</h2>
+  <p class="note">Each stage saves its result in PostgreSQL, so a crash resumes from the last finished stage instead of starting over.</p>
+  <div class="row">
+    <div class="box"><b>Source</b><small>Upload, website, S3, Notion, Confluence</small></div>
+    <div class="arrow">→</div>
+    <div class="box"><b>Fetch &amp; parse</b><small>Download, extract text from PDF/TXT/HTML</small></div>
+    <div class="arrow">→</div>
+    <div class="box"><b>Clean</b><small>Normalize text, drop duplicates</small></div>
+    <div class="arrow">→</div>
+    <div class="box"><b>Chunk</b><small>Split into pieces (max 50,000 per file)</small></div>
+    <div class="arrow">→</div>
+    <div class="box purple"><b>Embed</b><small>16 chunks per task via OpenRouter</small>
+      <span class="warn">Slowest stage</span></div>
+    <div class="arrow">→</div>
+    <div class="box green"><b>Publish</b><small>Index becomes <code>ready</code> only when 100% embedded</small></div>
+  </div>
+  <ol class="steps">
+    <li>✅ Users never query a half-built index. The previous ready index stays live until the new one is complete.</li>
+    <li>✅ Duplicate or stale workers can't overwrite each other (each attempt has its own execution token).</li>
+    <li>✅ A job stuck for more than 3 minutes is requeued automatically, up to 3 times.</li>
+  </ol>
+
+  <!-- 3. Embedding loop -->
+  <h2>3. Why embedding is slow: the 5-second loop</h2>
+  <p class="note">Each worker task embeds only 16 chunks and then hands the job back. The next batch waits for the dispatcher's next 5-second pass.</p>
+  <div class="loop">
+    <div class="box purple"><b>① Worker embeds 16 chunks</b><small>Checks the cache, calls OpenRouter, saves the vectors</small></div>
+    <div class="box"><b>② Job set back to <code>queued</code></b><small>Progress saved, e.g. 320 / 20,000 chunks</small></div>
+    <div class="box amber"><b>④ Redis delivers it to a worker</b><small>Repeat until every chunk has a vector</small></div>
+    <div class="box green"><b>③ Waits for the dispatcher</b><small>Up to 5 s idle time per batch</small>
+      <span class="warn">Bottleneck 1</span></div>
+  </div>
+  <p class="loop-label">① → ② → ③ → ④ → ① …&nbsp;&nbsp;≈ 190 chunks/min per index · 20,000 chunks ≈ 1.7 hours</p>
+
+  <!-- 4. Bottleneck legend -->
+  <h2>4. Bottlenecks at a glance</h2>
+  <table>
+    <tr><th>#</th><th>Problem</th><th>What users notice</th><th>Fix</th></tr>
+    <tr><td>1</td><td>One 16-chunk batch per 5-second dispatcher pass</td><td>Large documents take hours to index</td><td>Task queues its own next batch immediately</td></tr>
+    <tr><td>2</td><td>Embedding cache lookup compares full text without an index</td><td>Big projects get slower and slower, then time out</td><td>Store a text hash and index it</td></tr>
+    <tr><td>3</td><td>Hitting the rate limit counts as a failure</td><td>Runs fail when many users index at once</td><td>Wait and retry without counting a failure</td></tr>
+    <tr><td>4</td><td>One shared queue, oldest job first for everyone</td><td>One heavy user blocks all others</td><td>Separate queues, fair pick per organization</td></tr>
+    <tr><td>5</td><td>Jobs still queued after 30 s are sent again</td><td>Redis fills with duplicates during busy periods</td><td>Only re-send jobs that are actually lost</td></tr>
+    <tr><td>6</td><td>Files stored on a local disk volume</td><td>Can't add worker machines</td><td>Move file storage to S3</td></tr>
+    <tr><td>7</td><td>No HNSW index on embeddings</td><td>Search slows down past ~100k chunks per index</td><td>Add an HNSW index</td></tr>
+  </table>
+</main>
+</body>
+</html>
