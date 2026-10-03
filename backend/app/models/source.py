@@ -5,12 +5,14 @@ from datetime import datetime
 
 from sqlalchemy import (
     BigInteger,
+    Boolean,
     CheckConstraint,
     DateTime,
     ForeignKey,
     ForeignKeyConstraint,
     Index,
     Integer,
+    LargeBinary,
     String,
     Text,
     UniqueConstraint,
@@ -261,7 +263,7 @@ class WebsiteRunItem(Base):
             name="fk_website_run_item_revision_project",
         ),
         CheckConstraint(
-            "outcome IN ('new','changed','unchanged','removed','excluded','duplicate','failed')",
+            "outcome IN ('new','changed','unchanged','removed','excluded','duplicate','failed','sitemap')",
             name="ck_website_run_item_outcome",
         ),
         CheckConstraint(
@@ -286,6 +288,97 @@ class WebsiteRunItem(Base):
     chunk_count: Mapped[int] = mapped_column(default=0)
     error: Mapped[str | None] = mapped_column(Text)
     duplicate_decision: Mapped[dict | None] = mapped_column(JSONB)
+    # Requests made for this item, including transient retries.
+    attempts: Mapped[int] = mapped_column(default=0)
+    # Non-blocking findings such as a likely client-rendered page.
+    warnings: Mapped[list] = mapped_column(JSONB, default=list)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class WebsiteCrawlFrontier(Base):
+    """One discovered URL of a Website run, checkpointed as the crawl advances.
+
+    A fetched page keeps its encrypted raw body here (the same envelope fields as
+    a document) until processing turns it into a source revision and the run ends.
+    """
+
+    __tablename__ = "website_crawl_frontier"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["run_id", "project_id"],
+            ["ingestion_runs.id", "ingestion_runs.project_id"],
+            name="fk_website_crawl_frontier_run_project",
+            ondelete="CASCADE",
+        ),
+        UniqueConstraint(
+            "run_id",
+            "source_node_id",
+            "canonical_url",
+            name="uq_website_crawl_frontier_url",
+        ),
+        UniqueConstraint(
+            "run_id",
+            "source_node_id",
+            "ordinal",
+            name="uq_website_crawl_frontier_ordinal",
+        ),
+        CheckConstraint(
+            "status IN ('queued','fetched','excluded','failed','duplicate','sitemap')",
+            name="ck_website_crawl_frontier_status",
+        ),
+        CheckConstraint("attempts >= 0", name="ck_website_crawl_frontier_attempts"),
+        Index(
+            "ix_website_crawl_frontier_status",
+            "run_id",
+            "source_node_id",
+            "status",
+            "ordinal",
+        ),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    run_id: Mapped[uuid.UUID]
+    project_id: Mapped[uuid.UUID]
+    source_node_id: Mapped[str] = mapped_column(String(80))
+    ordinal: Mapped[int] = mapped_column(Integer)
+    # NULL for an item without a usable URL, such as the discovery-limit marker.
+    canonical_url: Mapped[str | None] = mapped_column(String(4000))
+    final_url: Mapped[str | None] = mapped_column(String(4000))
+    depth: Mapped[int | None]
+    lastmod: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    status: Mapped[str] = mapped_column(String(16))
+    attempts: Mapped[int] = mapped_column(default=0)
+    reason: Mapped[str | None] = mapped_column(String(500))
+    error_code: Mapped[str | None] = mapped_column(String(80))
+    media_type: Mapped[str | None] = mapped_column(String(200))
+    size_bytes: Mapped[int | None] = mapped_column(BigInteger)
+    # The URL was discovered again; reported once as a duplicate outcome.
+    seen_again: Mapped[bool] = mapped_column(Boolean, default=False)
+    # The discovered URL before tracking parameters were removed.
+    original_url: Mapped[str | None] = mapped_column(String(4000))
+    # The first repeat of this URL, as it was discovered.
+    duplicate_url: Mapped[str | None] = mapped_column(String(4000))
+    # SHA-256 of the normalized visible text of a fetched page.
+    content_hash: Mapped[str | None] = mapped_column(String(64))
+    etag: Mapped[str | None] = mapped_column(String(500))
+    last_modified: Mapped[str | None] = mapped_column(String(200))
+    validator_unchanged: Mapped[bool] = mapped_column(Boolean, default=False)
+    storage_name: Mapped[str | None] = mapped_column(String(40))
+    artifact_state: Mapped[str | None] = mapped_column(String(24))
+    artifact_encryption_schema: Mapped[int | None]
+    artifact_key_version: Mapped[str | None] = mapped_column(String(32))
+    artifact_wrapped_key: Mapped[bytes | None] = mapped_column(LargeBinary)
+    artifact_wrap_nonce: Mapped[bytes | None] = mapped_column(LargeBinary)
+    artifact_content_nonce: Mapped[bytes | None] = mapped_column(LargeBinary)
+    source_item_id: Mapped[uuid.UUID | None]
+    source_revision_id: Mapped[uuid.UUID | None]
+    classification: Mapped[str | None] = mapped_column(String(16))
+    extracted_hash: Mapped[str | None] = mapped_column(String(64))
+    warnings: Mapped[list] = mapped_column(JSONB, default=list)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

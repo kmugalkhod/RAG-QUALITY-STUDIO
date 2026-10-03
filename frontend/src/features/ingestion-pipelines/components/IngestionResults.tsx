@@ -21,7 +21,9 @@ import type {
   SourcePreview,
   SourcePreviewItem,
   SourcePreviewRepresentation,
+  WebsiteFetchPolicy,
 } from '../model';
+import { describeFetchPolicy } from '../model';
 
 // Result sections on the spec 0002 tokens and grid.
 const SECTION = 'flex flex-col gap-6 border-t border-border px-4 py-6 md:px-6';
@@ -44,6 +46,16 @@ const QUALITY =
 const RECORDS =
   'flex flex-col gap-2 [&>li]:flex [&>li]:min-w-0 [&>li]:flex-col [&>li]:gap-2 [&>li]:rounded-control [&>li]:border [&>li]:border-border [&>li]:bg-background [&>li]:p-4 [&>li[data-selected=true]]:border-accent [&_section]:flex [&_section]:min-w-0 [&_section]:flex-col [&_section]:gap-1 [&_small]:text-xs [&_small]:text-foreground-muted [&_span]:text-sm [&_span]:text-foreground-muted [&_strong]:text-sm [&_strong]:font-medium [&_strong]:text-foreground [&>li>div:first-child]:flex [&>li>div:first-child]:flex-col [&>li>div:first-child]:gap-1';
 const ERROR_TEXT = 'text-sm text-danger wrap-anywhere';
+
+/** The exact server-recorded Website limits a preview or run used. */
+function FetchLimits({ policies }: { policies?: Record<string, WebsiteFetchPolicy> }) {
+  const entries = Object.entries(policies ?? {});
+  return entries.map(([nodeId, policy]) => (
+    <small key={nodeId}>
+      Fetch limits used{entries.length > 1 ? ` (${nodeId})` : ''}: {describeFetchPolicy(policy)}
+    </small>
+  ));
+}
 
 function previewLanguage(metrics: Record<string, unknown>) {
   const value = metrics.language;
@@ -228,6 +240,7 @@ export function IngestionPreviewResults({
             {preview.configuration_hash.slice(0, 12)} · {preview.known_compute_ms} ms known local
             compute · monetary cost unknown
           </small>
+          <FetchLimits policies={preview.fetch_policies} />
           {preview.protected_content && (
             <small>
               Sensitive-data policy active · protected stages require owner or admin access
@@ -261,6 +274,7 @@ export function IngestionPreviewResults({
                 {item.status} · {item.reason}
                 {item.depth !== null ? ` · depth ${item.depth}` : ''}
                 {item.size_bytes !== null ? ` · ${item.size_bytes} bytes` : ''}
+                {(item.attempts ?? 0) > 1 ? ` · ${item.attempts} attempts` : ''}
               </p>
               {item.canonical_location && <small>{item.canonical_location}</small>}
               {item.provider_revision && <small>Provider revision: {item.provider_revision}</small>}
@@ -614,6 +628,7 @@ export function IngestionRunResults({
       <div className={HEADING_ROW}>
         <div className={HEADING_COPY}>
           <h2 id="ingestion-run-details-heading">Run details</h2>
+          <FetchLimits policies={run.fetch_policies} />
         </div>
         <div className="flex flex-wrap gap-x-4">
           <a
@@ -660,7 +675,14 @@ export function IngestionRunResults({
                     <strong>{item.display_name}</strong>
                     <p>
                       {item.outcome} · {item.status} · {item.chunk_count} chunks · {item.reason}
+                      {(item.attempts ?? 0) > 1 ? ` · ${item.attempts} attempts` : ''}
                     </p>
+                    {item.warnings?.map((warning, index) => (
+                      <small key={`${warning.code}-${index}`}>
+                        {warning.severity} · {warning.message}
+                        {warning.remediation ? ` ${warning.remediation}` : ''}
+                      </small>
+                    ))}
                     {item.canonical_location && <small>{item.canonical_location}</small>}
                     {item.processing_versions && (
                       <small>

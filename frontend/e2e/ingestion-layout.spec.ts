@@ -96,14 +96,15 @@ test('all desktop stages preserve canvas position and zoom while the inspector s
   const canvas = page.getByTestId('pipeline-canvas');
   const settings = page.locator('#node-settings');
   const originalBox = await canvas.boundingBox();
-  await page.getByText(/Scope & fetch limits/).click();
+  await page.getByText('Filter pages', { exact: true }).click();
+  await page.getByText('Advanced', { exact: true }).click();
   await settings.hover({ position: { x: 30, y: 120 } });
   await page.mouse.wheel(0, 650);
   await expect.poll(() => settings.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
   expect(await canvas.boundingBox()).toEqual(originalBox);
   expect(await page.evaluate(() => scrollY)).toBe(0);
-  await page.getByLabel('User agent').scrollIntoViewIfNeeded();
-  await expect(page.getByLabel('User agent')).toBeInViewport();
+  await page.getByLabel('Crawl speed (requests per second)').scrollIntoViewIfNeeded();
+  await expect(page.getByLabel('Crawl speed (requests per second)')).toBeInViewport();
   await page.getByRole('button', { name: 'Fit View', exact: true }).click();
   await page.getByRole('button', { name: 'Zoom In', exact: true }).click();
   await expect
@@ -150,7 +151,7 @@ test('tablet stacks the inspector and preserves editable state across every stag
   page,
 }) => {
   await page.setViewportSize({ width: 1024, height: 768 });
-  await page.getByLabel('Starting URL').fill('https://example.org/guide');
+  await page.getByLabel('Start URL').fill('https://example.org/guide');
   for (const stage of ['extract', 'clean', 'chunk', 'embed', 'publish', 'source']) {
     await page.getByLabel('Selected stage').selectOption(stage);
     await expect(page.locator('#ingestion-settings-heading')).toBeInViewport();
@@ -162,7 +163,7 @@ test('tablet stacks the inspector and preserves editable state across every stag
     expect(settings.y).toBeGreaterThanOrEqual(canvas.y + canvas.height);
     expect(canvas.width).toBeGreaterThan(700);
   }
-  await expect(page.getByLabel('Starting URL')).toHaveValue('https://example.org/guide');
+  await expect(page.getByLabel('Start URL')).toHaveValue('https://example.org/guide');
 });
 
 test('mobile stages and long source settings remain reachable without horizontal overflow', async ({
@@ -174,10 +175,10 @@ test('mobile stages and long source settings remain reachable without horizontal
   await expect(page.getByRole('heading', { name: 'Chunk settings' })).toBeVisible();
   await page.getByLabel('Target tokens').fill('700');
   await stageSelect.selectOption('source');
-  await page.getByLabel('Starting URL').fill('https://example.org/');
-  await page.getByText(/Scope & fetch limits/).click();
-  await page.getByLabel('User agent').scrollIntoViewIfNeeded();
-  await expect(page.getByLabel('User agent')).toBeInViewport();
+  await page.getByLabel('Start URL').fill('https://example.org/');
+  await page.getByText('Advanced', { exact: true }).click();
+  await page.getByLabel('Crawl speed (requests per second)').scrollIntoViewIfNeeded();
+  await expect(page.getByLabel('Crawl speed (requests per second)')).toBeInViewport();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
   await stageSelect.selectOption('chunk');
   await expect(page.getByLabel('Target tokens')).toHaveValue('700');
@@ -203,7 +204,7 @@ test('saving records the draft and discard restores the saved stage settings', a
       },
     });
   });
-  await page.getByLabel('Starting URL').fill('https://example.org/');
+  await page.getByLabel('Start URL').fill('https://example.org/');
   await page.getByRole('button', { name: 'Save version', exact: true }).click();
   await expect(page.getByText('Saved version 1', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Collect source & publish index' })).toBeEnabled();
@@ -281,7 +282,7 @@ test('real run checkpoints move accessible execution state across the canvas', a
     };
     await route.fulfill({ json: savedVersion });
   });
-  await page.getByLabel('Starting URL').fill('https://example.org/guide');
+  await page.getByLabel('Start URL').fill('https://example.org/guide');
   await page.getByRole('button', { name: 'Save version', exact: true }).click();
 
   const run = {
@@ -513,7 +514,7 @@ test('preview feedback is brought into view, cancellation works, and failures st
   await page.route('**/api/projects/*/source-previews/preview-1/cancel', (route) =>
     route.fulfill({ json: { ...preview, status: 'cancelled' } }),
   );
-  await page.getByLabel('Starting URL').fill('https://example.org/');
+  await page.getByLabel('Start URL').fill('https://example.org/');
   await page.getByRole('button', { name: 'Preview processing', exact: true }).click();
   await expect(page.locator('#ingestion-preview')).toBeInViewport();
   await page.getByRole('button', { name: 'Cancel preview' }).click();
@@ -533,7 +534,7 @@ test('preview feedback is brought into view, cancellation works, and failures st
 test('invalid chunk settings list blocking reasons and block saving and preview', async ({
   page,
 }) => {
-  await page.getByLabel('Starting URL').fill('https://example.org/');
+  await page.getByLabel('Start URL').fill('https://example.org/');
   await page.getByLabel('Selected stage').selectOption('chunk');
   await page.getByLabel('Chunking algorithm').selectOption('character_window');
   await page.getByLabel('Chunk size (characters)').fill('50');
@@ -567,7 +568,14 @@ test('canvas node clicks and source form variants never resize or refit the grap
   for (const mode of ['single_url', 'url_list', 'sitemap', 'crawl']) {
     await page.getByLabel('Discovery mode').selectOption(mode);
     await expect(
-      page.getByLabel(mode === 'url_list' ? 'URLs (one per line)' : 'Starting URL'),
+      page.getByLabel(
+        {
+          single_url: 'Page URL',
+          url_list: 'URLs (one per line)',
+          sitemap: 'Sitemap URL',
+          crawl: 'Start URL',
+        }[mode]!,
+      ),
     ).toBeVisible();
     expect(await canvas.evaluate((element) => element.clientHeight)).toBe(height);
     await expect(page.locator('.react-flow__viewport')).toHaveAttribute('style', transform!);

@@ -10,6 +10,7 @@ export type WebsiteSelection =
   | { mode: 'crawl'; start_url: string }
   | { mode: 'sitemap'; sitemap_url: string };
 
+/** User-chosen scope and crawl speed. Fetch limits are server-owned. */
 export type WebsiteConfig = {
   kind: 'website';
   selection: WebsiteSelection;
@@ -18,16 +19,53 @@ export type WebsiteConfig = {
   exclude_path_prefixes?: string[];
   max_pages: number;
   max_depth: number;
+  requests_per_second: number;
+};
+
+/** Effective Website limits the server recorded for one preview or run. */
+export type WebsiteFetchPolicy = {
+  policy_version: number;
+  max_pages: number;
+  max_depth: number;
+  requests_per_second: number;
+  request_timeout_seconds: number;
   max_response_bytes: number;
   max_total_bytes: number;
-  request_timeout_seconds: number;
-  deadline_seconds: number;
-  concurrency: number;
-  requests_per_second: number;
   redirect_limit: number;
   user_agent: string;
-  respect_robots?: boolean;
+  deadline_seconds: number;
+  respect_robots: true;
+  // Recorded from policy version 2 (retries) and 3 (parallel fetching); older
+  // policies ran with one attempt and one fetch at a time.
+  retry_attempts?: number;
+  retry_base_delay_seconds?: number;
+  retry_max_delay_seconds?: number;
+  fetch_concurrency?: number;
 };
+
+// The server's limits are binary units (20 MiB = 20 × 1024 × 1024 bytes).
+const mebibytes = (bytes: number) => `${Math.round((bytes / 1024 / 1024) * 10) / 10} MiB`;
+
+export function describeFetchPolicy(policy: WebsiteFetchPolicy): string {
+  const attempts = policy.retry_attempts ?? 1;
+  const parallel = policy.fetch_concurrency ?? 1;
+  return [
+    `up to ${policy.max_pages} ${policy.max_pages === 1 ? 'page' : 'pages'}`,
+    `depth ${policy.max_depth}`,
+    `${policy.requests_per_second} req/s`,
+    `${parallel} parallel ${parallel === 1 ? 'fetch' : 'fetches'}`,
+    `deadline ${Math.round(policy.deadline_seconds)} s`,
+    `${policy.request_timeout_seconds} s per request`,
+    attempts > 1
+      ? `${attempts} attempts (waits up to ${policy.retry_max_delay_seconds ?? 0} s)`
+      : 'no retries',
+    `${mebibytes(policy.max_response_bytes)} per page`,
+    `${mebibytes(policy.max_total_bytes)} total`,
+    `${policy.redirect_limit} redirects`,
+    'robots.txt respected',
+    policy.user_agent,
+  ].join(' · ');
+}
 
 export type S3Config = {
   kind: 's3';
@@ -314,11 +352,13 @@ export type SourcePreviewItem = {
   canonical_location: string | null;
   provider_revision: string | null;
   media_type: string | null;
-  status: 'included' | 'excluded' | 'duplicate' | 'failed';
+  status: 'included' | 'excluded' | 'duplicate' | 'failed' | 'sitemap';
   reason: string;
   size_bytes: number | null;
   depth: number | null;
   error_code: string | null;
+  /** Requests made for this item, including transient retries. */
+  attempts?: number;
   quality_decision: 'pass' | 'warn' | 'exclude' | 'fail' | null;
   processing_status: 'pending' | 'succeeded' | 'failed' | 'skipped';
   fetch_mode: 'network' | 'cached-artifact';
@@ -362,6 +402,7 @@ export type SourcePreview = {
   configuration_hash: string;
   fetch_mode: 'network' | 'cached-artifact' | 'mixed';
   cost_basis: Record<string, unknown>;
+  fetch_policies?: Record<string, WebsiteFetchPolicy>;
   attempts: number;
   failures: number;
   error: string | null;
@@ -387,6 +428,7 @@ export type IngestionRun = {
   pipeline_version_id: string;
   knowledge_set_id: string;
   knowledge_set_name: string;
+  fetch_policies?: Record<string, WebsiteFetchPolicy>;
   schedule_id: string | null;
   source_snapshot_id: string | null;
   trigger_kind: 'manual' | 'scheduled';
@@ -451,13 +493,23 @@ export type WebsiteIngestionRunItem = {
   canonical_location: string | null;
   display_name: string;
   media_type: string | null;
-  outcome: 'new' | 'changed' | 'unchanged' | 'removed' | 'excluded' | 'duplicate' | 'failed';
+  outcome:
+    | 'new'
+    | 'changed'
+    | 'unchanged'
+    | 'removed'
+    | 'excluded'
+    | 'duplicate'
+    | 'failed'
+    | 'sitemap';
   status: 'ready' | 'succeeded' | 'failed' | 'cancelled';
   reason: string;
   chunk_count: number;
   error: string | null;
   processing_versions: Record<string, string> | null;
   duplicate_decision?: DuplicateDecision | null;
+  attempts?: number;
+  warnings?: { code: string; severity: string; message: string; remediation?: string }[];
   updated_at: string;
 };
 

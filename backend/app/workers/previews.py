@@ -53,7 +53,7 @@ MAX_PREVIEW_TEXT_PER_REPRESENTATION = 50_000
 MAX_PREVIEW_TOTAL_TEXT = 2_000_000
 
 
-def _outcomes(db_session, project_id, execution):
+def _outcomes(db_session, project_id, execution, fetch_policies):
     results = []
     chunk = next(node for node in execution.nodes if node.type == "chunk")
     clean = next(node for node in execution.nodes if node.type == "clean")
@@ -100,7 +100,9 @@ def _outcomes(db_session, project_id, execution):
                     )
                 )
         elif source.config.kind == "website":
-            outcomes, artifacts = WebsiteConnector().fetch_all(source.config, {})
+            outcomes, artifacts = WebsiteConnector().fetch_all(
+                source.config, fetch_policies[source.id], {}
+            )
             by_location = {item.canonical_location: item for item in artifacts}
             for item in outcomes:
                 results.append(
@@ -450,6 +452,8 @@ def _process_outcomes(session, outcomes, execution, config_hash):
                 value.model_dump(mode="json")
                 for value in prepared.cleaned.sensitive_findings[:100]
             ]
+            if item.get("_kind") == "website" and item.get("_artifact") is not None:
+                item["findings"] += website_ingestion.page_warnings(item["_artifact"])
             item["metrics"] = {
                 **prepared.extracted.measurements.model_dump(mode="json"),
                 "language": (
@@ -547,11 +551,12 @@ def process_preview(preview_id: UUID, db_engine=engine, connector_factory=None):
         execution = IngestionExecution.model_validate(preview.execution)
         project_id = preview.project_id
         configuration_hash = preview.configuration_hash
+        fetch_policies = dict(preview.fetch_policies or {})
         session.commit()
     try:
         with Session(db_engine) as session:
             if connector_factory is None:
-                outcomes = _outcomes(session, project_id, execution)
+                outcomes = _outcomes(session, project_id, execution, fetch_policies)
             else:
                 outcomes = connector_factory(session, project_id, execution)
             quality_counts, known_compute_ms, representations = _process_outcomes(
@@ -559,7 +564,8 @@ def process_preview(preview_id: UUID, db_engine=engine, connector_factory=None):
             )
         counts = {kind: 0 for kind in ("included", "excluded", "duplicate", "failed")}
         for item in outcomes:
-            counts[item["status"]] += 1
+            # A nested sitemap is not ingested; it counts with the excluded items.
+            counts["excluded" if item["status"] == "sitemap" else item["status"]] += 1
         with Session(db_engine) as session:
             preview = session.scalar(
                 select(SourcePreview)

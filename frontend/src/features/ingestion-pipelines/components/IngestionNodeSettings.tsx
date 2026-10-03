@@ -404,7 +404,9 @@ export function IngestionNodeSettings({
               </>
             ) : selected.config.kind === 'website' ? (
               <WebsiteSettings
+                key={selected.id}
                 config={selected.config}
+                fieldErrors={serverFieldErrors}
                 update={(config) =>
                   updateNode(selected.id, (node) =>
                     node.type === 'source' ? { ...node, config } : node,

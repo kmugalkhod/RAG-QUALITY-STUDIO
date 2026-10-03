@@ -433,3 +433,154 @@ test('inspects evidence text, embedding prefix, spans, and parent links', async 
   expect(screen.getByText('13 min · 13 median · 13 p95 · 13 max')).toBeVisible();
   expect(api.listProcessingChunks).toHaveBeenCalledWith('project-1', 'processing-1');
 });
+
+const fetchPolicy = {
+  policy_version: 1,
+  max_pages: 50,
+  max_depth: 3,
+  requests_per_second: 2,
+  request_timeout_seconds: 20,
+  max_response_bytes: 2 * 1024 * 1024,
+  max_total_bytes: 100 * 1024 * 1024,
+  redirect_limit: 5,
+  user_agent: 'RAGQualityStudio/1.0',
+  deadline_seconds: 60,
+  respect_robots: true,
+} as const;
+
+test('shows the recorded Website fetch limits on a preview and a run', () => {
+  const { unmount } = render(
+    <IngestionPreviewResults
+      projectId="project-1"
+      preview={{ ...preview, fetch_mode: 'network', fetch_policies: { source: fetchPolicy } }}
+      page={{ items: [], total: 0, limit: 20, offset: 0 }}
+      busy={false}
+      onCancel={vi.fn()}
+      onRetry={vi.fn()}
+      onPageChange={vi.fn()}
+    />,
+  );
+  // A version 1 policy recorded no retries and fetched one page at a time.
+  const expected =
+    /Fetch limits used: up to 50 pages · depth 3 · 2 req\/s · 1 parallel fetch · deadline 60 s · 20 s per request · no retries · 2 MiB per page · 100 MiB total · 5 redirects · robots\.txt respected · RAGQualityStudio\/1\.0/;
+  expect(screen.getByText(expected)).toBeVisible();
+  unmount();
+
+  const current = {
+    ...fetchPolicy,
+    policy_version: 3,
+    max_response_bytes: 20 * 1024 * 1024,
+    retry_attempts: 3,
+    retry_base_delay_seconds: 1,
+    retry_max_delay_seconds: 30,
+    fetch_concurrency: 4,
+  };
+  render(
+    <IngestionRunResults
+      projectId="project-1"
+      run={{ ...run, fetch_policies: { source: current } }}
+      items={[]}
+    />,
+  );
+  expect(
+    screen.getByText(
+      /4 parallel fetches · deadline 60 s · 20 s per request · 3 attempts \(waits up to 30 s\) · 20 MiB per page/,
+    ),
+  ).toBeVisible();
+});
+
+test('shows the client-rendering warning on a Website preview item', () => {
+  render(
+    <IngestionPreviewResults
+      projectId="project-1"
+      preview={{ ...preview, fetch_mode: 'network' }}
+      page={{
+        items: [
+          {
+            ...previewItem,
+            canonical_location: 'https://example.com/app',
+            media_type: 'text/html',
+            findings: [
+              {
+                code: 'likely_client_rendered',
+                severity: 'warning',
+                message: 'Likely needs JavaScript rendering — not supported',
+                remediation: 'Use server-rendered pages or a sitemap of them.',
+              },
+            ],
+          },
+        ],
+        total: 1,
+        limit: 20,
+        offset: 0,
+      }}
+      busy={false}
+      onCancel={vi.fn()}
+      onRetry={vi.fn()}
+      onPageChange={vi.fn()}
+    />,
+  );
+  expect(
+    screen.getByText(
+      /warning · Likely needs JavaScript rendering — not supported Use server-rendered pages/,
+    ),
+  ).toBeVisible();
+});
+
+test('shows Website retry attempts, client-rendering warnings and nested sitemaps', () => {
+  render(
+    <IngestionRunResults
+      projectId="project-1"
+      run={run}
+      items={[
+        {
+          source_kind: 'website',
+          ordinal: 0,
+          source_node_id: 'source',
+          source_item_id: 'item-1',
+          source_revision_id: 'revision-1',
+          processing_run_id: null,
+          canonical_location: 'https://docs.example/app',
+          display_name: 'app',
+          media_type: 'text/html',
+          outcome: 'new',
+          status: 'succeeded',
+          reason: 'Website revision is new.',
+          chunk_count: 1,
+          error: null,
+          processing_versions: null,
+          attempts: 2,
+          warnings: [
+            {
+              code: 'likely_client_rendered',
+              severity: 'warning',
+              message: 'Likely needs JavaScript rendering — not supported',
+            },
+          ],
+          updated_at: '2026-10-02T00:00:00Z',
+        },
+        {
+          source_kind: 'website',
+          ordinal: 1,
+          source_node_id: 'source',
+          source_item_id: null,
+          source_revision_id: null,
+          processing_run_id: null,
+          canonical_location: 'https://docs.example/post-sitemap.xml',
+          display_name: 'https://docs.example/post-sitemap.xml',
+          media_type: 'application/xml',
+          outcome: 'sitemap',
+          status: 'succeeded',
+          reason: 'Nested sitemap; listed 12 page URLs for discovery.',
+          chunk_count: 0,
+          error: null,
+          processing_versions: null,
+          updated_at: '2026-10-02T00:00:00Z',
+        },
+      ]}
+    />,
+  );
+  expect(screen.getByText(/Website revision is new\. · 2 attempts/)).toBeVisible();
+  expect(screen.getByText(/Likely needs JavaScript rendering — not supported/)).toBeVisible();
+  expect(screen.getByText(/sitemap · succeeded · 0 chunks · Nested sitemap/)).toBeVisible();
+});

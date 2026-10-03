@@ -45,6 +45,32 @@ from app.services.source_artifacts import (
 from app.workers.processing import now
 
 
+# Pages with less visible text than this are usually JavaScript shells.
+CLIENT_RENDERED_TEXT_CHARS = 200
+CLIENT_RENDERED_WARNING = {
+    "code": "likely_client_rendered",
+    "severity": "warning",
+    "message": "Likely needs JavaScript rendering — not supported",
+    "remediation": "Use server-rendered pages or a sitemap of them; "
+    "headless browser rendering is not available.",
+}
+
+
+def page_warnings(artifact: WebsiteArtifact) -> list[dict]:
+    """Non-blocking findings for one fetched page; scripts are never executed.
+
+    A JavaScript shell has scripts and almost no text; a short static page
+    without scripts is not flagged.
+    """
+    if b"<script" not in artifact.content[:2_000_000].lower():
+        return []
+    text = sum(
+        len(section.text.strip())
+        for section in extract_canonical_sections(artifact.content)
+    )
+    return [dict(CLIENT_RENDERED_WARNING)] if text < CLIENT_RENDERED_TEXT_CHARS else []
+
+
 def _display_name(url: str) -> str:
     parts = urlsplit(url)
     tail = Path(parts.path).name or parts.hostname or "website"
@@ -296,6 +322,8 @@ def add_run_item(
     revision=None,
     error=None,
     duplicate_decision=None,
+    attempts=0,
+    warnings=None,
 ):
     item = WebsiteRunItem(
         run_id=run.id,
@@ -317,6 +345,8 @@ def add_run_item(
         ),
         error=error,
         duplicate_decision=duplicate_decision,
+        attempts=attempts,
+        warnings=warnings or [],
         updated_at=now(),
     )
     session.add(item)

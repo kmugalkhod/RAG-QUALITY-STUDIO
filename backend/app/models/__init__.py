@@ -22,6 +22,7 @@ from app.models.source import (  # noqa: F401
     SourceRevision,
     SourceSnapshot,
     SourceSnapshotMember,
+    WebsiteCrawlFrontier,
     WebsiteRunItem,
 )
 from app.models.security import (  # noqa: F401

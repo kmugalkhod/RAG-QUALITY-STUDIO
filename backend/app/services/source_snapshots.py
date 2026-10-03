@@ -149,7 +149,8 @@ def mark_ready(
         )
     }
     for item in run_items:
-        counts[item.outcome] += 1
+        # A nested sitemap is not a page; it counts with the excluded items.
+        counts["excluded" if item.outcome == "sitemap" else item.outcome] += 1
     values = []
     for ordinal, (source_node_id, item, revision) in enumerate(memberships):
         values.append(

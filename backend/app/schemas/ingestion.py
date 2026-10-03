@@ -15,6 +15,7 @@ from pydantic import (
     ConfigDict,
     Field,
     RootModel,
+    field_validator,
     model_validator,
 )
 
@@ -72,25 +73,42 @@ WebsiteSelection = Annotated[
 
 
 class WebsiteConfig(Strict):
+    """User-chosen Website scope and crawl speed.
+
+    Operational limits (timeouts, byte budgets, redirects, user agent,
+    robots.txt) are server-owned and recorded per run as WebsiteFetchPolicy.
+    ``max_pages`` and ``requests_per_second`` apply to URL list, crawl and
+    sitemap modes; ``max_depth`` applies only to crawl; path prefixes apply to
+    crawl and sitemap. Settings that do not apply to the selected mode are
+    kept as saved and ignored by the connector.
+    """
+
     kind: Literal["website"]
     selection: WebsiteSelection
     allowed_origins: list[AnyHttpUrl] = Field(min_length=1, max_length=20)
     include_path_prefixes: list[str] = Field(default_factory=list, max_length=50)
     exclude_path_prefixes: list[str] = Field(default_factory=list, max_length=50)
-    max_pages: int = Field(strict=True, ge=1, le=1000)
-    max_depth: int = Field(strict=True, ge=0, le=10)
-    max_response_bytes: int = Field(strict=True, ge=1024, le=10 * 1024 * 1024)
-    max_total_bytes: int = Field(strict=True, ge=1024, le=100 * 1024 * 1024)
-    request_timeout_seconds: float = Field(ge=1, le=60, allow_inf_nan=False)
-    deadline_seconds: float = Field(ge=1, le=3600, allow_inf_nan=False)
-    concurrency: int = Field(strict=True, ge=1, le=16)
-    requests_per_second: float = Field(gt=0, le=20, allow_inf_nan=False)
-    redirect_limit: int = Field(strict=True, ge=0, le=10)
-    user_agent: str = Field(min_length=1, max_length=200)
-    respect_robots: bool = True
+    # Validated even when omitted, so a long URL list cannot pass on the default.
+    max_pages: int = Field(
+        default=50, strict=True, ge=1, le=1000, validate_default=True
+    )
+    max_depth: int = Field(default=3, strict=True, ge=0, le=10)
+    requests_per_second: float = Field(default=2, ge=0.1, le=5, allow_inf_nan=False)
+
+    @field_validator("max_pages")
+    @classmethod
+    def url_list_within_page_limit(cls, value, info):
+        selection = info.data.get("selection")
+        if selection is not None and selection.mode == "url_list":
+            if len(selection.urls) > value:
+                raise ValueError(
+                    f"The URL list has {len(selection.urls)} URLs; raise maximum "
+                    "pages or remove URLs."
+                )
+        return value
 
     @model_validator(mode="after")
-    def bounded_paths_and_bytes(self):
+    def bounded_paths(self):
         urls = list(self.allowed_origins)
         selection = self.selection
         if selection.mode == "single_url":
@@ -122,15 +140,29 @@ class WebsiteConfig(Strict):
             raise ValueError(
                 "Website path prefixes must start with '/', be at most 500 characters and use URL separators."
             )
-        if self.max_total_bytes < self.max_response_bytes:
-            raise ValueError(
-                "Website total byte limit must be at least the per-response limit."
-            )
-        if self.deadline_seconds < self.request_timeout_seconds:
-            raise ValueError(
-                "Website deadline must be at least the per-request timeout."
-            )
         return self
+
+
+class WebsiteFetchPolicy(Strict):
+    """Effective Website limits for one preview or run, recorded immutably."""
+
+    # Fields added after version 1 default to the earlier behavior (no retries,
+    # one fetch at a time), so a recorded older policy runs as it was recorded.
+    policy_version: Literal[1, 2, 3] = 1
+    max_pages: int = Field(strict=True, ge=1, le=1000)
+    max_depth: int = Field(strict=True, ge=0, le=10)
+    requests_per_second: float = Field(ge=0.1, le=5, allow_inf_nan=False)
+    request_timeout_seconds: float = Field(ge=1, le=120, allow_inf_nan=False)
+    max_response_bytes: int = Field(strict=True, ge=1024)
+    max_total_bytes: int = Field(strict=True, ge=1024)
+    redirect_limit: int = Field(strict=True, ge=0, le=10)
+    user_agent: str = Field(min_length=1, max_length=200)
+    deadline_seconds: float = Field(ge=1, le=86400, allow_inf_nan=False)
+    respect_robots: Literal[True] = True
+    retry_attempts: int = Field(default=1, strict=True, ge=1, le=5)
+    retry_base_delay_seconds: float = Field(default=0, ge=0, le=60, allow_inf_nan=False)
+    retry_max_delay_seconds: float = Field(default=0, ge=0, le=300, allow_inf_nan=False)
+    fetch_concurrency: int = Field(default=1, strict=True, ge=1, le=8)
 
 
 class S3Config(Strict):
@@ -1103,6 +1135,7 @@ class SourcePreviewRead(Strict):
     configuration_hash: str
     fetch_mode: Literal["network", "cached-artifact", "mixed"]
     cost_basis: dict[str, Any]
+    fetch_policies: dict[str, WebsiteFetchPolicy] = Field(default_factory=dict)
     attempts: int
     failures: int
     error: str | None
@@ -1122,11 +1155,12 @@ class SourcePreviewItemRead(Strict):
     canonical_location: str | None
     provider_revision: str | None
     media_type: str | None
-    status: Literal["included", "excluded", "duplicate", "failed"]
+    status: Literal["included", "excluded", "duplicate", "failed", "sitemap"]
     reason: str
     size_bytes: int | None
     depth: int | None
     error_code: str | None
+    attempts: int = 0
     quality_decision: Literal["pass", "warn", "exclude", "fail"] | None
     processing_status: Literal["pending", "succeeded", "failed", "skipped"]
     fetch_mode: Literal["network", "cached-artifact"]
@@ -1178,6 +1212,7 @@ class IngestionRunRead(Strict):
     source_snapshot_id: UUID | None
     trigger_kind: Literal["manual", "scheduled"]
     knowledge_set_name: str
+    fetch_policies: dict[str, WebsiteFetchPolicy] = Field(default_factory=dict)
     status: Literal["queued", "running", "succeeded", "failed", "cancelled"]
     stage: Literal["discovering", "processing", "indexing", "complete"]
     progress: int
@@ -1286,7 +1321,14 @@ class WebsiteIngestionRunItemRead(Strict):
     display_name: str
     media_type: str | None
     outcome: Literal[
-        "new", "changed", "unchanged", "removed", "excluded", "duplicate", "failed"
+        "new",
+        "changed",
+        "unchanged",
+        "removed",
+        "excluded",
+        "duplicate",
+        "failed",
+        "sitemap",
     ]
     status: Literal["ready", "succeeded", "failed", "cancelled"]
     reason: str
@@ -1294,6 +1336,8 @@ class WebsiteIngestionRunItemRead(Strict):
     error: str | None
     processing_versions: dict[str, str] | None = None
     duplicate_decision: dict | None = None
+    attempts: int = 0
+    warnings: list[dict[str, Any]] = Field(default_factory=list)
     updated_at: datetime
 
 
@@ -1308,7 +1352,14 @@ class S3IngestionRunItemRead(Strict):
     display_name: str
     media_type: str | None
     outcome: Literal[
-        "new", "changed", "unchanged", "removed", "excluded", "duplicate", "failed"
+        "new",
+        "changed",
+        "unchanged",
+        "removed",
+        "excluded",
+        "duplicate",
+        "failed",
+        "sitemap",
     ]
     status: Literal["ready", "succeeded", "failed", "cancelled"]
     reason: str
@@ -1316,6 +1367,8 @@ class S3IngestionRunItemRead(Strict):
     error: str | None
     processing_versions: dict[str, str] | None = None
     duplicate_decision: dict | None = None
+    attempts: int = 0
+    warnings: list[dict[str, Any]] = Field(default_factory=list)
     updated_at: datetime
 
 

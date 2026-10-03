@@ -125,6 +125,7 @@ def start(session: Session, project_id: UUID, execution: IngestionExecution):
         execution=execution.model_dump(mode="json"),
         configuration_hash=_configuration_hash(execution),
         fetch_mode=fetch_mode,
+        fetch_policies=pipelines.website_fetch_policies(execution),
         expires_at=now() + PREVIEW_TTL,
         cost_basis={
             "currency": "USD",

@@ -24,8 +24,8 @@ test('documentation T3: reuse one Website snapshot through the UI for a second i
   await page.goto(`/#/projects/${project.id}/pipelines/new?kind=ingestion`);
   await page.getByLabel('Pipeline name').fill('Controlled website lineage');
   await page.getByLabel('Source type').selectOption('website');
-  await page.getByLabel('Starting URL').fill('https://controlled.example/');
-  await page.getByLabel('Allowed origins (one per line)').fill('https://controlled.example');
+  // Allowed origins follow the start URL.
+  await page.getByLabel('Start URL').fill('https://controlled.example/');
   await page.getByRole('button', { name: 'Preview processing' }).click();
   await expect(page.getByRole('heading', { name: '2 included · 2 excluded' })).toBeVisible({
     timeout: 30000,

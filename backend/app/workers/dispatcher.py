@@ -607,6 +607,9 @@ def main():
             from app.services.artifact_storage import cleanup_expired_raw_artifacts
 
             cleanup_expired_raw_artifacts(engine)
+            from app.services.website_crawl import release_terminal_bodies
+
+            release_terminal_bodies(engine)
             from app.workers.experiments import dispatch_experiments_once
 
             dispatch_experiments_once()

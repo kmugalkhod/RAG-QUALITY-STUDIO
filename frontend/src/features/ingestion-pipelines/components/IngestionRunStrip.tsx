@@ -74,7 +74,11 @@ export function IngestionRunStrip({
           <p className={cn(META, 'tabular-nums')}>
             {run.stage === 'indexing'
               ? `${run.embedded_count}/${run.chunk_count} chunks embedded`
-              : `${run.stage} checkpoint`}
+              : run.stage === 'discovering' &&
+                  Object.keys(run.fetch_policies ?? {}).length > 0 &&
+                  run.discovered_count > 0
+                ? `${run.processed_count} / ${run.discovered_count} discovered URLs checked`
+                : `${run.stage} checkpoint`}
           </p>
           <span className="flex-1" />
           <Button variant="ghost" size="sm" disabled={busy} onClick={onCancel}>

@@ -29,14 +29,7 @@ def ingestion_draft(*, source_count=1):
                 "allowed_origins": ["https://example.com"],
                 "max_pages": 10,
                 "max_depth": 2,
-                "max_response_bytes": 1_000_000,
-                "max_total_bytes": 5_000_000,
-                "request_timeout_seconds": 10,
-                "deadline_seconds": 120,
-                "concurrency": 2,
                 "requests_per_second": 2,
-                "redirect_limit": 3,
-                "user_agent": "RAG-Quality-Studio/1",
             },
         }
         for number in range(source_count)

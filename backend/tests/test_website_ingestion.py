@@ -21,6 +21,7 @@ from app.models.source import (
     SourceRevision,
     SourceSnapshot,
     SourceSnapshotMember,
+    WebsiteCrawlFrontier,
     WebsiteRunItem,
 )
 from app.pipelines.web_content import chunk_sections, extract_sections
@@ -64,9 +65,15 @@ class WebsiteDouble:
     def __init__(self, pages, captured):
         self.pages = pages
         self.captured = captured
+        self.policies = []
 
-    def fetch_all(self, config, priors):
+    def crawl(self, config, policy, priors, store):
+        outcomes, artifacts = self.fetch_all(config, policy, priors)
+        return store.import_results(outcomes, artifacts)
+
+    def fetch_all(self, config, policy, priors):
         self.captured.append(priors)
+        self.policies.append(policy)
         return [value[0] for value in self.pages], [
             value[1] for value in self.pages if value[1]
         ]
@@ -785,6 +792,31 @@ def test_failed_refresh_keeps_previous_ready_index(website_api):
         )
 
 
+def test_run_records_fetch_policy_and_recovery_reuses_it(website_api, monkeypatch):
+    client, engine, project_id, _, config, _ = website_api
+    version = save_website(client, project_id, config)
+    run = start_run(client, project_id, version)
+    recorded = run["fetch_policies"]["source-0"]
+    assert recorded["user_agent"] == settings.website_user_agent
+    assert (
+        recorded["request_timeout_seconds"] == settings.website_request_timeout_seconds
+    )
+    with Session(engine) as session:
+        snapshot = session.get(IngestionRun, UUID(run["id"])).snapshot
+        assert snapshot["fetch_policies"] == {"source-0": recorded}
+    # A server setting changed after the run started must not alter the run.
+    monkeypatch.setattr(settings, "website_request_timeout_seconds", 45.0)
+    monkeypatch.setattr(settings, "website_user_agent", "Changed/2")
+    double = WebsiteDouble(
+        [page("https://example.com/0", b"<main><p>Recorded policy page.</p></main>")],
+        [],
+    )
+    publish(engine, run["id"], lambda: double)
+    assert double.policies and all(value == recorded for value in double.policies)
+    detail = client.get(f"/api/projects/{project_id}/ingestion-runs/{run['id']}").json()
+    assert detail["fetch_policies"]["source-0"] == recorded
+
+
 def test_cancellation_duplicate_delivery_and_website_stale_window(website_api):
     client, engine, project_id, _, config, _ = website_api
     version = save_website(client, project_id, config)
@@ -792,11 +824,11 @@ def test_cancellation_duplicate_delivery_and_website_stale_window(website_api):
     calls = []
 
     class CancellingDouble(WebsiteDouble):
-        def fetch_all(self, config, priors):
+        def fetch_all(self, config, policy, priors):
             calls.append("network")
             with Session(engine) as session:
                 ingestion.cancel_run(session, UUID(project_id), UUID(run["id"]))
-            return super().fetch_all(config, priors)
+            return super().fetch_all(config, policy, priors)
 
     values = [
         page("https://example.com/", b"<main><p>Never commit this page.</p></main>")
@@ -878,3 +910,557 @@ def test_unfetched_page_fails_the_source_stage_without_a_removal(website_api):
             )
         ).all()
     assert outcomes == ["failed"]
+
+
+def test_run_items_record_attempts_warnings_and_nested_sitemaps(website_api):
+    client, engine, project_id, _, config, _ = website_api
+    version = save_website(client, project_id, config)
+    run = start_run(client, project_id, version)
+    shell_outcome, shell_artifact = page(
+        "https://example.com/0",
+        b"<html><body><main><p>Loading the application shell.</p></main>"
+        b"<div id='root'></div><script>render()</script></body></html>",
+    )
+    retried = PreviewOutcome(**{**shell_outcome.__dict__, "attempts": 2})
+    sitemap = PreviewOutcome(
+        external_id="https://example.com/sitemap.xml",
+        display_name="https://example.com/sitemap.xml",
+        canonical_location="https://example.com/sitemap.xml",
+        media_type="application/xml",
+        status="sitemap",
+        reason="Nested sitemap; listed 1 page URLs for discovery.",
+        attempts=1,
+    )
+    publish(
+        engine,
+        run["id"],
+        lambda: WebsiteDouble([(sitemap, None), (retried, shell_artifact)], []),
+    )
+    items = client.get(
+        f"/api/projects/{project_id}/ingestion-runs/{run['id']}/items"
+    ).json()["items"]
+    by_outcome = {item["outcome"]: item for item in items}
+    assert by_outcome["sitemap"]["attempts"] == 1
+    included = by_outcome["new"]
+    assert included["attempts"] == 2
+    assert [value["code"] for value in included["warnings"]] == [
+        "likely_client_rendered"
+    ]
+
+
+class WorkerKilled(BaseException):
+    """Stands in for a worker process dying mid-request; not a handled error."""
+
+
+class CrawlSite:
+    """A public site double: a home page linking to `pages` leaf pages."""
+
+    def __init__(self, pages, kill_at=None):
+        self.pages = pages
+        self.kill_at = kill_at
+        self.calls = []
+
+    def request(self, url, address, timeout, headers, max_bytes):
+        self.calls.append(url)
+        if url == self.kill_at:
+            raise WorkerKilled()
+        html = {"content-type": "text/html"}
+        if url.endswith("/robots.txt"):
+            return 404, {}, b""
+        if url == "https://example.com/":
+            links = "".join(
+                f"<a href='/page-{number}'>Page {number}</a>"
+                for number in range(self.pages)
+            )
+            return 200, html, f"<main><p>Home of the site.</p>{links}</main>".encode()
+        number = url.rsplit("-", 1)[-1]
+        return (
+            200,
+            html,
+            f"<main><p>Page {number} explains topic {number} in detail.</p></main>".encode(),
+        )
+
+
+def crawl_connector(site):
+    from app.connectors.safe_http import SafeHttpClient
+    from app.connectors.website import WebsiteConnector
+
+    return WebsiteConnector(
+        client=SafeHttpClient(
+            resolver=lambda host, port, type: [
+                (2, type, 6, "", ("93.184.216.34", port))
+            ],
+            transport=site,
+        ),
+        sleeper=lambda _: None,
+    )
+
+
+def save_crawl(client, project_id, config):
+    payload = ingestion_draft()
+    source = next(
+        node for node in payload["execution"]["nodes"] if node["type"] == "source"
+    )
+    source["config"].update(
+        selection={"mode": "crawl", "start_url": "https://example.com/"},
+        max_pages=10,
+        max_depth=1,
+        requests_per_second=5,
+    )
+    for node in payload["execution"]["nodes"]:
+        if node["type"] == "embed":
+            node.update(
+                provider=config.provider,
+                model=config.model,
+                dimensions=config.dimensions,
+                config_version=config.revision,
+            )
+        elif node["type"] == "chunk":
+            node.update(size=100, overlap=10)
+    saved = client.post(f"/api/projects/{project_id}/pipelines", json=payload)
+    assert saved.status_code == 201, saved.text
+    return saved.json()
+
+
+def test_recovered_crawl_fetches_only_the_remaining_pages(website_api, monkeypatch):
+    client, engine, project_id, _, config, _ = website_api
+    monkeypatch.setattr(settings, "website_fetch_concurrency", 1)
+    version = save_crawl(client, project_id, config)
+    run = start_run(client, project_id, version)
+    run_id = UUID(run["id"])
+
+    first = CrawlSite(5, kill_at="https://example.com/page-3")
+    with pytest.raises(WorkerKilled):
+        process_ingestion(
+            run_id, engine, connector_factory=lambda: crawl_connector(first)
+        )
+    with Session(engine) as session:
+        job = session.get(IngestionRun, run_id)
+        assert job.status == "running" and job.stage == "discovering"
+        # Live progress: every discovered URL, and the pages already finished.
+        assert (job.discovered_count, job.processed_count) == (6, 4)
+        assert job.crawl_state["source-0"]["transferred_bytes"] > 0
+        fetched = session.scalar(
+            select(func.count())
+            .select_from(WebsiteCrawlFrontier)
+            .where(
+                WebsiteCrawlFrontier.run_id == run_id,
+                WebsiteCrawlFrontier.status == "fetched",
+            )
+        )
+        assert fetched == 4
+        # Recovery as the dispatcher performs it for a dead worker.
+        job.status = "queued"
+        job.execution_token = None
+        job.failures += 1
+        session.commit()
+
+    second = CrawlSite(5)
+    index_id = publish(engine, run["id"], lambda: crawl_connector(second))
+    pages = [url for url in second.calls if not url.endswith("robots.txt")]
+    assert pages == ["https://example.com/page-3", "https://example.com/page-4"]
+    with Session(engine) as session:
+        assert session.get(IndexVersion, index_id).status == "succeeded"
+        assert (
+            session.scalar(
+                select(func.count())
+                .select_from(SourceRevision)
+                .where(SourceRevision.project_id == UUID(project_id))
+            )
+            == 6
+        )
+        # Raw crawl copies are released once each revision has its own artifact.
+        assert (
+            session.scalar(
+                select(func.count())
+                .select_from(WebsiteCrawlFrontier)
+                .where(
+                    WebsiteCrawlFrontier.run_id == run_id,
+                    WebsiteCrawlFrontier.storage_name.is_not(None),
+                )
+            )
+            == 0
+        )
+    items = client.get(
+        f"/api/projects/{project_id}/ingestion-runs/{run['id']}/items"
+    ).json()["items"]
+    assert sorted(item["outcome"] for item in items) == ["new"] * 6
+
+
+def test_stale_worker_cannot_write_and_redelivery_adds_no_revisions(
+    website_api, monkeypatch
+):
+    from app.connectors.website import CrawlProgress, PageResult
+    from app.services.website_crawl import RunCrawlStore
+
+    client, engine, project_id, _, config, _ = website_api
+    monkeypatch.setattr(settings, "website_fetch_concurrency", 1)
+    version = save_crawl(client, project_id, config)
+    run = start_run(client, project_id, version)
+    run_id = UUID(run["id"])
+    first = CrawlSite(3, kill_at="https://example.com/page-1")
+    with pytest.raises(WorkerKilled):
+        process_ingestion(
+            run_id, engine, connector_factory=lambda: crawl_connector(first)
+        )
+    with Session(engine) as session:
+        stale_token = session.get(IngestionRun, run_id).execution_token
+    stale = RunCrawlStore(engine, run_id, stale_token, "source-0")
+    with Session(engine) as session:
+        job = session.get(IngestionRun, run_id)
+        job.status = "queued"
+        job.execution_token = None
+        session.commit()
+    index_id = publish(engine, run["id"], lambda: crawl_connector(CrawlSite(3)))
+
+    entry = stale.next_queued()
+    assert entry is not None  # The stale worker still believes a page is queued.
+    accepted = stale.commit(
+        (entry, PageResult(duplicate_outcome_for(entry.url))),
+        [],
+        CrawlProgress(transferred=0, elapsed_seconds=0),
+    )
+    assert accepted is False
+    # A duplicate delivery of the finished run claims nothing and writes nothing.
+    process_ingestion(
+        run_id, engine, connector_factory=lambda: crawl_connector(CrawlSite(3))
+    )
+    with Session(engine) as session:
+        assert session.get(IndexVersion, index_id).status == "succeeded"
+        assert (
+            session.scalar(
+                select(func.count())
+                .select_from(SourceRevision)
+                .where(SourceRevision.project_id == UUID(project_id))
+            )
+            == 4
+        )
+        statuses = session.scalars(
+            select(WebsiteCrawlFrontier.status).where(
+                WebsiteCrawlFrontier.run_id == run_id
+            )
+        ).all()
+        assert sorted(statuses) == ["fetched"] * 4
+
+
+def duplicate_outcome_for(url):
+    return PreviewOutcome(
+        external_id=url,
+        display_name=url,
+        canonical_location=url,
+        media_type="text/html",
+        status="included",
+        reason="Written by a stale worker.",
+    )
+
+
+class DuplicateSite:
+    article = (
+        "<main><h1>Guide</h1><p>"
+        + "This guide explains how the product handles duplicate pages. " * 6
+        + "</p></main>"
+    ).encode()
+
+    def __init__(self):
+        self.calls = []
+
+    def request(self, url, address, timeout, headers, max_bytes):
+        self.calls.append(url)
+        html = {"content-type": "text/html"}
+        if url.endswith("/robots.txt"):
+            return 404, {}, b""
+        if url == "https://example.com/b":
+            return (
+                200,
+                html,
+                b"<html><head><link rel='canonical' href='/a'></head>"
+                b"<body><main><p>Copy.</p></main></body></html>",
+            )
+        return 200, html, self.article
+
+
+def test_duplicate_urls_and_content_publish_one_revision(website_api, monkeypatch):
+    client, engine, project_id, _, config, _ = website_api
+    monkeypatch.setattr(settings, "website_fetch_concurrency", 1)
+    payload = ingestion_draft()
+    for node in payload["execution"]["nodes"]:
+        if node["type"] == "source":
+            node["config"].update(
+                selection={
+                    "mode": "url_list",
+                    "urls": [
+                        "https://example.com/a",
+                        "https://example.com/a/",
+                        "https://example.com/a?utm_source=x",
+                        "https://example.com/b",
+                    ],
+                },
+                max_pages=10,
+            )
+        elif node["type"] == "embed":
+            node.update(
+                provider=config.provider,
+                model=config.model,
+                dimensions=config.dimensions,
+                config_version=config.revision,
+            )
+        elif node["type"] == "chunk":
+            node.update(size=100, overlap=10)
+    saved = client.post(f"/api/projects/{project_id}/pipelines", json=payload)
+    assert saved.status_code == 201, saved.text
+    run = start_run(client, project_id, saved.json())
+    site = DuplicateSite()
+    publish(engine, run["id"], lambda: crawl_connector(site))
+    with Session(engine) as session:
+        assert (
+            session.scalar(
+                select(func.count())
+                .select_from(SourceRevision)
+                .where(SourceRevision.project_id == UUID(project_id))
+            )
+            == 1
+        )
+    items = client.get(
+        f"/api/projects/{project_id}/ingestion-runs/{run['id']}/items"
+    ).json()["items"]
+    assert sorted(item["outcome"] for item in items) == [
+        "duplicate",
+        "duplicate",
+        "duplicate",
+        "new",
+    ]
+    reasons = " ".join(item["reason"] for item in items)
+    assert "Same content as https://example.com/a" in reasons
+    assert (
+        "Tracking parameters were removed from https://example.com/a?utm_source=x"
+        in (reasons)
+    )
+    assert "canonical URL" in reasons
+
+
+# Fixes from the 2026-10-03 review, through the real per-page run path.
+
+
+class EverydaySite(CrawlSite):
+    """Home links that real sites have: mail, phone, scripts and a very long URL.
+
+    Pages carry an ETag; a request with the matching If-None-Match gets 304.
+    """
+
+    def request(self, url, address, timeout, headers, max_bytes):
+        if url == "https://example.com/":
+            self.calls.append(url)
+            links = "".join(
+                f"<a href='/page-{number}'>Page {number}</a>"
+                for number in range(self.pages)
+            )
+            extra = (
+                "<a href='mailto:team@example.com'>Mail</a>"
+                "<a href='mailto:team@example.com'>Mail</a>"
+                "<a href='tel:+15550100'>Call</a>"
+                "<a href='javascript:void(0)'>Menu</a>"
+                f"<a href='/{'long/' * 700}'>Long</a>"
+            )
+            return (
+                200,
+                {"content-type": "text/html"},
+                (f"<main><p>Home of the site.</p>{links}{extra}</main>".encode()),
+            )
+        if not url.endswith("/robots.txt") and headers.get("If-None-Match") == '"v1"':
+            self.calls.append(url)
+            return 304, {"etag": '"v1"'}, b""
+        status, response_headers, body = super().request(
+            url, address, timeout, headers, max_bytes
+        )
+        if status == 200:
+            response_headers = {**response_headers, "etag": '"v1"'}
+        return status, response_headers, body
+
+
+def stored_files():
+    return {path.name for path in settings.storage_path.iterdir() if path.is_file()}
+
+
+def test_everyday_links_and_unchanged_refresh_use_the_real_crawl_path(
+    website_api, monkeypatch
+):
+    client, engine, project_id, _, config, _ = website_api
+    monkeypatch.setattr(settings, "website_fetch_concurrency", 2)
+    version = save_crawl(client, project_id, config)
+    first = start_run(client, project_id, version)
+    publish(engine, first["id"], lambda: crawl_connector(EverydaySite(3)))
+    items = client.get(
+        f"/api/projects/{project_id}/ingestion-runs/{first['id']}/items"
+    ).json()["items"]
+    assert not [item for item in items if item["outcome"] == "failed"]
+    assert any("longer than" in item["reason"] for item in items)
+
+    files_before = stored_files()
+    second = start_run(client, project_id, version)
+    site = EverydaySite(3)
+    publish(engine, second["id"], lambda: crawl_connector(site))
+    with Session(engine) as session:
+        assert session.get(IngestionRun, UUID(second["id"])).status == "succeeded"
+        rows = session.scalars(
+            select(WebsiteCrawlFrontier).where(
+                WebsiteCrawlFrontier.run_id == UUID(second["id"]),
+                WebsiteCrawlFrontier.status == "fetched",
+            )
+        ).all()
+        unchanged = [row for row in rows if row.validator_unchanged]
+        assert len(unchanged) == 3
+        # 304 pages are read again from their prior revision, not stored twice.
+        # Never stored (no artifact state), as opposed to stored then released.
+        assert all(row.artifact_state is None for row in unchanged)
+    items = client.get(
+        f"/api/projects/{project_id}/ingestion-runs/{second['id']}/items"
+    ).json()["items"]
+    assert {
+        item["outcome"]
+        for item in items
+        if item["outcome"] not in ("excluded", "duplicate")
+    } == {"unchanged"}
+    # Nothing changed, so no new page files remain.
+    assert stored_files() - files_before == set()
+
+
+def test_a_failed_page_commit_leaves_no_orphan_page_file(website_api, monkeypatch):
+    from app.services import website_crawl
+
+    client, engine, project_id, _, config, _ = website_api
+    monkeypatch.setattr(settings, "website_fetch_concurrency", 1)
+    version = save_crawl(client, project_id, config)
+    run = start_run(client, project_id, version)
+    original = website_crawl.RunCrawlStore._save_progress
+    calls = {"count": 0}
+
+    def failing(self, session, run_row):
+        calls["count"] += 1
+        if calls["count"] == 3:
+            raise RuntimeError("database went away")
+        return original(self, session, run_row)
+
+    monkeypatch.setattr(website_crawl.RunCrawlStore, "_save_progress", failing)
+    files_before = stored_files()
+    try:
+        process_ingestion(
+            UUID(run["id"]),
+            engine,
+            connector_factory=lambda: crawl_connector(CrawlSite(3)),
+        )
+    except RuntimeError:
+        pass
+    assert calls["count"] >= 3
+    with Session(engine) as session:
+        referenced = set(
+            session.scalars(
+                select(WebsiteCrawlFrontier.storage_name).where(
+                    WebsiteCrawlFrontier.storage_name.is_not(None)
+                )
+            ).all()
+        )
+    assert stored_files() - files_before <= referenced
+
+
+def test_dispatcher_sweep_releases_bodies_of_ended_runs(website_api, monkeypatch):
+    from app.services.website_crawl import release_terminal_bodies
+
+    client, engine, project_id, _, config, _ = website_api
+    monkeypatch.setattr(settings, "website_fetch_concurrency", 1)
+    version = save_crawl(client, project_id, config)
+    run = start_run(client, project_id, version)
+    run_id = UUID(run["id"])
+    with pytest.raises(WorkerKilled):
+        process_ingestion(
+            run_id,
+            engine,
+            connector_factory=lambda: crawl_connector(
+                CrawlSite(4, kill_at="https://example.com/page-2")
+            ),
+        )
+    with Session(engine) as session:
+        names = session.scalars(
+            select(WebsiteCrawlFrontier.storage_name).where(
+                WebsiteCrawlFrontier.run_id == run_id,
+                WebsiteCrawlFrontier.storage_name.is_not(None),
+            )
+        ).all()
+        assert names
+        # Still running: the sweep must not touch a live run's pages.
+        assert release_terminal_bodies(engine) == 0
+        job = session.get(IngestionRun, run_id)
+        job.status = "cancelled"
+        job.execution_token = None
+        session.commit()
+    assert release_terminal_bodies(engine) == len(names)
+    assert not set(names) & stored_files()
+    with Session(engine) as session:
+        assert not session.scalars(
+            select(WebsiteCrawlFrontier.storage_name).where(
+                WebsiteCrawlFrontier.run_id == run_id,
+                WebsiteCrawlFrontier.storage_name.is_not(None),
+            )
+        ).all()
+
+
+def test_scope_too_large_is_reported_on_the_maximum_pages_field(website_api):
+    client, _, project_id, _, config, _ = website_api
+    payload = ingestion_draft()
+    for node in payload["execution"]["nodes"]:
+        if node["type"] == "source":
+            node["config"].update(
+                selection={"mode": "crawl", "start_url": "https://example.com/"},
+                max_pages=1000,
+                requests_per_second=0.1,
+            )
+        elif node["type"] == "embed":
+            node.update(
+                provider=config.provider,
+                model=config.model,
+                dimensions=config.dimensions,
+                config_version=config.revision,
+            )
+    response = client.post(f"/api/projects/{project_id}/pipelines", json=payload)
+    assert response.status_code == 422, response.text
+    assert isinstance(response.json()["detail"], list), response.text
+    issue = response.json()["detail"][0]
+    assert issue["loc"][-2:] == ["website", "max_pages"]
+    assert "Lower maximum pages" in issue["msg"]
+
+
+class RedirectingRefreshSite(EverydaySite):
+    """On refresh, the first page moved to a trailing-slash URL and is unchanged."""
+
+    def request(self, url, address, timeout, headers, max_bytes):
+        if url == "https://example.com/page-0":
+            self.calls.append(url)
+            return 301, {"location": "https://example.com/page-0/"}, b""
+        if url == "https://example.com/page-0/":
+            url = "https://example.com/page-0"
+        return super().request(url, address, timeout, headers, max_bytes)
+
+
+def test_unchanged_page_behind_a_new_redirect_refreshes_without_failing(
+    website_api, monkeypatch
+):
+    client, engine, project_id, _, config, _ = website_api
+    monkeypatch.setattr(settings, "website_fetch_concurrency", 1)
+    version = save_crawl(client, project_id, config)
+    first = start_run(client, project_id, version)
+    publish(engine, first["id"], lambda: crawl_connector(EverydaySite(2)))
+
+    second = start_run(client, project_id, version)
+    publish(engine, second["id"], lambda: crawl_connector(RedirectingRefreshSite(2)))
+    with Session(engine) as session:
+        run = session.get(IngestionRun, UUID(second["id"]))
+        assert run.status == "succeeded", run.error
+    items = client.get(
+        f"/api/projects/{project_id}/ingestion-runs/{second['id']}/items"
+    ).json()["items"]
+    moved = next(
+        item
+        for item in items
+        if item["canonical_location"] == "https://example.com/page-0/"
+    )
+    assert moved["outcome"] == "new"
+    assert not [item for item in items if item["outcome"] == "failed"]

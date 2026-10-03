@@ -120,6 +120,9 @@ class IngestionRun(Base):
     failures: Mapped[int] = mapped_column(default=0)
     execution_token: Mapped[uuid.UUID | None]
     snapshot: Mapped[dict] = mapped_column(JSONB)
+    # Website crawl checkpoints per source node: seeded, complete, transferred
+    # bytes, elapsed time and processing fingerprints, kept across recovery.
+    crawl_state: Mapped[dict] = mapped_column(JSONB, default=dict)
     error: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()

@@ -439,6 +439,8 @@ def start_run(
                 "source_input": effective_source_input,
                 "reuse_stored": legacy_reuse,
                 "embedding": embedding_config.model_dump(mode="json"),
+                # Workers, retries and recovery read these and never re-resolve.
+                "fetch_policies": pipelines.website_fetch_policies(execution),
             },
         )
         session.add(run)
@@ -632,9 +634,15 @@ def _run_rows(session: Session, statement):
                     column.name: getattr(run, column.name)
                     for column in IngestionRun.__table__.columns
                     if column.name
-                    not in ("execution_token", "snapshot", "dispatched_at")
+                    not in (
+                        "execution_token",
+                        "snapshot",
+                        "dispatched_at",
+                        "crawl_state",
+                    )
                 },
                 "knowledge_set_name": set_name,
+                "fetch_policies": run.snapshot.get("fetch_policies") or {},
                 "published_index_id": index_id,
                 "published_index_version": index_version,
                 "node_states": [

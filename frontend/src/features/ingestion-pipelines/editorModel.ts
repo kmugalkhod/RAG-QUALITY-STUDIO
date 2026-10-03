@@ -123,20 +123,60 @@ export const defaultWebsite = (): WebsiteConfig => ({
   kind: 'website',
   selection: { mode: 'crawl', start_url: '' },
   allowed_origins: [],
-  include_path_prefixes: ['/'],
+  include_path_prefixes: [],
   exclude_path_prefixes: [],
   max_pages: 50,
-  max_depth: 2,
-  max_response_bytes: 2_000_000,
-  max_total_bytes: 20_000_000,
-  request_timeout_seconds: 10,
-  deadline_seconds: 300,
-  concurrency: 2,
+  max_depth: 3,
   requests_per_second: 2,
-  redirect_limit: 5,
-  user_agent: 'RAGQualityStudio/1.0',
-  respect_robots: true,
 });
+
+/** Include prefix implied by a start URL: `/docs/x` → `/docs/`; none for `/`. */
+export function derivedIncludePrefixes(url: string): string[] {
+  try {
+    const path = new URL(url).pathname;
+    const directory = path.slice(0, path.lastIndexOf('/') + 1);
+    return directory && directory !== '/' ? [directory] : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Server 422 issues that belong to a node field, keyed `ocr.<field>` or `website.<field>`. */
+export function serverFieldErrors(
+  issues: { loc: (string | number)[]; msg: string }[],
+): Record<string, string> {
+  return Object.fromEntries(
+    issues.flatMap((issue) => {
+      const ocr = issue.loc.lastIndexOf('ocr');
+      if (ocr >= 0) {
+        const field = String(issue.loc[ocr + 1]);
+        return ['dpi', 'max_pages', 'timeout_seconds'].includes(field)
+          ? [[`ocr.${field}`, issue.msg]]
+          : [];
+      }
+      const website = issue.loc.lastIndexOf('website');
+      const field = String(issue.loc[website + 1]);
+      return website >= 0 && ['max_pages', 'max_depth', 'requests_per_second'].includes(field)
+        ? [[`website.${field}`, issue.msg]]
+        : [];
+    }),
+  );
+}
+
+/** The start URL with a trailing slash when its last segment looks like a folder. */
+export function folderStartUrl(url: string): string | null {
+  try {
+    const parsed = new URL(url);
+    const last = parsed.pathname.slice(parsed.pathname.lastIndexOf('/') + 1);
+    if (!last || last.includes('.')) {
+      return null;
+    }
+    parsed.pathname += '/';
+    return parsed.toString();
+  } catch {
+    return null;
+  }
+}
 
 export const defaultS3 = (connectionId = ''): S3Config => ({
   kind: 's3',

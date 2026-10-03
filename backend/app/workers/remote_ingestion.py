@@ -26,6 +26,7 @@ from app.models.source import (
     SourceItem,
     SourceRevision,
     SourceSnapshotMember,
+    WebsiteCrawlFrontier,
     WebsiteRunItem,
 )
 from app.schemas.ingestion import IngestionExecution
@@ -39,6 +40,7 @@ from app.services import (
     s3_ingestion,
     source_snapshots,
     source_artifacts,
+    website_crawl,
     website_ingestion,
 )
 from app.workers.processing import now
@@ -104,7 +106,29 @@ def fail_run(
     ingestion_execution.mark_terminal(session, job.id, "failed", node_type=node_type)
 
 
-def _website_priors(session, job):
+def _prior_body_loader(db_engine, document_id):
+    """Load a stored page only if the crawl reuses it, keeping bodies out of memory."""
+
+    def load() -> bytes:
+        try:
+            with Session(db_engine) as session:
+                document = session.get(Document, document_id)
+                if document is None:
+                    raise FileNotFoundError
+                return artifact_storage.read(document)
+        except OSError as exc:
+            raise ConnectorFailure(
+                ConnectorIssue(
+                    code="prior_artifact_unavailable",
+                    message="A prior website artifact is unavailable for safe refresh.",
+                    retryable=False,
+                )
+            ) from exc
+
+    return load
+
+
+def _website_priors(session, job, db_engine):
     index_id = job.snapshot.get("prior_ready_index_id")
     if not index_id:
         return {}, {}
@@ -125,27 +149,16 @@ def _website_priors(session, job):
         item.canonical_location: (revision, source_node_id)
         for source_node_id, item, revision in rows
     }
-    priors = {}
-    for location, (revision, _) in revisions.items():
-        try:
-            document = session.get(Document, revision.document_id)
-            if document is None:
-                raise FileNotFoundError
-            content = artifact_storage.read(document)
-        except OSError as exc:
-            raise ConnectorFailure(
-                ConnectorIssue(
-                    code="prior_artifact_unavailable",
-                    message="A prior website artifact is unavailable for safe refresh.",
-                    retryable=True,
-                )
-            ) from exc
-        priors[location] = PriorWebsiteRevision(
-            content=content,
+    priors = {
+        location: PriorWebsiteRevision(
             media_type=revision.media_type,
             etag=revision.etag,
             last_modified=revision.last_modified,
+            fetched_at=revision.fetched_at,
+            loader=_prior_body_loader(db_engine, revision.document_id),
         )
+        for location, (revision, _) in revisions.items()
+    }
     return priors, revisions
 
 
@@ -200,7 +213,15 @@ def _website_snapshot_priors(session, job):
     return priors, revisions
 
 
+# Returned instead of in-memory results when the pages are in the run's frontier.
+CRAWLED = object()
+
+
 def _discover_website(run_id, token, db_engine, connector_factory):
+    """Snapshot reuse returns in-memory results; a refresh crawls into the frontier.
+
+    Returns None as results when the crawl was stopped by cancellation or fencing.
+    """
     with Session(db_engine) as session:
         job = session.get(IngestionRun, run_id)
         execution = IngestionExecution.model_validate(job.snapshot["execution"])
@@ -208,7 +229,7 @@ def _discover_website(run_id, token, db_engine, connector_factory):
         if source_input.get("kind") == "snapshot":
             priors, revisions = _website_snapshot_priors(session, job)
         else:
-            priors, revisions = _website_priors(session, job)
+            priors, revisions = _website_priors(session, job, db_engine)
     if source_input.get("kind") == "snapshot" or job.snapshot.get("reuse_stored"):
         results = []
         for source in [node for node in execution.nodes if node.type == "source"]:
@@ -248,16 +269,217 @@ def _discover_website(run_id, token, db_engine, connector_factory):
                 )
             results.append((source.id, outcomes, artifacts))
         return execution, revisions, results
-    results = []
+    if not _crawl_website(
+        run_id, token, db_engine, connector_factory, job, execution, priors
+    ):
+        return execution, revisions, None
+    return execution, revisions, CRAWLED
+
+
+def _crawl_website(run_id, token, db_engine, connector_factory, job, execution, priors):
+    """Fetch every Website source into the run's frontier; resumable per page."""
     for source in [node for node in execution.nodes if node.type == "source"]:
+        if ((job.crawl_state or {}).get(source.id) or {}).get("complete"):
+            continue
         if not ingestion_execution.transition(
             db_engine, run_id, node_id=source.id, execution_token=token
         ):
-            return execution, revisions, results
+            return False
+        # The policy recorded at run creation, never one re-resolved from
+        # current server settings, so recovery and retries keep the same limits.
+        policy = (job.snapshot.get("fetch_policies") or {}).get(source.id)
+        if policy is None:
+            raise ConnectorFailure(
+                ConnectorIssue(
+                    code="missing_fetch_policy",
+                    message="This run has no recorded Website fetch limits. Start a new run.",
+                    retryable=False,
+                )
+            )
+        store = website_crawl.RunCrawlStore(db_engine, run_id, token, source.id)
         connector = connector_factory() if connector_factory else WebsiteConnector()
-        outcomes, artifacts = connector.fetch_all(source.config, priors)
-        results.append((source.id, outcomes, artifacts))
-    return execution, revisions, results
+        if not connector.crawl(source.config, policy, priors, store):
+            return False
+        if not store.mark_complete():
+            return False
+    return True
+
+
+PROCESSING_STATE = "__processing__"
+
+
+def _process_crawled(run_id, token, db_engine, execution, prior_revisions):
+    """Turn each fetched page into a source revision, one fenced commit per page."""
+    chunk = next(node for node in execution.nodes if node.type == "chunk")
+    clean = next(node for node in execution.nodes if node.type == "clean")
+    extract = next(node for node in execution.nodes if node.type == "extract")
+    worker_engine = db_engine.execution_options(isolation_level="READ COMMITTED")
+
+    def prior_body(*locations):
+        # Unchanged pages were not stored again during the crawl; the prior is
+        # keyed by the queued URL, with the final URL as a fallback.
+        entry = next(
+            (prior_revisions[url] for url in locations if url in prior_revisions),
+            None,
+        )
+        if entry is None:
+            raise ConnectorFailure(
+                ConnectorIssue(
+                    code="prior_artifact_unavailable",
+                    message="A prior website artifact is unavailable for safe refresh.",
+                    retryable=False,
+                )
+            )
+        return _prior_body_loader(db_engine, entry[0].document_id)()
+
+    def heartbeat() -> bool:
+        """Show the run is alive during the long fingerprint pass."""
+        with Session(worker_engine) as session:
+            job = session.scalar(
+                select(IngestionRun).where(IngestionRun.id == run_id).with_for_update()
+            )
+            if job.status != "running" or job.execution_token != token:
+                return False
+            job.updated_at = now()
+            session.commit()
+        return True
+
+    with Session(worker_engine) as session:
+        job = session.get(IngestionRun, run_id)
+        processing = dict((job.crawl_state or {}).get(PROCESSING_STATE) or {})
+        pending = session.scalars(
+            select(WebsiteCrawlFrontier.id)
+            .where(
+                WebsiteCrawlFrontier.run_id == run_id,
+                WebsiteCrawlFrontier.status == "fetched",
+                WebsiteCrawlFrontier.source_revision_id.is_(None),
+            )
+            .order_by(WebsiteCrawlFrontier.source_node_id, WebsiteCrawlFrontier.ordinal)
+        ).all()
+    if not pending:
+        return True
+    if "fingerprints" not in processing:
+        # Repeated site chrome is measured across every fetched page once, then
+        # recorded, so pages processed after a recovery are cleaned identically.
+        fingerprints = set()
+        main_step = next(
+            (
+                step
+                for step in getattr(clean, "steps", None) or []
+                if step.enabled and step.type == "website_main_content"
+            ),
+            None,
+        )
+        if (
+            getattr(clean, "profile", None) == "structure-aware-v1"
+            and main_step is not None
+            and main_step.remove_repeated_site_chrome
+        ):
+            from app.ingestion_content.cleaning import website_text_fingerprints
+
+            def documents(rows):
+                # Pages are extracted one at a time; extraction is repeated
+                # per page later rather than keeping every document in memory.
+                for count, row in enumerate(rows, start=1):
+                    if count % 25 == 0 and not heartbeat():
+                        raise _Fenced
+                    yield website_ingestion.canonical_extracted_document(
+                        website_crawl.page_artifact(row, prior_body), clean
+                    )
+
+            with Session(worker_engine) as session:
+                rows = session.scalars(
+                    select(WebsiteCrawlFrontier).where(
+                        WebsiteCrawlFrontier.run_id == run_id,
+                        WebsiteCrawlFrontier.status == "fetched",
+                    )
+                ).all()
+                try:
+                    fingerprints = website_text_fingerprints(
+                        documents(rows), main_step.minimum_page_ratio
+                    )
+                except _Fenced:
+                    return False
+        with Session(worker_engine) as session:
+            job = session.scalar(
+                select(IngestionRun).where(IngestionRun.id == run_id).with_for_update()
+            )
+            if job.status != "running" or job.execution_token != token:
+                return False
+            processing["fingerprints"] = sorted(fingerprints)
+            job.crawl_state = {**(job.crawl_state or {}), PROCESSING_STATE: processing}
+            session.commit()
+    fingerprints = set(processing["fingerprints"])
+
+    def phase_callback(node_type):
+        return ingestion_execution.transition(
+            db_engine, run_id, node_type=node_type, execution_token=token
+        )
+
+    for row_id in pending:
+        released = None
+        with Session(worker_engine) as session:
+            job = session.scalar(
+                select(IngestionRun).where(IngestionRun.id == run_id).with_for_update()
+            )
+            if job.status != "running" or job.execution_token != token:
+                return False
+            row = session.get(WebsiteCrawlFrontier, row_id)
+            if row.source_revision_id is not None:
+                continue
+            artifact = website_crawl.page_artifact(row, prior_body)
+            prior_entry = prior_revisions.get(artifact.canonical_location)
+            source_item, revision, classification, extracted_hash, _stored = (
+                website_ingestion.persist_artifact(
+                    session,
+                    job.project_id,
+                    artifact,
+                    chunk,
+                    clean,
+                    prior_entry[0] if prior_entry else None,
+                    phase_callback,
+                    extract,
+                    None,
+                    fingerprints,
+                )
+            )
+            row.source_item_id = source_item.id
+            row.source_revision_id = revision.id
+            row.classification = classification
+            row.extracted_hash = extracted_hash
+            row.warnings = website_ingestion.page_warnings(artifact)
+            row.updated_at = job.updated_at = now()
+            # The revision keeps its own artifact; the crawl copy is no longer needed.
+            released = website_crawl.clear_body(row)
+            session.commit()
+        website_crawl.finish_release(db_engine, row_id, released)
+    return True
+
+
+class _Fenced(Exception):
+    """The run was taken over or ended while processing."""
+
+
+def _crawled_items(db_engine, run_id, execution):
+    """Run outcomes from the frontier, in source order then discovery order."""
+    order = {
+        node.id: position
+        for position, node in enumerate(execution.nodes)
+        if node.type == "source"
+    }
+    with Session(db_engine) as session:
+        rows = session.scalars(
+            select(WebsiteCrawlFrontier).where(WebsiteCrawlFrontier.run_id == run_id)
+        ).all()
+        session.expunge_all()
+    rows.sort(key=lambda row: row.ordinal)
+    return [
+        (source_node_id, outcome, row)
+        for source_node_id in order
+        for outcome, row in website_crawl.outcomes_for(
+            [row for row in rows if row.source_node_id == source_node_id]
+        )
+    ]
 
 
 def _credentialed_priors(session, job, kind):
@@ -795,6 +1017,29 @@ def _advance_website(run_id, token, db_engine, connector_factory):
     execution, prior_revisions, results = _discover_website(
         run_id, token, db_engine, connector_factory
     )
+    if results is None:
+        return
+    if results is CRAWLED:
+        if not _process_crawled(run_id, token, db_engine, execution, prior_revisions):
+            return
+        items = _crawled_items(db_engine, run_id, execution)
+        results = []
+    else:
+        items = []
+        for source_node_id, outcomes, artifacts in results:
+            artifact_by_location = {
+                artifact.canonical_location: artifact for artifact in artifacts
+            }
+            items.extend(
+                (
+                    source_node_id,
+                    outcome,
+                    artifact_by_location[outcome.canonical_location]
+                    if outcome.status == "included"
+                    else None,
+                )
+                for outcome in outcomes
+            )
     chunk = next(node for node in execution.nodes if node.type == "chunk")
     clean = next(node for node in execution.nodes if node.type == "clean")
     extract = next(node for node in execution.nodes if node.type == "extract")
@@ -853,92 +1098,106 @@ def _advance_website(run_id, token, db_engine, connector_factory):
         seen_extracted = {}
         failed = 0
         failed_locations = set()
-        for source_node_id, outcomes, artifacts in results:
-            artifact_by_location = {
-                artifact.canonical_location: artifact for artifact in artifacts
-            }
-            for outcome in outcomes:
-                if outcome.status != "included":
-                    add_outcome = (
-                        "failed" if outcome.status == "failed" else outcome.status
-                    )
-                    website_ingestion.add_run_item(
-                        session,
-                        run=job,
-                        ordinal=ordinal,
-                        source_node_id=source_node_id,
-                        outcome=add_outcome,
-                        reason=outcome.reason,
-                        location=outcome.canonical_location,
-                        display_name=outcome.display_name,
-                        media_type=outcome.media_type,
-                        error=outcome.error_code,
-                    )
-                    if outcome.status == "failed":
-                        failed += 1
-                        failed_locations.add(outcome.canonical_location)
-                    ordinal += 1
-                    continue
-                artifact = artifact_by_location[outcome.canonical_location]
-                prior_entry = prior_revisions.get(artifact.canonical_location)
-                prior = prior_entry[0] if prior_entry else None
-                source_item, revision, classification, extracted_hash, _stored_path = (
-                    website_ingestion.persist_artifact(
-                        session,
-                        job.project_id,
-                        artifact,
-                        chunk,
-                        clean,
-                        prior,
-                        phase_callback,
-                        extract,
-                        extracted_by_location.get(artifact.canonical_location),
-                        repeated_site_fingerprints,
-                    )
-                )
-                if (
-                    getattr(clean, "duplicate_policy", None) is None
-                    and clean.exact_content_deduplication
-                    and extracted_hash in seen_extracted
-                ):
-                    classification = "excluded"
-                    reason = "Extracted text duplicates another included website page."
-                    duplicate_decision = {
-                        "outcome": "excluded",
-                        "retained_identity": seen_extracted[extracted_hash],
-                        "excluded_identity": artifact.canonical_location,
-                        "method": "exact_cleaned_sha256",
-                        "similarity": 1.0,
-                        "reason": "Excluded in favor of the deterministic canonical source.",
-                    }
-                else:
-                    seen_extracted[extracted_hash] = artifact.canonical_location
-                    included_locations.add(artifact.canonical_location)
-                    memberships.append((source_node_id, source_item, revision))
-                    reason = f"Website revision is {classification}."
-                    duplicate_decision = {
-                        "outcome": "retained",
-                        "retained_identity": artifact.canonical_location,
-                        "excluded_identity": None,
-                        "method": "unique",
-                        "similarity": 1.0,
-                        "reason": "No duplicate matched the saved policy.",
-                    }
+        for source_node_id, outcome, resolved in items:
+            if outcome.status != "included":
+                add_outcome = "failed" if outcome.status == "failed" else outcome.status
                 website_ingestion.add_run_item(
                     session,
                     run=job,
                     ordinal=ordinal,
                     source_node_id=source_node_id,
-                    outcome=classification,
-                    reason=reason,
-                    location=artifact.canonical_location,
+                    outcome=add_outcome,
+                    reason=outcome.reason,
+                    location=outcome.canonical_location,
                     display_name=outcome.display_name,
-                    media_type=artifact.media_type,
-                    source_item=source_item,
-                    revision=revision,
-                    duplicate_decision=duplicate_decision,
+                    media_type=outcome.media_type,
+                    error=outcome.error_code,
+                    attempts=outcome.attempts,
                 )
+                if outcome.status == "failed":
+                    failed += 1
+                    failed_locations.add(outcome.canonical_location)
                 ordinal += 1
+                continue
+            if isinstance(resolved, WebsiteCrawlFrontier):
+                # Processed page by page already; the frontier holds the result.
+                source_item = session.get(SourceItem, resolved.source_item_id)
+                revision = session.get(SourceRevision, resolved.source_revision_id)
+                classification = resolved.classification
+                extracted_hash = resolved.extracted_hash
+                location = resolved.final_url
+                media_type = resolved.media_type
+                warnings = resolved.warnings
+            else:
+                artifact = resolved
+                location = artifact.canonical_location
+                media_type = artifact.media_type
+                warnings = website_ingestion.page_warnings(artifact)
+                prior_entry = prior_revisions.get(location)
+                prior = prior_entry[0] if prior_entry else None
+                (
+                    source_item,
+                    revision,
+                    classification,
+                    extracted_hash,
+                    _stored_path,
+                ) = website_ingestion.persist_artifact(
+                    session,
+                    job.project_id,
+                    artifact,
+                    chunk,
+                    clean,
+                    prior,
+                    phase_callback,
+                    extract,
+                    extracted_by_location.get(location),
+                    repeated_site_fingerprints,
+                )
+            if (
+                getattr(clean, "duplicate_policy", None) is None
+                and clean.exact_content_deduplication
+                and extracted_hash in seen_extracted
+            ):
+                classification = "excluded"
+                reason = "Extracted text duplicates another included website page."
+                duplicate_decision = {
+                    "outcome": "excluded",
+                    "retained_identity": seen_extracted[extracted_hash],
+                    "excluded_identity": location,
+                    "method": "exact_cleaned_sha256",
+                    "similarity": 1.0,
+                    "reason": "Excluded in favor of the deterministic canonical source.",
+                }
+            else:
+                seen_extracted[extracted_hash] = location
+                included_locations.add(location)
+                memberships.append((source_node_id, source_item, revision))
+                reason = f"Website revision is {classification}."
+                duplicate_decision = {
+                    "outcome": "retained",
+                    "retained_identity": location,
+                    "excluded_identity": None,
+                    "method": "unique",
+                    "similarity": 1.0,
+                    "reason": "No duplicate matched the saved policy.",
+                }
+            website_ingestion.add_run_item(
+                session,
+                run=job,
+                ordinal=ordinal,
+                source_node_id=source_node_id,
+                outcome=classification,
+                reason=reason,
+                location=location,
+                display_name=outcome.display_name,
+                media_type=media_type,
+                source_item=source_item,
+                revision=revision,
+                duplicate_decision=duplicate_decision,
+                attempts=outcome.attempts,
+                warnings=warnings,
+            )
+            ordinal += 1
         memberships = _apply_duplicate_policy(
             session, job.id, memberships, clean, "website"
         )

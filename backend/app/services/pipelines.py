@@ -2,6 +2,7 @@ from dataclasses import asdict
 
 from fastapi import HTTPException
 from sqlalchemy import select, func
+from app.connectors.website import WebsiteScopeTooLarge, resolve_website_fetch_policy
 from app.core.config import settings
 from app.models.document import Document
 from app.models.connection import SourceConnection
@@ -85,8 +86,41 @@ def validate_answer(session, project_id, execution):
 validate = validate_answer
 
 
+def website_fetch_policies(execution: IngestionExecution) -> dict[str, dict]:
+    """Resolve the effective fetch policy of every Website source node."""
+    policies = {}
+    for position, node in enumerate(execution.nodes):
+        if node.type == "source" and node.config.kind == "website":
+            try:
+                policy = resolve_website_fetch_policy(node.config, settings)
+            except WebsiteScopeTooLarge as exc:
+                # Shaped like a validation issue so the editor shows it on the
+                # node's Maximum pages field.
+                raise HTTPException(
+                    422,
+                    [
+                        {
+                            "loc": [
+                                "execution",
+                                "nodes",
+                                position,
+                                "config",
+                                "website",
+                                "max_pages",
+                            ],
+                            "msg": str(exc),
+                            "type": "value_error",
+                        }
+                    ],
+                ) from None
+            policies[node.id] = policy.model_dump(mode="json")
+    return policies
+
+
 def validate_ingestion(session, project_id, execution: IngestionExecution):
     from app.ingestion_content.extractors.pdf import installed_ocr_languages
+
+    website_fetch_policies(execution)
 
     requested_ocr = {
         language

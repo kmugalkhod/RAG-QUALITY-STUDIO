@@ -40,6 +40,7 @@ import {
   editableIngestionVersion as editableVersion,
   ingestionStageLabels as labels,
   requestErrorMessage as message,
+  serverFieldErrors as fieldErrorsFrom,
   terminalIngestionStatuses as terminal,
   upgradeIngestionDraft,
 } from './editorModel';
@@ -651,17 +652,7 @@ export function IngestionPipelineEditor({
     } catch (cause) {
       setError(message(cause));
       if (cause instanceof ApiError && cause.status === 422) {
-        setServerFieldErrors(
-          Object.fromEntries(
-            cause.issues.flatMap((issue) => {
-              const ocr = issue.loc.lastIndexOf('ocr');
-              const field = String(issue.loc[ocr + 1]);
-              return ocr >= 0 && ['dpi', 'max_pages', 'timeout_seconds'].includes(field)
-                ? [[`ocr.${field}`, issue.msg]]
-                : [];
-            }),
-          ),
-        );
+        setServerFieldErrors(fieldErrorsFrom(cause.issues));
       }
     } finally {
       setBusy(false);

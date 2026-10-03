@@ -228,13 +228,15 @@ This page is generated from FastAPI/Pydantic; project authorization, provider co
 | `canonical_location` | string or null | yes | — |
 | `display_name` | string | yes | — |
 | `media_type` | string or null | yes | — |
-| `outcome` | string: new, changed, unchanged, removed, excluded, duplicate, failed | yes | — |
+| `outcome` | string: new, changed, unchanged, removed, excluded, duplicate, failed, sitemap | yes | — |
 | `status` | string: ready, succeeded, failed, cancelled | yes | — |
 | `reason` | string | yes | — |
 | `chunk_count` | integer | yes | — |
 | `error` | string or null | yes | — |
 | `processing_versions` | object or null | no | — |
 | `duplicate_decision` | object or null | no | — |
+| `attempts` | integer | no | default=0 |
+| `warnings` | array of object | no | — |
 | `updated_at` | string (date-time) | yes | — |
 
 ## ConfluencePageSelection
@@ -752,6 +754,7 @@ Type: [`IngestionExecutionV1`](#ingestionexecutionv1) or [`IngestionExecutionV2`
 | `source_snapshot_id` | string (uuid) or null | yes | — |
 | `trigger_kind` | string: manual, scheduled | yes | — |
 | `knowledge_set_name` | string | yes | — |
+| `fetch_policies` | object | no | — |
 | `status` | string: queued, running, succeeded, failed, cancelled | yes | — |
 | `stage` | string: discovering, processing, indexing, complete | yes | — |
 | `progress` | integer | yes | — |
@@ -925,13 +928,15 @@ Type: [`IngestionExecutionV1`](#ingestionexecutionv1) or [`IngestionExecutionV2`
 | `canonical_location` | string or null | yes | — |
 | `display_name` | string | yes | — |
 | `media_type` | string or null | yes | — |
-| `outcome` | string: new, changed, unchanged, removed, excluded, duplicate, failed | yes | — |
+| `outcome` | string: new, changed, unchanged, removed, excluded, duplicate, failed, sitemap | yes | — |
 | `status` | string: ready, succeeded, failed, cancelled | yes | — |
 | `reason` | string | yes | — |
 | `chunk_count` | integer | yes | — |
 | `error` | string or null | yes | — |
 | `processing_versions` | object or null | no | — |
 | `duplicate_decision` | object or null | no | — |
+| `attempts` | integer | no | default=0 |
+| `warnings` | array of object | no | — |
 | `updated_at` | string (date-time) | yes | — |
 
 ## NotionPageSelection
@@ -1315,13 +1320,15 @@ Type: [`IngestionExecutionV1`](#ingestionexecutionv1) or [`IngestionExecutionV2`
 | `canonical_location` | string or null | yes | — |
 | `display_name` | string | yes | — |
 | `media_type` | string or null | yes | — |
-| `outcome` | string: new, changed, unchanged, removed, excluded, duplicate, failed | yes | — |
+| `outcome` | string: new, changed, unchanged, removed, excluded, duplicate, failed, sitemap | yes | — |
 | `status` | string: ready, succeeded, failed, cancelled | yes | — |
 | `reason` | string | yes | — |
 | `chunk_count` | integer | yes | — |
 | `error` | string or null | yes | — |
 | `processing_versions` | object or null | no | — |
 | `duplicate_decision` | object or null | no | — |
+| `attempts` | integer | no | default=0 |
+| `warnings` | array of object | no | — |
 | `updated_at` | string (date-time) | yes | — |
 
 ## ScheduleCreate
@@ -1498,11 +1505,12 @@ Type: [`IngestionExecutionV1`](#ingestionexecutionv1) or [`IngestionExecutionV2`
 | `canonical_location` | string or null | yes | — |
 | `provider_revision` | string or null | yes | — |
 | `media_type` | string or null | yes | — |
-| `status` | string: included, excluded, duplicate, failed | yes | — |
+| `status` | string: included, excluded, duplicate, failed, sitemap | yes | — |
 | `reason` | string | yes | — |
 | `size_bytes` | integer or null | yes | — |
 | `depth` | integer or null | yes | — |
 | `error_code` | string or null | yes | — |
+| `attempts` | integer | no | default=0 |
 | `quality_decision` | string: pass, warn, exclude, fail or null | yes | — |
 | `processing_status` | string: pending, succeeded, failed, skipped | yes | — |
 | `fetch_mode` | string: network, cached-artifact | yes | — |
@@ -1534,6 +1542,7 @@ Type: [`IngestionExecutionV1`](#ingestionexecutionv1) or [`IngestionExecutionV2`
 | `configuration_hash` | string | yes | — |
 | `fetch_mode` | string: network, cached-artifact, mixed | yes | — |
 | `cost_basis` | object | yes | — |
+| `fetch_policies` | object | no | — |
 | `attempts` | integer | yes | — |
 | `failures` | integer | yes | — |
 | `error` | string or null | yes | — |
@@ -1751,17 +1760,29 @@ Type: [`IngestionExecutionV1`](#ingestionexecutionv1) or [`IngestionExecutionV2`
 | `allowed_origins` | array of string (uri) | yes | minItems=1, maxItems=20 |
 | `include_path_prefixes` | array of string | no | maxItems=50 |
 | `exclude_path_prefixes` | array of string | no | maxItems=50 |
+| `max_pages` | integer | no | minimum=1.0, maximum=1000.0, default=50 |
+| `max_depth` | integer | no | minimum=0.0, maximum=10.0, default=3 |
+| `requests_per_second` | number | no | minimum=0.1, maximum=5.0, default=2 |
+
+## WebsiteFetchPolicy
+
+| Field | Type | Required | Bounds/default |
+| --- | --- | --- | --- |
+| `policy_version` | integer: 1, 2, 3 | no | default=1 |
 | `max_pages` | integer | yes | minimum=1.0, maximum=1000.0 |
 | `max_depth` | integer | yes | minimum=0.0, maximum=10.0 |
-| `max_response_bytes` | integer | yes | minimum=1024.0, maximum=10485760.0 |
-| `max_total_bytes` | integer | yes | minimum=1024.0, maximum=104857600.0 |
-| `request_timeout_seconds` | number | yes | minimum=1.0, maximum=60.0 |
-| `deadline_seconds` | number | yes | minimum=1.0, maximum=3600.0 |
-| `concurrency` | integer | yes | minimum=1.0, maximum=16.0 |
-| `requests_per_second` | number | yes | maximum=20.0, exclusiveMinimum=0.0 |
+| `requests_per_second` | number | yes | minimum=0.1, maximum=5.0 |
+| `request_timeout_seconds` | number | yes | minimum=1.0, maximum=120.0 |
+| `max_response_bytes` | integer | yes | minimum=1024.0 |
+| `max_total_bytes` | integer | yes | minimum=1024.0 |
 | `redirect_limit` | integer | yes | minimum=0.0, maximum=10.0 |
 | `user_agent` | string | yes | minLength=1, maxLength=200 |
-| `respect_robots` | boolean | no | default=True |
+| `deadline_seconds` | number | yes | minimum=1.0, maximum=86400.0 |
+| `respect_robots` | boolean: true | no | default=True; only true is accepted |
+| `retry_attempts` | integer | no | minimum=1.0, maximum=5.0, default=1 |
+| `retry_base_delay_seconds` | number | no | minimum=0.0, maximum=60.0, default=0 |
+| `retry_max_delay_seconds` | number | no | minimum=0.0, maximum=300.0, default=0 |
+| `fetch_concurrency` | integer | no | minimum=1.0, maximum=8.0, default=1 |
 
 ## WebsiteIngestionRunItemRead
 
@@ -1776,13 +1797,15 @@ Type: [`IngestionExecutionV1`](#ingestionexecutionv1) or [`IngestionExecutionV2`
 | `canonical_location` | string or null | yes | — |
 | `display_name` | string | yes | — |
 | `media_type` | string or null | yes | — |
-| `outcome` | string: new, changed, unchanged, removed, excluded, duplicate, failed | yes | — |
+| `outcome` | string: new, changed, unchanged, removed, excluded, duplicate, failed, sitemap | yes | — |
 | `status` | string: ready, succeeded, failed, cancelled | yes | — |
 | `reason` | string | yes | — |
 | `chunk_count` | integer | yes | — |
 | `error` | string or null | yes | — |
 | `processing_versions` | object or null | no | — |
 | `duplicate_decision` | object or null | no | — |
+| `attempts` | integer | no | default=0 |
+| `warnings` | array of object | no | — |
 | `updated_at` | string (date-time) | yes | — |
 
 ## WebsiteMainContentTransform

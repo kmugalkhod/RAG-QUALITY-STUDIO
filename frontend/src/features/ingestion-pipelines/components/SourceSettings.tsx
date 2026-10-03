@@ -1,4 +1,7 @@
+import { useId, useRef, useState, type ComponentProps } from 'react';
+
 import { Callout, SUMMARY } from '../../../components/parts';
+import { Button } from '../../../components/ui/button';
 import { Checkbox } from '../../../components/ui/checkbox';
 import { Input } from '../../../components/ui/input';
 import { Label } from '../../../components/ui/label';
@@ -6,7 +9,16 @@ import { NativeSelect, NativeSelectOption } from '../../../components/ui/native-
 import { Textarea } from '../../../components/ui/textarea';
 import type { SourceConnection } from '../../connections/model';
 import type { ConfluenceConfig, NotionConfig, S3Config, WebsiteConfig } from '../model';
-import { CHECK_ROW, DETAILS, FIELD_GRID, FIELDSET, HINT, STACK } from './settingsStyles';
+import { derivedIncludePrefixes, folderStartUrl } from '../editorModel';
+import {
+  CHECK_ROW,
+  DETAILS,
+  FIELD_ERROR,
+  FIELD_GRID,
+  FIELDSET,
+  HINT,
+  STACK,
+} from './settingsStyles';
 
 const lines = (value: string) =>
   value
@@ -14,99 +26,222 @@ const lines = (value: string) =>
     .map((item) => item.trim())
     .filter(Boolean);
 
+const websiteUrls = (selection: WebsiteConfig['selection']) =>
+  selection.mode === 'url_list'
+    ? selection.urls
+    : [
+        selection.mode === 'single_url'
+          ? selection.url
+          : selection.mode === 'crawl'
+            ? selection.start_url
+            : selection.sitemap_url,
+      ];
+
+const originsOf = (urls: string[]) =>
+  Array.from(
+    new Set(
+      urls.flatMap((url) => {
+        try {
+          return [new URL(url).origin];
+        } catch {
+          return [];
+        }
+      }),
+    ),
+  );
+
+const sameList = (left: string[], right: string[]) =>
+  left.length === right.length && left.every((value, index) => value === right[index]);
+
+/**
+ * A one-per-line list field. It keeps the typed text, so Enter starts a new
+ * line, and re-syncs only when the list changes outside the field.
+ */
+function LinesTextarea({
+  value,
+  onLines,
+  ...props
+}: { value: string[]; onLines: (value: string[]) => void } & Omit<
+  ComponentProps<typeof Textarea>,
+  'value' | 'onChange'
+>) {
+  const [text, setText] = useState(value.join('\n'));
+  const [seen, setSeen] = useState(value);
+  if (!sameList(seen, value)) {
+    setSeen(value);
+    if (!sameList(lines(text), value)) {
+      setText(value.join('\n'));
+    }
+  }
+  return (
+    <Textarea
+      {...props}
+      value={text}
+      onChange={(event) => {
+        setText(event.target.value);
+        onLines(lines(event.target.value));
+      }}
+    />
+  );
+}
+
+const URL_LABEL = {
+  single_url: 'Page URL',
+  url_list: 'URLs (one per line)',
+  crawl: 'Start URL',
+  sitemap: 'Sitemap URL',
+} as const;
+
+const derivedPrefixes = (selection: WebsiteConfig['selection']) =>
+  selection.mode === 'crawl' || selection.mode === 'sitemap'
+    ? derivedIncludePrefixes(websiteUrls(selection)[0] ?? '')
+    : [];
+
 export function WebsiteSettings({
   config,
   update,
+  fieldErrors = {},
 }: {
   config: WebsiteConfig;
   update: (config: WebsiteConfig) => void;
+  fieldErrors?: Record<string, string>;
 }) {
-  const selectionValue =
-    config.selection.mode === 'url_list'
-      ? config.selection.urls.join('\n')
-      : config.selection.mode === 'single_url'
-        ? config.selection.url
-        : config.selection.mode === 'crawl'
-          ? config.selection.start_url
-          : config.selection.sitemap_url;
-  const setSelection = (value: string) => {
-    const selection =
-      config.selection.mode === 'url_list'
-        ? ({ mode: 'url_list', urls: lines(value) } as const)
-        : config.selection.mode === 'single_url'
-          ? ({ mode: 'single_url', url: value } as const)
-          : config.selection.mode === 'crawl'
-            ? ({ mode: 'crawl', start_url: value } as const)
-            : ({ mode: 'sitemap', sitemap_url: value } as const);
-    const selectedUrls = config.selection.mode === 'url_list' ? lines(value) : [value];
-    const inferredOrigins = Array.from(
-      new Set(
-        selectedUrls.flatMap((url) => {
-          try {
-            return [new URL(url).origin];
-          } catch {
-            return [];
-          }
-        }),
-      ),
-    );
-    const stillDefault =
+  const fieldId = useId();
+  const mode = config.selection.mode;
+  const showPageLimit = mode !== 'single_url';
+  const showPathFilters = mode === 'crawl' || mode === 'sitemap';
+  // Without a trailing slash the derived scope is the parent folder, which is
+  // usually wider than intended; say so while the prefix is still derived.
+  const startUrl = mode === 'crawl' ? (websiteUrls(config.selection)[0] ?? '') : '';
+  const slashedStart = folderStartUrl(startUrl);
+  const widerScope =
+    slashedStart !== null &&
+    sameList(config.include_path_prefixes ?? [], derivedPrefixes(config.selection))
+      ? (derivedPrefixes(config.selection)[0] ?? '/')
+      : null;
+  // Derived values follow the URL until the user edits them. The last derived
+  // value is remembered, so a half-typed URL or a mode switch (which clears the
+  // URL) does not count as an edit, and a deliberately cleared field stays so.
+  // A config that arrives from outside (a saved version, Discard) re-seeds the
+  // memory; the server returns origins with a trailing slash, so origins are
+  // compared in normalized form.
+  const derivedOrigins = useRef<string[] | null>(null);
+  const derivedInclude = useRef<string[] | null>(null);
+  const emitted = useRef<WebsiteConfig | null>(null);
+  const seen = useRef<WebsiteConfig | null>(null);
+  if (seen.current !== config) {
+    if (emitted.current !== config) {
+      const origins = originsOf(config.allowed_origins);
+      derivedOrigins.current = sameList(origins, originsOf(websiteUrls(config.selection)))
+        ? origins
+        : null;
+      const include = config.include_path_prefixes ?? [];
+      derivedInclude.current = sameList(include, derivedPrefixes(config.selection))
+        ? include
+        : null;
+    }
+    seen.current = config;
+  }
+  const emit = (next: WebsiteConfig) => {
+    emitted.current = next;
+    update(next);
+  };
+  const setSelection = (selection: WebsiteConfig['selection']) => {
+    const inferredOrigins = originsOf(websiteUrls(selection));
+    const originsDerived =
       config.allowed_origins.length === 0 ||
-      (config.allowed_origins.length === 1 && config.allowed_origins[0] === 'https://example.com');
-    update({
+      (derivedOrigins.current !== null &&
+        sameList(originsOf(config.allowed_origins), derivedOrigins.current));
+    const prefixesDerived =
+      derivedInclude.current !== null &&
+      sameList(config.include_path_prefixes ?? [], derivedInclude.current);
+    let allowedOrigins = config.allowed_origins;
+    if (originsDerived && inferredOrigins.length) {
+      allowedOrigins = inferredOrigins;
+      derivedOrigins.current = inferredOrigins;
+    }
+    let includePrefixes = config.include_path_prefixes;
+    if (prefixesDerived) {
+      includePrefixes = derivedPrefixes(selection);
+      derivedInclude.current = includePrefixes;
+    }
+    emit({
       ...config,
       selection,
-      allowed_origins:
-        stillDefault && inferredOrigins.length ? inferredOrigins : config.allowed_origins,
+      allowed_origins: allowedOrigins,
+      include_path_prefixes: includePrefixes,
     });
   };
+  // The URL list field owns its text; this serves the single-URL input.
+  const setUrlValue = (value: string) =>
+    setSelection(
+      mode === 'single_url'
+        ? { mode: 'single_url', url: value }
+        : mode === 'crawl'
+          ? { mode: 'crawl', start_url: value }
+          : { mode: 'sitemap', sitemap_url: value },
+    );
   const numberField = (
-    key:
-      | 'max_pages'
-      | 'max_depth'
-      | 'max_response_bytes'
-      | 'max_total_bytes'
-      | 'request_timeout_seconds'
-      | 'deadline_seconds'
-      | 'requests_per_second'
-      | 'redirect_limit',
+    key: 'max_pages' | 'max_depth' | 'requests_per_second',
     label: string,
-    min: number,
-  ) => (
-    <Label>
-      {label}
-      <Input
-        type="number"
-        min={min}
-        value={config[key]}
-        onChange={(event) => update({ ...config, [key]: Number(event.target.value) })}
-      />
-    </Label>
-  );
+    bounds: { min: number; max: number; step?: number },
+    hint?: string,
+  ) => {
+    const error = fieldErrors[`website.${key}`];
+    const described = [hint && `${fieldId}-${key}-hint`, error && `${fieldId}-${key}-error`]
+      .filter(Boolean)
+      .join(' ');
+    return (
+      <div className="flex flex-col gap-2">
+        <Label>
+          {label}
+          <Input
+            type="number"
+            min={bounds.min}
+            max={bounds.max}
+            step={bounds.step}
+            aria-invalid={!!error}
+            aria-describedby={described || undefined}
+            value={config[key]}
+            onChange={(event) => emit({ ...config, [key]: Number(event.target.value) })}
+          />
+        </Label>
+        {hint && (
+          <small id={`${fieldId}-${key}-hint`} className="text-xs text-foreground-muted">
+            {hint}
+          </small>
+        )}
+        {error && (
+          <small id={`${fieldId}-${key}-error`} role="alert" className={FIELD_ERROR}>
+            {error}
+          </small>
+        )}
+      </div>
+    );
+  };
 
   return (
     <>
       <p className={HINT}>
         Choose the pages to ingest. Preview checks the scope; a run publishes an index after all
-        required pages succeed.
+        required pages succeed. The server sets timeouts, byte budgets and robots.txt handling and
+        shows the limits it used with each preview and run.
       </p>
       <Label>
         Discovery mode
         <NativeSelect
-          value={config.selection.mode}
+          value={mode}
           onChange={(event) => {
-            const mode = event.target.value;
-            update({
-              ...config,
-              selection:
-                mode === 'url_list'
-                  ? { mode: 'url_list', urls: [] }
-                  : mode === 'single_url'
-                    ? { mode: 'single_url', url: '' }
-                    : mode === 'sitemap'
-                      ? { mode: 'sitemap', sitemap_url: '' }
-                      : { mode: 'crawl', start_url: '' },
-            });
+            const next = event.target.value;
+            setSelection(
+              next === 'url_list'
+                ? { mode: 'url_list', urls: [] }
+                : next === 'single_url'
+                  ? { mode: 'single_url', url: '' }
+                  : next === 'sitemap'
+                    ? { mode: 'sitemap', sitemap_url: '' }
+                    : { mode: 'crawl', start_url: '' },
+            );
           }}
         >
           <NativeSelectOption value="single_url">Single URL</NativeSelectOption>
@@ -116,76 +251,96 @@ export function WebsiteSettings({
         </NativeSelect>
       </Label>
       <Label>
-        {config.selection.mode === 'url_list' ? 'URLs (one per line)' : 'Starting URL'}
-        {config.selection.mode === 'url_list' ? (
-          <Textarea
-            value={selectionValue}
+        {URL_LABEL[mode]}
+        {mode === 'url_list' ? (
+          <LinesTextarea
+            value={websiteUrls(config.selection)}
             rows={4}
-            onChange={(event) => setSelection(event.target.value)}
+            onLines={(urls) => setSelection({ mode: 'url_list', urls })}
           />
         ) : (
           <Input
             type="url"
-            value={selectionValue}
-            onChange={(event) => setSelection(event.target.value)}
+            value={websiteUrls(config.selection)[0]}
+            aria-describedby={widerScope !== null ? `${fieldId}-slash` : undefined}
+            onChange={(event) => setUrlValue(event.target.value)}
           />
         )}
       </Label>
-      <Label>
-        Allowed origins (one per line)
-        <Textarea
-          value={config.allowed_origins.join('\n')}
-          rows={3}
-          onChange={(event) => update({ ...config, allowed_origins: lines(event.target.value) })}
-        />
-      </Label>
+      {widerScope !== null && slashedStart && (
+        <div className="flex flex-col gap-2">
+          <small id={`${fieldId}-slash`} role="status" className="text-xs text-warning">
+            This URL has no trailing slash, so the crawl covers every page under{' '}
+            <code>{widerScope}</code>. Add a slash to crawl only{' '}
+            <code>{new URL(slashedStart).pathname}</code>.
+          </small>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="self-start"
+            onClick={() => setUrlValue(slashedStart)}
+          >
+            Add trailing slash
+          </Button>
+        </div>
+      )}
+      {showPageLimit && (
+        <div className={FIELD_GRID}>
+          {numberField('max_pages', 'Maximum pages', { min: 1, max: 1000 })}
+          {mode === 'crawl' &&
+            numberField(
+              'max_depth',
+              'Maximum crawl depth',
+              { min: 0, max: 10 },
+              'Link hops from the start URL; 0 fetches only that page.',
+            )}
+        </div>
+      )}
+      {showPathFilters && (
+        <details className={DETAILS}>
+          <summary className={SUMMARY}>Filter pages</summary>
+          <div className={STACK}>
+            <Label>
+              Include path prefixes (one per line)
+              <LinesTextarea
+                value={config.include_path_prefixes ?? []}
+                rows={3}
+                onLines={(value) => emit({ ...config, include_path_prefixes: value })}
+              />
+            </Label>
+            <small className="text-xs text-foreground-muted">
+              Leave include empty to fetch every path on the allowed origins.
+            </small>
+            <Label>
+              Exclude path prefixes (one per line)
+              <LinesTextarea
+                value={config.exclude_path_prefixes ?? []}
+                rows={3}
+                onLines={(value) => emit({ ...config, exclude_path_prefixes: value })}
+              />
+            </Label>
+          </div>
+        </details>
+      )}
       <details className={DETAILS}>
-        <summary className={SUMMARY}>Scope & fetch limits · up to {config.max_pages} pages</summary>
+        <summary className={SUMMARY}>Advanced</summary>
         <div className={STACK}>
           <Label>
-            Include path prefixes (one per line)
-            <Textarea
-              value={(config.include_path_prefixes ?? []).join('\n')}
+            Allowed origins (one per line)
+            <LinesTextarea
+              value={config.allowed_origins}
               rows={3}
-              onChange={(event) =>
-                update({ ...config, include_path_prefixes: lines(event.target.value) })
-              }
+              onLines={(value) => emit({ ...config, allowed_origins: value })}
             />
           </Label>
-          <Label>
-            Exclude path prefixes (one per line)
-            <Textarea
-              value={(config.exclude_path_prefixes ?? []).join('\n')}
-              rows={3}
-              onChange={(event) =>
-                update({ ...config, exclude_path_prefixes: lines(event.target.value) })
-              }
-            />
-          </Label>
-          <div className={FIELD_GRID}>
-            {numberField('max_pages', 'Maximum pages', 1)}
-            {numberField('max_depth', 'Maximum crawl depth', 0)}
-            {numberField('max_response_bytes', 'Bytes per response', 1)}
-            {numberField('max_total_bytes', 'Total byte budget', 1)}
-            {numberField('request_timeout_seconds', 'Request timeout (seconds)', 1)}
-            {numberField('deadline_seconds', 'Preview deadline (seconds)', 1)}
-            {numberField('requests_per_second', 'Requests per second', 0.1)}
-            {numberField('redirect_limit', 'Redirect limit', 0)}
-          </div>
-          <Label>
-            User agent
-            <Input
-              value={config.user_agent}
-              onChange={(event) => update({ ...config, user_agent: event.target.value })}
-            />
-          </Label>
-          <label className={CHECK_ROW}>
-            <Checkbox
-              checked={config.respect_robots ?? true}
-              onCheckedChange={(checked) => update({ ...config, respect_robots: checked === true })}
-            />
-            Respect robots.txt
-          </label>
+          {showPageLimit &&
+            numberField(
+              'requests_per_second',
+              'Crawl speed (requests per second)',
+              { min: 0.1, max: 5, step: 0.1 },
+              'Requests to the site never exceed this rate.',
+            )}
         </div>
       </details>
     </>

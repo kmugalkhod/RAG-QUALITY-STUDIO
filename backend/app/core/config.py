@@ -35,6 +35,33 @@ class Settings(BaseSettings):
     # Queued or running background jobs per organization and job type.
     dispatch_org_concurrency: int = Field(default=4, ge=1, le=100)
     cors_origins: list[str] = ["http://localhost:5273", "http://127.0.0.1:5273"]
+    # Server-owned Website fetch limits. Users choose scope and crawl speed;
+    # these bound every request and are recorded on each preview and run.
+    website_request_timeout_seconds: float = Field(default=20, ge=1, le=120)
+    website_max_response_bytes: int = Field(
+        default=20 * 1024 * 1024, ge=64 * 1024, le=64 * 1024 * 1024
+    )
+    website_max_total_bytes_cap: int = Field(
+        default=100 * 1024 * 1024, ge=1024 * 1024, le=1024 * 1024 * 1024
+    )
+    website_redirect_limit: int = Field(default=5, ge=0, le=10)
+    website_user_agent: str = Field(
+        default="RAGQualityStudio/1.0 (+https://github.com/kmugalkhod/RAG-QUALITY-STUDIO)",
+        min_length=1,
+        max_length=200,
+    )
+    # Transient Website failures (429, 502-504, timeouts) are retried with
+    # exponential backoff and jitter, honoring Retry-After up to the maximum delay.
+    website_retry_attempts: int = Field(default=3, ge=1, le=5)
+    website_retry_base_delay_seconds: float = Field(default=1, ge=0, le=60)
+    website_retry_max_delay_seconds: float = Field(default=30, ge=0, le=300)
+    # Parallel page fetches per Website source; the per-origin crawl speed still
+    # bounds the request rate to any one site.
+    website_fetch_concurrency: int = Field(default=4, ge=1, le=8)
+    # Bounded by the 3670 s `ingestion.coordinate` and preview task time limits
+    # and the dispatcher's stale windows, which assume discovery ends by 3600 s.
+    website_deadline_min_seconds: float = Field(default=60, ge=10, le=3600)
+    website_deadline_max_seconds: float = Field(default=3600, ge=10, le=3600)
     source_connections_enabled: bool = False
     source_connection_active_key: str = ""
     source_connection_keys: dict[str, SecretStr] = Field(default_factory=dict)
@@ -90,6 +117,16 @@ class Settings(BaseSettings):
     widget_visitor_rpm: int = Field(default=5, ge=1, le=100)
     widget_exchange_rpm: int = Field(default=20, ge=1, le=1000)
     deployment_result_retention_days: int = Field(default=30, ge=1, le=365)
+
+    @model_validator(mode="after")
+    def website_settings_coherent(self):
+        if self.website_deadline_min_seconds > self.website_deadline_max_seconds:
+            raise ValueError("Website deadline minimum exceeds the maximum.")
+        if self.website_max_total_bytes_cap < self.website_max_response_bytes:
+            raise ValueError("Website total byte cap is below the per-page limit.")
+        if self.website_deadline_min_seconds < self.website_request_timeout_seconds:
+            raise ValueError("Website deadline minimum is below the request timeout.")
+        return self
 
     @model_validator(mode="after")
     def deployment_settings_coherent(self):

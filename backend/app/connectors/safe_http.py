@@ -178,7 +178,9 @@ class StdlibTransport:
                         "The website returned an invalid content length.",
                     ) from exc
             content = bytearray()
-            while True:
+            # A `Connection: close` response closes its socket once the declared
+            # length has been read, so stop before touching the closed socket.
+            while not response.isclosed():
                 remaining = request_deadline - time.monotonic()
                 if remaining <= 0:
                     raise TimeoutError
@@ -192,6 +194,17 @@ class StdlibTransport:
                         "response_too_large",
                         "The website response exceeded its byte limit.",
                     )
+            if (
+                content_length is not None
+                and response.status not in (204, 304)
+                and len(content) < int(content_length)
+            ):
+                # A dropped connection must not pass as a complete page.
+                raise failure(
+                    "truncated_response",
+                    "The website response ended before its declared length.",
+                    retryable=True,
+                )
             return (
                 response.status,
                 {key.lower(): value for key, value in response.getheaders()},
@@ -228,7 +241,15 @@ class SafeHttpClient:
         max_total_bytes: int,
         allowed: Callable[[str], bool],
         request_headers: dict[str, str] | None = None,
+        allow_gzip_encoding: bool = False,
+        before_redirect: Callable[[str], None] | None = None,
     ) -> HttpResponse:
+        """GET with validated redirects.
+
+        `before_redirect` runs before each redirect hop with the next URL, so a
+        caller can apply its rate limit and robots.txt rules to every request;
+        it raises ConnectorFailure to stop.
+        """
         current = canonical_url(url)
         total = 0
         redirects = 0
@@ -236,7 +257,7 @@ class SafeHttpClient:
             if time.monotonic() >= deadline:
                 raise failure(
                     "deadline_exceeded",
-                    "The website preview exceeded its deadline.",
+                    "The website crawl exceeded its deadline.",
                     retryable=True,
                 )
             if not allowed(current):
@@ -250,7 +271,7 @@ class SafeHttpClient:
             if remaining <= 0:
                 raise failure(
                     "total_bytes_exceeded",
-                    "The website preview exceeded its total byte limit.",
+                    "The website crawl exceeded its total byte limit.",
                 )
             headers = {
                 "Accept": "text/html, application/xml;q=0.9, text/xml;q=0.9, text/plain;q=0.8",
@@ -276,10 +297,13 @@ class SafeHttpClient:
                 remaining,
             )
             encoding = response_headers.get("content-encoding", "identity").lower()
-            if encoding not in ("", "identity"):
+            # Only sitemaps opt in to gzip; the caller decompresses within its limit.
+            if encoding not in ("", "identity") and not (
+                allow_gzip_encoding and encoding == "gzip"
+            ):
                 raise failure(
                     "unsupported_encoding",
-                    "Compressed website responses are not accepted in preview.",
+                    "Compressed website responses are not accepted.",
                 )
             total += len(content)
             if status not in REDIRECT_STATUSES:
@@ -297,3 +321,5 @@ class SafeHttpClient:
                 )
             current = canonical_url(location, base=current)
             redirects += 1
+            if before_redirect is not None and allowed(current):
+                before_redirect(current)
