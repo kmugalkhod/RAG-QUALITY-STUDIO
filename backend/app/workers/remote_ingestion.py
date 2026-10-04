@@ -1,5 +1,6 @@
 """Remote-source ingestion discovery, persistence, and publication advancement."""
 
+import itertools
 from uuid import UUID
 
 from fastapi import HTTPException
@@ -49,7 +50,14 @@ from app.workers.processing import now
 REMOTE_SOURCE_KINDS = frozenset({"website", "s3", "notion", "confluence"})
 
 
-def _apply_duplicate_policy(session, run_id, memberships, clean, source_kind):
+def _apply_duplicate_policy(
+    session, run_id, memberships, clean, source_kind, also_found=None
+):
+    """Keep one membership per duplicate group.
+
+    `also_found` collects, per kept source item id, where excluded copies were
+    found, so a merged index keeps every source a page came from.
+    """
     policy = getattr(clean, "duplicate_policy", None)
     if policy is None:
         return memberships
@@ -79,6 +87,7 @@ def _apply_duplicate_policy(session, run_id, memberships, clean, source_kind):
         row = session.scalar(
             select(WebsiteRunItem).where(
                 WebsiteRunItem.run_id == run_id,
+                WebsiteRunItem.source_node_id == membership[0],
                 WebsiteRunItem.source_revision_id == membership[2].id,
             )
         )
@@ -92,6 +101,19 @@ def _apply_duplicate_policy(session, run_id, memberships, clean, source_kind):
                 )
         if decision.outcome == "retained":
             retained.append(membership)
+        elif also_found is not None and decision.retained_identity in by_identity:
+            kept = by_identity[decision.retained_identity]
+            # Places the excluded page was itself found move to the kept page.
+            also_found.setdefault(kept[1].id, []).extend(
+                also_found.pop(membership[1].id, [])
+            )
+            also_found[kept[1].id].append(
+                {
+                    "source_node_id": membership[0],
+                    "canonical_location": identity,
+                    "reason": decision.method,
+                }
+            )
     return retained
 
 
@@ -359,9 +381,11 @@ def _process_crawled(run_id, token, db_engine, execution, prior_revisions):
     if not pending:
         return True
     if "fingerprints" not in processing:
-        # Repeated site chrome is measured across every fetched page once, then
-        # recorded, so pages processed after a recovery are cleaned identically.
-        fingerprints = set()
+        # Repeated site chrome is measured once per source across its fetched
+        # pages, so one site's navigation never changes how another site's
+        # pages are cleaned. It is recorded so pages processed after a
+        # recovery are cleaned identically.
+        fingerprints = {}
         main_step = next(
             (
                 step
@@ -377,11 +401,13 @@ def _process_crawled(run_id, token, db_engine, execution, prior_revisions):
         ):
             from app.ingestion_content.cleaning import website_text_fingerprints
 
+            extracted = itertools.count(1)
+
             def documents(rows):
                 # Pages are extracted one at a time; extraction is repeated
                 # per page later rather than keeping every document in memory.
-                for count, row in enumerate(rows, start=1):
-                    if count % 25 == 0 and not heartbeat():
+                for row in rows:
+                    if next(extracted) % 25 == 0 and not heartbeat():
                         raise _Fenced
                     yield website_ingestion.canonical_extracted_document(
                         website_crawl.page_artifact(row, prior_body), clean
@@ -389,15 +415,28 @@ def _process_crawled(run_id, token, db_engine, execution, prior_revisions):
 
             with Session(worker_engine) as session:
                 rows = session.scalars(
-                    select(WebsiteCrawlFrontier).where(
+                    select(WebsiteCrawlFrontier)
+                    .where(
                         WebsiteCrawlFrontier.run_id == run_id,
                         WebsiteCrawlFrontier.status == "fetched",
                     )
-                ).all()
-                try:
-                    fingerprints = website_text_fingerprints(
-                        documents(rows), main_step.minimum_page_ratio
+                    .order_by(
+                        WebsiteCrawlFrontier.source_node_id,
+                        WebsiteCrawlFrontier.ordinal,
                     )
+                ).all()
+                by_source = {}
+                for row in rows:
+                    by_source.setdefault(row.source_node_id, []).append(row)
+                try:
+                    fingerprints = {
+                        source_node_id: sorted(
+                            website_text_fingerprints(
+                                documents(source_rows), main_step.minimum_page_ratio
+                            )
+                        )
+                        for source_node_id, source_rows in by_source.items()
+                    }
                 except _Fenced:
                     return False
         with Session(worker_engine) as session:
@@ -406,10 +445,16 @@ def _process_crawled(run_id, token, db_engine, execution, prior_revisions):
             )
             if job.status != "running" or job.execution_token != token:
                 return False
-            processing["fingerprints"] = sorted(fingerprints)
+            processing["fingerprints"] = fingerprints
             job.crawl_state = {**(job.crawl_state or {}), PROCESSING_STATE: processing}
             session.commit()
-    fingerprints = set(processing["fingerprints"])
+    recorded = processing["fingerprints"]
+
+    def fingerprints_for(source_node_id):
+        # Runs recorded before per-source fingerprints stored one shared list.
+        if isinstance(recorded, list):
+            return set(recorded)
+        return set(recorded.get(source_node_id) or [])
 
     def phase_callback(node_type):
         return ingestion_execution.transition(
@@ -440,7 +485,7 @@ def _process_crawled(run_id, token, db_engine, execution, prior_revisions):
                     phase_callback,
                     extract,
                     None,
-                    fingerprints,
+                    fingerprints_for(row.source_node_id),
                 )
             )
             row.source_item_id = source_item.id
@@ -1043,22 +1088,13 @@ def _advance_website(run_id, token, db_engine, connector_factory):
     chunk = next(node for node in execution.nodes if node.type == "chunk")
     clean = next(node for node in execution.nodes if node.type == "clean")
     extract = next(node for node in execution.nodes if node.type == "extract")
+    # Keyed by (source node, location): two sources may reach the same URL.
     extracted_by_location = {}
-    repeated_site_fingerprints = set()
+    # Repeated site chrome is measured per source, never across sites.
+    repeated_site_fingerprints = {}
     if getattr(clean, "profile", None) == "structure-aware-v1":
         from app.ingestion_content.cleaning import website_text_fingerprints
 
-        for _, outcomes, artifacts in results:
-            included = {
-                outcome.canonical_location
-                for outcome in outcomes
-                if outcome.status == "included"
-            }
-            for artifact in artifacts:
-                if artifact.canonical_location in included:
-                    extracted_by_location[artifact.canonical_location] = (
-                        website_ingestion.canonical_extracted_document(artifact, clean)
-                    )
         main_step = next(
             (
                 step
@@ -1067,10 +1103,26 @@ def _advance_website(run_id, token, db_engine, connector_factory):
             ),
             None,
         )
-        if main_step is not None and main_step.remove_repeated_site_chrome:
-            repeated_site_fingerprints = website_text_fingerprints(
-                extracted_by_location.values(), main_step.minimum_page_ratio
-            )
+        for source_node_id, outcomes, artifacts in results:
+            included = {
+                outcome.canonical_location
+                for outcome in outcomes
+                if outcome.status == "included"
+            }
+            source_documents = []
+            for artifact in artifacts:
+                if artifact.canonical_location in included:
+                    document = website_ingestion.canonical_extracted_document(
+                        artifact, clean
+                    )
+                    extracted_by_location[
+                        (source_node_id, artifact.canonical_location)
+                    ] = document
+                    source_documents.append(document)
+            if main_step is not None and main_step.remove_repeated_site_chrome:
+                repeated_site_fingerprints[source_node_id] = website_text_fingerprints(
+                    source_documents, main_step.minimum_page_ratio
+                )
 
     def phase_callback(node_type):
         return ingestion_execution.transition(
@@ -1098,6 +1150,10 @@ def _advance_website(run_id, token, db_engine, connector_factory):
         seen_extracted = {}
         failed = 0
         failed_locations = set()
+        # Source item id -> (source node, location) of the copy that is indexed.
+        kept_items = {}
+        # Source item id -> other places the indexed page was also found.
+        also_found = {}
         for source_node_id, outcome, resolved in items:
             if outcome.status != "included":
                 add_outcome = "failed" if outcome.status == "failed" else outcome.status
@@ -1150,26 +1206,76 @@ def _advance_website(run_id, token, db_engine, connector_factory):
                     prior,
                     phase_callback,
                     extract,
-                    extracted_by_location.get(location),
-                    repeated_site_fingerprints,
+                    extracted_by_location.get((source_node_id, location)),
+                    repeated_site_fingerprints.get(source_node_id, set()),
                 )
+            kept = kept_items.get(source_item.id)
+            if kept is not None:
+                # Another source already reached this exact page. An index holds
+                # one revision per source item, so it is indexed once and the
+                # kept page records this source as well.
+                kept_node_id, kept_location = kept
+                also_found.setdefault(source_item.id, []).append(
+                    {
+                        "source_node_id": source_node_id,
+                        "canonical_location": location,
+                        "reason": "same_page",
+                    }
+                )
+                website_ingestion.add_run_item(
+                    session,
+                    run=job,
+                    ordinal=ordinal,
+                    source_node_id=source_node_id,
+                    outcome="duplicate",
+                    reason=(
+                        f"Same page as {kept_location}, already included by "
+                        f"source {kept_node_id}; indexed once."
+                    ),
+                    location=location,
+                    display_name=outcome.display_name,
+                    media_type=media_type,
+                    source_item=source_item,
+                    revision=revision,
+                    duplicate_decision={
+                        "outcome": "excluded",
+                        "retained_identity": kept_location,
+                        "excluded_identity": location,
+                        "method": "same_source_item",
+                        "similarity": 1.0,
+                        "reason": "Another source in this run reached the same page.",
+                    },
+                    attempts=outcome.attempts,
+                    warnings=warnings,
+                )
+                ordinal += 1
+                continue
+            kept_items[source_item.id] = (source_node_id, location)
             if (
                 getattr(clean, "duplicate_policy", None) is None
                 and clean.exact_content_deduplication
                 and extracted_hash in seen_extracted
             ):
+                retained_location, retained_item_id = seen_extracted[extracted_hash]
+                also_found.setdefault(retained_item_id, []).append(
+                    {
+                        "source_node_id": source_node_id,
+                        "canonical_location": location,
+                        "reason": "exact_cleaned_sha256",
+                    }
+                )
                 classification = "excluded"
                 reason = "Extracted text duplicates another included website page."
                 duplicate_decision = {
                     "outcome": "excluded",
-                    "retained_identity": seen_extracted[extracted_hash],
+                    "retained_identity": retained_location,
                     "excluded_identity": location,
                     "method": "exact_cleaned_sha256",
                     "similarity": 1.0,
                     "reason": "Excluded in favor of the deterministic canonical source.",
                 }
             else:
-                seen_extracted[extracted_hash] = location
+                seen_extracted[extracted_hash] = (location, source_item.id)
                 included_locations.add(location)
                 memberships.append((source_node_id, source_item, revision))
                 reason = f"Website revision is {classification}."
@@ -1199,7 +1305,7 @@ def _advance_website(run_id, token, db_engine, connector_factory):
             )
             ordinal += 1
         memberships = _apply_duplicate_policy(
-            session, job.id, memberships, clean, "website"
+            session, job.id, memberships, clean, "website", also_found
         )
         for location, (revision, prior_source_node_id) in prior_revisions.items():
             # A page that failed to fetch is reported as failed, not as removed.
@@ -1239,7 +1345,9 @@ def _advance_website(run_id, token, db_engine, connector_factory):
             job.source_snapshot_id is not None
             and (job.snapshot.get("source_input") or {}).get("kind") == "refresh"
         ):
-            source_snapshots.mark_ready(session, job.source_snapshot_id, memberships)
+            source_snapshots.mark_ready(
+                session, job.source_snapshot_id, memberships, also_found
+            )
         processing_ids = list(
             dict.fromkeys(revision.processing_run_id for _, _, revision in memberships)
         )

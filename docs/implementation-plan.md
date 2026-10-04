@@ -2123,3 +2123,15 @@ Not done: no index for the body sweep (no demonstrated need); `Crawl-delay` stay
 
 A second review of the fixes found three more defects, all fixed and tested: an unchanged (304) page behind a new redirect failed the run because its prior could not be found by the final URL; a canonical target that was already queued could be cut off by the page limit; and a page deferring to a canonical target that then failed was lost. Pages now hold their result until the target is indexed and are re-recorded with their body otherwise; queued targets move to the front; relative sitemap locations are excluded with a reason; the settings editor compares origins in normalized form (the server returns them with a trailing slash) and re-seeds its derivation memory when a saved version is loaded, so origins keep following the URL after a save; the limits line includes the crawl depth. Verified with four more backend tests and two frontend tests; the full suites pass (backend 478 with the three failures that also occur on `main`; frontend 298).
 
+
+## Multi-source ingestion, slice 1: merged fan-in for several Website sources — 2026-10-05
+
+Plan and decisions: [multi-source ingestion plan](multi-source-ingestion-plan.md) (owner interview 2026-10-05; scope feature 15).
+
+Acceptance criterion: two to five Website sources feeding one shared processing chain publish one correct index, without one site affecting another's cleaning, and with every place a page was found kept as provenance.
+
+Implemented: repeated-site-chrome fingerprints are computed and recorded per source node (older runs' shared list is still read); a page reached by two sources is indexed once, the later copy recorded as a `duplicate` run item naming the kept source, instead of violating `uq_index_source_item`; exact and policy duplicates across sources add the excluded source node and URL to the kept snapshot member's `provenance.also_found`; the policy's run-item lookup also matches the source node; newly saved versions are limited to five Website sources and to one connector kind, reported as field errors (existing versions keep running).
+
+Verified: `tests/test_multi_source_ingestion.py` (two sites publish one index; same page from two sources; cross-site exact duplicate; chrome repeated on one site but content on another; the two save rules) passes. Ruff check and format pass. The full isolated suite gives 484 passed, 5 skipped and the same three failures recorded on `main`. The new tests were not run against the unmodified code.
+
+Not done: partial failure and carry-forward (slice 2), the `index_layout` setting and multi-source editor (slice 3), single-source refresh (slice 4), per-source run groups (slice 5) and concurrent site crawls (slice 6). No browser or live crawl check was made, because nothing user-visible changed yet.

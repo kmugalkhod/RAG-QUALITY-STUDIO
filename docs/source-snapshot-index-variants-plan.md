@@ -42,7 +42,7 @@ The following decisions are fixed for this plan:
 
 ## Non-goals
 
-- No multi-source or cross-project snapshot composition.
+- No cross-project snapshot composition. Multi-source pipelines are planned separately in the [multi-source ingestion plan](multi-source-ingestion-plan.md).
 - No arbitrary branching or executable workflow nodes.
 - No automatic generation of many configurations.
 - No automatic recommendation without a completed measured experiment.

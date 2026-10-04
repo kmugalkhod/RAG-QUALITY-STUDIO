@@ -117,6 +117,50 @@ def website_fetch_policies(execution: IngestionExecution) -> dict[str, dict]:
     return policies
 
 
+MAX_WEBSITE_SOURCES = 5
+
+
+def validate_source_combination(execution: IngestionExecution):
+    """Rules for newly saved versions only; saved versions keep running as before."""
+    sources = [
+        (position, node)
+        for position, node in enumerate(execution.nodes)
+        if node.type == "source"
+    ]
+    if len(sources) < 2:
+        return
+    first_kind = sources[0][1].config.kind
+    for position, node in sources[1:]:
+        if node.config.kind != first_kind:
+            raise HTTPException(
+                422,
+                [
+                    {
+                        "loc": ["execution", "nodes", position, "config", "kind"],
+                        "msg": (
+                            "Sources in one pipeline must use the same connector. "
+                            "Mixing connectors is not supported yet."
+                        ),
+                        "type": "value_error",
+                    }
+                ],
+            )
+    if first_kind == "website" and len(sources) > MAX_WEBSITE_SOURCES:
+        raise HTTPException(
+            422,
+            [
+                {
+                    "loc": ["execution", "nodes"],
+                    "msg": (
+                        f"A pipeline can read at most {MAX_WEBSITE_SOURCES} "
+                        "Website sources."
+                    ),
+                    "type": "value_error",
+                }
+            ],
+        )
+
+
 def validate_ingestion(session, project_id, execution: IngestionExecution):
     from app.ingestion_content.extractors.pdf import installed_ocr_languages
 
@@ -255,6 +299,7 @@ def save(session, project_id, request, pipeline_id=None):
     if request.kind == "answer":
         validate_answer(session, project_id, request.execution)
     else:
+        validate_source_combination(request.execution)
         validate_ingestion(session, project_id, request.execution)
     if pipeline_id is None:
         row = Pipeline(project_id=project_id, name=request.name, kind=request.kind)

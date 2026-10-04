@@ -25,6 +25,7 @@ These are recommendations. You can change the order or skip a step that no longe
 | 12 | Held out confirmation | Quality slice 4 | planned |
 | 13 | Public visitor website widget | Existing local delivery | existing |
 | 14 | Workspace UI redesign | Redesign slice | done |
+| 15 | Multi-source ingestion pipelines | Ingestion slice | in progress |
 
 ## Existing foundation
 
@@ -118,6 +119,14 @@ Bring every Studio screen and the widget to a polished, professional standard, g
 - [x] Test it: `/test workspace UI redesign`
 
 Spec [0002](../specs/0002-workspace-ui-redesign/index.md)
+
+## Ingestion slice
+
+### 15. Multi-source ingestion pipelines · in progress
+
+Let one ingestion pipeline read up to five Website sources and either merge them into one index or build one index per source, with per-source failure reasons, carry-forward of a failed source's last good content, and refresh of one source. Other connector kinds join later.
+
+**Done when:** a merged pipeline with two sites publishes one index even when one site fails (with the reason shown), and a per-source pipeline publishes one index per site. Plan in [`docs/multi-source-ingestion-plan.md`](../multi-source-ingestion-plan.md).
 
 ## Quality slice 2
 

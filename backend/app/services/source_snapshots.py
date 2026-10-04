@@ -125,6 +125,7 @@ def mark_ready(
     session: Session,
     snapshot_id: UUID,
     memberships: list[tuple[str, SourceItem, SourceRevision]],
+    also_found: dict | None = None,
 ) -> SourceSnapshot:
     snapshot = session.scalar(
         select(SourceSnapshot).where(SourceSnapshot.id == snapshot_id).with_for_update()
@@ -165,6 +166,12 @@ def mark_ready(
                 "provenance": {
                     "canonical_location": item.canonical_location,
                     "provider_revision": revision.provider_revision,
+                    # Other sources or URLs where the same page was found.
+                    **(
+                        {"also_found": also_found[item.id]}
+                        if also_found and item.id in also_found
+                        else {}
+                    ),
                 },
             }
         )

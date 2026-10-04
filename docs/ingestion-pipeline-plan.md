@@ -20,7 +20,7 @@ Website ────────┼──> Extract ──> Clean ──> Chunk �
 Future source ──┘
 ```
 
-Version 1 supports one to ten source nodes feeding exactly one linear processing chain. No other branches, cycles, arbitrary scripts, SQL or user-defined node types are accepted.
+Version 1 supports one to ten source nodes feeding exactly one linear processing chain. No other branches, cycles, arbitrary scripts, SQL or user-defined node types are accepted. Newly saved versions may combine at most five Website sources and may not mix connector kinds; see the [multi-source ingestion plan](multi-source-ingestion-plan.md), which supersedes this section for multi-source behavior.
 
 ## 2. Existing implementation to preserve
 
