@@ -141,25 +141,164 @@ export function derivedIncludePrefixes(url: string): string[] {
   }
 }
 
-/** Server 422 issues that belong to a node field, keyed `ocr.<field>` or `website.<field>`. */
+/**
+ * Server 422 issues that belong to a node field, keyed `ocr.<field>` or `website.<field>`.
+ * With `nodes`, keys are prefixed `<node id>:` so each source shows only its own errors.
+ */
 export function serverFieldErrors(
   issues: { loc: (string | number)[]; msg: string }[],
+  nodes?: { id: string }[],
 ): Record<string, string> {
   return Object.fromEntries(
     issues.flatMap((issue) => {
+      const position = issue.loc[issue.loc.indexOf('nodes') + 1];
+      const nodeId =
+        nodes && issue.loc.includes('nodes') && typeof position === 'number'
+          ? nodes[position]?.id
+          : undefined;
+      const prefix = nodeId ? `${nodeId}:` : '';
       const ocr = issue.loc.lastIndexOf('ocr');
       if (ocr >= 0) {
         const field = String(issue.loc[ocr + 1]);
         return ['dpi', 'max_pages', 'timeout_seconds'].includes(field)
-          ? [[`ocr.${field}`, issue.msg]]
+          ? [[`${prefix}ocr.${field}`, issue.msg]]
           : [];
       }
       const website = issue.loc.lastIndexOf('website');
       const field = String(issue.loc[website + 1]);
       return website >= 0 && ['max_pages', 'max_depth', 'requests_per_second'].includes(field)
-        ? [[`website.${field}`, issue.msg]]
+        ? [[`${prefix}website.${field}`, issue.msg]]
         : [];
     }),
+  );
+}
+
+/** The field errors of one node: its prefixed errors plus any not tied to a node. */
+export function fieldErrorsForNode(
+  errors: Record<string, string>,
+  nodeId: string,
+): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(errors).flatMap(([key, value]) => {
+      const separator = key.indexOf(':');
+      if (separator < 0) {
+        return [[key, value]];
+      }
+      return key.slice(0, separator) === nodeId ? [[key.slice(separator + 1), value]] : [];
+    }),
+  );
+}
+
+/** Mirrors the server's limits for newly saved versions. */
+export const maxWebsiteSources = 5;
+export const maxWebsiteRunPages = 2500;
+
+export function sourceNodes(draft: IngestionPipelineDraft) {
+  return draft.execution.nodes.filter(
+    (node): node is Extract<IngestionNode, { type: 'source' }> => node.type === 'source',
+  );
+}
+
+/** "Website 2" when a pipeline has several sources, so messages and lists say which one. */
+export function sourceLabel(draft: IngestionPipelineDraft, nodeId: string) {
+  const sources = sourceNodes(draft);
+  const index = sources.findIndex((node) => node.id === nodeId);
+  const node = sources[index];
+  const name =
+    node?.config.kind === 'website'
+      ? 'Website'
+      : node?.config.kind === 's3'
+        ? 'Amazon S3'
+        : node?.config.kind === 'notion'
+          ? 'Notion'
+          : node?.config.kind === 'confluence'
+            ? 'Confluence'
+            : 'Existing files';
+  return sources.length > 1 ? `${name} ${index + 1}` : name;
+}
+
+/** Why another Website source cannot be added, or null when it can. */
+export function addWebsiteSourceBlocked(draft: IngestionPipelineDraft): string | null {
+  const sources = sourceNodes(draft);
+  if (draft.execution.schema_version !== 2) {
+    return 'Upgrade this pipeline before adding sources.';
+  }
+  if (sources.some((node) => node.config.kind !== 'website')) {
+    return 'Only Website sources can be combined for now.';
+  }
+  if (sources.length >= maxWebsiteSources) {
+    return `A pipeline can read at most ${maxWebsiteSources} Website sources.`;
+  }
+  return null;
+}
+
+/** Adds a Website source beside the others, wired into the shared Extract stage. */
+export function addWebsiteSource(draft: IngestionPipelineDraft): {
+  draft: IngestionPipelineDraft;
+  nodeId: string;
+} {
+  const sources = sourceNodes(draft);
+  const extract = draft.execution.nodes.find((node) => node.type === 'extract');
+  const ids = new Set(draft.execution.nodes.map((node) => node.id));
+  let number = sources.length + 1;
+  while (ids.has(`source-${number}`)) {
+    number += 1;
+  }
+  const nodeId = `source-${number}`;
+  const last = sources[sources.length - 1];
+  const lastPosition = last ? draft.layout.positions[last.id] : undefined;
+  const position = lastPosition ? { x: lastPosition.x + 260, y: lastPosition.y } : { x: 90, y: 40 };
+  const lastSourceIndex = draft.execution.nodes.findIndex((node) => node.id === last?.id);
+  const nodes = [...draft.execution.nodes];
+  nodes.splice(lastSourceIndex + 1, 0, {
+    id: nodeId,
+    type: 'source',
+    config: defaultWebsite(),
+  });
+  return {
+    nodeId,
+    draft: {
+      ...draft,
+      execution: {
+        ...draft.execution,
+        nodes,
+        edges: extract
+          ? [...draft.execution.edges, { source: nodeId, target: extract.id }]
+          : draft.execution.edges,
+      },
+      layout: { positions: { ...draft.layout.positions, [nodeId]: position } },
+    },
+  };
+}
+
+/** Removes one of several sources and its edge; the last source cannot be removed. */
+export function removeSource(
+  draft: IngestionPipelineDraft,
+  nodeId: string,
+): IngestionPipelineDraft {
+  if (sourceNodes(draft).length < 2) {
+    return draft;
+  }
+  const positions = { ...draft.layout.positions };
+  delete positions[nodeId];
+  return {
+    ...draft,
+    execution: {
+      ...draft.execution,
+      nodes: draft.execution.nodes.filter((node) => node.id !== nodeId),
+      edges: draft.execution.edges.filter(
+        (edge) => edge.source !== nodeId && edge.target !== nodeId,
+      ),
+    },
+    layout: { positions },
+  };
+}
+
+/** Sum of every Website source's Maximum pages. */
+export function websitePageTotal(draft: IngestionPipelineDraft) {
+  return sourceNodes(draft).reduce(
+    (total, node) => total + (node.config.kind === 'website' ? node.config.max_pages : 0),
+    0,
   );
 }
 
@@ -306,6 +445,7 @@ export function defaultIngestionDraft(
     name: 'Untitled ingestion pipeline',
     execution: {
       schema_version: 2,
+      index_layout: 'merged',
       nodes,
       edges: nodes.slice(1).map((node, index) => ({ source: nodes[index].id, target: node.id })),
     },

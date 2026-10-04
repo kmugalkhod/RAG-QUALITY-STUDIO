@@ -330,6 +330,8 @@ export type IngestionPipelineDraft = {
   name: string;
   execution: {
     schema_version: 1 | 2;
+    /** Schema 2 only. Every source goes through the shared stages into one index. */
+    index_layout?: 'merged';
     nodes: IngestionNode[];
     edges: { source: string; target: string }[];
   };

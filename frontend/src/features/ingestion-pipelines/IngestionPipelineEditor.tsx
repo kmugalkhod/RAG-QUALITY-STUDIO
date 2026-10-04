@@ -42,7 +42,14 @@ import {
   requestErrorMessage as message,
   serverFieldErrors as fieldErrorsFrom,
   terminalIngestionStatuses as terminal,
+  addWebsiteSource,
+  addWebsiteSourceBlocked,
+  maxWebsiteRunPages,
+  removeSource,
+  sourceLabel,
+  sourceNodes,
   upgradeIngestionDraft,
+  websitePageTotal,
 } from './editorModel';
 import { ingestionNodeExecutionStates, ingestionRunDisplayStatus } from './executionState';
 import {
@@ -270,28 +277,18 @@ export function IngestionPipelineEditor({
       return;
     }
     const executionStates = ingestionNodeExecutionStates(run, draft.execution.nodes);
-    const nodes = draft.execution.nodes.map((node, index) => ({
+    const nodes = draft.execution.nodes.map((node) => ({
       id: node.id,
       type: 'ingestion' as const,
       position: draft.layout.positions[node.id],
       selected: node.id === selectedNode,
       data: {
         stage: node.type,
-        label:
-          node.type === 'source'
-            ? node.config.kind === 'website'
-              ? 'Website'
-              : node.config.kind === 's3'
-                ? 'Amazon S3'
-                : node.config.kind === 'notion'
-                  ? 'Notion'
-                  : node.config.kind === 'confluence'
-                    ? 'Confluence'
-                    : 'Existing files'
-            : labels[node.type],
+        label: node.type === 'source' ? sourceLabel(draft, node.id) : labels[node.type],
         detail: detail(node, documents),
-        first: index === 0,
-        last: index === draft.execution.nodes.length - 1,
+        // Sources take no input and Publish has no output, however many sources there are.
+        first: node.type === 'source',
+        last: node.type === 'publish_index',
         executionStatus: executionStates[node.id],
         executionWasStarted: run?.node_states?.find((state) => state.node_id === node.id)
           ? Boolean(run.node_states.find((state) => state.node_id === node.id)?.started_at)
@@ -437,7 +434,8 @@ export function IngestionPipelineEditor({
       settings.scrollTop = 0;
     }
   }, [selectedNode]);
-  const source = draft?.execution.nodes.find((node) => node.type === 'source');
+  // Every source of a pipeline uses one connector kind, so the first one stands for all.
+  const firstSource = draft?.execution.nodes.find((node) => node.type === 'source');
   const validation = useMemo(() => {
     if (!draft) {
       return ['Loading configuration.'];
@@ -446,82 +444,92 @@ export function IngestionPipelineEditor({
     if (!draft.name.trim()) {
       reasons.push('Enter a pipeline name.');
     }
-    if (
-      source?.type === 'source' &&
-      source.config.kind === 'existing_files' &&
-      source.config.document_ids.length === 0
-    ) {
-      reasons.push('Select at least one processed document.');
+    const sources = sourceNodes(draft);
+    for (const source of sources) {
+      // With several sources, say which one each message is about.
+      const name = sources.length > 1 ? `${sourceLabel(draft, source.id)}: ` : '';
+      if (source.config.kind === 'existing_files' && source.config.document_ids.length === 0) {
+        reasons.push(name + 'Select at least one processed document.');
+      }
+      if (source.config.kind === 'website') {
+        const selection = source.config.selection;
+        const selectedUrls =
+          selection.mode === 'url_list'
+            ? selection.urls
+            : [
+                selection.mode === 'single_url'
+                  ? selection.url
+                  : selection.mode === 'crawl'
+                    ? selection.start_url
+                    : selection.sitemap_url,
+              ];
+        if (!selectedUrls.length || selectedUrls.some((url) => !url.trim())) {
+          reasons.push(name + 'Enter at least one website URL.');
+        }
+        if (!source.config.allowed_origins.length) {
+          reasons.push(name + 'Enter at least one allowed origin.');
+        }
+      }
+      if (source.config.kind === 's3') {
+        if (!connectionSettings?.enabled) {
+          reasons.push(name + 'Enable the local encrypted connection vault before using S3.');
+        }
+        if (!source.config.connection_id) {
+          reasons.push(name + 'Select an S3 connection.');
+        }
+        if (!source.config.region.trim()) {
+          reasons.push(name + 'Enter an AWS region.');
+        }
+        if (!source.config.bucket.trim()) {
+          reasons.push(name + 'Enter an S3 bucket.');
+        }
+        if (!source.config.allowed_file_types.length) {
+          reasons.push(name + 'Allow TXT or PDF objects.');
+        }
+        if (source.config.max_total_bytes < source.config.max_object_bytes) {
+          reasons.push(name + 'S3 total bytes must be at least the per-object limit.');
+        }
+      }
+      if (source.config.kind === 'notion') {
+        if (!connectionSettings?.enabled) {
+          reasons.push(name + 'Enable the local encrypted connection vault before using Notion.');
+        }
+        if (!source.config.connection_id) {
+          reasons.push(name + 'Select a Notion connection.');
+        }
+        if (
+          (source.config.selection.mode === 'pages' &&
+            source.config.selection.page_ids.length === 0) ||
+          (source.config.selection.mode === 'data_sources' &&
+            source.config.selection.data_source_ids.length === 0)
+        ) {
+          reasons.push(name + 'Enter at least one Notion page or data source ID.');
+        }
+      }
+      if (source.config.kind === 'confluence') {
+        if (!connectionSettings?.enabled) {
+          reasons.push(
+            name + 'Enable the local encrypted connection vault before using Confluence.',
+          );
+        }
+        if (!source.config.connection_id) {
+          reasons.push(name + 'Select a Confluence connection.');
+        }
+        if (
+          (source.config.selection.mode === 'spaces' &&
+            source.config.selection.space_ids.length === 0) ||
+          (source.config.selection.mode === 'pages' &&
+            source.config.selection.page_ids.length === 0)
+        ) {
+          reasons.push(name + 'Enter at least one Confluence space or page ID.');
+        }
+      }
     }
-    if (source?.type === 'source' && source.config.kind === 'website') {
-      const selection = source.config.selection;
-      const selectedUrls =
-        selection.mode === 'url_list'
-          ? selection.urls
-          : [
-              selection.mode === 'single_url'
-                ? selection.url
-                : selection.mode === 'crawl'
-                  ? selection.start_url
-                  : selection.sitemap_url,
-            ];
-      if (!selectedUrls.length || selectedUrls.some((url) => !url.trim())) {
-        reasons.push('Enter at least one website URL.');
-      }
-      if (!source.config.allowed_origins.length) {
-        reasons.push('Enter at least one allowed origin.');
-      }
-    }
-    if (source?.type === 'source' && source.config.kind === 's3') {
-      if (!connectionSettings?.enabled) {
-        reasons.push('Enable the local encrypted connection vault before using S3.');
-      }
-      if (!source.config.connection_id) {
-        reasons.push('Select an S3 connection.');
-      }
-      if (!source.config.region.trim()) {
-        reasons.push('Enter an AWS region.');
-      }
-      if (!source.config.bucket.trim()) {
-        reasons.push('Enter an S3 bucket.');
-      }
-      if (!source.config.allowed_file_types.length) {
-        reasons.push('Allow TXT or PDF objects.');
-      }
-      if (source.config.max_total_bytes < source.config.max_object_bytes) {
-        reasons.push('S3 total bytes must be at least the per-object limit.');
-      }
-    }
-    if (source?.type === 'source' && source.config.kind === 'notion') {
-      if (!connectionSettings?.enabled) {
-        reasons.push('Enable the local encrypted connection vault before using Notion.');
-      }
-      if (!source.config.connection_id) {
-        reasons.push('Select a Notion connection.');
-      }
-      if (
-        (source.config.selection.mode === 'pages' &&
-          source.config.selection.page_ids.length === 0) ||
-        (source.config.selection.mode === 'data_sources' &&
-          source.config.selection.data_source_ids.length === 0)
-      ) {
-        reasons.push('Enter at least one Notion page or data source ID.');
-      }
-    }
-    if (source?.type === 'source' && source.config.kind === 'confluence') {
-      if (!connectionSettings?.enabled) {
-        reasons.push('Enable the local encrypted connection vault before using Confluence.');
-      }
-      if (!source.config.connection_id) {
-        reasons.push('Select a Confluence connection.');
-      }
-      if (
-        (source.config.selection.mode === 'spaces' &&
-          source.config.selection.space_ids.length === 0) ||
-        (source.config.selection.mode === 'pages' && source.config.selection.page_ids.length === 0)
-      ) {
-        reasons.push('Enter at least one Confluence space or page ID.');
-      }
+    const pageTotal = websitePageTotal(draft);
+    if (sources.length > 1 && pageTotal > maxWebsiteRunPages) {
+      reasons.push(
+        `All Website sources together may fetch at most ${maxWebsiteRunPages.toLocaleString('en-US')} pages; they now allow ${pageTotal.toLocaleString('en-US')}.`,
+      );
     }
     const chunk = draft.execution.nodes.find((node) => node.type === 'chunk');
     if (chunk?.type === 'chunk' && (chunk.algorithm ?? 'character_window') === 'character_window') {
@@ -568,7 +576,7 @@ export function IngestionPipelineEditor({
       reasons.push('Cleaned-text limits must be valid and the minimum cannot exceed the maximum.');
     }
     return reasons;
-  }, [connectionSettings, draft, source]);
+  }, [connectionSettings, draft]);
 
   function updateNode(id: string, update: (node: IngestionNode) => IngestionNode) {
     setServerFieldErrors({});
@@ -614,6 +622,31 @@ export function IngestionPipelineEditor({
     );
   }
 
+  function addSource() {
+    if (!draft || addWebsiteSourceBlocked(draft)) {
+      return;
+    }
+    const added = addWebsiteSource(draft);
+    setServerFieldErrors({});
+    setPreview(undefined);
+    setDraft(added.draft);
+    setSelectedNode(added.nodeId);
+  }
+
+  function deleteSource(nodeId: string) {
+    if (!draft) {
+      return;
+    }
+    const next = removeSource(draft, nodeId);
+    if (next === draft) {
+      return;
+    }
+    setServerFieldErrors({});
+    setPreview(undefined);
+    setDraft(next);
+    setSelectedNode(sourceNodes(next)[0]?.id ?? 'extract');
+  }
+
   function changeFlowNodes(changes: NodeChange<IngestionFlowNode>[]) {
     onFlowNodesChange(changes);
     const selectedChange = changes.find((change) => change.type === 'select' && change.selected);
@@ -652,7 +685,7 @@ export function IngestionPipelineEditor({
     } catch (cause) {
       setError(message(cause));
       if (cause instanceof ApiError && cause.status === 422) {
-        setServerFieldErrors(fieldErrorsFrom(cause.issues));
+        setServerFieldErrors(fieldErrorsFrom(cause.issues, draft?.execution.nodes));
       }
     } finally {
       setBusy(false);
@@ -761,10 +794,11 @@ export function IngestionPipelineEditor({
     void perform(async () => setRun(await api.runIngestionSchedule(projectId, schedule.id)));
   }
 
-  const websiteSource = source?.type === 'source' && source.config.kind === 'website';
-  const s3Source = source?.type === 'source' && source.config.kind === 's3';
-  const notionSource = source?.type === 'source' && source.config.kind === 'notion';
-  const confluenceSource = source?.type === 'source' && source.config.kind === 'confluence';
+  const websiteSource = firstSource?.type === 'source' && firstSource.config.kind === 'website';
+  const s3Source = firstSource?.type === 'source' && firstSource.config.kind === 's3';
+  const notionSource = firstSource?.type === 'source' && firstSource.config.kind === 'notion';
+  const confluenceSource =
+    firstSource?.type === 'source' && firstSource.config.kind === 'confluence';
 
   if (loading) {
     return (
@@ -1004,6 +1038,12 @@ export function IngestionPipelineEditor({
             schemaVersion={draft.execution.schema_version}
             updateNode={updateNode}
             changeSourceKind={changeSourceKind}
+            sourceCount={sourceNodes(draft).length}
+            sourceLabel={(nodeId) => sourceLabel(draft, nodeId)}
+            addSourceBlocked={addWebsiteSourceBlocked(draft)}
+            websitePageTotal={websitePageTotal(draft)}
+            onAddSource={addSource}
+            onRemoveSource={deleteSource}
             onSelectNode={setSelectedNode}
           />
         </div>

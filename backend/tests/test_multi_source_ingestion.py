@@ -274,3 +274,29 @@ def test_saving_mixed_connector_kinds_is_rejected(api):
     issue = response.json()["detail"][0]
     assert issue["loc"] == ["execution", "nodes", 1, "config", "kind"]
     assert "same connector" in issue["msg"]
+
+
+def test_saving_websites_over_the_aggregate_page_cap_is_rejected(api):
+    client, _, project_id, _, config, _ = api
+    payload = merged_draft(config, source_count=3)
+    for node in payload["execution"]["nodes"]:
+        if node["type"] == "source":
+            node["config"]["max_pages"] = 1000
+    response = client.post(f"/api/projects/{project_id}/pipelines", json=payload)
+    assert response.status_code == 422, response.text
+    issues = response.json()["detail"]
+    assert [issue["loc"][2] for issue in issues] == [0, 1, 2]
+    assert all(issue["loc"][-2:] == ["website", "max_pages"] for issue in issues)
+    assert "at most 2,500 pages; they now allow 3,000" in issues[0]["msg"]
+    payload["execution"]["nodes"][2]["config"]["max_pages"] = 500
+    assert save(client, project_id, payload)
+
+
+def test_saved_v2_versions_record_the_merged_layout(api):
+    client, _, project_id, _, config, _ = api
+    payload = merged_draft(config, structure_cleaning=True)
+    saved = save(client, project_id, payload)
+    assert saved["execution"]["index_layout"] == "merged"
+    payload["execution"]["index_layout"] = "per_source"
+    rejected = client.post(f"/api/projects/{project_id}/pipelines", json=payload)
+    assert rejected.status_code == 422, rejected.text

@@ -13,7 +13,10 @@ import {
   defaultLanguagePolicy,
   defaultSensitiveDataPolicy,
   fallbackQualityPolicy,
+  fieldErrorsForNode,
   ingestionStageLabels as labels,
+  maxWebsiteRunPages,
+  maxWebsiteSources,
 } from '../editorModel';
 import type {
   ExistingFilesConfig,
@@ -69,6 +72,12 @@ export function IngestionNodeSettings({
   schemaVersion,
   updateNode,
   changeSourceKind,
+  sourceCount = 1,
+  sourceLabel,
+  addSourceBlocked,
+  websitePageTotal = 0,
+  onAddSource,
+  onRemoveSource,
   onSelectNode,
 }: {
   projectId: string;
@@ -88,8 +97,21 @@ export function IngestionNodeSettings({
   schemaVersion: 1 | 2;
   updateNode: (id: string, update: (node: IngestionNode) => IngestionNode) => void;
   changeSourceKind: (nodeId: string, kind: SourceKind) => void;
+  /** Source nodes in the draft; with more than one the kind is fixed. */
+  sourceCount?: number;
+  /** "Website 2" style names when there are several sources. */
+  sourceLabel?: (nodeId: string) => string;
+  /** Why a Website source cannot be added, null when it can; absent hides the controls. */
+  addSourceBlocked?: string | null;
+  websitePageTotal?: number;
+  onAddSource?: () => void;
+  onRemoveSource?: (nodeId: string) => void;
   onSelectNode: (nodeId: string) => void;
 }) {
+  const nameOf = (node: IngestionNode) =>
+    node.type === 'source' && sourceLabel ? sourceLabel(node.id) : stageName(node);
+  // Server errors are keyed per node, so each source shows only its own.
+  const nodeErrors = fieldErrorsForNode(serverFieldErrors, selectedNode);
   const selectedOcr =
     selected?.type === 'extract'
       ? (selected.ocr ?? {
@@ -193,7 +215,7 @@ export function IngestionNodeSettings({
     >
       <div className="flex shrink-0 flex-col gap-1 border-b border-border bg-surface px-4 py-4 md:px-6 desktop:sticky desktop:top-0 desktop:z-10">
         <h2 id="ingestion-settings-heading" className="text-base font-semibold text-foreground">
-          {selected ? `${stageName(selected)} settings` : 'Node settings'}
+          {selected ? `${nameOf(selected)} settings` : 'Node settings'}
         </h2>
         <p className="text-xs text-foreground-muted">
           Stage {nodes.findIndex((node) => node.id === selectedNode) + 1} of {nodes.length} ·{' '}
@@ -233,7 +255,7 @@ export function IngestionNodeSettings({
           >
             {nodes.map((node, index) => (
               <NativeSelectOption key={node.id} value={node.id}>
-                {index + 1} · {stageName(node)}
+                {index + 1} · {nameOf(node)}
               </NativeSelectOption>
             ))}
           </NativeSelect>
@@ -264,6 +286,8 @@ export function IngestionNodeSettings({
               Source type
               <NativeSelect
                 value={selected.config.kind}
+                disabled={sourceCount > 1}
+                aria-describedby={sourceCount > 1 ? 'source-kind-fixed' : undefined}
                 onChange={(event) =>
                   changeSourceKind(
                     selected.id,
@@ -289,6 +313,57 @@ export function IngestionNodeSettings({
                 </NativeSelectOption>
               </NativeSelect>
             </Label>
+            {sourceCount > 1 && (
+              <p id="source-kind-fixed" className={HINT}>
+                Remove the other sources to change the source type.
+              </p>
+            )}
+            {selected.config.kind === 'website' && addSourceBlocked !== undefined && (
+              <fieldset className={FIELDSET}>
+                <legend>Sources in this pipeline</legend>
+                <p className={HINT}>
+                  {sourceCount} of {maxWebsiteSources} Website sources. Every source goes through
+                  the same Extract, Clean, Chunk and Embed settings into one index; pages found by
+                  more than one source are indexed once.
+                </p>
+                {sourceCount > 1 && (
+                  <p
+                    className={websitePageTotal > maxWebsiteRunPages ? FIELD_ERROR : HINT}
+                    role={websitePageTotal > maxWebsiteRunPages ? 'alert' : undefined}
+                  >
+                    Maximum pages across sources: {websitePageTotal.toLocaleString('en-US')} of{' '}
+                    {maxWebsiteRunPages.toLocaleString('en-US')}.
+                  </p>
+                )}
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={!!addSourceBlocked}
+                    aria-describedby={addSourceBlocked ? 'add-source-blocked' : undefined}
+                    onClick={onAddSource}
+                  >
+                    Add website source
+                  </Button>
+                  {sourceCount > 1 && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => onRemoveSource?.(selected.id)}
+                    >
+                      Remove {sourceLabel ? sourceLabel(selected.id) : 'this source'}
+                    </Button>
+                  )}
+                </div>
+                {addSourceBlocked && (
+                  <p id="add-source-blocked" className={HINT}>
+                    {addSourceBlocked}
+                  </p>
+                )}
+              </fieldset>
+            )}
             {!connectionSettings?.enabled && (
               <Callout role="note">
                 <p>
@@ -406,7 +481,7 @@ export function IngestionNodeSettings({
               <WebsiteSettings
                 key={selected.id}
                 config={selected.config}
-                fieldErrors={serverFieldErrors}
+                fieldErrors={nodeErrors}
                 update={(config) =>
                   updateNode(selected.id, (node) =>
                     node.type === 'source' ? { ...node, config } : node,
@@ -863,7 +938,7 @@ export function IngestionNodeSettings({
                         type="number"
                         min={150}
                         max={300}
-                        aria-invalid={!!serverFieldErrors['ocr.dpi']}
+                        aria-invalid={!!nodeErrors['ocr.dpi']}
                         value={selectedOcr.dpi}
                         onChange={(event) =>
                           updateExtract({
@@ -871,9 +946,9 @@ export function IngestionNodeSettings({
                           })
                         }
                       />
-                      {serverFieldErrors['ocr.dpi'] && (
+                      {nodeErrors['ocr.dpi'] && (
                         <small role="alert" className={FIELD_ERROR}>
-                          {serverFieldErrors['ocr.dpi']}
+                          {nodeErrors['ocr.dpi']}
                         </small>
                       )}
                     </Label>
@@ -883,7 +958,7 @@ export function IngestionNodeSettings({
                         type="number"
                         min={1}
                         max={extractionCapabilities?.ocr.max_pages ?? 100}
-                        aria-invalid={!!serverFieldErrors['ocr.max_pages']}
+                        aria-invalid={!!nodeErrors['ocr.max_pages']}
                         value={selectedOcr.max_pages}
                         onChange={(event) =>
                           updateExtract({
@@ -891,9 +966,9 @@ export function IngestionNodeSettings({
                           })
                         }
                       />
-                      {serverFieldErrors['ocr.max_pages'] && (
+                      {nodeErrors['ocr.max_pages'] && (
                         <small role="alert" className={FIELD_ERROR}>
-                          {serverFieldErrors['ocr.max_pages']}
+                          {nodeErrors['ocr.max_pages']}
                         </small>
                       )}
                     </Label>
@@ -903,7 +978,7 @@ export function IngestionNodeSettings({
                         type="number"
                         min={5}
                         max={60}
-                        aria-invalid={!!serverFieldErrors['ocr.timeout_seconds']}
+                        aria-invalid={!!nodeErrors['ocr.timeout_seconds']}
                         value={selectedOcr.timeout_seconds}
                         onChange={(event) =>
                           updateExtract({
@@ -914,9 +989,9 @@ export function IngestionNodeSettings({
                           })
                         }
                       />
-                      {serverFieldErrors['ocr.timeout_seconds'] && (
+                      {nodeErrors['ocr.timeout_seconds'] && (
                         <small role="alert" className={FIELD_ERROR}>
-                          {serverFieldErrors['ocr.timeout_seconds']}
+                          {nodeErrors['ocr.timeout_seconds']}
                         </small>
                       )}
                     </Label>

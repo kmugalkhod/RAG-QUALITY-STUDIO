@@ -2135,3 +2135,15 @@ Implemented: repeated-site-chrome fingerprints are computed and recorded per sou
 Verified: `tests/test_multi_source_ingestion.py` (two sites publish one index; same page from two sources; cross-site exact duplicate; chrome repeated on one site but content on another; the two save rules) passes. Ruff check and format pass. The full isolated suite gives 484 passed, 5 skipped and the same three failures recorded on `main`. The new tests were not run against the unmodified code.
 
 Not done: partial failure and carry-forward (slice 2), the `index_layout` setting and multi-source editor (slice 3), single-source refresh (slice 4), per-source run groups (slice 5) and concurrent site crawls (slice 6). No browser or live crawl check was made, because nothing user-visible changed yet.
+
+## Multi-source ingestion, slice 3: layout field and multi-Website editor — 2026-10-05
+
+The owner chose the order 1, 3, 2, 4, 5, 6 so a two-site pipeline can be built in the UI before failure handling.
+
+Acceptance criterion: a user can add and remove Website sources (1–5) in the ingestion editor with labeled, keyboard-accessible controls, every source is validated and named, the source type is fixed while there are several, and the 2,500-page aggregate cap is shown and enforced on save.
+
+Implemented: schema-2 `index_layout` (only `merged`, the default; chosen over a schema 3, see architecture); the aggregate Maximum pages cap of 2,500 on save, reported on every source's Maximum pages field; editor model helpers (`addWebsiteSource`, `removeSource`, `addWebsiteSourceBlocked`, `sourceLabel`, `websitePageTotal`, node-scoped `serverFieldErrors`/`fieldErrorsForNode`); per-source validation messages; canvas handles by node type instead of position; a **Sources in this pipeline** group in the Website settings with **Add website source**, **Remove Website N**, the source count and the page total; the Website user guide section "Combine several websites into one index".
+
+Verified: backend `test_multi_source_ingestion.py`, `test_pipelines.py` and `test_ingestion_contracts.py` (42 passed) and Ruff in the isolated stack; frontend typecheck, ESLint, build and Vitest (52 files, 303 tests, including the new `multiSource.test.tsx`). The development stack and Vite at `http://127.0.0.1:5273` were started and answer health and readiness.
+
+Not done: no visual browser check was possible in this session (no browser tools), so the canvas layout of several sources, desktop and mobile were not inspected; the Playwright journey and the docs-site `npm run check` (dependencies not installed) were not run. `npm run lint` stops at the known Windows structure-check path issue, and `format:check` reports files with CRLF line endings that this change did not touch; the changed files pass Prettier. Until slice 2, one failed site fails the whole merged run.

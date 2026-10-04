@@ -118,6 +118,8 @@ def website_fetch_policies(execution: IngestionExecution) -> dict[str, dict]:
 
 
 MAX_WEBSITE_SOURCES = 5
+# All Website sources of one pipeline together; each keeps its own 1–1,000 limit.
+MAX_WEBSITE_RUN_PAGES = 2500
 
 
 def validate_source_combination(execution: IngestionExecution):
@@ -159,6 +161,33 @@ def validate_source_combination(execution: IngestionExecution):
                 }
             ],
         )
+    if first_kind == "website":
+        total = sum(node.config.max_pages for _, node in sources)
+        if total > MAX_WEBSITE_RUN_PAGES:
+            # Reported on every source's Maximum pages field, since lowering
+            # any of them can fix it.
+            raise HTTPException(
+                422,
+                [
+                    {
+                        "loc": [
+                            "execution",
+                            "nodes",
+                            position,
+                            "config",
+                            "website",
+                            "max_pages",
+                        ],
+                        "msg": (
+                            f"All Website sources together may fetch at most "
+                            f"{MAX_WEBSITE_RUN_PAGES:,} pages; they now allow "
+                            f"{total:,}. Lower Maximum pages on one or more sources."
+                        ),
+                        "type": "value_error",
+                    }
+                    for position, _ in sources
+                ],
+            )
 
 
 def validate_ingestion(session, project_id, execution: IngestionExecution):

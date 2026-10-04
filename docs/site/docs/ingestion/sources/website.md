@@ -1,5 +1,5 @@
 ---
-verified_against: "d884979 + website source node Stages A–D and 2026-10-03 review fixes (working tree)"
+verified_against: "d884979 + website source node Stages A–D, 2026-10-03 review fixes and multi-source slices 1 and 3 (component and API tests; working tree)"
 title: Website source
 slug: /ingestion/sources/website/
 ---
@@ -22,6 +22,14 @@ The server, not the node, sets the request timeout, per-page and total byte budg
 A sitemap may be a sitemap index (for example WordPress `sitemap_index.xml`): its nested sitemaps, one level deep and at most 50, appear as items with status **sitemap**, and gzip sitemaps are accepted. When a sitemap's `lastmod` shows a page has not changed since the stored copy, a refresh reuses it without a request. Rate-limited or temporarily unavailable pages (HTTP 429, 502, 503, 504 or timeouts) are tried up to three times, honoring `Retry-After`; each item shows its attempts when there was more than one. A robots.txt `Crawl-delay` slower than your crawl speed is honored. A page with almost no server-rendered text is marked *Likely needs JavaScript rendering — not supported*; choose server-rendered pages instead.
 
 A run saves its crawl page by page. If a worker stops mid-crawl, the run resumes with the remaining pages instead of starting over, and the run strip shows how many discovered URLs have been checked. Pages are fetched several at a time, but requests to one site never exceed your crawl speed. The same page reached through tracking parameters (`utm_*`, `ref`, `fbclid`, `gclid`), a `rel="canonical"` link inside your scope, or identical text (200 characters or more) at another URL is indexed once; the other copies are listed as **duplicate** with the URL that was kept.
+
+## Combine several websites into one index
+
+One pipeline can read up to five Website sources and merge them into one index. Select a Website source and, under **Sources in this pipeline**, select **Add website source**. A new source appears beside the others on the canvas, wired into the same Extract stage, and its settings open; each source has its own discovery mode, URL, page limit, filters and crawl speed. With several sources they are named **Website 1**, **Website 2** and so on, and validation messages say which one needs attention. To take one out, select it and choose **Remove Website 2** (for example); the last source cannot be removed.
+
+Every source goes through the same Extract, Clean, Chunk and Embed settings and publishes one index. Repeated navigation is detected per site, so one site's menus never remove text from another. A page reached by two sources is indexed once and listed as **duplicate** under the second source, naming the source that kept it; identical text at different URLs is handled the same way, and the kept page records every source and URL where it was found.
+
+The **Maximum pages** values of all sources may add up to at most 2,500; the panel shows the current total, and saving above it reports the error on each source's **Maximum pages** field. While a pipeline has several sources, its **Source type** is fixed to Website. Combining other connectors, publishing one index per source and keeping the other sites when one site fails are not available yet: today, if any site fails, the run fails and the previous ready index stays current.
 
 Expected result: a bounded preview lists exact URL outcomes; a successful run reports new/changed/unchanged/removed counts and links to a ready index and [source snapshot](../source-history.md). It may include fewer pages than links on the seed page. The connector validates DNS and redirects, blocks non-public destinations, and enforces the recorded fetch limits; a preview cannot make a blocked destination safe by changing only the UI label.
 

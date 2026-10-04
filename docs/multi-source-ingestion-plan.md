@@ -1,6 +1,6 @@
 # Multi-source ingestion pipelines
 
-Status: approved 2026-10-05; slice 1 done 2026-10-05, slice 2 next
+Status: approved 2026-10-05; slices 1 and 3 done 2026-10-05, slice 2 next (owner chose order 1, 3, 2, 4, 5, 6)
 Scope owner: Website ingestion, run lifecycle, ingestion editor, Knowledge Base lineage
 
 ## Purpose
@@ -56,7 +56,7 @@ Tests: two sites publish one index with both sites' pages; an overlapping URL; a
 
 ### Slice 3 — layout setting and merged editor
 
-- `IngestionExecutionV3` adds `index_layout`. V1 and V2 versions stay readable and run as merged.
+- Schema 2 executions gain an optional `index_layout` field (only `merged` for now, the default). This replaced the planned `IngestionExecutionV3`: a new schema version would have forked every schema-2 check in the editor for one field. Versions saved before the field read as merged; schema 1 versions run as merged.
 - The editor can add and remove Website sources (1–5), with labeled, keyboard-accessible controls.
 - The settings panel edits the selected source. Switching a source's connector kind is disabled while there are two or more sources.
 - The 2,500-page aggregate cap is shown and validated on save.

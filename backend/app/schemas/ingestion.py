@@ -1014,6 +1014,9 @@ class IngestionExecutionV1(Strict):
 
 class IngestionExecutionV2(Strict):
     schema_version: Literal[2]
+    # How several sources publish: `merged` sends every source through the one
+    # shared chain into one index. Versions saved before this field are merged.
+    index_layout: Literal["merged"] = "merged"
     nodes: list[IngestionNodeV2] = Field(min_length=6, max_length=15)
     edges: list[IngestionEdge] = Field(min_length=5, max_length=14)
 
