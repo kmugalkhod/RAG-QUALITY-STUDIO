@@ -37,6 +37,10 @@ export function IngestionRunStrip({
   const published = run.status === 'succeeded' && run.published_index_id;
   const counted =
     run.new_count > 0 || run.changed_count > 0 || run.unchanged_count > 0 || run.removed_count > 0;
+  const outcomes = run.source_outcomes ?? [];
+  const failedSources = outcomes.filter((outcome) => outcome.status === 'failed');
+  const partialSources = outcomes.filter((outcome) => outcome.status === 'partial');
+  const carried = outcomes.reduce((total, outcome) => total + outcome.carried_forward_count, 0);
   return (
     <div
       id="ingestion-run"
@@ -52,6 +56,9 @@ export function IngestionRunStrip({
           />
           {presentation.label}
         </StatusBadge>
+        {run.completion === 'with_warnings' && (
+          <span className="text-xs font-medium text-warning">with warnings</span>
+        )}
         {!finished && (
           <strong className="text-xs font-semibold text-foreground tabular-nums">
             {run.progress}%
@@ -95,8 +102,21 @@ export function IngestionRunStrip({
               {run.failed_count > 0 && (
                 <span className="text-danger"> · {run.failed_count} failed</span>
               )}
+              {carried > 0 && <> · {carried} kept from earlier</>}
             </p>
           )}
+          {run.status === 'succeeded' &&
+            (failedSources.length > 0 || partialSources.length > 0) && (
+              <p role="status" className="min-w-0 text-xs text-warning">
+                {failedSources.length > 0
+                  ? `${failedSources.length} of ${outcomes.length} sources failed; their earlier pages were kept. `
+                  : ''}
+                {partialSources.length > 0
+                  ? `${partialSources.length} ${partialSources.length === 1 ? 'source' : 'sources'} had failed pages. `
+                  : ''}
+                Open Run details for the reasons.
+              </p>
+            )}
           {run.error && (
             <p
               role="alert"

@@ -6,6 +6,8 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.connectors.base import ConnectorFailure, ConnectorIssue
+from app.connectors.website import PreviewOutcome
 from app.ingestion_content.cleaning import default_structure_steps
 from app.models.document import Chunk
 from app.models.index import IndexVersion
@@ -16,6 +18,7 @@ from app.models.source import (
     SourceRevision,
     SourceSnapshotMember,
 )
+from app.workers.ingestion import process_ingestion
 from test_ingestion_contracts import ingestion_draft
 from test_documents import documents_api  # noqa: F401
 from test_website_ingestion import page, publish, start_run, website_api  # noqa: F401
@@ -40,8 +43,10 @@ class MultiSiteDouble:
         url = str(config.selection.url)
         self.crawled.append(url)
         pages = self.pages_by_source_url[url]
+        if isinstance(pages, ConnectorIssue):
+            raise ConnectorFailure(pages)
         return store.import_results(
-            [value[0] for value in pages], [value[1] for value in pages]
+            [value[0] for value in pages], [value[1] for value in pages if value[1]]
         )
 
 
@@ -300,3 +305,242 @@ def test_saved_v2_versions_record_the_merged_layout(api):
     payload["execution"]["index_layout"] = "per_source"
     rejected = client.post(f"/api/projects/{project_id}/pipelines", json=payload)
     assert rejected.status_code == 422, rejected.text
+
+
+# Slice 2: one failing site does not block the others in a merged run.
+
+SITE_DOWN = ConnectorIssue(
+    code="sitemap_unavailable",
+    message="The sitemap could not be read.",
+    retryable=False,
+)
+
+
+def failed_page(url):
+    return (
+        PreviewOutcome(
+            external_id=url,
+            display_name=url,
+            canonical_location=url,
+            media_type="text/html",
+            status="failed",
+            reason="The page returned HTTP 500.",
+            error_code="http_500",
+        ),
+        None,
+    )
+
+
+def two_site_pages(b_text="The greenhouse grows pears."):
+    return {
+        SITE_A: [page(SITE_A, html("Orchard", "The orchard grows apples."))],
+        SITE_B: [
+            page(SITE_B, html("Greenhouse", b_text)),
+            page(f"{SITE_B}/glass", html("Glass", "Panes are cleaned in spring.")),
+        ],
+    }
+
+
+def read_run(client, project_id, run_id):
+    response = client.get(f"/api/projects/{project_id}/ingestion-runs/{run_id}")
+    assert response.status_code == 200, response.text
+    return response.json()
+
+
+def outcome_for(run, node_id):
+    return next(
+        item for item in run["source_outcomes"] if item["source_node_id"] == node_id
+    )
+
+
+def test_first_run_publishes_the_working_site_when_another_fails(api):
+    client, engine, project_id, _, config, _ = api
+    version = save(client, project_id, merged_draft(config))
+    run = start_run(client, project_id, version)
+    pages = two_site_pages()
+    pages[SITE_B] = SITE_DOWN
+    index_id = publish(engine, run["id"], lambda: MultiSiteDouble(pages))
+
+    assert memberships(engine, index_id) == [("source-0", SITE_A)]
+    result = read_run(client, project_id, run["id"])
+    assert result["status"] == "succeeded"
+    assert result["completion"] == "with_warnings"
+    failed = outcome_for(result, "source-1")
+    assert failed["status"] == "failed"
+    assert failed["error_code"] == "sitemap_unavailable"
+    assert failed["message"] == "The sitemap could not be read."
+    assert failed["carried_forward_count"] == 0
+    assert outcome_for(result, "source-0")["status"] == "succeeded"
+
+
+def test_a_failed_site_keeps_its_last_good_pages(api):
+    client, engine, project_id, _, config, _ = api
+    version = save(client, project_id, merged_draft(config))
+    first = start_run(client, project_id, version)
+    publish(engine, first["id"], lambda: MultiSiteDouble(two_site_pages()))
+    assert read_run(client, project_id, first["id"])["completion"] == "complete"
+
+    second = start_run(client, project_id, version)
+    pages = two_site_pages()
+    pages[SITE_A] = [page(SITE_A, html("Orchard", "Now with plums as well."))]
+    pages[SITE_B] = SITE_DOWN
+    index_id = publish(engine, second["id"], lambda: MultiSiteDouble(pages))
+
+    assert sorted(memberships(engine, index_id)) == [
+        ("source-0", SITE_A),
+        ("source-1", SITE_B),
+        ("source-1", f"{SITE_B}/glass"),
+    ]
+    items = run_items(client, project_id, second["id"])
+    carried = [item for item in items if item["outcome"] == "carried_forward"]
+    assert sorted(item["canonical_location"] for item in carried) == [
+        SITE_B,
+        f"{SITE_B}/glass",
+    ]
+    assert "this source failed: The sitemap could not be read." in carried[0]["reason"]
+    assert not [item for item in items if item["outcome"] == "removed"]
+    result = read_run(client, project_id, second["id"])
+    assert result["completion"] == "with_warnings"
+    assert result["changed_count"] == 1
+    assert outcome_for(result, "source-1")["carried_forward_count"] == 2
+    snapshot = client.get(
+        f"/api/projects/{project_id}/source-snapshots/{result['source_snapshot_id']}"
+    ).json()
+    assert snapshot["carried_forward_count"] == 2
+
+
+def test_every_site_failing_fails_the_run_and_keeps_the_ready_index(api):
+    client, engine, project_id, _, config, _ = api
+    version = save(client, project_id, merged_draft(config))
+    first = start_run(client, project_id, version)
+    first_index = publish(
+        engine, first["id"], lambda: MultiSiteDouble(two_site_pages())
+    )
+
+    second = start_run(client, project_id, version)
+    down = {SITE_A: SITE_DOWN, SITE_B: [failed_page(SITE_B)]}
+    process_ingestion(
+        UUID(second["id"]), engine, connector_factory=lambda: MultiSiteDouble(down)
+    )
+    result = read_run(client, project_id, second["id"])
+    assert result["status"] == "failed"
+    assert result["error"].startswith("Every Website source failed.")
+    assert outcome_for(result, "source-1")["error_code"] == "all_pages_failed"
+    with Session(engine) as session:
+        assert (
+            session.scalar(
+                select(IndexVersion.id).where(
+                    IndexVersion.ingestion_run_id == UUID(second["id"])
+                )
+            )
+            is None
+        )
+        assert session.get(IndexVersion, first_index).status == "succeeded"
+
+
+def test_a_failed_page_keeps_its_previous_copy_and_new_failures_are_reported(api):
+    client, engine, project_id, _, config, _ = api
+    version = save(client, project_id, merged_draft(config))
+    first = start_run(client, project_id, version)
+    publish(engine, first["id"], lambda: MultiSiteDouble(two_site_pages()))
+
+    second = start_run(client, project_id, version)
+    pages = two_site_pages()
+    pages[SITE_B] = [
+        page(SITE_B, html("Greenhouse", "The greenhouse grows pears.")),
+        failed_page(f"{SITE_B}/glass"),
+        failed_page(f"{SITE_B}/new"),
+    ]
+    index_id = publish(engine, second["id"], lambda: MultiSiteDouble(pages))
+
+    assert sorted(memberships(engine, index_id)) == [
+        ("source-0", SITE_A),
+        ("source-1", SITE_B),
+        ("source-1", f"{SITE_B}/glass"),
+    ]
+    items = run_items(client, project_id, second["id"])
+    outcomes = {item["canonical_location"]: item["outcome"] for item in items}
+    assert outcomes[f"{SITE_B}/new"] == "failed"
+    result = read_run(client, project_id, second["id"])
+    assert result["status"] == "succeeded"
+    assert result["completion"] == "with_warnings"
+    assert result["failed_count"] == 2
+    partial = outcome_for(result, "source-1")
+    assert partial["status"] == "partial"
+    assert partial["carried_forward_count"] == 1
+
+
+def test_carried_pages_are_reprocessed_when_settings_changed(api):
+    client, engine, project_id, _, config, _ = api
+    version = save(client, project_id, merged_draft(config))
+    first = start_run(client, project_id, version)
+    long_text = "Greenhouse panes are cleaned every spring by the team. " * 12
+    publish(
+        engine,
+        first["id"],
+        lambda: MultiSiteDouble(two_site_pages(b_text=long_text)),
+    )
+    with Session(engine) as session:
+        before = session.execute(
+            select(SourceRevision.id, SourceRevision.processing_config_hash)
+            .join(SourceItem, SourceItem.id == SourceRevision.source_item_id)
+            .where(SourceItem.canonical_location == SITE_B)
+        ).one()
+
+    changed = {
+        "kind": "ingestion",
+        "name": version["name"],
+        "execution": version["execution"],
+        "layout": version["layout"],
+    }
+    chunk = next(
+        node for node in changed["execution"]["nodes"] if node["type"] == "chunk"
+    )
+    chunk.update(size=240, overlap=40)
+    saved = client.post(
+        f"/api/projects/{project_id}/pipelines/{version['pipeline_id']}/versions",
+        json=changed,
+    )
+    assert saved.status_code == 201, saved.text
+    second = start_run(client, project_id, saved.json())
+    pages = two_site_pages()
+    pages[SITE_B] = SITE_DOWN
+    index_id = publish(engine, second["id"], lambda: MultiSiteDouble(pages))
+
+    with Session(engine) as session:
+        revision_id, config_hash = session.execute(
+            select(SourceRevision.id, SourceRevision.processing_config_hash)
+            .join(
+                IndexSourceRevision,
+                IndexSourceRevision.source_revision_id == SourceRevision.id,
+            )
+            .join(SourceItem, SourceItem.id == SourceRevision.source_item_id)
+            .where(
+                IndexSourceRevision.index_id == index_id,
+                SourceItem.canonical_location == SITE_B,
+            )
+        ).one()
+    assert revision_id != before.id
+    assert config_hash != before.processing_config_hash
+    carried = next(
+        item
+        for item in run_items(client, project_id, second["id"])
+        if item["canonical_location"] == SITE_B
+    )
+    assert carried["outcome"] == "carried_forward"
+    assert carried["reason"].endswith("Reprocessed with this run's settings.")
+
+
+def test_a_single_website_still_fails_on_a_failed_page(api):
+    client, engine, project_id, _, config, _ = api
+    version = save(client, project_id, merged_draft(config, source_count=1))
+    run = start_run(client, project_id, version)
+    pages = {
+        SITE_A: [page(SITE_A, html("Orchard", "Apples.")), failed_page(f"{SITE_A}/x")]
+    }
+    process_ingestion(
+        UUID(run["id"]), engine, connector_factory=lambda: MultiSiteDouble(pages)
+    )
+    result = read_run(client, project_id, run["id"])
+    assert result["status"] == "failed"
+    assert result["source_outcomes"] == []

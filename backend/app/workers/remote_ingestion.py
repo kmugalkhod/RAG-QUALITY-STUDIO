@@ -1,6 +1,7 @@
 """Remote-source ingestion discovery, persistence, and publication advancement."""
 
 import itertools
+from collections import Counter
 from uuid import UUID
 
 from fastapi import HTTPException
@@ -299,8 +300,13 @@ def _discover_website(run_id, token, db_engine, connector_factory):
 
 
 def _crawl_website(run_id, token, db_engine, connector_factory, job, execution, priors):
-    """Fetch every Website source into the run's frontier; resumable per page."""
-    for source in [node for node in execution.nodes if node.type == "source"]:
+    """Fetch every Website source into the run's frontier; resumable per page.
+
+    With several sources, a whole-site failure that retrying cannot fix ends
+    only that source; the run carries its last good pages forward.
+    """
+    sources = [node for node in execution.nodes if node.type == "source"]
+    for source in sources:
         if ((job.crawl_state or {}).get(source.id) or {}).get("complete"):
             continue
         if not ingestion_execution.transition(
@@ -320,11 +326,33 @@ def _crawl_website(run_id, token, db_engine, connector_factory, job, execution, 
             )
         store = website_crawl.RunCrawlStore(db_engine, run_id, token, source.id)
         connector = connector_factory() if connector_factory else WebsiteConnector()
-        if not connector.crawl(source.config, policy, priors, store):
+        try:
+            crawled = connector.crawl(source.config, policy, priors, store)
+        except ConnectorFailure as exc:
+            if len(sources) < 2 or exc.issue.retryable:
+                raise
+            if not store.mark_failed(exc.issue):
+                return False
+            continue
+        if not crawled:
             return False
         if not store.mark_complete():
             return False
     return True
+
+
+OUTCOMES_STATE = "__outcomes__"
+
+
+def _failed_sources(crawl_state, execution):
+    """Source node id -> recorded whole-site failure, for this run's sources."""
+    return {
+        node.id: state["failed"]
+        for node in execution.nodes
+        if node.type == "source"
+        and isinstance(state := (crawl_state or {}).get(node.id), dict)
+        and state.get("failed")
+    }
 
 
 PROCESSING_STATE = "__processing__"
@@ -369,12 +397,15 @@ def _process_crawled(run_id, token, db_engine, execution, prior_revisions):
     with Session(worker_engine) as session:
         job = session.get(IngestionRun, run_id)
         processing = dict((job.crawl_state or {}).get(PROCESSING_STATE) or {})
+        # A failed source's pages are not used; its last good pages are kept.
+        failed_sources = list(_failed_sources(job.crawl_state, execution))
         pending = session.scalars(
             select(WebsiteCrawlFrontier.id)
             .where(
                 WebsiteCrawlFrontier.run_id == run_id,
                 WebsiteCrawlFrontier.status == "fetched",
                 WebsiteCrawlFrontier.source_revision_id.is_(None),
+                WebsiteCrawlFrontier.source_node_id.not_in(failed_sources),
             )
             .order_by(WebsiteCrawlFrontier.source_node_id, WebsiteCrawlFrontier.ordinal)
         ).all()
@@ -419,6 +450,7 @@ def _process_crawled(run_id, token, db_engine, execution, prior_revisions):
                     .where(
                         WebsiteCrawlFrontier.run_id == run_id,
                         WebsiteCrawlFrontier.status == "fetched",
+                        WebsiteCrawlFrontier.source_node_id.not_in(failed_sources),
                     )
                     .order_by(
                         WebsiteCrawlFrontier.source_node_id,
@@ -1064,7 +1096,8 @@ def _advance_website(run_id, token, db_engine, connector_factory):
     )
     if results is None:
         return
-    if results is CRAWLED:
+    crawled = results is CRAWLED
+    if crawled:
         if not _process_crawled(run_id, token, db_engine, execution, prior_revisions):
             return
         items = _crawled_items(db_engine, run_id, execution)
@@ -1154,7 +1187,18 @@ def _advance_website(run_id, token, db_engine, connector_factory):
         kept_items = {}
         # Source item id -> other places the indexed page was also found.
         also_found = {}
+        sources = [node for node in execution.nodes if node.type == "source"]
+        # With several crawled sources, one failing site does not block the
+        # others: its last good pages are carried forward instead.
+        isolate = crawled and len(sources) > 1
+        failed_sources = (
+            dict(_failed_sources(job.crawl_state, execution)) if isolate else {}
+        )
+        included_by_source = Counter()
+        failed_by_source = Counter()
         for source_node_id, outcome, resolved in items:
+            if source_node_id in failed_sources:
+                continue
             if outcome.status != "included":
                 add_outcome = "failed" if outcome.status == "failed" else outcome.status
                 website_ingestion.add_run_item(
@@ -1172,9 +1216,11 @@ def _advance_website(run_id, token, db_engine, connector_factory):
                 )
                 if outcome.status == "failed":
                     failed += 1
+                    failed_by_source[source_node_id] += 1
                     failed_locations.add(outcome.canonical_location)
                 ordinal += 1
                 continue
+            included_by_source[source_node_id] += 1
             if isinstance(resolved, WebsiteCrawlFrontier):
                 # Processed page by page already; the frontier holds the result.
                 source_item = session.get(SourceItem, resolved.source_item_id)
@@ -1304,12 +1350,90 @@ def _advance_website(run_id, token, db_engine, connector_factory):
                 warnings=warnings,
             )
             ordinal += 1
+        carried = []
+        if isolate:
+            for source in sources:
+                # A source whose every page failed is treated as a failed site.
+                if (
+                    source.id not in failed_sources
+                    and failed_by_source[source.id]
+                    and not included_by_source[source.id]
+                ):
+                    failed_sources[source.id] = {
+                        "code": "all_pages_failed",
+                        "message": "Every page of this source failed; see its failed items.",
+                    }
+            if len(failed_sources) == len(sources):
+                job.discovered_count = ordinal
+                job.failed_count = failed
+                job.processed_count = ordinal - failed
+                job.crawl_state = {
+                    **(job.crawl_state or {}),
+                    OUTCOMES_STATE: _source_outcomes(
+                        sources,
+                        failed_sources,
+                        included_by_source,
+                        failed_by_source,
+                        Counter(),
+                    ),
+                }
+                fail_run(
+                    session,
+                    job,
+                    "Every Website source failed. The previous ready index remains current.",
+                    node_type="source",
+                )
+                session.commit()
+                return
+            for location, (revision, prior_source_node_id) in prior_revisions.items():
+                if location in included_locations:
+                    continue
+                if prior_source_node_id in failed_sources:
+                    reason = (
+                        "Kept from the previous index because this source failed: "
+                        + failed_sources[prior_source_node_id]["message"]
+                    )
+                elif location in failed_locations:
+                    reason = (
+                        "Kept the previously indexed copy because this page failed."
+                    )
+                else:
+                    continue
+                carried.append((location, revision, prior_source_node_id, reason))
+        carried_by_source = Counter()
+        carried_locations = set()
+        for membership, location, reason in _carry_forward(
+            session, job, carried, kept_items, chunk, clean, extract, phase_callback
+        ):
+            source_node_id, item, revision = membership
+            memberships.append(membership)
+            carried_locations.add(location)
+            carried_by_source[source_node_id] += 1
+            website_ingestion.add_run_item(
+                session,
+                run=job,
+                ordinal=ordinal,
+                source_node_id=source_node_id,
+                outcome="carried_forward",
+                reason=reason,
+                location=location,
+                source_item=item,
+                revision=revision,
+                media_type=revision.media_type,
+            )
+            ordinal += 1
         memberships = _apply_duplicate_policy(
             session, job.id, memberships, clean, "website", also_found
         )
         for location, (revision, prior_source_node_id) in prior_revisions.items():
-            # A page that failed to fetch is reported as failed, not as removed.
-            if location in included_locations or location in failed_locations:
+            # A page that failed to fetch is reported as failed, not as removed;
+            # a failed source's pages are kept, never removed.
+            if (
+                location in included_locations
+                or location in failed_locations
+                or location in carried_locations
+                or prior_source_node_id in failed_sources
+            ):
                 continue
             item = session.get(SourceItem, revision.source_item_id)
             website_ingestion.add_run_item(
@@ -1328,11 +1452,31 @@ def _advance_website(run_id, token, db_engine, connector_factory):
         job.discovered_count = ordinal
         job.failed_count = failed
         job.processed_count = ordinal - failed
-        if failed:
+        if isolate:
+            job.crawl_state = {
+                **(job.crawl_state or {}),
+                OUTCOMES_STATE: _source_outcomes(
+                    sources,
+                    failed_sources,
+                    included_by_source,
+                    failed_by_source,
+                    carried_by_source,
+                ),
+            }
+        elif failed:
             fail_run(
                 session,
                 job,
                 "One or more required website pages failed. The previous ready index remains current.",
+                node_type="source",
+            )
+            session.commit()
+            return
+        if isolate and not memberships:
+            fail_run(
+                session,
+                job,
+                "No Website page could be included. The previous ready index remains current.",
                 node_type="source",
             )
             session.commit()
@@ -1385,18 +1529,157 @@ def _advance_website(run_id, token, db_engine, connector_factory):
         session.commit()
 
 
+def _source_location(config):
+    selection = config.selection
+    if selection.mode == "url_list":
+        return str(selection.urls[0]) if selection.urls else None
+    if selection.mode == "single_url":
+        return str(selection.url)
+    if selection.mode == "crawl":
+        return str(selection.start_url)
+    return str(selection.sitemap_url)
+
+
+def _source_outcomes(sources, failed, included, page_failures, carried):
+    """Per-source result of a multi-source run, shown with the run."""
+    outcomes = []
+    for source in sources:
+        failure = failed.get(source.id)
+        if failure:
+            status = "failed"
+        elif page_failures[source.id]:
+            status = "partial"
+        else:
+            status = "succeeded"
+        outcomes.append(
+            {
+                "source_node_id": source.id,
+                "location": _source_location(source.config),
+                "status": status,
+                "error_code": failure["code"] if failure else None,
+                "message": failure["message"] if failure else None,
+                "included_count": included[source.id],
+                "failed_count": page_failures[source.id],
+                "carried_forward_count": carried[source.id],
+            }
+        )
+    return outcomes
+
+
+def _stored_page(session, location, revision):
+    document = session.get(Document, revision.document_id)
+    try:
+        if document is None:
+            raise FileNotFoundError
+        content = artifact_storage.read(document)
+    except OSError as exc:
+        raise ConnectorFailure(
+            ConnectorIssue(
+                code="prior_artifact_unavailable",
+                message="A previously indexed page is unavailable for reprocessing.",
+                retryable=False,
+            )
+        ) from exc
+    return WebsiteArtifact(
+        canonical_location=location,
+        content=content,
+        media_type=revision.media_type,
+        etag=revision.etag,
+        last_modified=revision.last_modified,
+        validator_unchanged=True,
+        depth=(revision.provenance or {}).get("depth") or 0,
+    )
+
+
+def _carry_forward(session, job, carried, kept_items, chunk, clean, extract, stage):
+    """Memberships for carried pages, reprocessed if the processing settings changed.
+
+    Yields ((source node, item, revision), location, reason). A page already
+    indexed from another source in this run is skipped.
+    """
+    if not carried:
+        return
+    _, current_hash, _ = website_ingestion.website_processing_identity(
+        chunk, clean, extract
+    )
+    stale = {}
+    for location, revision, source_node_id, reason in carried:
+        if revision.source_item_id in kept_items:
+            continue
+        if revision.processing_config_hash == current_hash:
+            item = session.get(SourceItem, revision.source_item_id)
+            kept_items[item.id] = (source_node_id, location)
+            yield (source_node_id, item, revision), location, reason
+        else:
+            stale.setdefault(source_node_id, []).append((location, revision, reason))
+    main_step = next(
+        (
+            step
+            for step in getattr(clean, "steps", None) or []
+            if step.enabled and step.type == "website_main_content"
+        ),
+        None,
+    )
+    for source_node_id, pages in stale.items():
+        # Stored pages are cleaned again with this run's settings, without a
+        # request to the site; chrome is measured across this source's pages.
+        fingerprints = set()
+        if (
+            getattr(clean, "profile", None) == "structure-aware-v1"
+            and main_step is not None
+            and main_step.remove_repeated_site_chrome
+        ):
+            from app.ingestion_content.cleaning import website_text_fingerprints
+
+            fingerprints = website_text_fingerprints(
+                (
+                    website_ingestion.canonical_extracted_document(
+                        _stored_page(session, location, revision), clean
+                    )
+                    for location, revision, _ in pages
+                ),
+                main_step.minimum_page_ratio,
+            )
+        for location, revision, reason in pages:
+            item, new_revision, _, _, _ = website_ingestion.persist_artifact(
+                session,
+                job.project_id,
+                _stored_page(session, location, revision),
+                chunk,
+                clean,
+                revision,
+                stage,
+                extract,
+                None,
+                fingerprints,
+            )
+            if item.id in kept_items:
+                continue
+            kept_items[item.id] = (source_node_id, location)
+            yield (
+                (source_node_id, item, new_revision),
+                location,
+                reason + " Reprocessed with this run's settings.",
+            )
+
+
 def finish_remote(session, job, index):
     items = session.scalars(
         select(WebsiteRunItem).where(WebsiteRunItem.run_id == job.id)
     ).all()
+    # A multi-source run can publish with failed pages; they stay failed.
+    failed = 0
     for item in items:
+        if item.outcome == "failed":
+            failed += 1
+            continue
         item.status = "succeeded"
         item.updated_at = now()
     job.status = "succeeded"
     job.stage = "complete"
     job.progress = 100
-    job.processed_count = job.discovered_count
-    job.failed_count = 0
+    job.processed_count = job.discovered_count - failed
+    job.failed_count = failed
     job.chunk_count = index.chunk_count
     job.embedded_count = index.embedded_count
     job.published_count = 1

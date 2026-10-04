@@ -1206,6 +1206,19 @@ class IngestionRunNodeRead(Strict):
     finished_at: datetime | None
 
 
+class IngestionSourceOutcomeRead(Strict):
+    """How one source of a multi-source run ended."""
+
+    source_node_id: str
+    location: str | None
+    status: Literal["succeeded", "partial", "failed"]
+    error_code: str | None
+    message: str | None
+    included_count: int
+    failed_count: int
+    carried_forward_count: int
+
+
 class IngestionRunRead(Strict):
     id: UUID
     project_id: UUID
@@ -1235,6 +1248,10 @@ class IngestionRunRead(Strict):
     error: str | None
     published_index_id: UUID | None
     published_index_version: int | None
+    # Multi-source runs only; empty for a single source.
+    source_outcomes: list[IngestionSourceOutcomeRead] = Field(default_factory=list)
+    # For a succeeded run: `with_warnings` when a source or page failed.
+    completion: Literal["complete", "with_warnings"] | None = None
     created_at: datetime
     updated_at: datetime
     started_at: datetime | None
@@ -1332,6 +1349,7 @@ class WebsiteIngestionRunItemRead(Strict):
         "duplicate",
         "failed",
         "sitemap",
+        "carried_forward",
     ]
     status: Literal["ready", "succeeded", "failed", "cancelled"]
     reason: str

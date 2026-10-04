@@ -657,6 +657,36 @@ export function IngestionRunResults({
           )}
         </div>
       </div>
+      {(run.source_outcomes?.length ?? 0) > 0 && (
+        <section aria-labelledby="run-sources-heading" className="flex flex-col gap-2">
+          <h3 id="run-sources-heading" className="text-sm font-semibold text-foreground">
+            Sources
+          </h3>
+          <ul className={LIST}>
+            {run.source_outcomes?.map((outcome, index) => (
+              <li key={outcome.source_node_id} className={ITEM}>
+                <FileText aria-hidden="true" />
+                <div>
+                  <strong>
+                    Website {index + 1} ·{' '}
+                    {outcome.status === 'failed'
+                      ? 'Failed'
+                      : outcome.status === 'partial'
+                        ? 'Some pages failed'
+                        : 'Collected'}
+                  </strong>
+                  <p>
+                    {outcome.included_count} included · {outcome.failed_count} failed ·{' '}
+                    {outcome.carried_forward_count} kept from earlier
+                    {outcome.message ? ` · ${outcome.message}` : ''}
+                  </p>
+                  {outcome.location && <small>{outcome.location}</small>}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       <ul className={LIST}>
         {/* Failed items lead, so the reason a run failed is the first thing in the list. */}
         {[...items]
@@ -674,7 +704,8 @@ export function IngestionRunResults({
                   <>
                     <strong>{item.display_name}</strong>
                     <p>
-                      {item.outcome} · {item.status} · {item.chunk_count} chunks · {item.reason}
+                      {item.outcome === 'carried_forward' ? 'kept from earlier' : item.outcome} ·{' '}
+                      {item.status} · {item.chunk_count} chunks · {item.reason}
                       {(item.attempts ?? 0) > 1 ? ` · ${item.attempts} attempts` : ''}
                     </p>
                     {item.warnings?.map((warning, index) => (

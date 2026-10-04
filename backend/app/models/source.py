@@ -160,6 +160,9 @@ class SourceSnapshot(Base):
             "AND removed_count >= 0 AND total_bytes >= 0",
             name="ck_source_snapshot_counts",
         ),
+        CheckConstraint(
+            "carried_forward_count >= 0", name="ck_source_snapshot_carried_forward"
+        ),
         Index(
             "ix_source_snapshots_project_source",
             "project_id",
@@ -188,6 +191,8 @@ class SourceSnapshot(Base):
     changed_count: Mapped[int] = mapped_column(default=0)
     unchanged_count: Mapped[int] = mapped_column(default=0)
     removed_count: Mapped[int] = mapped_column(default=0)
+    # Pages kept from an earlier collection because their source or page failed.
+    carried_forward_count: Mapped[int] = mapped_column(default=0)
     total_bytes: Mapped[int] = mapped_column(BigInteger, default=0)
     creating_ingestion_run_id: Mapped[uuid.UUID]
     error: Mapped[str | None] = mapped_column(Text)
@@ -263,7 +268,8 @@ class WebsiteRunItem(Base):
             name="fk_website_run_item_revision_project",
         ),
         CheckConstraint(
-            "outcome IN ('new','changed','unchanged','removed','excluded','duplicate','failed','sitemap')",
+            "outcome IN ('new','changed','unchanged','removed','excluded','duplicate',"
+            "'failed','sitemap','carried_forward')",
             name="ck_website_run_item_outcome",
         ),
         CheckConstraint(

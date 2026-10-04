@@ -628,6 +628,7 @@ def _run_rows(session: Session, statement):
                 .group_by(WebsiteRunItem.outcome)
             ).all()
         )
+        source_outcomes = (run.crawl_state or {}).get("__outcomes__") or []
         results.append(
             {
                 **{
@@ -660,6 +661,15 @@ def _run_rows(session: Session, statement):
                 "changed_count": outcome_counts.get("changed", 0),
                 "unchanged_count": outcome_counts.get("unchanged", 0),
                 "removed_count": outcome_counts.get("removed", 0),
+                "source_outcomes": source_outcomes,
+                "completion": (
+                    None
+                    if run.status != "succeeded"
+                    else "with_warnings"
+                    if run.failed_count
+                    or any(item["status"] != "succeeded" for item in source_outcomes)
+                    else "complete"
+                ),
             }
         )
     return results

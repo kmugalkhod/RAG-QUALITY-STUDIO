@@ -460,10 +460,25 @@ export type IngestionRun = {
   error: string | null;
   published_index_id: string | null;
   published_index_version: number | null;
+  /** Multi-source runs only: how each source ended. */
+  source_outcomes?: IngestionSourceOutcome[];
+  /** For a succeeded run, `with_warnings` when a source or page failed. */
+  completion?: 'complete' | 'with_warnings' | null;
   created_at: string;
   updated_at: string;
   started_at: string | null;
   finished_at: string | null;
+};
+
+export type IngestionSourceOutcome = {
+  source_node_id: string;
+  location: string | null;
+  status: 'succeeded' | 'partial' | 'failed';
+  error_code: string | null;
+  message: string | null;
+  included_count: number;
+  failed_count: number;
+  carried_forward_count: number;
 };
 
 export type ExistingIngestionRunItem = {
@@ -503,7 +518,8 @@ export type WebsiteIngestionRunItem = {
     | 'excluded'
     | 'duplicate'
     | 'failed'
-    | 'sitemap';
+    | 'sitemap'
+    | 'carried_forward';
   status: 'ready' | 'succeeded' | 'failed' | 'cancelled';
   reason: string;
   chunk_count: number;

@@ -409,6 +409,18 @@ class RunCrawlStore:
             session.commit()
         return True
 
+    def mark_failed(self, issue) -> bool:
+        """End this source with a whole-site failure; recovery will not retry it."""
+        with Session(self.engine) as session:
+            run = _locked_run(session, self.run_id, self.token)
+            if run is None:
+                return False
+            self.state["complete"] = True
+            self.state["failed"] = {"code": issue.code, "message": issue.message}
+            self._save_progress(session, run)
+            session.commit()
+        return True
+
 
 def outcomes_for(rows) -> list[tuple[PreviewOutcome, WebsiteCrawlFrontier]]:
     """Outcomes in discovery order, as the in-memory crawl reports them."""

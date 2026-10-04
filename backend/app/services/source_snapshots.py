@@ -147,6 +147,7 @@ def mark_ready(
             "excluded",
             "duplicate",
             "failed",
+            "carried_forward",
         )
     }
     for item in run_items:
@@ -187,6 +188,7 @@ def mark_ready(
     snapshot.changed_count = counts["changed"]
     snapshot.unchanged_count = counts["unchanged"]
     snapshot.removed_count = counts["removed"]
+    snapshot.carried_forward_count = counts["carried_forward"]
     snapshot.total_bytes = sum(revision.size_bytes for _, _, revision in memberships)
     snapshot.collected_at = now()
     snapshot.error = None

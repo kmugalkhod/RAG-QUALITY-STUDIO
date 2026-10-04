@@ -196,6 +196,47 @@ def _canonical_chunks(
     )
 
 
+def website_processing_identity(chunk, clean, extract=None):
+    """The processing configuration, its hash and the parser version of a page.
+
+    A stored revision with the same hash needs no reprocessing.
+    """
+    cleaner = cleaner_for_node(clean)
+    if getattr(clean, "profile", None) is None:
+        processing_config = {
+            "extractor": EXTRACTOR_VERSION,
+            "cleaner": CLEANER_VERSION,
+            "clean": clean.model_dump(mode="json"),
+            "chunk": chunk.model_dump(mode="json"),
+        }
+        return (
+            processing_config,
+            config_hash(processing_config),
+            f"{EXTRACTOR_VERSION}/{CLEANER_VERSION}",
+        )
+    processing_config, processing_config_hash = processing_identity(
+        schema_version=2,
+        extractor_version=EXTRACTOR_VERSION,
+        cleaner_version=cleaner.version,
+        chunker_version=chunker_version_for_node(chunk),
+        extract={
+            "strategy": "html_main",
+            "pipeline": (
+                extract.model_dump(mode="json", exclude={"id", "type"})
+                if extract is not None
+                else None
+            ),
+        },
+        clean=clean.model_dump(mode="json", exclude={"id", "type"}),
+        chunk=chunk.model_dump(mode="json", exclude={"id", "type"}),
+    )
+    return (
+        processing_config,
+        processing_config_hash,
+        f"{EXTRACTOR_VERSION}/{cleaner.version}",
+    )
+
+
 def persist_artifact(
     session: Session,
     project_id,
@@ -209,34 +250,9 @@ def persist_artifact(
     repeated_site_fingerprints: set[str] | None = None,
 ):
     content_hash = hashlib.sha256(artifact.content).hexdigest()
-    cleaner = cleaner_for_node(clean)
-    if getattr(clean, "profile", None) is None:
-        processing_config = {
-            "extractor": EXTRACTOR_VERSION,
-            "cleaner": CLEANER_VERSION,
-            "clean": clean.model_dump(mode="json"),
-            "chunk": chunk.model_dump(mode="json"),
-        }
-        processing_config_hash = config_hash(processing_config)
-        parser_version = f"{EXTRACTOR_VERSION}/{CLEANER_VERSION}"
-    else:
-        processing_config, processing_config_hash = processing_identity(
-            schema_version=2,
-            extractor_version=EXTRACTOR_VERSION,
-            cleaner_version=cleaner.version,
-            chunker_version=chunker_version_for_node(chunk),
-            extract={
-                "strategy": "html_main",
-                "pipeline": (
-                    extract.model_dump(mode="json", exclude={"id", "type"})
-                    if extract is not None
-                    else None
-                ),
-            },
-            clean=clean.model_dump(mode="json", exclude={"id", "type"}),
-            chunk=chunk.model_dump(mode="json", exclude={"id", "type"}),
-        )
-        parser_version = f"{EXTRACTOR_VERSION}/{cleaner.version}"
+    processing_config, processing_config_hash, parser_version = (
+        website_processing_identity(chunk, clean, extract)
+    )
 
     def prepare(_stored_path):
         if getattr(clean, "profile", None) is not None:

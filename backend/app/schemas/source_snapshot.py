@@ -25,6 +25,7 @@ class SourceSnapshotRead(BaseModel):
     changed_count: int
     unchanged_count: int
     removed_count: int
+    carried_forward_count: int = 0
     total_bytes: int
     creating_ingestion_run_id: UUID
     downstream_index_count: int = 0
