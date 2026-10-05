@@ -406,12 +406,15 @@ def start_run(
                 source_input.source_snapshot_id,
                 execution,
             )
+        refresh_only = _refresh_only(source_input, sources, remote_kind, knowledge_set)
         effective_source_input = (
             {
                 "kind": "snapshot",
                 "source_snapshot_id": str(selected_snapshot.id),
             }
             if selected_snapshot is not None
+            else {"kind": "refresh", "source_node_ids": refresh_only}
+            if refresh_only
             else {"kind": "refresh"}
         )
         run = IngestionRun(
@@ -667,12 +670,47 @@ def _run_rows(session: Session, statement):
                     if run.status != "succeeded"
                     else "with_warnings"
                     if run.failed_count
-                    or any(item["status"] != "succeeded" for item in source_outcomes)
+                    or any(
+                        item["status"] in ("failed", "partial")
+                        for item in source_outcomes
+                    )
                     else "complete"
                 ),
             }
         )
     return results
+
+
+def _refresh_only(source_input, sources, remote_kind, knowledge_set):
+    """The sources a refresh is limited to, or None to refresh every source."""
+    if (
+        source_input is None
+        or source_input.kind != "refresh"
+        or not source_input.source_node_ids
+    ):
+        return None
+    requested = list(dict.fromkeys(source_input.source_node_ids))
+    source_ids = [source.id for source in sources]
+    if remote_kind != "website" or len(sources) < 2:
+        raise HTTPException(
+            422,
+            "Refreshing selected sources needs a pipeline with several Website sources.",
+        )
+    unknown = [node_id for node_id in requested if node_id not in source_ids]
+    if unknown:
+        raise HTTPException(
+            422, f"Unknown source in this pipeline version: {', '.join(unknown)}."
+        )
+    if knowledge_set.current_ready_index_id is None:
+        raise HTTPException(
+            409,
+            "Run every source once before refreshing a single source; "
+            "the other sources' pages come from the current ready index.",
+        )
+    if set(requested) == set(source_ids):
+        return None
+    # Recorded in pipeline order so retries and reads are deterministic.
+    return [node_id for node_id in source_ids if node_id in requested]
 
 
 def read_run(session: Session, run: IngestionRun):

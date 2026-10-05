@@ -729,6 +729,20 @@ export function IngestionPipelineEditor({
     );
   }
 
+  function refreshSource(nodeId: string) {
+    if (!saved || dirty) {
+      return;
+    }
+    void perform(async () => {
+      setItems([]);
+      setRun(
+        await api.startIngestionRun(projectId, saved.pipeline_id, saved.id, {
+          source_input: { kind: 'refresh', source_node_ids: [nodeId] },
+        }),
+      );
+    });
+  }
+
   function startRun(source: 'refresh' | 'snapshot' = 'refresh') {
     if (!saved || dirty) {
       return;
@@ -1044,6 +1058,16 @@ export function IngestionPipelineEditor({
             websitePageTotal={websitePageTotal(draft)}
             onAddSource={addSource}
             onRemoveSource={deleteSource}
+            onRefreshSource={refreshSource}
+            refreshSourceBlocked={
+              !saved
+                ? 'Save this pipeline and publish an index first.'
+                : dirty
+                  ? 'Save or discard your changes first.'
+                  : runActive || previewActive
+                    ? 'Wait for the current run or preview to finish.'
+                    : null
+            }
             onSelectNode={setSelectedNode}
           />
         </div>

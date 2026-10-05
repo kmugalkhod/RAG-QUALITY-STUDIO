@@ -306,7 +306,11 @@ def _crawl_website(run_id, token, db_engine, connector_factory, job, execution, 
     only that source; the run carries its last good pages forward.
     """
     sources = [node for node in execution.nodes if node.type == "source"]
+    refresh_only = _refresh_only(job)
     for source in sources:
+        if refresh_only is not None and source.id not in refresh_only:
+            # Not refreshed: its pages are kept from the current ready index.
+            continue
         if ((job.crawl_state or {}).get(source.id) or {}).get("complete"):
             continue
         if not ingestion_execution.transition(
@@ -342,6 +346,12 @@ def _crawl_website(run_id, token, db_engine, connector_factory, job, execution, 
 
 
 OUTCOMES_STATE = "__outcomes__"
+
+
+def _refresh_only(job):
+    """Source node ids a run refreshes, or None when it refreshes every source."""
+    selected = (job.snapshot.get("source_input") or {}).get("source_node_ids")
+    return set(selected) if selected else None
 
 
 def _failed_sources(crawl_state, execution):
@@ -1194,6 +1204,12 @@ def _advance_website(run_id, token, db_engine, connector_factory):
         failed_sources = (
             dict(_failed_sources(job.crawl_state, execution)) if isolate else {}
         )
+        refresh_only = _refresh_only(job)
+        skipped_sources = {
+            source.id
+            for source in sources
+            if refresh_only is not None and source.id not in refresh_only
+        }
         included_by_source = Counter()
         failed_by_source = Counter()
         for source_node_id, outcome, resolved in items:
@@ -1363,7 +1379,10 @@ def _advance_website(run_id, token, db_engine, connector_factory):
                         "code": "all_pages_failed",
                         "message": "Every page of this source failed; see its failed items.",
                     }
-            if len(failed_sources) == len(sources):
+            refreshed = [
+                source for source in sources if source.id not in skipped_sources
+            ]
+            if all(source.id in failed_sources for source in refreshed):
                 job.discovered_count = ordinal
                 job.failed_count = failed
                 job.processed_count = ordinal - failed
@@ -1375,12 +1394,18 @@ def _advance_website(run_id, token, db_engine, connector_factory):
                         included_by_source,
                         failed_by_source,
                         Counter(),
+                        skipped_sources,
                     ),
                 }
                 fail_run(
                     session,
                     job,
-                    "Every Website source failed. The previous ready index remains current.",
+                    (
+                        "Every refreshed Website source failed."
+                        if skipped_sources
+                        else "Every Website source failed."
+                    )
+                    + " The previous ready index remains current.",
                     node_type="source",
                 )
                 session.commit()
@@ -1388,7 +1413,12 @@ def _advance_website(run_id, token, db_engine, connector_factory):
             for location, (revision, prior_source_node_id) in prior_revisions.items():
                 if location in included_locations:
                     continue
-                if prior_source_node_id in failed_sources:
+                if prior_source_node_id in skipped_sources:
+                    reason = (
+                        "Kept from the previous index; this source was not "
+                        "refreshed in this run."
+                    )
+                elif prior_source_node_id in failed_sources:
                     reason = (
                         "Kept from the previous index because this source failed: "
                         + failed_sources[prior_source_node_id]["message"]
@@ -1433,6 +1463,7 @@ def _advance_website(run_id, token, db_engine, connector_factory):
                 or location in failed_locations
                 or location in carried_locations
                 or prior_source_node_id in failed_sources
+                or prior_source_node_id in skipped_sources
             ):
                 continue
             item = session.get(SourceItem, revision.source_item_id)
@@ -1461,6 +1492,7 @@ def _advance_website(run_id, token, db_engine, connector_factory):
                     included_by_source,
                     failed_by_source,
                     carried_by_source,
+                    skipped_sources,
                 ),
             }
         elif failed:
@@ -1540,12 +1572,14 @@ def _source_location(config):
     return str(selection.sitemap_url)
 
 
-def _source_outcomes(sources, failed, included, page_failures, carried):
+def _source_outcomes(sources, failed, included, page_failures, carried, skipped=()):
     """Per-source result of a multi-source run, shown with the run."""
     outcomes = []
     for source in sources:
         failure = failed.get(source.id)
-        if failure:
+        if source.id in skipped:
+            status = "skipped"
+        elif failure:
             status = "failed"
         elif page_failures[source.id]:
             status = "partial"

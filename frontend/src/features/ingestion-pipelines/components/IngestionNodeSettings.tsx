@@ -78,6 +78,8 @@ export function IngestionNodeSettings({
   websitePageTotal = 0,
   onAddSource,
   onRemoveSource,
+  onRefreshSource,
+  refreshSourceBlocked,
   onSelectNode,
 }: {
   projectId: string;
@@ -106,6 +108,10 @@ export function IngestionNodeSettings({
   websitePageTotal?: number;
   onAddSource?: () => void;
   onRemoveSource?: (nodeId: string) => void;
+  /** Starts a run that collects only this source; absent hides the action. */
+  onRefreshSource?: (nodeId: string) => void;
+  /** Why the selected source cannot be refreshed alone, or null when it can. */
+  refreshSourceBlocked?: string | null;
   onSelectNode: (nodeId: string) => void;
 }) {
   const nameOf = (node: IngestionNode) =>
@@ -361,6 +367,24 @@ export function IngestionNodeSettings({
                   <p id="add-source-blocked" className={HINT}>
                     {addSourceBlocked}
                   </p>
+                )}
+                {sourceCount > 1 && onRefreshSource && (
+                  <div className="flex flex-col items-start gap-1 border-t border-border pt-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={!!refreshSourceBlocked}
+                      aria-describedby="refresh-source-hint"
+                      onClick={() => onRefreshSource(selected.id)}
+                    >
+                      Refresh only {sourceLabel ? sourceLabel(selected.id) : 'this source'}
+                    </Button>
+                    <p id="refresh-source-hint" className={HINT}>
+                      {refreshSourceBlocked ??
+                        'Collects only this site and publishes a new index version; the other sites keep their pages from the current index without being contacted.'}
+                    </p>
+                  </div>
                 )}
               </fieldset>
             )}

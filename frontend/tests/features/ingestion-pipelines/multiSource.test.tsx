@@ -164,3 +164,61 @@ test('adds and removes Website sources from labeled settings controls', () => {
   expect(screen.getByLabelText('Source type')).toBeEnabled();
   expect(screen.queryByRole('button', { name: /^Remove/ })).toBeNull();
 });
+
+function RefreshHarness({
+  blocked,
+  onRefresh,
+}: {
+  blocked: string | null;
+  onRefresh: (nodeId: string) => void;
+}) {
+  const draft = addWebsiteSource(websiteDraft()).draft;
+  const node = draft.execution.nodes.find((candidate) => candidate.id === 'source-2');
+  return (
+    <IngestionNodeSettings
+      projectId="project"
+      selected={node}
+      selectedNode="source-2"
+      nodes={draft.execution.nodes}
+      dirty={false}
+      validation={[]}
+      connections={[]}
+      documents={[]}
+      knowledgeSets={[]}
+      websiteSource
+      schemaVersion={2}
+      updateNode={() => undefined}
+      changeSourceKind={() => undefined}
+      sourceCount={2}
+      sourceLabel={(id) => sourceLabel(draft, id)}
+      addSourceBlocked={null}
+      websitePageTotal={100}
+      onRefreshSource={onRefresh}
+      refreshSourceBlocked={blocked}
+      onSelectNode={() => undefined}
+    />
+  );
+}
+
+test('refreshes only the selected source when the saved version allows it', () => {
+  const refreshed: string[] = [];
+  const { unmount } = render(
+    <RefreshHarness blocked={null} onRefresh={(id) => refreshed.push(id)} />,
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Refresh only Website 2' }));
+  expect(refreshed).toEqual(['source-2']);
+  expect(screen.getByText(/other sites keep their pages/)).toBeVisible();
+  unmount();
+
+  render(
+    <RefreshHarness
+      blocked="Save or discard your changes first."
+      onRefresh={(id) => refreshed.push(id)}
+    />,
+  );
+  const button = screen.getByRole('button', { name: 'Refresh only Website 2' });
+  expect(button).toHaveAttribute('aria-disabled', 'true');
+  fireEvent.click(button);
+  expect(refreshed).toEqual(['source-2']);
+  expect(button).toHaveAccessibleDescription('Save or discard your changes first.');
+});

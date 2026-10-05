@@ -2157,3 +2157,14 @@ Implemented: per-source isolation of non-retryable crawl failures (`RunCrawlStor
 Verified: `tests/test_multi_source_ingestion.py` adds six tests (first-run site failure, carry-forward on a later run with no removals and a snapshot count, every site failing, page-level carry and new failures, reprocessing after a chunk change, the unchanged single-source rule); with the Website suite, 34 passed. Migration `0043` upgrades, downgrades to `0042` and upgrades again on an empty database, and the development database was upgraded to `0043`. The full isolated backend suite gives 492 passed, 5 skipped and the three failures recorded on `main`. Ruff, frontend typecheck, ESLint, build and Vitest (304 tests, including a run-strip warning test) pass.
 
 Not done: no browser check of the warning strip or the Sources list (no browser tools this session) and no live crawl; a retryable site-level failure still retries the whole run and, after three failures, fails it; reprocessing loads each stale carried page twice when chrome fingerprinting is enabled.
+
+## Multi-source ingestion, slice 4: refresh one source — 2026-10-05
+
+Acceptance criterion: a merged pipeline with several Website sources can refresh selected sources only; the other sources' pages are kept from the current ready index without any request to their sites, and a new index version is published.
+
+Implemented: `RefreshSourceInput.source_node_ids` (1–5); run start rejects it for pipelines without several Website sources or with unknown node IDs (422) and before any ready index exists (409), records the selection in pipeline order, and treats selecting every source as a full refresh; the worker skips unselected sources, carries their prior pages forward with the reason "not refreshed in this run", never records them as removed, and reports them with source outcome `skipped`, which does not count as a warning; a run whose every refreshed source fails keeps the previous index; the Website source settings offer **Refresh only Website N** with the reason it is unavailable (unsaved changes, no saved version, a run or preview in progress); **Run details → Sources** shows **Not refreshed**.
+
+Verified: three backend tests (only the selected site is contacted while the other would fail if requested; the 409 and 422 cases; selecting every source records a full refresh) pass with the multi-source, Website and schedule suites (45 passed); Ruff, frontend typecheck, ESLint, build and Vitest (305 tests, including the refresh action) pass.
+
+Not done: the browser journey is recorded under slice 5, which is verified end to end together with this slice.
+

@@ -544,3 +544,101 @@ def test_a_single_website_still_fails_on_a_failed_page(api):
     result = read_run(client, project_id, run["id"])
     assert result["status"] == "failed"
     assert result["source_outcomes"] == []
+
+
+# Slice 4: refresh one source and keep the others without contacting them.
+
+
+def start_status(client, project_id, version, body):
+    return client.post(
+        f"/api/projects/{project_id}/pipelines/{version['pipeline_id']}"
+        f"/versions/{version['id']}/ingestion-runs",
+        json=body,
+    )
+
+
+def test_refreshing_one_source_keeps_the_others_without_requests(api):
+    client, engine, project_id, _, config, _ = api
+    version = save(client, project_id, merged_draft(config))
+    first = start_run(client, project_id, version)
+    publish(engine, first["id"], lambda: MultiSiteDouble(two_site_pages()))
+
+    refresh = start_run(
+        client,
+        project_id,
+        version,
+        source_input={"kind": "refresh", "source_node_ids": ["source-1"]},
+    )
+    pages = two_site_pages(b_text="The greenhouse now grows figs.")
+    # Site A would fail if contacted; a refresh of source-1 must not reach it.
+    pages[SITE_A] = SITE_DOWN
+    double = MultiSiteDouble(pages)
+    index_id = publish(engine, refresh["id"], lambda: double)
+
+    assert double.crawled == [SITE_B]
+    assert sorted(memberships(engine, index_id)) == [
+        ("source-0", SITE_A),
+        ("source-1", SITE_B),
+        ("source-1", f"{SITE_B}/glass"),
+    ]
+    kept = next(
+        item
+        for item in run_items(client, project_id, refresh["id"])
+        if item["canonical_location"] == SITE_A
+    )
+    assert kept["outcome"] == "carried_forward"
+    assert "not refreshed in this run" in kept["reason"]
+    result = read_run(client, project_id, refresh["id"])
+    assert result["status"] == "succeeded"
+    assert result["completion"] == "complete"
+    assert result["changed_count"] == 1
+    assert outcome_for(result, "source-0")["status"] == "skipped"
+    assert outcome_for(result, "source-1")["status"] == "succeeded"
+
+
+def test_refreshing_one_source_needs_a_ready_index_and_known_sources(api):
+    client, engine, project_id, _, config, _ = api
+    version = save(client, project_id, merged_draft(config))
+    body = {"source_input": {"kind": "refresh", "source_node_ids": ["source-1"]}}
+    early = start_status(client, project_id, version, body)
+    assert early.status_code == 409, early.text
+    assert "Run every source once" in early.json()["detail"]
+
+    first = start_run(client, project_id, version)
+    publish(engine, first["id"], lambda: MultiSiteDouble(two_site_pages()))
+    unknown = start_status(
+        client,
+        project_id,
+        version,
+        {"source_input": {"kind": "refresh", "source_node_ids": ["source-9"]}},
+    )
+    assert unknown.status_code == 422, unknown.text
+    assert "source-9" in unknown.json()["detail"]
+
+    single = save(client, project_id, merged_draft(config, source_count=1))
+    one = start_status(
+        client,
+        project_id,
+        single,
+        {"source_input": {"kind": "refresh", "source_node_ids": ["source-0"]}},
+    )
+    assert one.status_code == 422, one.text
+
+
+def test_selecting_every_source_is_a_full_refresh(api):
+    client, engine, project_id, _, config, _ = api
+    version = save(client, project_id, merged_draft(config))
+    first = start_run(client, project_id, version)
+    publish(engine, first["id"], lambda: MultiSiteDouble(two_site_pages()))
+    run = start_run(
+        client,
+        project_id,
+        version,
+        source_input={"kind": "refresh", "source_node_ids": ["source-1", "source-0"]},
+    )
+    double = MultiSiteDouble(two_site_pages())
+    publish(engine, run["id"], lambda: double)
+    assert sorted(double.crawled) == [SITE_A, SITE_B]
+    with Session(engine) as session:
+        recorded = session.get(IngestionRun, UUID(run["id"])).snapshot["source_input"]
+    assert recorded == {"kind": "refresh"}

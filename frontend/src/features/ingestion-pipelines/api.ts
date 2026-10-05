@@ -120,7 +120,9 @@ export function startIngestionRun(
   input:
     | boolean
     | {
-        source_input: { kind: 'refresh' } | { kind: 'snapshot'; source_snapshot_id: string };
+        source_input:
+          | { kind: 'refresh'; source_node_ids?: string[] }
+          | { kind: 'snapshot'; source_snapshot_id: string };
         destination?:
           | { kind: 'new'; name: string }
           | { kind: 'existing'; knowledge_set_id: string };

@@ -673,7 +673,9 @@ export function IngestionRunResults({
                       ? 'Failed'
                       : outcome.status === 'partial'
                         ? 'Some pages failed'
-                        : 'Collected'}
+                        : outcome.status === 'skipped'
+                          ? 'Not refreshed'
+                          : 'Collected'}
                   </strong>
                   <p>
                     {outcome.included_count} included · {outcome.failed_count} failed ·{' '}

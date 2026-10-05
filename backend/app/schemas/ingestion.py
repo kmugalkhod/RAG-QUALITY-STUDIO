@@ -1211,7 +1211,8 @@ class IngestionSourceOutcomeRead(Strict):
 
     source_node_id: str
     location: str | None
-    status: Literal["succeeded", "partial", "failed"]
+    # `skipped`: not refreshed in this run; its pages came from the prior index.
+    status: Literal["succeeded", "partial", "failed", "skipped"]
     error_code: str | None
     message: str | None
     included_count: int
@@ -1260,6 +1261,9 @@ class IngestionRunRead(Strict):
 
 class RefreshSourceInput(Strict):
     kind: Literal["refresh"]
+    # Merged Website pipelines only: refresh these sources and keep the others'
+    # pages from the current ready index without contacting their sites.
+    source_node_ids: list[str] | None = Field(default=None, min_length=1, max_length=5)
 
 
 class SnapshotSourceInput(Strict):

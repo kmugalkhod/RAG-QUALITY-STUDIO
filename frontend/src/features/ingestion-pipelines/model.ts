@@ -473,7 +473,8 @@ export type IngestionRun = {
 export type IngestionSourceOutcome = {
   source_node_id: string;
   location: string | null;
-  status: 'succeeded' | 'partial' | 'failed';
+  /** `skipped`: not refreshed in this run; its pages came from the previous index. */
+  status: 'succeeded' | 'partial' | 'failed' | 'skipped';
   error_code: string | null;
   message: string | null;
   included_count: number;
