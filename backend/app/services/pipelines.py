@@ -129,6 +129,13 @@ def validate_source_combination(execution: IngestionExecution):
         for position, node in enumerate(execution.nodes)
         if node.type == "source"
     ]
+    if execution.index_layout == "per_source" and any(
+        node.config.kind != "website" for _, node in sources
+    ):
+        raise HTTPException(
+            422,
+            "One index per source is available for Website sources only.",
+        )
     if len(sources) < 2:
         return
     first_kind = sources[0][1].config.kind
@@ -294,21 +301,23 @@ def validate_ingestion(session, project_id, execution: IngestionExecution):
                 404,
                 "One or more Confluence connections were not found in this project.",
             )
-    embed = next(node for node in execution.nodes if node.type == "embed")
     expected = (
         settings.embedding_provider,
         settings.embedding_model,
         settings.embedding_dimensions,
         settings.embedding_revision,
     )
-    actual = (embed.provider, embed.model, embed.dimensions, embed.config_version)
-    if actual != expected:
-        raise HTTPException(
-            422,
-            "Embedding settings must match the server's configured provider, model, dimensions and revision.",
-        )
-    publish = next(node for node in execution.nodes if node.type == "publish_index")
-    if publish.knowledge_set_id is not None:
+    # A per-source layout has one Embed and one Publish node per source.
+    for embed in [node for node in execution.nodes if node.type == "embed"]:
+        actual = (embed.provider, embed.model, embed.dimensions, embed.config_version)
+        if actual != expected:
+            raise HTTPException(
+                422,
+                "Embedding settings must match the server's configured provider, model, dimensions and revision.",
+            )
+    for publish in [node for node in execution.nodes if node.type == "publish_index"]:
+        if publish.knowledge_set_id is None:
+            continue
         knowledge_set = session.scalar(
             select(KnowledgeSet).where(
                 KnowledgeSet.id == publish.knowledge_set_id,

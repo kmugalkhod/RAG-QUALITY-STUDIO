@@ -68,6 +68,11 @@ def _read(preview: SourcePreview):
 
 def start(session: Session, project_id: UUID, execution: IngestionExecution):
     project(session, project_id)
+    if execution.index_layout == "per_source":
+        raise HTTPException(
+            422,
+            "Preview one source branch at a time for a one-index-per-source layout.",
+        )
     pipelines.validate_ingestion(session, project_id, execution)
     if session.scalar(
         select(SourcePreview.id).where(

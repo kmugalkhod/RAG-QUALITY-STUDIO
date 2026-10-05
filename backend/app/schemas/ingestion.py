@@ -1015,10 +1015,12 @@ class IngestionExecutionV1(Strict):
 class IngestionExecutionV2(Strict):
     schema_version: Literal[2]
     # How several sources publish: `merged` sends every source through the one
-    # shared chain into one index. Versions saved before this field are merged.
-    index_layout: Literal["merged"] = "merged"
-    nodes: list[IngestionNodeV2] = Field(min_length=6, max_length=15)
-    edges: list[IngestionEdge] = Field(min_length=5, max_length=14)
+    # shared chain into one index; `per_source` gives each source its own chain
+    # and index. Versions saved before this field are merged.
+    index_layout: Literal["merged", "per_source"] = "merged"
+    # Up to five per-source chains of six nodes and five edges each.
+    nodes: list[IngestionNodeV2] = Field(min_length=6, max_length=30)
+    edges: list[IngestionEdge] = Field(min_length=5, max_length=25)
 
     @model_validator(mode="before")
     @classmethod
@@ -1039,8 +1041,69 @@ class IngestionExecutionV2(Strict):
 
     @model_validator(mode="after")
     def supported_graph(self):
-        _validate_supported_graph(self.nodes, self.edges)
+        if self.index_layout == "per_source":
+            _per_source_chains(self.nodes, self.edges)
+        else:
+            _validate_supported_graph(self.nodes, self.edges)
         return self
+
+
+PROCESSING_ORDER = ("extract", "clean", "chunk", "embed", "publish_index")
+MAX_PER_SOURCE_BRANCHES = 5
+
+
+def _per_source_chains(nodes, edges):
+    """Each source's own Source → Extract → … → Publish index chain, in source order."""
+    message = (
+        "In a one-index-per-source layout, connect each source to its own "
+        "Extract → Clean → Chunk → Embed → Publish index chain only."
+    )
+    node_ids = [node.id for node in nodes]
+    if len(set(node_ids)) != len(node_ids):
+        raise ValueError("Every ingestion node ID must be unique.")
+    pairs = [(edge.source, edge.target) for edge in edges]
+    if len(set(pairs)) != len(pairs):
+        raise ValueError(message)
+    by_id = {node.id: node for node in nodes}
+    outgoing, incoming = {}, {}
+    for source, target in pairs:
+        outgoing.setdefault(source, []).append(target)
+        incoming.setdefault(target, []).append(source)
+    sources = [node for node in nodes if node.type == "source"]
+    if not 1 <= len(sources) <= MAX_PER_SOURCE_BRANCHES:
+        raise ValueError(
+            f"A one-index-per-source layout needs one to {MAX_PER_SOURCE_BRANCHES} sources."
+        )
+    chains = []
+    for source in sources:
+        if incoming.get(source.id):
+            raise ValueError(message)
+        chain = [source]
+        for kind in PROCESSING_ORDER:
+            targets = outgoing.get(chain[-1].id, [])
+            target = by_id.get(targets[0]) if len(targets) == 1 else None
+            if (
+                target is None
+                or target.type != kind
+                or len(incoming.get(target.id, [])) != 1
+            ):
+                raise ValueError(message)
+            chain.append(target)
+        if outgoing.get(chain[-1].id):
+            raise ValueError(message)
+        chains.append(chain)
+    if sum(len(chain) for chain in chains) != len(nodes) or len(pairs) != 5 * len(
+        chains
+    ):
+        raise ValueError(message)
+    names = [chain[-1].knowledge_set_name.strip().casefold() for chain in chains]
+    if len(set(names)) != len(names):
+        raise ValueError("Each source must publish to a differently named index.")
+    set_ids = [chain[-1].knowledge_set_id for chain in chains]
+    set_ids = [value for value in set_ids if value is not None]
+    if len(set(set_ids)) != len(set_ids):
+        raise ValueError("Each source must publish to a different index.")
+    return chains
 
 
 class IngestionExecution(
@@ -1063,6 +1126,29 @@ class IngestionExecution(
     def edges(self):
         return self.root.edges
 
+    @property
+    def index_layout(self):
+        return getattr(self.root, "index_layout", "merged")
+
+    def branches(self) -> list["IngestionExecution"]:
+        """One single-chain merged execution per source of a per-source layout."""
+        if self.index_layout != "per_source":
+            return [self]
+        return [
+            IngestionExecution.model_validate(
+                {
+                    "schema_version": 2,
+                    "index_layout": "merged",
+                    "nodes": [node.model_dump(mode="json") for node in chain],
+                    "edges": [
+                        {"source": left.id, "target": right.id}
+                        for left, right in zip(chain, chain[1:])
+                    ],
+                }
+            )
+            for chain in _per_source_chains(self.root.nodes, self.root.edges)
+        ]
+
 
 # Public legacy aliases remain stable for callers and schema-v1 regression tests.
 ExtractNode = LegacyExtractNode
@@ -1076,7 +1162,7 @@ class IngestionPosition(Strict):
 
 
 class IngestionLayout(Strict):
-    positions: dict[str, IngestionPosition] = Field(min_length=6, max_length=15)
+    positions: dict[str, IngestionPosition] = Field(min_length=6, max_length=30)
 
 
 class IngestionPipelineSave(Strict):
@@ -1253,6 +1339,9 @@ class IngestionRunRead(Strict):
     source_outcomes: list[IngestionSourceOutcomeRead] = Field(default_factory=list)
     # For a succeeded run: `with_warnings` when a source or page failed.
     completion: Literal["complete", "with_warnings"] | None = None
+    # One branch of a one-index-per-source run group.
+    group_id: UUID | None = None
+    branch_source_node_id: str | None = None
     created_at: datetime
     updated_at: datetime
     started_at: datetime | None
@@ -1304,6 +1393,31 @@ class IngestionRunStart(Strict):
         if self.source_input is not None and self.reuse_stored is not None:
             raise ValueError("Use source_input or reuse_stored, not both.")
         return self
+
+
+class IngestionRunGroupStart(Strict):
+    # Start only these branches; all branches when omitted.
+    source_node_ids: list[str] | None = Field(default=None, min_length=1, max_length=5)
+
+
+class IngestionRunGroupRead(Strict):
+    id: UUID
+    project_id: UUID
+    pipeline_version_id: UUID
+    schedule_id: UUID | None
+    trigger_kind: Literal["manual", "scheduled"]
+    # `partial`: finished with some branches succeeded and others failed or cancelled.
+    status: Literal["queued", "running", "succeeded", "failed", "cancelled", "partial"]
+    completion: Literal["complete", "with_warnings"] | None
+    runs: list[IngestionRunRead]
+    created_at: datetime
+
+
+class IngestionRunGroupPage(Strict):
+    items: list[IngestionRunGroupRead]
+    total: int
+    limit: int
+    offset: int
 
 
 class IngestionRunPage(Strict):

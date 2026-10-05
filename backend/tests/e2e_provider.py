@@ -122,6 +122,23 @@ class WebsiteTransport:
             {"content-type": "text/html", "etag": '"guide-v1"'},
             b"<main><h1>Controlled guide</h1><p>The controlled guide documents solar orchards.</p></main>",
         ),
+        # A second site for multi-source journeys. Any other host, such as
+        # https://down.example/sitemap.xml, has no response and fails as a whole.
+        "https://second.example/robots.txt": (
+            200,
+            {"content-type": "text/plain"},
+            b"User-agent: *\nAllow: /\n",
+        ),
+        "https://second.example/": (
+            200,
+            {"content-type": "text/html", "etag": '"second-home-v1"'},
+            b"<main><h1>Second site</h1><p>The second site explains greenhouse pears.</p><a href='/faq'>FAQ</a></main>",
+        ),
+        "https://second.example/faq": (
+            200,
+            {"content-type": "text/html", "etag": '"second-faq-v1"'},
+            b"<main><h1>Second FAQ</h1><p>Greenhouse panes are cleaned every spring.</p></main>",
+        ),
     }
 
     def request(self, url, address, timeout, headers, max_bytes):

@@ -22,6 +22,44 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.db.session import Base
 
 
+class IngestionRunGroup(Base):
+    """One start of a one-index-per-source pipeline: a run per branch."""
+
+    __tablename__ = "ingestion_run_groups"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["pipeline_version_id", "project_id"],
+            ["pipeline_versions.id", "pipeline_versions.project_id"],
+            name="fk_ingestion_run_group_pipeline_project",
+        ),
+        ForeignKeyConstraint(
+            ["schedule_id", "project_id"],
+            ["ingestion_schedules.id", "ingestion_schedules.project_id"],
+            name="fk_ingestion_run_group_schedule_project",
+            use_alter=True,
+        ),
+        UniqueConstraint("id", "project_id", name="uq_ingestion_run_group_project"),
+        CheckConstraint(
+            "trigger_kind IN ('manual','scheduled')",
+            name="ck_ingestion_run_group_trigger_kind",
+        ),
+        Index(
+            "ix_ingestion_run_groups_version_created",
+            "project_id",
+            "pipeline_version_id",
+            "created_at",
+        ),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    project_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("projects.id"))
+    pipeline_version_id: Mapped[uuid.UUID]
+    schedule_id: Mapped[uuid.UUID | None]
+    trigger_kind: Mapped[str] = mapped_column(String(16), default="manual")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
 class IngestionRun(Base):
     __tablename__ = "ingestion_runs"
     __table_args__ = (
@@ -47,6 +85,16 @@ class IngestionRun(Base):
             name="fk_ingestion_run_source_snapshot_project",
             use_alter=True,
         ),
+        ForeignKeyConstraint(
+            ["group_id", "project_id"],
+            ["ingestion_run_groups.id", "ingestion_run_groups.project_id"],
+            name="fk_ingestion_run_group_project",
+        ),
+        CheckConstraint(
+            "(group_id IS NULL) = (branch_source_node_id IS NULL)",
+            name="ck_ingestion_run_group_branch",
+        ),
+        Index("ix_ingestion_runs_group", "group_id"),
         UniqueConstraint("id", "project_id", name="uq_ingestion_run_project"),
         CheckConstraint(
             "status IN ('queued','running','succeeded','failed','cancelled')",
@@ -133,6 +181,9 @@ class IngestionRun(Base):
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     dispatched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Set for one branch of a one-index-per-source run group.
+    group_id: Mapped[uuid.UUID | None]
+    branch_source_node_id: Mapped[str | None] = mapped_column(String(80))
 
 
 class IngestionRunNode(Base):

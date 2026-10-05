@@ -376,13 +376,12 @@ def dispatch_schedules_once(db_engine=engine, current=None):
                 )
                 result = None
                 if recovered is None:
-                    result = ingestion.start_run(
+                    result = ingestion.start_scheduled(
                         session,
                         row.project_id,
                         version.pipeline_id,
                         version.id,
-                        trigger_kind="scheduled",
-                        schedule_id=row.id,
+                        row.id,
                     )
                 run_id = recovered.id if recovered is not None else result["id"]
                 run_outcome = recovered.status if recovered is not None else "queued"
@@ -411,8 +410,8 @@ def dispatch_schedules_once(db_engine=engine, current=None):
                     is_overlap = (
                         isinstance(exc, HTTPException)
                         and exc.status_code == 409
-                        and exc.detail
-                        == "This knowledge set already has an active ingestion run."
+                        # One run or a run group whose branch is busy.
+                        and "already has an active ingestion run" in str(exc.detail)
                     )
                     row.last_outcome = "skipped" if is_overlap else "failed"
                     row.last_error = (

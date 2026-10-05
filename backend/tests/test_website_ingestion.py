@@ -13,7 +13,7 @@ from app.connectors.website import PreviewOutcome, WebsiteArtifact
 from app.core.config import settings
 from app.models.document import Chunk, Document, ProcessingRun
 from app.models.index import IndexChunk, IndexVersion, KnowledgeSet
-from app.models.ingestion import IngestionRun, IngestionSchedule
+from app.models.ingestion import IngestionRun, IngestionRunGroup, IngestionSchedule
 from app.models.pipeline import Pipeline, PipelineVersion
 from app.models.source import (
     IndexSourceRevision,
@@ -132,6 +132,11 @@ def website_api(documents_api, monkeypatch):  # noqa: F811
             .values(last_run_id=None)
         )
         session.execute(delete(IngestionRun).where(IngestionRun.id.in_(runs)))
+        session.execute(
+            delete(IngestionRunGroup).where(
+                IngestionRunGroup.project_id == project_uuid
+            )
+        )
         session.execute(
             delete(IngestionSchedule).where(
                 IngestionSchedule.project_id == project_uuid

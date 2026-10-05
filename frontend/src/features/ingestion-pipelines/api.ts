@@ -4,6 +4,7 @@ import type {
   IngestionPipelineDraft,
   IngestionPipelineVersion,
   IngestionRun,
+  IngestionRunGroup,
   IngestionRunItem,
   IngestionSchedule,
   ContentBlock,
@@ -196,6 +197,46 @@ export function listProcessingChunks(
 ): Promise<ChunkInspectionPage> {
   return request<ChunkInspectionPage>(
     `/projects/${encodeURIComponent(projectId)}/processing-runs/${encodeURIComponent(processingRunId)}/chunks?offset=${offset}`,
+  );
+}
+
+export function startIngestionRunGroup(
+  projectId: string,
+  pipelineId: string,
+  versionId: string,
+  sourceNodeIds?: string[],
+): Promise<IngestionRunGroup> {
+  return postJson<IngestionRunGroup>(
+    `${pipelinesPath(projectId)}/${encodeURIComponent(pipelineId)}/versions/${encodeURIComponent(versionId)}/ingestion-run-groups`,
+    sourceNodeIds ? { source_node_ids: sourceNodeIds } : {},
+  );
+}
+
+export function getIngestionRunGroup(
+  projectId: string,
+  groupId: string,
+): Promise<IngestionRunGroup> {
+  return request<IngestionRunGroup>(
+    `/projects/${encodeURIComponent(projectId)}/ingestion-run-groups/${encodeURIComponent(groupId)}`,
+  );
+}
+
+export function listIngestionRunGroups(
+  projectId: string,
+  pipelineVersionId: string,
+): Promise<Page<IngestionRunGroup>> {
+  return request<Page<IngestionRunGroup>>(
+    `/projects/${encodeURIComponent(projectId)}/ingestion-run-groups?pipeline_version_id=${encodeURIComponent(pipelineVersionId)}&limit=1`,
+  );
+}
+
+export function cancelIngestionRunGroup(
+  projectId: string,
+  groupId: string,
+): Promise<IngestionRunGroup> {
+  return request<IngestionRunGroup>(
+    `/projects/${encodeURIComponent(projectId)}/ingestion-run-groups/${encodeURIComponent(groupId)}/cancel`,
+    { method: 'POST' },
   );
 }
 

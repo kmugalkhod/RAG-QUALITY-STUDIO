@@ -330,8 +330,11 @@ export type IngestionPipelineDraft = {
   name: string;
   execution: {
     schema_version: 1 | 2;
-    /** Schema 2 only. Every source goes through the shared stages into one index. */
-    index_layout?: 'merged';
+    /**
+     * Schema 2 only. `merged`: every source goes through one shared chain into one index;
+     * `per_source`: each source has its own chain and index.
+     */
+    index_layout?: 'merged' | 'per_source';
     nodes: IngestionNode[];
     edges: { source: string; target: string }[];
   };
@@ -464,10 +467,26 @@ export type IngestionRun = {
   source_outcomes?: IngestionSourceOutcome[];
   /** For a succeeded run, `with_warnings` when a source or page failed. */
   completion?: 'complete' | 'with_warnings' | null;
+  /** Set for one branch of a one-index-per-source run group. */
+  group_id?: string | null;
+  branch_source_node_id?: string | null;
   created_at: string;
   updated_at: string;
   started_at: string | null;
   finished_at: string | null;
+};
+
+export type IngestionRunGroup = {
+  id: string;
+  project_id: string;
+  pipeline_version_id: string;
+  schedule_id: string | null;
+  trigger_kind: 'manual' | 'scheduled';
+  /** `partial`: finished with some branches succeeded and others failed or cancelled. */
+  status: 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled' | 'partial';
+  completion: 'complete' | 'with_warnings' | null;
+  runs: IngestionRun[];
+  created_at: string;
 };
 
 export type IngestionSourceOutcome = {

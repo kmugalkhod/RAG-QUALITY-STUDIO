@@ -232,29 +232,263 @@ export function addWebsiteSourceBlocked(draft: IngestionPipelineDraft): string |
   return null;
 }
 
-/** Adds a Website source beside the others, wired into the shared Extract stage. */
+const chainTypes = ['extract', 'clean', 'chunk', 'embed', 'publish_index'] as const;
+const rowHeight = 116;
+// Node width (--spacing-node, 288px) plus a gap, so side-by-side sources never overlap.
+const columnWidth = 340;
+
+export function indexLayout(draft: IngestionPipelineDraft): 'merged' | 'per_source' {
+  return draft.execution.index_layout ?? 'merged';
+}
+
+/** The nodes after a node, following edges: a source's own chain in a per-source layout. */
+export function branchChain(draft: IngestionPipelineDraft, sourceId: string): IngestionNode[] {
+  const byId = new Map(draft.execution.nodes.map((node) => [node.id, node]));
+  const chain: IngestionNode[] = [];
+  let current = sourceId;
+  for (let step = 0; step < chainTypes.length; step += 1) {
+    const edge = draft.execution.edges.find((candidate) => candidate.source === current);
+    const node = edge ? byId.get(edge.target) : undefined;
+    if (!node) {
+      break;
+    }
+    chain.push(node);
+    current = node.id;
+  }
+  return chain;
+}
+
+/** The source a node belongs to in a per-source layout. */
+export function branchSourceOf(draft: IngestionPipelineDraft, nodeId: string): string | undefined {
+  const byId = new Map(draft.execution.nodes.map((node) => [node.id, node]));
+  let current = nodeId;
+  for (let step = 0; step <= chainTypes.length; step += 1) {
+    const node = byId.get(current);
+    if (!node) {
+      return undefined;
+    }
+    if (node.type === 'source') {
+      return node.id;
+    }
+    const edge = draft.execution.edges.find((candidate) => candidate.target === current);
+    if (!edge) {
+      return undefined;
+    }
+    current = edge.source;
+  }
+  return undefined;
+}
+
+/** "Chunk · Website 2" for a branch stage when several sources publish separately. */
+export function nodeLabel(draft: IngestionPipelineDraft, node: IngestionNode) {
+  if (node.type === 'source') {
+    return sourceLabel(draft, node.id);
+  }
+  const base = ingestionStageLabels[node.type];
+  if (indexLayout(draft) !== 'per_source' || sourceNodes(draft).length < 2) {
+    return base;
+  }
+  const sourceId = branchSourceOf(draft, node.id);
+  return sourceId ? `${base} · ${sourceLabel(draft, sourceId)}` : base;
+}
+
+function hostOf(node: IngestionNode) {
+  if (node.type !== 'source' || node.config.kind !== 'website') {
+    return null;
+  }
+  const selection = node.config.selection;
+  const url =
+    selection.mode === 'url_list'
+      ? selection.urls[0]
+      : selection.mode === 'single_url'
+        ? selection.url
+        : selection.mode === 'crawl'
+          ? selection.start_url
+          : selection.sitemap_url;
+  try {
+    return url ? new URL(url).host : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Default index name of a branch: "<pipeline> · <host>", or "· Website N" without a URL. */
+export function branchIndexName(
+  draft: IngestionPipelineDraft,
+  source: IngestionNode,
+  number: number,
+) {
+  const pipeline = draft.name.trim() || 'Ingested knowledge';
+  return `${pipeline} · ${hostOf(source) ?? `Website ${number}`}`;
+}
+
+function uniqueId(ids: Set<string>, base: string) {
+  let number = 2;
+  while (ids.has(`${base}-${number}`)) {
+    number += 1;
+  }
+  const id = `${base}-${number}`;
+  ids.add(id);
+  return id;
+}
+
+function withIndexName(node: IngestionNode, name: string): IngestionNode {
+  if (node.type !== 'publish_index') {
+    return node;
+  }
+  // A new branch publishes to a new index; it never reuses another branch's index.
+  const { knowledge_set_id: _ignored, ...rest } = node;
+  void _ignored;
+  return { ...rest, knowledge_set_name: name };
+}
+
+function copyChain(template: IngestionNode[], ids: Set<string>, name: string): IngestionNode[] {
+  return template.map((node) =>
+    withIndexName(
+      {
+        ...structuredClone(node),
+        id: uniqueId(ids, node.type === 'publish_index' ? 'publish' : node.type),
+      },
+      name,
+    ),
+  );
+}
+
+function chainEdges(chain: IngestionNode[]) {
+  return chain.slice(1).map((node, index) => ({ source: chain[index].id, target: node.id }));
+}
+
+function columnPositions(
+  chain: IngestionNode[],
+  origin: { x: number; y: number },
+): Record<string, { x: number; y: number }> {
+  return Object.fromEntries(
+    chain.map((node, index) => [node.id, { x: origin.x, y: origin.y + index * rowHeight }]),
+  );
+}
+
+/**
+ * Switches between one shared chain and one chain per source. Branches copy the shared
+ * settings; switching back keeps the first branch's settings. Every new chain publishes
+ * to a newly named index.
+ */
+export function setIndexLayout(
+  draft: IngestionPipelineDraft,
+  layout: 'merged' | 'per_source',
+): IngestionPipelineDraft {
+  if (draft.execution.schema_version !== 2 || indexLayout(draft) === layout) {
+    return draft;
+  }
+  const sources = sourceNodes(draft);
+  const positions: Record<string, { x: number; y: number }> = {};
+  const origin = (source: IngestionNode, index: number) =>
+    draft.layout.positions[source.id] ?? { x: 90 + index * columnWidth, y: 40 };
+  if (layout === 'per_source') {
+    const template = chainTypes.map(
+      (type) => draft.execution.nodes.find((node) => node.type === type) as IngestionNode,
+    );
+    const ids = new Set(draft.execution.nodes.map((node) => node.id));
+    const nodes: IngestionNode[] = [];
+    const edges: { source: string; target: string }[] = [];
+    sources.forEach((source, index) => {
+      const name = branchIndexName(draft, source, index + 1);
+      const chain =
+        index === 0
+          ? template.map((node) => withIndexName(node, name))
+          : copyChain(template, ids, name);
+      nodes.push(source, ...chain);
+      edges.push(...chainEdges([source, ...chain]));
+      Object.assign(positions, columnPositions([source, ...chain], origin(source, index)));
+    });
+    return {
+      ...draft,
+      execution: { ...draft.execution, index_layout: 'per_source', nodes, edges },
+      layout: { positions },
+    };
+  }
+  const first = sources[0];
+  const chain = branchChain(draft, first.id).map((node) =>
+    withIndexName(node, draft.name.trim() || 'Ingested knowledge'),
+  );
+  sources.forEach((source, index) => {
+    positions[source.id] = origin(source, index);
+  });
+  Object.assign(positions, columnPositions([first, ...chain], origin(first, 0)));
+  return {
+    ...draft,
+    execution: {
+      ...draft.execution,
+      index_layout: 'merged',
+      nodes: [...sources, ...chain],
+      edges: [
+        ...sources.map((source) => ({ source: source.id, target: chain[0].id })),
+        ...chainEdges(chain),
+      ],
+    },
+    layout: { positions },
+  };
+}
+
+/** One branch as a single-chain execution, for previewing a per-source layout. */
+export function branchExecution(
+  draft: IngestionPipelineDraft,
+  sourceId: string,
+): IngestionPipelineDraft['execution'] {
+  const source = draft.execution.nodes.find((node) => node.id === sourceId);
+  const chain = source ? [source, ...branchChain(draft, sourceId)] : [];
+  return { schema_version: 2, index_layout: 'merged', nodes: chain, edges: chainEdges(chain) };
+}
+
+/**
+ * Adds a Website source beside the others: wired into the shared Extract stage, or in a
+ * per-source layout given its own copy of the first branch's stages and a new index.
+ */
 export function addWebsiteSource(draft: IngestionPipelineDraft): {
   draft: IngestionPipelineDraft;
   nodeId: string;
 } {
   const sources = sourceNodes(draft);
-  const extract = draft.execution.nodes.find((node) => node.type === 'extract');
   const ids = new Set(draft.execution.nodes.map((node) => node.id));
   let number = sources.length + 1;
   while (ids.has(`source-${number}`)) {
     number += 1;
   }
   const nodeId = `source-${number}`;
+  ids.add(nodeId);
+  const source: IngestionNode = { id: nodeId, type: 'source', config: defaultWebsite() };
   const last = sources[sources.length - 1];
   const lastPosition = last ? draft.layout.positions[last.id] : undefined;
-  const position = lastPosition ? { x: lastPosition.x + 260, y: lastPosition.y } : { x: 90, y: 40 };
+  const position = lastPosition
+    ? { x: lastPosition.x + columnWidth, y: lastPosition.y }
+    : { x: 90, y: 40 };
+  if (indexLayout(draft) === 'per_source') {
+    const chain = copyChain(
+      branchChain(draft, sources[0].id),
+      ids,
+      branchIndexName(draft, source, sources.length + 1),
+    );
+    return {
+      nodeId,
+      draft: {
+        ...draft,
+        execution: {
+          ...draft.execution,
+          nodes: [...draft.execution.nodes, source, ...chain],
+          edges: [...draft.execution.edges, ...chainEdges([source, ...chain])],
+        },
+        layout: {
+          positions: {
+            ...draft.layout.positions,
+            ...columnPositions([source, ...chain], position),
+          },
+        },
+      },
+    };
+  }
+  const extract = draft.execution.nodes.find((node) => node.type === 'extract');
   const lastSourceIndex = draft.execution.nodes.findIndex((node) => node.id === last?.id);
   const nodes = [...draft.execution.nodes];
-  nodes.splice(lastSourceIndex + 1, 0, {
-    id: nodeId,
-    type: 'source',
-    config: defaultWebsite(),
-  });
+  nodes.splice(lastSourceIndex + 1, 0, source);
   return {
     nodeId,
     draft: {
@@ -271,7 +505,7 @@ export function addWebsiteSource(draft: IngestionPipelineDraft): {
   };
 }
 
-/** Removes one of several sources and its edge; the last source cannot be removed. */
+/** Removes one of several sources (with its own stages in a per-source layout). */
 export function removeSource(
   draft: IngestionPipelineDraft,
   nodeId: string,
@@ -279,15 +513,22 @@ export function removeSource(
   if (sourceNodes(draft).length < 2) {
     return draft;
   }
-  const positions = { ...draft.layout.positions };
-  delete positions[nodeId];
+  const removed = new Set([
+    nodeId,
+    ...(indexLayout(draft) === 'per_source'
+      ? branchChain(draft, nodeId).map((node) => node.id)
+      : []),
+  ]);
+  const positions = Object.fromEntries(
+    Object.entries(draft.layout.positions).filter(([id]) => !removed.has(id)),
+  );
   return {
     ...draft,
     execution: {
       ...draft.execution,
-      nodes: draft.execution.nodes.filter((node) => node.id !== nodeId),
+      nodes: draft.execution.nodes.filter((node) => !removed.has(node.id)),
       edges: draft.execution.edges.filter(
-        (edge) => edge.source !== nodeId && edge.target !== nodeId,
+        (edge) => !removed.has(edge.source) && !removed.has(edge.target),
       ),
     },
     layout: { positions },

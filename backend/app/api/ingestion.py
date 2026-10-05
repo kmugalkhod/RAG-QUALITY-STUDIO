@@ -12,6 +12,9 @@ from app.db.session import get_deployment_session
 from app.schemas.ingestion import (
     IngestionExecution,
     IngestionPreviewRequest,
+    IngestionRunGroupPage,
+    IngestionRunGroupRead,
+    IngestionRunGroupStart,
     IngestionRunItemPage,
     IngestionRunPage,
     IngestionRunRead,
@@ -165,6 +168,51 @@ def start_run(
     )
 
 
+@router.post(
+    "/pipelines/{pipeline_id}/versions/{version_id}/ingestion-run-groups",
+    response_model=IngestionRunGroupRead,
+    status_code=202,
+)
+def start_run_group(
+    project_id: UUID,
+    pipeline_id: UUID,
+    version_id: UUID,
+    request: Request,
+    session: Database,
+    data: IngestionRunGroupStart | None = None,
+):
+    version = pipeline_service.get_version(session, project_id, pipeline_id, version_id)
+    _protect_credentialed_source(
+        request, IngestionExecution.model_validate(version.execution)
+    )
+    start = data or IngestionRunGroupStart()
+    return ingestion.start_group(
+        session,
+        project_id,
+        pipeline_id,
+        version_id,
+        source_node_ids=start.source_node_ids,
+    )
+
+
+@router.get("/ingestion-run-groups", response_model=IngestionRunGroupPage)
+def list_run_groups(
+    project_id: UUID,
+    session: Database,
+    limit: Limit = 20,
+    offset: Offset = 0,
+    pipeline_version_id: UUID | None = None,
+):
+    return ingestion.list_groups(
+        session, project_id, limit, offset, pipeline_version_id=pipeline_version_id
+    )
+
+
+@router.get("/ingestion-run-groups/{group_id}", response_model=IngestionRunGroupRead)
+def get_run_group(project_id: UUID, group_id: UUID, session: Database):
+    return ingestion.read_group(session, project_id, group_id)
+
+
 @router.get("/ingestion-runs", response_model=IngestionRunPage)
 def list_runs(
     project_id: UUID,
@@ -316,6 +364,13 @@ CommittedDatabase = Annotated[Session, Depends(get_deployment_session)]
 @router.post("/ingestion-runs/{run_id}/cancel", response_model=IngestionRunRead)
 def cancel_run(project_id: UUID, run_id: UUID, session: CommittedDatabase):
     return ingestion.cancel_run(session, project_id, run_id)
+
+
+@router.post(
+    "/ingestion-run-groups/{group_id}/cancel", response_model=IngestionRunGroupRead
+)
+def cancel_run_group(project_id: UUID, group_id: UUID, session: CommittedDatabase):
+    return ingestion.cancel_group(session, project_id, group_id)
 
 
 @router.get("/source-snapshots", response_model=SourceSnapshotPage)

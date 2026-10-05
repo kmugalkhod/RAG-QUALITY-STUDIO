@@ -4,6 +4,7 @@ import { Checkbox } from '../../../components/ui/checkbox';
 import { Input } from '../../../components/ui/input';
 import { Label } from '../../../components/ui/label';
 import { NativeSelect, NativeSelectOption } from '../../../components/ui/native-select';
+import { RadioGroup, RadioGroupItem } from '../../../components/ui/radio-group';
 import { docsHref } from '../../../lib/docs';
 import { cn } from '../../../lib/utils';
 import type { ConnectionSettings, SourceConnection } from '../../connections/model';
@@ -74,6 +75,10 @@ export function IngestionNodeSettings({
   changeSourceKind,
   sourceCount = 1,
   sourceLabel,
+  nodeLabel,
+  indexLayout = 'merged',
+  onIndexLayoutChange,
+  refreshSourceLabel = 'Refresh only',
   addSourceBlocked,
   websitePageTotal = 0,
   onAddSource,
@@ -103,6 +108,12 @@ export function IngestionNodeSettings({
   sourceCount?: number;
   /** "Website 2" style names when there are several sources. */
   sourceLabel?: (nodeId: string) => string;
+  /** Stage names that say which source a stage belongs to in a per-source layout. */
+  nodeLabel?: (node: IngestionNode) => string;
+  indexLayout?: 'merged' | 'per_source';
+  /** Absent hides the layout choice. */
+  onIndexLayoutChange?: (layout: 'merged' | 'per_source') => void;
+  refreshSourceLabel?: string;
   /** Why a Website source cannot be added, null when it can; absent hides the controls. */
   addSourceBlocked?: string | null;
   websitePageTotal?: number;
@@ -115,7 +126,12 @@ export function IngestionNodeSettings({
   onSelectNode: (nodeId: string) => void;
 }) {
   const nameOf = (node: IngestionNode) =>
-    node.type === 'source' && sourceLabel ? sourceLabel(node.id) : stageName(node);
+    nodeLabel
+      ? nodeLabel(node)
+      : node.type === 'source' && sourceLabel
+        ? sourceLabel(node.id)
+        : stageName(node);
+  const perSource = indexLayout === 'per_source';
   // Server errors are keyed per node, so each source shows only its own.
   const nodeErrors = fieldErrorsForNode(serverFieldErrors, selectedNode);
   const selectedOcr =
@@ -327,10 +343,27 @@ export function IngestionNodeSettings({
             {selected.config.kind === 'website' && addSourceBlocked !== undefined && (
               <fieldset className={FIELDSET}>
                 <legend>Sources in this pipeline</legend>
+                {onIndexLayoutChange && schemaVersion === 2 && (
+                  <RadioGroup
+                    aria-label="Index layout"
+                    value={indexLayout}
+                    onValueChange={(value) => onIndexLayoutChange(value as 'merged' | 'per_source')}
+                  >
+                    <label className="flex items-center gap-2 text-sm text-foreground">
+                      <RadioGroupItem value="merged" />
+                      Merge every source into one index
+                    </label>
+                    <label className="flex items-center gap-2 text-sm text-foreground">
+                      <RadioGroupItem value="per_source" />
+                      Build one index per source
+                    </label>
+                  </RadioGroup>
+                )}
                 <p className={HINT}>
-                  {sourceCount} of {maxWebsiteSources} Website sources. Every source goes through
-                  the same Extract, Clean, Chunk and Embed settings into one index; pages found by
-                  more than one source are indexed once.
+                  {sourceCount} of {maxWebsiteSources} Website sources.{' '}
+                  {perSource
+                    ? 'Each source has its own Extract, Clean, Chunk, Embed and Publish stages and publishes its own index; select a stage to change that source’s settings or index name.'
+                    : 'Every source goes through the same Extract, Clean, Chunk and Embed settings into one index; pages found by more than one source are indexed once.'}
                 </p>
                 {sourceCount > 1 && (
                   <p
@@ -378,11 +411,13 @@ export function IngestionNodeSettings({
                       aria-describedby="refresh-source-hint"
                       onClick={() => onRefreshSource(selected.id)}
                     >
-                      Refresh only {sourceLabel ? sourceLabel(selected.id) : 'this source'}
+                      {refreshSourceLabel} {sourceLabel ? sourceLabel(selected.id) : 'this source'}
                     </Button>
                     <p id="refresh-source-hint" className={HINT}>
                       {refreshSourceBlocked ??
-                        'Collects only this site and publishes a new index version; the other sites keep their pages from the current index without being contacted.'}
+                        (perSource
+                          ? 'Collects only this site and publishes a new version of its own index; the other sources are not run.'
+                          : 'Collects only this site and publishes a new index version; the other sites keep their pages from the current index without being contacted.')}
                     </p>
                   </div>
                 )}

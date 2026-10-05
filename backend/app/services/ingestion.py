@@ -9,7 +9,13 @@ from sqlalchemy.orm import Session
 from app.connectors.existing_files import ExistingFilesConnector
 from app.models.document import Document, ProcessingRun
 from app.models.index import IndexVersion, KnowledgeSet
-from app.models.ingestion import IngestionRun, IngestionRunItem, IngestionRunNode
+from app.models.ingestion import (
+    IngestionRun,
+    IngestionRunGroup,
+    IngestionRunItem,
+    IngestionRunNode,
+)
+from app.models.pipeline import PipelineVersion
 from app.models.project import Project
 from app.models.source import SourceRevision, WebsiteRunItem
 from app.ingestion_content import (
@@ -318,7 +324,12 @@ def start_run(
     source_input: IngestionSourceInput | None = None,
     destination: IngestionDestination | None = None,
     reuse_stored: bool | None = None,
+    branch: IngestionExecution | None = None,
+    group: IngestionRunGroup | None = None,
+    commit: bool = True,
 ):
+    """Start one run. A run group passes one branch of a per-source version,
+    with `commit=False` so every branch starts in one transaction."""
     pipeline = pipelines.get_pipeline(session, project_id, pipeline_id)
     if pipeline.kind != "ingestion":
         raise HTTPException(
@@ -326,6 +337,12 @@ def start_run(
         )
     version = pipelines.get_version(session, project_id, pipeline_id, version_id)
     execution = IngestionExecution.model_validate(version.execution)
+    if branch is None and execution.index_layout == "per_source":
+        raise HTTPException(
+            409,
+            "This version publishes one index per source; start it as a run group.",
+        )
+    execution = branch or execution
     pipelines.validate_ingestion(session, project_id, execution)
     with provider_credentials.bound_for_project(session, project_id):
         embedding_config = embeddings.configured()
@@ -446,6 +463,9 @@ def start_run(
                 "fetch_policies": pipelines.website_fetch_policies(execution),
             },
         )
+        if group is not None:
+            run.group_id = group.id
+            run.branch_source_node_id = sources[0].id
         session.add(run)
         session.flush()
         _add_node_states(session, run, execution)
@@ -455,6 +475,9 @@ def start_run(
             run.source_snapshot_id = prior_index.source_snapshot_id
         else:
             source_snapshots.create_collecting(session, project_id, run, execution)
+        if not commit:
+            session.flush()
+            return run
         session.commit()
         session.refresh(run)
         return read_run(session, run)
@@ -711,6 +734,213 @@ def _refresh_only(source_input, sources, remote_kind, knowledge_set):
         return None
     # Recorded in pipeline order so retries and reads are deterministic.
     return [node_id for node_id in source_ids if node_id in requested]
+
+
+def start_group(
+    session: Session,
+    project_id: UUID,
+    pipeline_id: UUID,
+    version_id: UUID,
+    *,
+    source_node_ids: list[str] | None = None,
+    trigger_kind: str = "manual",
+    schedule_id: UUID | None = None,
+):
+    """Start one run per branch of a per-source version, all or none."""
+    version = pipelines.get_version(session, project_id, pipeline_id, version_id)
+    execution = IngestionExecution.model_validate(version.execution)
+    if execution.index_layout != "per_source":
+        raise HTTPException(
+            409, "Run groups are for versions that publish one index per source."
+        )
+    branches = execution.branches()
+    source_ids = [
+        next(node.id for node in branch.nodes if node.type == "source")
+        for branch in branches
+    ]
+    if source_node_ids:
+        unknown = [node_id for node_id in source_node_ids if node_id not in source_ids]
+        if unknown:
+            raise HTTPException(
+                422, f"Unknown source in this pipeline version: {', '.join(unknown)}."
+            )
+        selected = set(source_node_ids)
+        branches = [
+            branch
+            for branch, node_id in zip(branches, source_ids)
+            if node_id in selected
+        ]
+    group = IngestionRunGroup(
+        project_id=project_id,
+        pipeline_version_id=version.id,
+        schedule_id=schedule_id,
+        trigger_kind=trigger_kind,
+    )
+    session.add(group)
+    session.flush()
+    for branch in branches:
+        publish = next(node for node in branch.nodes if node.type == "publish_index")
+        try:
+            start_run(
+                session,
+                project_id,
+                pipeline_id,
+                version_id,
+                trigger_kind=trigger_kind,
+                schedule_id=schedule_id,
+                branch=branch,
+                group=group,
+                commit=False,
+            )
+        except HTTPException as exc:
+            session.rollback()
+            if exc.status_code == 409 and "active ingestion run" in str(exc.detail):
+                raise HTTPException(
+                    409,
+                    f'The index "{publish.knowledge_set_name}" already has an '
+                    "active ingestion run, so no branch was started.",
+                ) from None
+            raise
+    session.commit()
+    return read_group(session, project_id, group.id)
+
+
+def start_scheduled(session: Session, project_id, pipeline_id, version_id, schedule_id):
+    """A schedule's run: one run, or for a per-source version a group whose
+    first branch run stands for it in the schedule's last-run fields."""
+    version = pipelines.get_version(session, project_id, pipeline_id, version_id)
+    if (
+        IngestionExecution.model_validate(version.execution).index_layout
+        == "per_source"
+    ):
+        group = start_group(
+            session,
+            project_id,
+            pipeline_id,
+            version_id,
+            trigger_kind="scheduled",
+            schedule_id=schedule_id,
+        )
+        return group["runs"][0]
+    return start_run(
+        session,
+        project_id,
+        pipeline_id,
+        version_id,
+        trigger_kind="scheduled",
+        schedule_id=schedule_id,
+    )
+
+
+def _group_summary(runs):
+    statuses = {run["status"] for run in runs}
+    if statuses & {"queued", "running"}:
+        status = "running" if "running" in statuses else "queued"
+    elif statuses == {"succeeded"}:
+        status = "succeeded"
+    elif statuses == {"failed"}:
+        status = "failed"
+    elif statuses == {"cancelled"}:
+        status = "cancelled"
+    else:
+        status = "partial"
+    if status != "succeeded":
+        completion = None
+    elif any(run["completion"] == "with_warnings" for run in runs):
+        completion = "with_warnings"
+    else:
+        completion = "complete"
+    return status, completion
+
+
+def read_group(session: Session, project_id: UUID, group_id: UUID):
+    project(session, project_id)
+    group = session.scalar(
+        select(IngestionRunGroup).where(
+            IngestionRunGroup.id == group_id,
+            IngestionRunGroup.project_id == project_id,
+        )
+    )
+    if group is None:
+        raise HTTPException(404, "Ingestion run group not found.")
+    return _group_read(session, group)
+
+
+def _group_read(session: Session, group: IngestionRunGroup):
+    runs = _run_rows(
+        session, select(IngestionRun).where(IngestionRun.group_id == group.id)
+    )
+    # Branches start in one transaction with the same timestamp; list them in
+    # the pipeline's source order instead.
+    version = session.get(PipelineVersion, group.pipeline_version_id)
+    order = [
+        node["id"]
+        for node in version.execution.get("nodes", [])
+        if node.get("type") == "source"
+    ]
+    runs.sort(
+        key=lambda run: (
+            order.index(run["branch_source_node_id"])
+            if run["branch_source_node_id"] in order
+            else len(order),
+            str(run["id"]),
+        )
+    )
+    status, completion = _group_summary(runs)
+    return {
+        "id": group.id,
+        "project_id": group.project_id,
+        "pipeline_version_id": group.pipeline_version_id,
+        "schedule_id": group.schedule_id,
+        "trigger_kind": group.trigger_kind,
+        "status": status,
+        "completion": completion,
+        "runs": runs,
+        "created_at": group.created_at,
+    }
+
+
+def list_groups(
+    session: Session,
+    project_id: UUID,
+    limit: int,
+    offset: int,
+    *,
+    pipeline_version_id: UUID | None = None,
+):
+    project(session, project_id)
+    conditions = [IngestionRunGroup.project_id == project_id]
+    if pipeline_version_id is not None:
+        conditions.append(IngestionRunGroup.pipeline_version_id == pipeline_version_id)
+    total = session.scalar(
+        select(func.count()).select_from(IngestionRunGroup).where(*conditions)
+    )
+    groups = session.scalars(
+        select(IngestionRunGroup)
+        .where(*conditions)
+        .order_by(IngestionRunGroup.created_at.desc(), IngestionRunGroup.id.desc())
+        .limit(limit)
+        .offset(offset)
+    ).all()
+    return dict(
+        items=[_group_read(session, group) for group in groups],
+        total=total,
+        limit=limit,
+        offset=offset,
+    )
+
+
+def cancel_group(session: Session, project_id: UUID, group_id: UUID):
+    group = read_group(session, project_id, group_id)
+    for run in group["runs"]:
+        if run["status"] in ("queued", "running"):
+            try:
+                cancel_run(session, project_id, run["id"])
+            except HTTPException as exc:
+                # A branch that published meanwhile stays published.
+                if exc.status_code != 409:
+                    raise
+    return read_group(session, project_id, group_id)
 
 
 def read_run(session: Session, run: IngestionRun):

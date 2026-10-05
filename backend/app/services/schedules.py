@@ -139,13 +139,8 @@ def trigger(session, project_id, schedule_id):
     row = get(session, project_id, schedule_id, lock=True)
     version = session.get(PipelineVersion, row.pipeline_version_id)
     current = now()
-    result = ingestion.start_run(
-        session,
-        project_id,
-        version.pipeline_id,
-        version.id,
-        trigger_kind="scheduled",
-        schedule_id=row.id,
+    result = ingestion.start_scheduled(
+        session, project_id, version.pipeline_id, version.id, row.id
     )
     row = get(session, project_id, schedule_id, lock=True)
     row.last_run_id = result["id"]

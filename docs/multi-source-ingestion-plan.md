@@ -1,6 +1,6 @@
 # Multi-source ingestion pipelines
 
-Status: approved 2026-10-05; slices 1, 3, 2 and 4 done 2026-10-05, slice 5 next (owner chose order 1, 3, 2, 4, 5, 6)
+Status: approved 2026-10-05; slices 1–5 done 2026-10-05 and verified end to end in the browser; slice 6 (concurrent site crawls and hardening) remains
 Scope owner: Website ingestion, run lifecycle, ingestion editor, Knowledge Base lineage
 
 ## Purpose

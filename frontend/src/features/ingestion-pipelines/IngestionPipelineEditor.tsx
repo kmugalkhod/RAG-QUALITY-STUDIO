@@ -28,6 +28,7 @@ import {
 } from './components/IngestionPipelineCanvas';
 import { IngestionNodeSettings } from './components/IngestionNodeSettings';
 import { IngestionPreviewResults, IngestionRunResults } from './components/IngestionResults';
+import { IngestionGroupStrip } from './components/IngestionGroupStrip';
 import { IngestionRunStrip } from './components/IngestionRunStrip';
 import { IngestionMoreActions, IngestionToolbar } from './components/IngestionToolbar';
 import {
@@ -38,12 +39,16 @@ import {
   defaultWebsite,
   describeIngestionNode as detail,
   editableIngestionVersion as editableVersion,
-  ingestionStageLabels as labels,
   requestErrorMessage as message,
   serverFieldErrors as fieldErrorsFrom,
   terminalIngestionStatuses as terminal,
   addWebsiteSource,
   addWebsiteSourceBlocked,
+  branchExecution,
+  branchSourceOf,
+  indexLayout,
+  nodeLabel,
+  setIndexLayout,
   maxWebsiteRunPages,
   removeSource,
   sourceLabel,
@@ -60,6 +65,7 @@ import {
   type IngestionPipelineDraft,
   type IngestionPipelineVersion,
   type IngestionRun,
+  type IngestionRunGroup,
   type IngestionRunItem,
   type IngestionSchedule,
   type SourcePreview,
@@ -112,6 +118,10 @@ export function IngestionPipelineEditor({
     offset: 0,
   });
   const [run, setRun] = useState<IngestionRun>();
+  // The latest run group of a one-index-per-source version; `run` then holds the branch
+  // whose details are open.
+  const [group, setGroup] = useState<IngestionRunGroup>();
+  const [dismissedGroupId, setDismissedGroupId] = useState('');
   const [items, setItems] = useState<IngestionRunItem[]>([]);
   const [schedules, setSchedules] = useState<IngestionSchedule[]>([]);
   const [automaticSyncOpen, setAutomaticSyncOpen] = useState(false);
@@ -140,6 +150,7 @@ export function IngestionPipelineEditor({
       setPreview(undefined);
       setPreviewPage({ items: [], total: 0, limit: 20, offset: 0 });
       setRun(undefined);
+      setGroup(undefined);
       setItems([]);
       setResultsOpen(null);
       window.history.replaceState(
@@ -241,6 +252,16 @@ export function IngestionPipelineEditor({
 
     const restoreLatestRun = async () => {
       try {
+        if (saved.execution.index_layout === 'per_source') {
+          const groups = await api.listIngestionRunGroups(projectId, saved.id);
+          if (!disposed && generation === runRestoreGeneration.current) {
+            setGroup(groups.items[0]);
+            setRun(undefined);
+            setItems([]);
+            setPollError('');
+          }
+          return;
+        }
         const page = await api.listIngestionRuns(projectId, saved.id);
         if (disposed || generation !== runRestoreGeneration.current) {
           return;
@@ -276,7 +297,26 @@ export function IngestionPipelineEditor({
     if (!draft) {
       return;
     }
-    const executionStates = ingestionNodeExecutionStates(run, draft.execution.nodes);
+    // A group's branches each report their own nodes; merge them onto the one canvas.
+    const executionStates = group
+      ? Object.assign(
+          {},
+          ...group.runs.map((branchRun) =>
+            Object.fromEntries(
+              Object.entries(ingestionNodeExecutionStates(branchRun, draft.execution.nodes)).filter(
+                ([, state]) => state !== undefined,
+              ),
+            ),
+          ),
+        )
+      : ingestionNodeExecutionStates(run, draft.execution.nodes);
+    const stateRuns = group ? group.runs : run ? [run] : [];
+    // A run can publish while one of its sources failed; show that source as failed.
+    for (const outcome of stateRuns.flatMap((candidate) => candidate.source_outcomes ?? [])) {
+      if (outcome.status === 'failed') {
+        executionStates[outcome.source_node_id] = 'failed';
+      }
+    }
     const nodes = draft.execution.nodes.map((node) => ({
       id: node.id,
       type: 'ingestion' as const,
@@ -284,19 +324,22 @@ export function IngestionPipelineEditor({
       selected: node.id === selectedNode,
       data: {
         stage: node.type,
-        label: node.type === 'source' ? sourceLabel(draft, node.id) : labels[node.type],
+        label: nodeLabel(draft, node),
         detail: detail(node, documents),
         // Sources take no input and Publish has no output, however many sources there are.
         first: node.type === 'source',
         last: node.type === 'publish_index',
         executionStatus: executionStates[node.id],
-        executionWasStarted: run?.node_states?.find((state) => state.node_id === node.id)
-          ? Boolean(run.node_states.find((state) => state.node_id === node.id)?.started_at)
-          : undefined,
+        executionWasStarted: (() => {
+          const state = stateRuns
+            .flatMap((candidate) => candidate.node_states ?? [])
+            .find((candidate) => candidate.node_id === node.id);
+          return state ? Boolean(state.started_at) : undefined;
+        })(),
       },
     }));
     setFlowNodes(nodes);
-  }, [draft, documents, run, selectedNode, setFlowNodes]);
+  }, [draft, documents, group, run, selectedNode, setFlowNodes]);
 
   const activeRunId = run?.id;
   const activeRunStatus = run?.status;
@@ -375,6 +418,30 @@ export function IngestionPipelineEditor({
       window.clearTimeout(timer);
     };
   }, [activeRunId, activeRunStatus, projectId, savedVersionId]);
+
+  const activeGroupId = group?.id;
+  const groupActive = !!group && ['queued', 'running'].includes(group.status);
+  useEffect(() => {
+    if (!activeGroupId || !groupActive) {
+      return;
+    }
+    let disposed = false;
+    const timer = window.setTimeout(() => {
+      void api
+        .getIngestionRunGroup(projectId, activeGroupId)
+        .then((next) => {
+          if (!disposed) {
+            setGroup((current) => (current?.id === activeGroupId ? next : current));
+            setPollError('');
+          }
+        })
+        .catch((cause) => !disposed && setPollError(message(cause)));
+    }, 1200);
+    return () => {
+      disposed = true;
+      window.clearTimeout(timer);
+    };
+  }, [activeGroupId, groupActive, group, projectId]);
 
   useEffect(() => {
     if (!preview || terminal.has(preview.status)) {
@@ -531,49 +598,78 @@ export function IngestionPipelineEditor({
         `All Website sources together may fetch at most ${maxWebsiteRunPages.toLocaleString('en-US')} pages; they now allow ${pageTotal.toLocaleString('en-US')}.`,
       );
     }
-    const chunk = draft.execution.nodes.find((node) => node.type === 'chunk');
-    if (chunk?.type === 'chunk' && (chunk.algorithm ?? 'character_window') === 'character_window') {
+    for (const chunk of draft.execution.nodes) {
+      // With one chain per source, say which source's stage each message is about.
+      const stage =
+        indexLayout(draft) === 'per_source' && sources.length > 1
+          ? `${nodeLabel(draft, chunk)}: `
+          : '';
       if (
-        'size' in chunk &&
-        (chunk.size < 100 || chunk.size > 10000 || chunk.overlap < 0 || chunk.overlap >= chunk.size)
+        chunk?.type === 'chunk' &&
+        (chunk.algorithm ?? 'character_window') === 'character_window'
       ) {
-        reasons.push('Chunk size must be 100–10,000 and overlap must be smaller.');
+        if (
+          'size' in chunk &&
+          (chunk.size < 100 ||
+            chunk.size > 10000 ||
+            chunk.overlap < 0 ||
+            chunk.overlap >= chunk.size)
+        ) {
+          reasons.push(stage + 'Chunk size must be 100–10,000 and overlap must be smaller.');
+        }
+      }
+      if (chunk?.type === 'chunk' && chunk.algorithm === 'section_token') {
+        if (
+          chunk.target_tokens < 64 ||
+          chunk.target_tokens > chunk.maximum_tokens ||
+          chunk.maximum_tokens > 16384 ||
+          chunk.overlap_tokens < 0 ||
+          chunk.overlap_tokens >= chunk.target_tokens
+        ) {
+          reasons.push(
+            stage + 'Section token target, hard maximum and overlap limits are invalid.',
+          );
+        }
+      }
+      if (chunk?.type === 'chunk' && chunk.algorithm === 'parent_child') {
+        if (
+          chunk.child_target_tokens < 64 ||
+          chunk.child_target_tokens > chunk.child_maximum_tokens ||
+          chunk.child_overlap_tokens < 0 ||
+          chunk.child_overlap_tokens >= chunk.child_target_tokens ||
+          chunk.parent_target_tokens < 128 ||
+          chunk.parent_target_tokens > chunk.parent_maximum_tokens ||
+          chunk.child_maximum_tokens > chunk.parent_maximum_tokens
+        ) {
+          reasons.push(
+            stage + 'Parent and child token targets, maxima and overlap limits are invalid.',
+          );
+        }
+      }
+      const clean = chunk;
+      if (
+        draft.execution.schema_version === 2 &&
+        clean?.type === 'clean' &&
+        ((clean.minimum_text_chars ?? 1) < 1 ||
+          (clean.minimum_text_chars ?? 1) > 100000 ||
+          (clean.maximum_text_chars ?? 2_000_000) < (clean.minimum_text_chars ?? 1) ||
+          (clean.maximum_text_chars ?? 2_000_000) > 2_000_000)
+      ) {
+        reasons.push(
+          stage + 'Cleaned-text limits must be valid and the minimum cannot exceed the maximum.',
+        );
       }
     }
-    if (chunk?.type === 'chunk' && chunk.algorithm === 'section_token') {
-      if (
-        chunk.target_tokens < 64 ||
-        chunk.target_tokens > chunk.maximum_tokens ||
-        chunk.maximum_tokens > 16384 ||
-        chunk.overlap_tokens < 0 ||
-        chunk.overlap_tokens >= chunk.target_tokens
-      ) {
-        reasons.push('Section token target, hard maximum and overlap limits are invalid.');
+    if (indexLayout(draft) === 'per_source') {
+      const names = draft.execution.nodes.flatMap((node) =>
+        node.type === 'publish_index' ? [node.knowledge_set_name.trim().toLowerCase()] : [],
+      );
+      if (names.some((name) => !name)) {
+        reasons.push('Name every index.');
       }
-    }
-    if (chunk?.type === 'chunk' && chunk.algorithm === 'parent_child') {
-      if (
-        chunk.child_target_tokens < 64 ||
-        chunk.child_target_tokens > chunk.child_maximum_tokens ||
-        chunk.child_overlap_tokens < 0 ||
-        chunk.child_overlap_tokens >= chunk.child_target_tokens ||
-        chunk.parent_target_tokens < 128 ||
-        chunk.parent_target_tokens > chunk.parent_maximum_tokens ||
-        chunk.child_maximum_tokens > chunk.parent_maximum_tokens
-      ) {
-        reasons.push('Parent and child token targets, maxima and overlap limits are invalid.');
+      if (new Set(names).size !== names.length) {
+        reasons.push('Each source must publish to a differently named index.');
       }
-    }
-    const clean = draft.execution.nodes.find((node) => node.type === 'clean');
-    if (
-      draft.execution.schema_version === 2 &&
-      clean?.type === 'clean' &&
-      ((clean.minimum_text_chars ?? 1) < 1 ||
-        (clean.minimum_text_chars ?? 1) > 100000 ||
-        (clean.maximum_text_chars ?? 2_000_000) < (clean.minimum_text_chars ?? 1) ||
-        (clean.maximum_text_chars ?? 2_000_000) > 2_000_000)
-    ) {
-      reasons.push('Cleaned-text limits must be valid and the minimum cannot exceed the maximum.');
     }
     return reasons;
   }, [connectionSettings, draft]);
@@ -622,6 +718,21 @@ export function IngestionPipelineEditor({
     );
   }
 
+  function changeIndexLayout(layout: 'merged' | 'per_source') {
+    if (!draft) {
+      return;
+    }
+    setServerFieldErrors({});
+    setPreview(undefined);
+    setDraft(setIndexLayout(draft, layout));
+    fitAfterLayout();
+  }
+
+  /** New nodes can land outside the view; refit once React Flow has them. */
+  function fitAfterLayout() {
+    window.setTimeout(() => void flow?.fitView({ padding: 0.12, maxZoom: 1 }), 50);
+  }
+
   function addSource() {
     if (!draft || addWebsiteSourceBlocked(draft)) {
       return;
@@ -631,6 +742,7 @@ export function IngestionPipelineEditor({
     setPreview(undefined);
     setDraft(added.draft);
     setSelectedNode(added.nodeId);
+    fitAfterLayout();
   }
 
   function deleteSource(nodeId: string) {
@@ -715,7 +827,17 @@ export function IngestionPipelineEditor({
     }
     void perform(async () => {
       setPreviewPage({ items: [], total: 0, limit: 20, offset: 0 });
-      setPreview(await api.previewIngestion(projectId, draft.execution));
+      setPreview(
+        await api.previewIngestion(
+          projectId,
+          indexLayout(draft) === 'per_source'
+            ? branchExecution(
+                draft,
+                branchSourceOf(draft, selectedNode) ?? sourceNodes(draft)[0].id,
+              )
+            : draft.execution,
+        ),
+      );
       setResultsOpen('preview');
     });
   }
@@ -735,6 +857,13 @@ export function IngestionPipelineEditor({
     }
     void perform(async () => {
       setItems([]);
+      if (saved.execution.index_layout === 'per_source') {
+        setRun(undefined);
+        setGroup(
+          await api.startIngestionRunGroup(projectId, saved.pipeline_id, saved.id, [nodeId]),
+        );
+        return;
+      }
       setRun(
         await api.startIngestionRun(projectId, saved.pipeline_id, saved.id, {
           source_input: { kind: 'refresh', source_node_ids: [nodeId] },
@@ -749,6 +878,11 @@ export function IngestionPipelineEditor({
     }
     void perform(async () => {
       setItems([]);
+      if (saved.execution.index_layout === 'per_source' && source === 'refresh') {
+        setRun(undefined);
+        setGroup(await api.startIngestionRunGroup(projectId, saved.pipeline_id, saved.id));
+        return;
+      }
       setRun(
         await api.startIngestionRun(
           projectId,
@@ -856,7 +990,9 @@ export function IngestionPipelineEditor({
               label: 'Existing Files preview and run guide',
             };
   const runFinished = !!run && terminal.has(run.status);
-  const showRunStrip = !!run && (!runFinished || dismissedRunId !== run.id);
+  const showRunStrip = !group && !!run && (!runFinished || dismissedRunId !== run.id);
+  const showGroupStrip = !!group && (groupActive || dismissedGroupId !== group.id);
+  const perSourceSaved = saved?.execution.index_layout === 'per_source';
   const results =
     resultsOpen === 'preview' && preview
       ? 'preview'
@@ -865,7 +1001,7 @@ export function IngestionPipelineEditor({
         : null;
   // A preview checks the draft and a run publishes the saved version; start one at a time so
   // the canvas states and the preview results never describe two different jobs.
-  const runActive = !!run && !runFinished;
+  const runActive = (!!run && !runFinished) || groupActive;
   const previewActive = !!preview && !terminal.has(preview.status);
 
   return (
@@ -882,7 +1018,13 @@ export function IngestionPipelineEditor({
             versions={versions}
             dirty={dirty}
             legacy={legacy}
-            runLabel={websiteSource ? 'Collect source & publish index' : 'Run ingestion'}
+            runLabel={
+              perSourceSaved
+                ? 'Collect sources & publish indexes'
+                : websiteSource
+                  ? 'Collect source & publish index'
+                  : 'Run ingestion'
+            }
             canPreview={validation.length === 0 && !runActive}
             runBlocked={previewActive}
             canSave={validation.length === 0 && dirty}
@@ -939,6 +1081,37 @@ export function IngestionPipelineEditor({
               {error || pollError}
             </InlineError>
           </div>
+        )}
+        {group && showGroupStrip && (
+          <IngestionGroupStrip
+            projectId={projectId}
+            group={group}
+            busy={busy}
+            detailsRunId={results === 'run' ? run?.id : undefined}
+            label={(nodeId) => sourceLabel(draft, nodeId)}
+            onCancel={() =>
+              void perform(async () =>
+                setGroup(await api.cancelIngestionRunGroup(projectId, group.id)),
+              )
+            }
+            onShowDetails={(branchRun) =>
+              void perform(async () => {
+                setRun(branchRun);
+                setItems(
+                  await allPages((offset) =>
+                    api.listIngestionRunItems(projectId, branchRun.id, offset),
+                  ),
+                );
+                setResultsOpen('run');
+              })
+            }
+            onDismiss={() => {
+              setDismissedGroupId(group.id);
+              if (results === 'run') {
+                setResultsOpen(null);
+              }
+            }}
+          />
         )}
         {run && showRunStrip && (
           <IngestionRunStrip
@@ -1054,11 +1227,15 @@ export function IngestionPipelineEditor({
             changeSourceKind={changeSourceKind}
             sourceCount={sourceNodes(draft).length}
             sourceLabel={(nodeId) => sourceLabel(draft, nodeId)}
+            nodeLabel={(node) => nodeLabel(draft, node)}
+            indexLayout={indexLayout(draft)}
+            onIndexLayoutChange={changeIndexLayout}
             addSourceBlocked={addWebsiteSourceBlocked(draft)}
             websitePageTotal={websitePageTotal(draft)}
             onAddSource={addSource}
             onRemoveSource={deleteSource}
             onRefreshSource={refreshSource}
+            refreshSourceLabel={perSourceSaved ? 'Run only' : 'Refresh only'}
             refreshSourceBlocked={
               !saved
                 ? 'Save this pipeline and publish an index first.'

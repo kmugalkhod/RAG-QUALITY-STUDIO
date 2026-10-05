@@ -52,7 +52,7 @@ test('adds Website sources wired into the shared Extract stage, up to five', () 
   ]);
   expect(draft.execution.edges).toContainEqual({ source: 'source-2', target: 'extract' });
   expect(draft.layout.positions['source-2']).toEqual({
-    x: draft.layout.positions.source.x + 260,
+    x: draft.layout.positions.source.x + 340,
     y: draft.layout.positions.source.y,
   });
   expect(sourceLabel(draft, 'source-2')).toBe('Website 2');
