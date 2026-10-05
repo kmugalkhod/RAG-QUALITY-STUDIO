@@ -1,0 +1,577 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Guided pipeline setup</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#4c8fe0}a:hover{color:#7aaeea}
+.app{font-family:'Geist','Inter',system-ui,-apple-system,'Segoe UI',sans-serif;font-size:13px;line-height:18px;background:var(--bg);color:var(--fg);-webkit-font-smoothing:antialiased}
+.app.dark{--bg:#09090b;--panel:#111113;--row:#141518;--hover:#1b1c20;--active:#18202d;--border:#212328;--border-strong:#34373e;--fg:#e8e9ec;--heading:#d3dbe8;--muted:#9a9ea7;--subtle:#6c7079;--accent:#4c8fe0;--accent-fill:#2f6fd6;--banner:#0e1726;--banner-border:#1b2940;--track:#2a2d33;--amber:#e0a63c;--success:#55b273;--warning:#d6a043;--danger:#e3766f;color-scheme:dark}
+.app.light{--bg:#e8eaed;--panel:#ffffff;--row:#fafbfc;--hover:#f1f2f4;--active:#e9f1fc;--border:#e2e4e8;--border-strong:#c6c9cf;--fg:#16181b;--heading:#1b2a40;--muted:#5d6269;--subtle:#8a8f97;--accent:#2a63b5;--accent-fill:#2a63b5;--banner:#eef4fc;--banner-border:#d2e1f5;--track:#dfe2e6;--amber:#9a6a0e;--success:#2e7d4a;--warning:#8f6210;--danger:#b23c33;color-scheme:light}
+.app a{color:var(--accent)}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:10px}
+.btn{height:34px;padding:0 14px;border-radius:6px;border:1px solid var(--border-strong);background:transparent;color:var(--fg);font:500 13px/18px 'Geist','Inter',system-ui,sans-serif;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap;box-sizing:border-box}
+.btn:hover{background:var(--hover)}
+.btn-primary{background:var(--accent-fill);border-color:var(--accent-fill);color:#fff}
+.btn-primary:hover{background:var(--accent-fill);filter:brightness(1.08)}
+.btn-text{border-color:transparent;color:var(--subtle);padding:0 8px}
+.btn-text:hover{background:transparent;color:var(--fg)}
+.btn-sm{height:28px;padding:0 10px;font-size:12px}
+.icon-btn{width:30px;height:30px;padding:0;border-radius:6px;border:1px solid transparent;background:transparent;color:var(--muted);cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
+.icon-btn:hover{background:var(--hover);color:var(--fg)}
+.side{position:relative;display:flex;flex-direction:column;box-sizing:border-box;flex:0 0 240px;padding:0 12px}
+.side.collapsed{flex-basis:64px}
+.side-sec{display:flex;flex-direction:column;gap:2px;padding:10px 0;border-top:1px solid var(--border)}
+.sec-btn{all:unset;cursor:pointer;display:flex;align-items:center;justify-content:space-between;padding:4px 4px 8px;font-size:11px;line-height:14px;color:var(--subtle);font-weight:500}
+.sec-btn:hover{color:var(--muted)}
+.nav{display:flex;align-items:center;gap:10px;height:34px;padding:0 8px;border-radius:6px;color:var(--muted) !important;text-decoration:none;font-weight:500;position:relative;box-sizing:border-box}
+.nav:hover{background:var(--hover);color:var(--fg) !important}
+.nav.on{background:var(--active);color:var(--fg) !important}
+.nav.on .nav-ic{color:var(--accent)}
+.nav.on::before{content:"";position:absolute;left:-12px;top:7px;bottom:7px;width:2px;border-radius:0 2px 2px 0;background:var(--accent)}
+.nav-ic{flex:none;color:var(--muted)}
+.nav .chev{margin-left:auto;color:var(--subtle)}
+.sub{display:flex;flex-direction:column;gap:2px;margin:2px 0 4px 17px;padding-left:12px;border-left:1px solid var(--border)}
+.sub .nav{height:30px;font-weight:400}
+.banner{display:flex;flex-wrap:wrap;align-items:center;gap:10px 20px;min-height:44px;padding:8px 14px;border:1px solid var(--banner-border);border-radius:8px;background:var(--banner);box-sizing:border-box}
+.figure{font-size:20px;line-height:24px;font-weight:600;color:var(--accent);font-variant-numeric:tabular-nums}
+.rows{display:flex;flex-direction:column;gap:8px}
+.row{display:flex;flex-wrap:wrap;align-items:center;gap:10px 20px;min-height:46px;padding:6px 16px;border:1px solid var(--border);border-radius:6px;background:var(--row);box-sizing:border-box}
+.row-name{display:flex;align-items:center;gap:10px;flex:1 1 220px;min-width:0}
+.row-title{font-size:14px;font-weight:600;color:var(--fg)}
+.row-ic{flex:none;color:var(--accent)}
+.hint{font-size:11px;line-height:15px;color:var(--muted)}
+.chip{display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:999px;font-size:11px;border:1px solid currentColor;white-space:nowrap}
+.ok{color:var(--success)}.warn{color:var(--warning)}.bad{color:var(--danger)}.mute{color:var(--muted)}
+.slider{position:relative;width:270px;max-width:100%;height:16px;display:flex;align-items:center}
+.range{-webkit-appearance:none;appearance:none;width:100%;height:16px;margin:0;background:transparent;cursor:pointer;position:relative;z-index:1}
+.range::-webkit-slider-runnable-track{height:4px;border-radius:2px;background:linear-gradient(var(--accent),var(--accent)) 0/var(--pct) 100% no-repeat,var(--track)}
+.range::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:12px;height:12px;margin-top:-4px;border-radius:50%;background:var(--panel);border:2px solid var(--accent);box-sizing:border-box}
+.range::-moz-range-track{height:4px;border-radius:2px;background:var(--track)}
+.range::-moz-range-progress{height:4px;border-radius:2px;background:var(--accent)}
+.range::-moz-range-thumb{width:8px;height:8px;border-radius:50%;background:var(--panel);border:2px solid var(--accent)}
+.ticks{position:absolute;left:6px;right:6px;top:7px;display:flex;justify-content:space-between;pointer-events:none;z-index:2}
+.ticks span{width:2px;height:2px;border-radius:1px;background:var(--subtle);opacity:.7}
+.val{width:72px;text-align:right;font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
+.field{height:32px;box-sizing:border-box;border:1px solid var(--border-strong);border-radius:6px;padding:0 10px;font:400 13px 'Geist','Inter',system-ui,sans-serif;background:var(--panel);color:var(--fg)}
+.choice{display:flex;align-items:flex-start;gap:10px;flex:1 1 280px;cursor:pointer}
+.choice input{margin:2px 0 0;width:14px;height:14px;accent-color:var(--accent)}
+.row.picked{border-color:var(--accent);background:var(--active)}
+.progress{position:relative;width:80px;height:3px;border-radius:2px;background:var(--track)}
+.progress span{position:absolute;left:0;top:0;bottom:0;border-radius:2px;background:var(--accent)}
+.bar{height:4px;border-radius:2px;background:var(--track);overflow:hidden;flex:1 1 160px;max-width:300px}
+.bar-fill{height:4px;background:var(--accent)}
+.vsep{width:1px;height:18px;background:var(--border)}
+.tab{all:unset;flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11px;color:var(--muted);padding:8px 0}
+.tab.on{color:var(--accent)}
+.mono{font-family:'Geist Mono',ui-monospace,monospace}
+button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+</style>
+</helmet>
+<div class="app {{themeClass}}" style="min-height: 980px; box-sizing: border-box; display: flex; flex-wrap: wrap; align-items: stretch; gap: 8px; padding: 8px">
+
+  <sc-if value="{{showSidebar}}" hint-placeholder-val="{{ true }}">
+    <aside class="card side {{sideCls}}" aria-label="Studio navigation">
+      <div style="display: flex; align-items: center; gap: 8px; height: 52px">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" style="color: var(--accent); flex: none"><rect x="3" y="3" width="18" height="18" rx="5"></rect><path d="M8 9h8M8 12.5h5.5M8 16h3"></path></svg>
+        <sc-if value="{{expanded}}" hint-placeholder-val="{{ true }}">
+          <span style="font-weight: 600; letter-spacing: -0.01em; flex: 1; white-space: nowrap">RAG <span style="color: var(--accent)">Quality</span> Studio</span>
+        </sc-if>
+        <button class="icon-btn" type="button" aria-label="{{collapseLabel}}" onClick="{{toggleSidebar}}">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3"></rect><path d="M9 4v16"></path></svg>
+        </button>
+      </div>
+      <sc-if value="{{expanded}}" hint-placeholder-val="{{ true }}">
+        <div style="padding: 10px 0; border-top: 1px solid var(--border)">
+          <button class="btn" type="button" style="width: 100%; height: 38px; justify-content: space-between; padding: 0 10px; border-color: var(--border)">
+            <span style="display: flex; align-items: center; gap: 8px; min-width: 0">
+              <span class="mono" style="width: 22px; height: 22px; border-radius: 5px; background: var(--active); color: var(--accent); display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 500">NS</span>
+              <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Northwind support</span>
+            </span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" style="color: var(--subtle)"><path d="m7 15 5 5 5-5M7 9l5-5 5 5"></path></svg>
+          </button>
+        </div>
+      </sc-if>
+      <sc-for list="{{groups}}" as="g" hint-placeholder-count="3">
+        <div class="side-sec">
+          <sc-if value="{{expanded}}" hint-placeholder-val="{{ true }}">
+            <button class="sec-btn" type="button" aria-expanded="{{g.open}}" onClick="{{g.toggle}}">
+              <span>{{g.name}}</span>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="{{g.chevron}}"></path></svg>
+            </button>
+          </sc-if>
+          <sc-if value="{{g.showItems}}" hint-placeholder-val="{{ true }}">
+            <sc-for list="{{g.items}}" as="n" hint-placeholder-count="3">
+              <a href="#" class="nav {{n.cls}}" aria-label="{{n.label}}" aria-current="{{n.current}}">
+                <svg class="nav-ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{n.icon}}"></path></svg>
+                <sc-if value="{{expanded}}" hint-placeholder-val="{{ true }}"><span>{{n.label}}</span></sc-if>
+                <sc-if value="{{n.hasChev}}" hint-placeholder-val="{{ false }}">
+                  <svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="{{n.chev}}"></path></svg>
+                </sc-if>
+              </a>
+              <sc-if value="{{n.showSub}}" hint-placeholder-val="{{ false }}">
+                <div class="sub">
+                  <sc-for list="{{n.sub}}" as="c" hint-placeholder-count="2">
+                    <a href="#" class="nav {{c.cls}}" aria-current="{{c.current}}">{{c.label}}</a>
+                  </sc-for>
+                </div>
+              </sc-if>
+            </sc-for>
+          </sc-if>
+        </div>
+      </sc-for>
+      <div style="flex: 1"></div>
+      <div style="display: flex; align-items: center; gap: 10px; height: 60px; border-top: 1px solid var(--border)">
+        <span style="width: 30px; height: 30px; border-radius: 999px; border: 1px solid var(--border-strong); display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; flex: none">KM</span>
+        <sc-if value="{{expanded}}" hint-placeholder-val="{{ true }}">
+          <span style="display: flex; flex-direction: column; line-height: 15px; min-width: 0">
+            <span style="font-weight: 600">Kunal</span>
+            <span style="font-size: 10px; letter-spacing: 0.06em; color: var(--subtle); text-transform: uppercase">Owner · local</span>
+          </span>
+        </sc-if>
+      </div>
+    </aside>
+  </sc-if>
+
+  <div style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 8px">
+    <header class="card" style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; min-height: 48px; padding: 0 12px 0 16px; box-sizing: border-box">
+      <nav aria-label="Breadcrumb" style="display: flex; flex-wrap: wrap; align-items: center; gap: 6px; flex: 1 1 240px; color: var(--subtle)">
+        <a href="#" style="color: var(--muted); text-decoration: none">Pipelines</a>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m9 6 6 6-6 6"></path></svg>
+        <span style="color: var(--fg)">New ingestion pipeline</span>
+      </nav>
+      <button class="icon-btn" type="button" aria-label="Search">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"></circle><path d="m20 20-4-4"></path></svg>
+      </button>
+      <span class="vsep"></span>
+      <span style="display: inline-flex; align-items: center; gap: 6px; font-weight: 500"><span style="width: 7px; height: 7px; border-radius: 999px; background: var(--success)"></span>API ready</span>
+      <span class="vsep"></span>
+      <span style="display: inline-flex; align-items: center; gap: 6px; font-weight: 500" title="Runs in progress">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true" style="color: var(--amber)"><path d="M21 12a9 9 0 1 1-3-6.7M21 4v5h-5"></path></svg>
+        <span class="mono">1</span>
+      </span>
+      <span class="vsep"></span>
+      <button class="icon-btn" type="button" aria-label="{{themeLabel}}" onClick="{{toggleTheme}}">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="{{themeIcon}}"></path></svg>
+      </button>
+    </header>
+
+    <main class="card" style="flex: 1; display: flex; flex-direction: column; min-width: 0; overflow: hidden">
+      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 14px 20px 0">
+        <span style="font-weight: 600; flex: 1 1 200px">Guided setup <span style="color: var(--subtle); font-weight: 400">by</span> RAG <span style="color: var(--accent)">Quality</span> Studio</span>
+        <button class="btn" type="button" style="border-color: var(--border)">Discard draft</button>
+        <button class="btn btn-text" type="button">Close</button>
+      </div>
+
+      <div style="flex: 1; display: flex; flex-direction: column; gap: 16px; padding: 28px 20px 20px; min-width: 0">
+        <h1 style="margin: 0 0 6px; font-size: 24px; line-height: 30px; font-weight: 500; letter-spacing: -0.015em; color: var(--heading)">{{heading}}</h1>
+
+        <div class="banner">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="color: var(--amber); flex: none"><path d="M13 2 4 14h7l-1 8 9-12h-7z"></path></svg>
+          <span style="flex: 1 1 260px; font-size: 12px">{{tip}}</span>
+          <span style="display: flex; align-items: center; gap: 8px">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true" style="color: var(--muted)"><path d="{{figureIcon}}"></path></svg>
+            <span style="font-weight: 500">{{figureLabel}}</span>
+            <span class="figure">{{figure}}</span>
+          </span>
+        </div>
+
+        <sc-if value="{{onSources}}" hint-placeholder-val="{{ true }}">
+          <div class="rows">
+            <sc-for list="{{sites}}" as="s" hint-placeholder-count="3">
+              <div class="row">
+                <span class="row-name">
+                  <svg class="row-ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18"></path></svg>
+                  <span class="row-title">{{s.host}}</span>
+                  <span class="hint" style="white-space: nowrap">{{s.scope}}</span>
+                  <span class="chip {{s.statusCls}}">{{s.status}}</span>
+                </span>
+                <span class="slider">
+                  <input id="{{s.rangeId}}" class="range" type="range" min="10" max="500" step="10" value="{{s.pages}}" onChange="{{s.setPages}}" aria-label="Maximum pages for {{s.host}}" style="--pct: {{s.pct}}">
+                  <span class="ticks" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span>
+                </span>
+                <span class="val">{{s.pages}} pages</span>
+                <button class="icon-btn" type="button" aria-label="Remove {{s.host}}" onClick="{{s.remove}}">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg>
+                </button>
+              </div>
+            </sc-for>
+            <div class="row" style="background: transparent; border-style: dashed">
+              <label for="add-url" class="row-name" style="flex: 0 0 auto; color: var(--muted)">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>
+                Add a website
+              </label>
+              <input id="add-url" class="field" placeholder="https://www.example.com/" style="flex: 1 1 260px; min-width: 0">
+              <button class="btn btn-sm" type="button" onClick="{{addSite}}">Add website</button>
+            </div>
+          </div>
+          <span class="hint">{{siteSummary}}</span>
+        </sc-if>
+
+        <sc-if value="{{onOutput}}" hint-placeholder-val="{{ false }}">
+          <div class="rows">
+            <label class="row {{mergedCls}}" style="cursor: pointer">
+              <span class="choice">
+                <input type="radio" name="output" checked="{{isMerged}}" onChange="{{setMerged}}">
+                <span style="display: flex; flex-direction: column; gap: 2px">
+                  <span class="row-title">One combined index</span>
+                  <span class="hint">Ask one question across every site. Pages found on two sites are indexed once.</span>
+                </span>
+              </span>
+              <span class="hint mono">{{siteCount}} sites → 1 index</span>
+            </label>
+            <label class="row {{perSourceCls}}" style="cursor: pointer">
+              <span class="choice">
+                <input type="radio" name="output" checked="{{perSource}}" onChange="{{setPerSource}}">
+                <span style="display: flex; flex-direction: column; gap: 2px">
+                  <span class="row-title">One index per source</span>
+                  <span class="hint">Keep each site separate, for example to compare them. Any stage can differ per site.</span>
+                </span>
+              </span>
+              <span class="hint mono">{{siteCount}} sites → {{siteCount}} indexes</span>
+            </label>
+          </div>
+          <sc-if value="{{perSource}}" hint-placeholder-val="{{ false }}">
+            <div class="rows">
+              <sc-for list="{{sites}}" as="s" hint-placeholder-count="3">
+                <div class="row">
+                  <label class="row-name" for="{{s.indexId}}">
+                    <svg class="row-ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><ellipse cx="12" cy="6" rx="7" ry="3"></ellipse><path d="M5 6v12c0 1.7 3.1 3 7 3s7-1.3 7-3V6"></path></svg>
+                    <span class="row-title">{{s.host}}</span>
+                  </label>
+                  <input id="{{s.indexId}}" class="field" value="{{s.indexName}}" readonly style="flex: 1 1 280px; min-width: 0">
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+          <span class="hint">You can change this later. Indexes you already published stay available.</span>
+        </sc-if>
+
+        <sc-if value="{{onProcessing}}" hint-placeholder-val="{{ false }}">
+          <div class="rows">
+            <div class="row">
+              <span class="row-name">
+                <svg class="row-ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 6h16M4 12h10M4 18h7"></path></svg>
+                <label class="row-title" for="p-extract">Extract</label>
+                <span class="hint">How text is read from each page</span>
+              </span>
+              <select id="p-extract" class="field" style="width: 270px; max-width: 100%"><option>Main content (recommended)</option><option>Whole page</option></select>
+              <span class="val"></span>
+            </div>
+            <div class="row">
+              <span class="row-name">
+                <svg class="row-ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m5 19 14-14M14 5h5v5"></path></svg>
+                <label class="row-title" for="p-clean">Clean</label>
+                <span class="hint">Removes menus and repeated page chrome per site</span>
+              </span>
+              <select id="p-clean" class="field" style="width: 270px; max-width: 100%"><option>Structure-aware · 9 steps</option><option>Minimal</option></select>
+              <span class="val"></span>
+            </div>
+            <div class="row">
+              <span class="row-name">
+                <svg class="row-ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="6" cy="7" r="3"></circle><circle cx="6" cy="17" r="3"></circle><path d="M20 4 8.5 15.5M14.5 14.5 20 20M8.5 8.5 12 12"></path></svg>
+                <span class="row-title">Chunk size</span>
+                <span class="hint">Section-aware, in tokens</span>
+              </span>
+              <span class="slider">
+                <input class="range" type="range" min="200" max="2000" step="100" value="{{chunk}}" onChange="{{setChunk}}" aria-label="Chunk size in tokens" style="--pct: {{chunkPct}}">
+                <span class="ticks" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span>
+              </span>
+              <span class="val">{{chunk}} tokens</span>
+            </div>
+            <div class="row">
+              <span class="row-name">
+                <svg class="row-ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="7" width="11" height="10" rx="2"></rect><rect x="10" y="7" width="11" height="10" rx="2"></rect></svg>
+                <span class="row-title">Overlap</span>
+                <span class="hint">Text repeated between neighbouring chunks</span>
+              </span>
+              <span class="slider">
+                <input class="range" type="range" min="0" max="300" step="20" value="{{overlap}}" onChange="{{setOverlap}}" aria-label="Overlap in tokens" style="--pct: {{overlapPct}}">
+                <span class="ticks" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span>
+              </span>
+              <span class="val">{{overlap}} tokens</span>
+            </div>
+            <div class="row">
+              <span class="row-name">
+                <svg class="row-ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><ellipse cx="12" cy="6" rx="7" ry="3"></ellipse><path d="M5 6v12c0 1.7 3.1 3 7 3s7-1.3 7-3V6M5 12c0 1.7 3.1 3 7 3s7-1.3 7-3"></path></svg>
+                <label class="row-title" for="p-embed">Embed</label>
+                <span class="hint">Model used to search the index</span>
+              </span>
+              <select id="p-embed" class="field" style="width: 270px; max-width: 100%"><option>text-embedding-3-small · 1536</option></select>
+              <span class="val"></span>
+            </div>
+            <sc-if value="{{perSource}}" hint-placeholder-val="{{ false }}">
+              <div class="row" style="border-color: var(--warning)">
+                <span class="row-name">
+                  <span class="chip warn">Custom</span>
+                  <span class="row-title">help.example.com</span>
+                  <span class="hint">Uses 400-token chunks instead of the shared size</span>
+                </span>
+                <button class="btn btn-sm" type="button">Edit override</button>
+                <button class="btn btn-sm btn-text" type="button">Use shared settings</button>
+              </div>
+            </sc-if>
+          </div>
+          <span class="hint">{{processingSummary}}</span>
+        </sc-if>
+
+        <sc-if value="{{onReview}}" hint-placeholder-val="{{ false }}">
+          <div class="rows">
+            <sc-for list="{{review}}" as="r" hint-placeholder-count="5">
+              <div class="row">
+                <span style="flex: 0 0 150px; color: var(--muted)">{{r.k}}</span>
+                <span style="flex: 1 1 280px; min-width: 0; font-weight: 500">{{r.v}}</span>
+                <button class="btn btn-sm btn-text" type="button" onClick="{{r.edit}}">Edit</button>
+              </div>
+            </sc-for>
+          </div>
+          <span class="hint">Nothing is collected until you choose Save and publish.</span>
+        </sc-if>
+
+        <sc-if value="{{onRun}}" hint-placeholder-val="{{ false }}">
+          <div class="rows">
+            <sc-for list="{{runRows}}" as="r" hint-placeholder-count="3">
+              <div class="row">
+                <span class="row-name">
+                  <svg class="row-ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18"></path></svg>
+                  <span class="row-title">{{r.host}}</span>
+                  <span class="hint">{{r.detail}}</span>
+                </span>
+                <span class="bar" role="progressbar" aria-label="Progress for {{r.host}}" aria-valuenow="{{r.pct}}" aria-valuemin="0" aria-valuemax="100"><span class="bar-fill" style="display: block; width: {{r.width}}"></span></span>
+                <span class="chip {{r.cls}}">{{r.status}}</span>
+              </div>
+            </sc-for>
+          </div>
+          <span class="hint">The run keeps going if you leave this page. Results also appear in the pipeline editor.</span>
+        </sc-if>
+      </div>
+
+      <div style="position: sticky; bottom: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; padding: 10px 20px; border-top: 1px solid var(--border); background: var(--panel)">
+        <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; flex: 1 1 260px; min-width: 0">
+          <span class="progress" role="progressbar" aria-label="Setup progress" aria-valuenow="{{step}}" aria-valuemin="1" aria-valuemax="5"><span style="width: {{progressWidth}}"></span></span>
+          <span style="font-size: 12px; font-weight: 600">Step {{step}} of 5</span>
+          <span class="hint">{{stepName}}</span>
+          <span class="hint" style="display: inline-flex; align-items: center; gap: 4px">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m5 12 4 4 10-10"></path></svg>
+            Draft saved
+          </span>
+        </div>
+        <sc-if value="{{showBack}}" hint-placeholder-val="{{ false }}">
+          <button class="btn" type="button" onClick="{{back}}" style="border-color: var(--border)">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m15 6-6 6 6 6"></path></svg>
+            Previous
+          </button>
+        </sc-if>
+        <button class="btn btn-primary" type="button" onClick="{{next}}">{{nextLabel}}
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m9 6 6 6-6 6"></path></svg>
+        </button>
+      </div>
+    </main>
+  </div>
+
+  <sc-if value="{{compact}}" hint-placeholder-val="{{ false }}">
+    <nav class="card" aria-label="Studio navigation" style="flex: 1 1 100%; display: flex">
+      <sc-for list="{{tabs}}" as="t" hint-placeholder-count="5">
+        <a href="#" class="tab {{t.cls}}">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{t.icon}}"></path></svg>
+          {{t.label}}
+        </a>
+      </sc-for>
+    </nav>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"startStep":{"editor":"enum","options":["1","2","3","4","5"],"default":"1"},"compact":{"editor":"boolean","default":false},"$preview":{"width":1440,"height":980}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = {
+      step: null,
+      theme: null,
+      collapsed: false,
+      closed: {},
+      pipelinesOpen: true,
+      layout: 'merged',
+      chunk: 800,
+      overlap: 100,
+      sites: [
+        { host: 'docs.example.com', scope: 'Crawl · 2 links deep', pages: 50, status: 'Preview OK', statusCls: 'ok' },
+        { host: 'help.example.com', scope: 'Sitemap', pages: 120, status: 'Preview OK', statusCls: 'ok' },
+        { host: 'status.example.com', scope: 'Sitemap', pages: 30, status: 'Not previewed', statusCls: 'mute' }
+      ]
+    };
+  }
+  renderVals() {
+    const s = this.state;
+    const step = s.step ?? Number(this.props.startStep ?? 1);
+    const theme = s.theme ?? this.props.theme ?? 'dark';
+    const compact = this.props.compact === true || this.props.compact === 'true';
+    const perSource = s.layout === 'per_source';
+    const expanded = !s.collapsed;
+    const names = ['Sources', 'Output', 'Processing', 'Review', 'Run'];
+    const total = s.sites.reduce((sum, site) => sum + site.pages, 0);
+    const fmt = (n) => n.toLocaleString('en-US');
+    const pct = (v, min, max) => Math.round(((v - min) / (max - min)) * 100) + '%';
+    // An estimate that assumes about 2,400 tokens of text per page.
+    const estChunks = Math.round((total * 2400) / Math.max(100, s.chunk - s.overlap));
+    const icons = {
+      overview: 'M3 11 12 4l9 7M5 9.5V20h14V9.5',
+      knowledge: 'M4 5a2 2 0 0 1 2-2h12v18H6a2 2 0 0 1-2-2zM8 7h6M8 11h4',
+      pipelines: 'M6 3v6a3 3 0 0 0 3 3h6a3 3 0 0 1 3 3v6M6 21v-6',
+      playground: 'M4 5h16v11H8l-4 4z',
+      deployments: 'M12 3v12M7 8l5-5 5 5M4 21h16',
+      experiments: 'M9 3h6M10 3v6L4 20h16L14 9V3',
+      settings: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z',
+      docs: 'M7 3h7l5 5v13H7zM14 3v5h5',
+      more: 'M5 12h.01M12 12h.01M19 12h.01'
+    };
+    const groupDefs = [
+      { name: 'Build', items: [['Overview', 'overview'], ['Knowledge Base', 'knowledge', 'closed'], ['Pipelines', 'pipelines', 'open']] },
+      { name: 'Run', items: [['Playground', 'playground'], ['Deployments', 'deployments']] },
+      { name: 'Measure', items: [['Experiments', 'experiments'], ['Settings', 'settings'], ['Help & docs', 'docs']] }
+    ];
+    const groups = groupDefs.map((g) => {
+      const open = !s.closed[g.name];
+      return {
+        name: g.name,
+        open,
+        showItems: open || !expanded,
+        chevron: open ? 'm7 14 5-5 5 5' : 'm7 10 5 5 5-5',
+        toggle: () => this.setState({ closed: { ...s.closed, [g.name]: open } }),
+        items: g.items.map(([label, key, kind]) => {
+          const isPipelines = key === 'pipelines';
+          const subOpen = isPipelines && s.pipelinesOpen;
+          return {
+            label,
+            icon: icons[key],
+            cls: '',
+            current: 'false',
+            hasChev: expanded && !!kind,
+            chev: subOpen ? 'm7 14 5-5 5 5' : 'm7 10 5 5 5-5',
+            showSub: expanded && subOpen,
+            sub: [
+              { label: 'Answer pipelines', cls: '', current: 'false' },
+              { label: 'Ingestion pipelines', cls: 'on', current: 'page' }
+            ]
+          };
+        })
+      };
+    });
+    if (!expanded) {
+      groups[0].items[2].cls = 'on';
+      groups[0].items[2].current = 'page';
+    }
+    const sites = s.sites.map((site, i) => ({
+      ...site,
+      rangeId: 'pages-' + i,
+      indexId: 'index-' + i,
+      pct: pct(site.pages, 10, 500),
+      indexName: 'Product knowledge · ' + site.host.split('.')[0],
+      setPages: (e) => {
+        const next = s.sites.slice();
+        next[i] = { ...site, pages: Number(e.target.value) };
+        this.setState({ sites: next });
+      },
+      remove: () => this.setState({ sites: s.sites.filter((_, n) => n !== i) })
+    }));
+    const extra = ['blog.example.com', 'changelog.example.com', 'community.example.com'];
+    const calendar = 'M5 5h14v15H5zM5 10h14M9 3v4M15 3v4';
+    const content = [
+      {
+        heading: 'Which websites should this pipeline read?',
+        tip: 'Sites on different domains are collected at the same time, up to three at once.',
+        figureIcon: 'M4 5h16v14H4zM4 9h16', figureLabel: 'Pages per run:', figure: fmt(total)
+      },
+      {
+        heading: 'How should these sites be indexed?',
+        tip: 'One combined index answers across every site; separate indexes keep each site on its own.',
+        figureIcon: 'M5 6c0-1.7 3.1-3 7-3s7 1.3 7 3-3.1 3-7 3-7-1.3-7-3zM5 6v12c0 1.7 3.1 3 7 3s7-1.3 7-3V6', figureLabel: 'Indexes:', figure: perSource ? String(s.sites.length) : '1'
+      },
+      {
+        heading: 'How should pages be processed?',
+        tip: 'Smaller chunks give more precise matches; larger chunks keep more surrounding context.',
+        figureIcon: 'M4 6h16M4 12h16M4 18h10', figureLabel: 'Est. chunks:', figure: '≈ ' + fmt(estChunks)
+      },
+      {
+        heading: 'Review and publish.',
+        tip: 'Saving creates version 1. Every run records exactly which version it used.',
+        figureIcon: calendar, figureLabel: 'Up to', figure: fmt(total) + ' pages'
+      },
+      {
+        heading: 'Collecting your sources.',
+        tip: 'Each site is checked against its robots.txt and crawl speed before any page is fetched.',
+        figureIcon: 'M21 12a9 9 0 1 1-3-6.7M21 4v5h-5', figureLabel: 'Progress:', figure: '64%'
+      }
+    ][step - 1];
+    const go = (n) => () => this.setState({ step: n });
+    const review = [
+      { k: 'Sources', v: s.sites.map((x) => x.host).join(', '), edit: go(1) },
+      { k: 'Output', v: perSource ? s.sites.length + ' indexes, one per site' : '1 index · Product knowledge', edit: go(2) },
+      { k: 'Processing', v: 'Main content · structure-aware cleaning · ' + s.chunk + '-token chunks, ' + s.overlap + ' overlap', edit: go(3) },
+      { k: 'Embedding', v: 'text-embedding-3-small · 1536 dimensions', edit: go(3) },
+      { k: 'If a site fails', v: perSource ? 'The other indexes still publish' : 'The other sites still publish; the failed site keeps its earlier pages', edit: go(2) }
+    ];
+    const runRows = [
+      { host: 'docs.example.com', detail: '42 pages included', pct: 100, width: '100%', status: 'Collected', cls: 'ok' },
+      { host: 'help.example.com', detail: '43 of 120 pages checked', pct: 36, width: '36%', status: 'Running', cls: 'warn' },
+      { host: 'status.example.com', detail: 'Waiting for a free crawl slot', pct: 0, width: '0%', status: 'Queued', cls: 'mute' }
+    ];
+    const nextLabels = ['Next: Output', 'Next: Processing', 'Next: Review', perSource ? 'Save and publish 3 indexes' : 'Save and publish', 'Open in editor'];
+    return {
+      ...content,
+      themeClass: theme,
+      themeLabel: theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme',
+      themeIcon: theme === 'dark' ? 'M12 3v2M12 19v2M5 12H3M21 12h-2M6.3 6.3 4.9 4.9M19.1 19.1l-1.4-1.4M6.3 17.7l-1.4 1.4M19.1 4.9l-1.4 1.4M12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8z' : 'M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z',
+      toggleTheme: () => this.setState({ theme: theme === 'dark' ? 'light' : 'dark' }),
+      showSidebar: !compact,
+      compact,
+      expanded,
+      sideCls: expanded ? '' : 'collapsed',
+      collapseLabel: expanded ? 'Collapse sidebar' : 'Expand sidebar',
+      toggleSidebar: () => this.setState({ collapsed: !s.collapsed }),
+      groups,
+      tabs: [['Overview', 'overview'], ['Knowledge', 'knowledge'], ['Pipelines', 'pipelines'], ['Playground', 'playground'], ['More', 'more']].map(([label, key]) => ({ label, icon: icons[key], cls: key === 'pipelines' ? 'on' : '' })),
+      step,
+      stepName: names[step - 1],
+      progressWidth: (step / 5) * 100 + '%',
+      onSources: step === 1, onOutput: step === 2, onProcessing: step === 3, onReview: step === 4, onRun: step === 5,
+      sites,
+      siteCount: s.sites.length,
+      siteSummary: 'You have added ' + s.sites.length + ' of 5 websites, up to ' + fmt(total) + ' pages per run (limit 2,500).',
+      addSite: () => {
+        if (s.sites.length >= 5) return;
+        const host = extra.find((h) => !s.sites.some((x) => x.host === h)) || 'site.example.com';
+        this.setState({ sites: [...s.sites, { host, scope: 'Crawl · 2 links deep', pages: 50, status: 'Not previewed', statusCls: 'mute' }] });
+      },
+      perSource,
+      isMerged: !perSource,
+      mergedCls: perSource ? '' : 'picked',
+      perSourceCls: perSource ? 'picked' : '',
+      setMerged: () => this.setState({ layout: 'merged' }),
+      setPerSource: () => this.setState({ layout: 'per_source' }),
+      chunk: s.chunk,
+      overlap: s.overlap,
+      chunkPct: pct(s.chunk, 200, 2000),
+      overlapPct: pct(s.overlap, 0, 300),
+      setChunk: (e) => this.setState({ chunk: Number(e.target.value) }),
+      setOverlap: (e) => this.setState({ overlap: Number(e.target.value) }),
+      processingSummary: perSource ? 'Shared by every site; help.example.com uses its own chunk size. Estimate assumes about 2,400 tokens per page.' : 'These settings apply to every site. Estimate assumes about 2,400 tokens per page.',
+      review,
+      runRows,
+      back: go(Math.max(1, step - 1)),
+      showBack: step > 1 && step < 5,
+      next: go(Math.min(5, step + 1)),
+      nextLabel: nextLabels[step - 1]
+    };
+  }
+}
+</script>
+</body>
+</html>
