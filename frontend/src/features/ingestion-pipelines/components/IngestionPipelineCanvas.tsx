@@ -132,6 +132,7 @@ export function IngestionPipelineCanvas({
   onInit,
   onNodesChange,
   onSelectNode,
+  draggable = true,
 }: {
   canvasRef: RefObject<HTMLDivElement | null>;
   nodes: IngestionFlowNode[];
@@ -139,6 +140,8 @@ export function IngestionPipelineCanvas({
   onInit: (instance: ReactFlowInstance<IngestionFlowNode, Edge>) => void;
   onNodesChange: (changes: NodeChange<IngestionFlowNode>[]) => void;
   onSelectNode: (nodeId: string) => void;
+  /** False when the cards are laid out automatically, as in the sources-panel view. */
+  draggable?: boolean;
 }) {
   return (
     <div
@@ -155,6 +158,7 @@ export function IngestionPipelineCanvas({
         onNodesChange={onNodesChange}
         onNodeClick={(_, node) => onSelectNode(node.id)}
         nodesConnectable={false}
+        nodesDraggable={draggable}
         zoomOnScroll={false}
         preventScrolling={false}
         deleteKeyCode={null}

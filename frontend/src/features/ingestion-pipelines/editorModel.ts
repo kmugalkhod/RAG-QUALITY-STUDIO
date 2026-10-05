@@ -292,7 +292,7 @@ export function nodeLabel(draft: IngestionPipelineDraft, node: IngestionNode) {
   return sourceId ? `${base} · ${sourceLabel(draft, sourceId)}` : base;
 }
 
-function hostOf(node: IngestionNode) {
+export function hostOf(node: IngestionNode) {
   if (node.type !== 'source' || node.config.kind !== 'website') {
     return null;
   }

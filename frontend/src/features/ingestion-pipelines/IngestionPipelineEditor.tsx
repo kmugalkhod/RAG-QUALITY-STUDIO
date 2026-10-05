@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useNodesState, type Edge, type NodeChange, type ReactFlowInstance } from '@xyflow/react';
 import { X } from 'lucide-react';
 
@@ -27,6 +27,8 @@ import {
   type IngestionFlowNode,
 } from './components/IngestionPipelineCanvas';
 import { IngestionNodeSettings } from './components/IngestionNodeSettings';
+import { IngestionSourcesPanel } from './components/IngestionSourcesPanel';
+import { StageScope, type StageScopeMode } from './components/StageScope';
 import { IngestionPreviewResults, IngestionRunResults } from './components/IngestionResults';
 import { IngestionGroupStrip } from './components/IngestionGroupStrip';
 import { IngestionRunStrip } from './components/IngestionRunStrip';
@@ -42,14 +44,15 @@ import {
   requestErrorMessage as message,
   serverFieldErrors as fieldErrorsFrom,
   terminalIngestionStatuses as terminal,
-  addWebsiteSource,
   addWebsiteSourceBlocked,
   branchExecution,
   branchSourceOf,
+  hostOf,
   indexLayout,
+  ingestionStageLabels,
   nodeLabel,
-  setIndexLayout,
   maxWebsiteRunPages,
+  maxWebsiteSources,
   removeSource,
   sourceLabel,
   sourceNodes,
@@ -57,6 +60,27 @@ import {
   websitePageTotal,
 } from './editorModel';
 import { ingestionNodeExecutionStates, ingestionRunDisplayStatus } from './executionState';
+import {
+  addSharedWebsiteSource,
+  combinedState,
+  customStagesOf,
+  indexSourceOf,
+  indexViewId,
+  resetToShared,
+  setSharedIndexLayout,
+  sharedStage,
+  sharedTargets,
+  sharedStageTypes,
+  sourceRunStatus,
+  sourcesViewCards,
+  stageNodes,
+  stageViewId,
+  updateNodes,
+  usesSourcesPanel,
+  viewStageOf,
+  type CustomizedSources,
+  type SharedStage,
+} from './sourcesView';
 import {
   canonicalIngestion,
   type ExistingFilesConfig,
@@ -71,6 +95,13 @@ import {
   type SourcePreview,
   type SourcePreviewItem,
 } from './model';
+
+const stageNouns: Record<SharedStage, string> = {
+  extract: 'extraction',
+  clean: 'cleaning',
+  chunk: 'chunking',
+  embed: 'embedding',
+};
 
 const previewStatusLabels: Record<SourcePreview['status'], string> = {
   queued: 'Queued',
@@ -110,6 +141,10 @@ export function IngestionPipelineEditor({
   const [connections, setConnections] = useState<SourceConnection[]>([]);
   const [extractionCapabilities, setExtractionCapabilities] = useState<ExtractionCapabilities>();
   const [selectedNode, setSelectedNode] = useState('source');
+  // Sources panel editor: which sources a stage edit applies to, and the sources marked
+  // customized in this session before their settings differ from the shared ones.
+  const [scope, setScope] = useState('all');
+  const [customized, setCustomized] = useState<CustomizedSources>({});
   const [preview, setPreview] = useState<SourcePreview>();
   const [previewPage, setPreviewPage] = useState<Page<SourcePreviewItem>>({
     items: [],
@@ -145,6 +180,8 @@ export function IngestionPipelineEditor({
       runRestoreGeneration.current += 1;
       const editable = editableVersion(version);
       setDraft(editable);
+      setScope('all');
+      setCustomized({});
       setSaved(version);
       setBaseline(canonicalIngestion(editable));
       setPreview(undefined);
@@ -317,6 +354,49 @@ export function IngestionPipelineEditor({
         executionStates[outcome.source_node_id] = 'failed';
       }
     }
+    const startedOf = (nodeId: string) => {
+      const state = stateRuns
+        .flatMap((candidate) => candidate.node_states ?? [])
+        .find((candidate) => candidate.node_id === nodeId);
+      return state ? Boolean(state.started_at) : undefined;
+    };
+    if (usesSourcesPanel(draft)) {
+      const { cards } = sourcesViewCards(draft, (node) => detail(node, documents), customized);
+      const real = draft.execution.nodes.find((node) => node.id === selectedNode);
+      const stage = real
+        ? real.type === 'source'
+          ? undefined
+          : real.type
+        : viewStageOf(selectedNode);
+      const selectedCard = !stage
+        ? cards[0].id
+        : stage === 'publish_index' && indexLayout(draft) === 'per_source' && scope !== 'all'
+          ? indexViewId(scope)
+          : cards.find((card) => card.stage === stage && !indexSourceOf(card.id))?.id;
+      setFlowNodes(
+        cards.map((card) => ({
+          id: card.id,
+          type: 'ingestion' as const,
+          position: card.position,
+          selected: card.id === selectedCard,
+          data: {
+            stage: card.stage,
+            label: card.label,
+            detail: card.detail,
+            first: card.first,
+            last: card.last,
+            executionStatus: combinedState(card.members.map((id) => executionStates[id])),
+            // Reused only when every member stage was reused.
+            executionWasStarted: card.members.some((id) => startedOf(id))
+              ? true
+              : card.members.every((id) => startedOf(id) === false)
+                ? false
+                : undefined,
+          },
+        })),
+      );
+      return;
+    }
     const nodes = draft.execution.nodes.map((node) => ({
       id: node.id,
       type: 'ingestion' as const,
@@ -330,16 +410,11 @@ export function IngestionPipelineEditor({
         first: node.type === 'source',
         last: node.type === 'publish_index',
         executionStatus: executionStates[node.id],
-        executionWasStarted: (() => {
-          const state = stateRuns
-            .flatMap((candidate) => candidate.node_states ?? [])
-            .find((candidate) => candidate.node_id === node.id);
-          return state ? Boolean(state.started_at) : undefined;
-        })(),
+        executionWasStarted: startedOf(node.id),
       },
     }));
     setFlowNodes(nodes);
-  }, [draft, documents, group, run, selectedNode, setFlowNodes]);
+  }, [customized, draft, documents, group, run, scope, selectedNode, setFlowNodes]);
 
   const activeRunId = run?.id;
   const activeRunStatus = run?.status;
@@ -690,6 +765,13 @@ export function IngestionPipelineEditor({
     setPreview(undefined);
   }
 
+  /** Applies one stage edit to several sources' nodes, for shared settings. */
+  function updateStage(ids: string[], update: (node: IngestionNode) => IngestionNode) {
+    setServerFieldErrors({});
+    setDraft((current) => (current ? updateNodes(current, ids, update) : current));
+    setPreview(undefined);
+  }
+
   function changeSourceKind(
     nodeId: string,
     kind: 'existing_files' | 'website' | 's3' | 'notion' | 'confluence',
@@ -724,7 +806,9 @@ export function IngestionPipelineEditor({
     }
     setServerFieldErrors({});
     setPreview(undefined);
-    setDraft(setIndexLayout(draft, layout));
+    setDraft(setSharedIndexLayout(draft, layout, customized));
+    setCustomized({});
+    setScope('all');
     fitAfterLayout();
   }
 
@@ -737,11 +821,11 @@ export function IngestionPipelineEditor({
     if (!draft || addWebsiteSourceBlocked(draft)) {
       return;
     }
-    const added = addWebsiteSource(draft);
+    const added = addSharedWebsiteSource(draft, customized);
     setServerFieldErrors({});
     setPreview(undefined);
     setDraft(added.draft);
-    setSelectedNode(added.nodeId);
+    selectSource(added.nodeId, added.draft);
     fitAfterLayout();
   }
 
@@ -756,14 +840,53 @@ export function IngestionPipelineEditor({
     setServerFieldErrors({});
     setPreview(undefined);
     setDraft(next);
+    setCustomized((current) =>
+      Object.fromEntries(
+        Object.entries(current).map(([stage, ids]) => [stage, ids.filter((id) => id !== nodeId)]),
+      ),
+    );
+    if (scope === nodeId) {
+      setScope('all');
+    }
     setSelectedNode(sourceNodes(next)[0]?.id ?? 'extract');
+  }
+
+  /** Selects a source; in a per-source layout its stages then open for that source. */
+  function selectSource(sourceId: string, current = draft) {
+    setSelectedNode(sourceId);
+    if (current && indexLayout(current) === 'per_source') {
+      setScope(sourceId);
+    }
+  }
+
+  /** Canvas and stage-menu selections; grouped cards stand for their stage or sources. */
+  function selectFromCanvas(id: string) {
+    if (!draft || !usesSourcesPanel(draft)) {
+      setSelectedNode(id);
+      return;
+    }
+    const indexSource = indexSourceOf(id);
+    if (indexSource) {
+      setSelectedNode(stageViewId('publish_index'));
+      setScope(indexSource);
+      return;
+    }
+    if (sourceNodes(draft).some((node) => node.id === id)) {
+      selectSource(id);
+      return;
+    }
+    setSelectedNode(id);
   }
 
   function changeFlowNodes(changes: NodeChange<IngestionFlowNode>[]) {
     onFlowNodesChange(changes);
     const selectedChange = changes.find((change) => change.type === 'select' && change.selected);
     if (selectedChange?.type === 'select') {
-      setSelectedNode(selectedChange.id);
+      selectFromCanvas(selectedChange.id);
+    }
+    if (draft && usesSourcesPanel(draft)) {
+      // Grouped cards are laid out automatically; saved coordinates stay as they are.
+      return;
     }
     const positions = changes.flatMap((change) =>
       change.type === 'position' && change.position
@@ -785,6 +908,20 @@ export function IngestionPipelineEditor({
           : current,
       );
     }
+  }
+
+  /** Drops unsaved edits; the saved version's run history stays on screen. */
+  function discard() {
+    if (!saved) {
+      return;
+    }
+    const editable = editableVersion(saved);
+    setDraft(editable);
+    setBaseline(canonicalIngestion(editable));
+    setScope('all');
+    setCustomized({});
+    setServerFieldErrors({});
+    setPreview(undefined);
   }
 
   async function perform(work: () => Promise<void>) {
@@ -833,7 +970,9 @@ export function IngestionPipelineEditor({
           indexLayout(draft) === 'per_source'
             ? branchExecution(
                 draft,
-                branchSourceOf(draft, selectedNode) ?? sourceNodes(draft)[0].id,
+                (scope !== 'all' && scope) ||
+                  branchSourceOf(draft, selectedNode) ||
+                  sourceNodes(draft)[0].id,
               )
             : draft.execution,
         ),
@@ -977,6 +1116,149 @@ export function IngestionPipelineEditor({
   }
 
   const legacy = draft.execution.schema_version === 1;
+  // Website pipelines on schema 2 show their sources in a panel and every stage once.
+  const view = usesSourcesPanel(draft);
+  const perSourceDraft = indexLayout(draft) === 'per_source';
+  const draftSources = sourceNodes(draft);
+  const sourceName = (id: string) => {
+    const node = draftSources.find((candidate) => candidate.id === id);
+    return (node && hostOf(node)) || sourceLabel(draft, id);
+  };
+  const realSelection = draft.execution.nodes.find((node) => node.id === selectedNode);
+  const viewSelection =
+    view && realSelection && realSelection.type !== 'source'
+      ? stageViewId(realSelection.type)
+      : selectedNode;
+  const viewStage = view ? viewStageOf(viewSelection) : undefined;
+  const scopedSource = draftSources.some((node) => node.id === scope) ? scope : 'all';
+  let panelNode = view ? realSelection : selected;
+  let panelUpdate = updateNode;
+  let panelHeading: string | undefined;
+  let panelMeta: string | undefined;
+  let scopeControl: ReactNode;
+  if (viewStage) {
+    const entries = stageNodes(draft, viewStage);
+    panelHeading = `${ingestionStageLabels[viewStage]} settings`;
+    if (!perSourceDraft) {
+      panelNode = entries[0]?.node;
+      panelMeta = draftSources.length > 1 ? 'Shared by every source' : undefined;
+    } else if (viewStage === 'publish_index') {
+      const sourceId = scopedSource === 'all' ? draftSources[0].id : scopedSource;
+      panelNode = entries.find((entry) => entry.sourceId === sourceId)?.node;
+      panelHeading = `Index for ${sourceName(sourceId)}`;
+      panelMeta = 'Every source publishes its own index';
+      scopeControl = (
+        <StageScope
+          stageNoun="index"
+          value={sourceId}
+          options={draftSources.map((node) => ({
+            value: node.id,
+            label: `${sourceLabel(draft, node.id)} · ${sourceName(node.id)}`,
+          }))}
+          mode={{ kind: 'index' }}
+          onChange={setScope}
+          onCustomize={() => undefined}
+          onUseShared={() => undefined}
+        />
+      );
+    } else {
+      const stage = viewStage;
+      const shared = sharedStage(draft, stage, customized);
+      let mode: StageScopeMode;
+      if (scopedSource === 'all') {
+        const targets = sharedTargets(draft, stage, customized);
+        panelNode = shared.node;
+        panelUpdate = (_id, update) => updateStage(targets, update);
+        panelMeta = 'Shared by every source that is not customized';
+        mode = {
+          kind: 'shared',
+          customized: shared.custom.map((id) => ({ id, name: sourceName(id) })),
+        };
+      } else if (shared.custom.includes(scopedSource)) {
+        panelNode = entries.find((entry) => entry.sourceId === scopedSource)?.node;
+        panelMeta = `Settings for ${sourceName(scopedSource)} only`;
+        mode = { kind: 'custom', sourceName: sourceName(scopedSource) };
+      } else {
+        panelNode = undefined;
+        panelMeta = `Settings for ${sourceName(scopedSource)} only`;
+        mode = {
+          kind: 'inherit',
+          sourceName: sourceName(scopedSource),
+          sharedSummary: shared.node ? detail(shared.node, documents) : '',
+        };
+      }
+      scopeControl = (
+        <StageScope
+          stageNoun={stageNouns[stage]}
+          value={scopedSource}
+          options={[
+            { value: 'all', label: 'All sources (shared)' },
+            ...draftSources.map((node) => ({
+              value: node.id,
+              label: `Only ${sourceName(node.id)}`,
+            })),
+          ]}
+          mode={mode}
+          onChange={setScope}
+          onCustomize={() =>
+            setCustomized((current) => ({
+              ...current,
+              [stage]: [...(current[stage] ?? []), scopedSource],
+            }))
+          }
+          onUseShared={() => {
+            setServerFieldErrors({});
+            setPreview(undefined);
+            setDraft(resetToShared(draft, stage, scopedSource, customized));
+            setCustomized((current) => ({
+              ...current,
+              [stage]: (current[stage] ?? []).filter((id) => id !== scopedSource),
+            }));
+          }}
+        />
+      );
+    }
+  }
+  const viewEdges = view
+    ? sourcesViewCards(draft, (node) => detail(node, documents), customized).edges
+    : draft.execution.edges;
+  const stageOptions = view
+    ? [
+        ...draftSources.map((node) => ({
+          value: node.id,
+          label: `${sourceLabel(draft, node.id)} · ${hostOf(node) ?? 'no URL yet'}`,
+        })),
+        // A stage's first node stands for the stage, so the menu keeps real node ids.
+        ...[...sharedStageTypes, 'publish_index' as const].map((stage) => ({
+          value: stageNodes(draft, stage)[0]?.node.id ?? stageViewId(stage),
+          label: ingestionStageLabels[stage],
+        })),
+      ]
+    : undefined;
+  if (view && !viewStage) {
+    const position = draftSources.findIndex((node) => node.id === viewSelection);
+    panelMeta =
+      draftSources.length > 1 ? `Source ${position + 1} of ${draftSources.length}` : 'Source';
+  } else if (view && viewStage && !panelMeta) {
+    // The sources count as the first stage of the six on the canvas.
+    panelMeta = `Stage ${[...sharedStageTypes, 'publish_index'].indexOf(viewStage) + 2} of 6`;
+  }
+  const sourceCards = draftSources.map((node) => {
+    const branchPublish = perSourceDraft
+      ? stageNodes(draft, 'publish_index').find((entry) => entry.sourceId === node.id)?.node
+      : undefined;
+    return {
+      id: node.id,
+      label: sourceLabel(draft, node.id),
+      host: hostOf(node),
+      status: sourceRunStatus(node.id, run, group),
+      indexName:
+        branchPublish?.type === 'publish_index' ? branchPublish.knowledge_set_name : undefined,
+      customized: perSourceDraft
+        ? customStagesOf(draft, node.id, customized).map((stage) => `Custom ${stageNouns[stage]}`)
+        : [],
+    };
+  });
   const guide = websiteSource
     ? { href: docsHref('ingestion/sources/website'), label: 'Website source guide' }
     : s3Source
@@ -1071,7 +1353,7 @@ export function IngestionPipelineEditor({
             }
             onNameChange={(name) => setDraft({ ...draft, name })}
             onVersionSelect={open}
-            onDiscard={() => saved && open(saved)}
+            onDiscard={discard}
             onPreview={runPreview}
             onSave={save}
             onRun={() => startRun('refresh')}
@@ -1135,6 +1417,39 @@ export function IngestionPipelineEditor({
           />
         )}
         <div className="flex min-h-0 min-w-0 flex-col desktop:flex-1 desktop:flex-row">
+          {view && (
+            <IngestionSourcesPanel
+              sources={sourceCards}
+              selectedSource={
+                draftSources.some((node) => node.id === viewSelection)
+                  ? viewSelection
+                  : perSourceDraft && scopedSource !== 'all'
+                    ? scopedSource
+                    : undefined
+              }
+              indexLayout={indexLayout(draft)}
+              layoutLocked={null}
+              maxSources={maxWebsiteSources}
+              pageTotal={websitePageTotal(draft)}
+              maxPages={maxWebsiteRunPages}
+              addBlocked={addWebsiteSourceBlocked(draft)}
+              refreshLabel={perSourceSaved ? 'Run only' : 'Refresh only'}
+              refreshBlocked={
+                !saved
+                  ? 'Save this pipeline and publish an index before collecting one source.'
+                  : dirty
+                    ? 'Save or discard your changes before collecting one source.'
+                    : runActive || previewActive
+                      ? 'Wait for the current run or preview to finish.'
+                      : null
+              }
+              onSelect={(id) => selectSource(id)}
+              onAdd={addSource}
+              onRemove={deleteSource}
+              onRefresh={refreshSource}
+              onLayoutChange={changeIndexLayout}
+            />
+          )}
           <div className="flex min-h-0 min-w-0 flex-col desktop:flex-1">
             <div
               data-slot="flow-canvas"
@@ -1143,10 +1458,11 @@ export function IngestionPipelineEditor({
               <IngestionPipelineCanvas
                 canvasRef={canvasRef}
                 nodes={flowNodes}
-                edges={draft.execution.edges}
+                edges={viewEdges}
                 onInit={setFlow}
                 onNodesChange={changeFlowNodes}
-                onSelectNode={setSelectedNode}
+                onSelectNode={selectFromCanvas}
+                draggable={!view}
               />
             </div>
             {results && (
@@ -1211,8 +1527,12 @@ export function IngestionPipelineEditor({
           </div>
           <IngestionNodeSettings
             projectId={projectId}
-            selected={selected}
-            selectedNode={selectedNode}
+            selected={panelNode}
+            selectedNode={
+              viewStage
+                ? (stageNodes(draft, viewStage)[0]?.node.id ?? viewSelection)
+                : viewSelection
+            }
             nodes={draft.execution.nodes}
             dirty={dirty}
             saved={saved}
@@ -1225,29 +1545,16 @@ export function IngestionPipelineEditor({
             websiteSource={websiteSource}
             extractionCapabilities={extractionCapabilities}
             schemaVersion={draft.execution.schema_version}
-            updateNode={updateNode}
+            updateNode={panelUpdate}
             changeSourceKind={changeSourceKind}
-            sourceCount={sourceNodes(draft).length}
+            sourceCount={draftSources.length}
             sourceLabel={(nodeId) => sourceLabel(draft, nodeId)}
             nodeLabel={(node) => nodeLabel(draft, node)}
-            indexLayout={indexLayout(draft)}
-            onIndexLayoutChange={changeIndexLayout}
-            addSourceBlocked={addWebsiteSourceBlocked(draft)}
-            websitePageTotal={websitePageTotal(draft)}
-            onAddSource={addSource}
-            onRemoveSource={deleteSource}
-            onRefreshSource={refreshSource}
-            refreshSourceLabel={perSourceSaved ? 'Run only' : 'Refresh only'}
-            refreshSourceBlocked={
-              !saved
-                ? 'Save this pipeline and publish an index first.'
-                : dirty
-                  ? 'Save or discard your changes first.'
-                  : runActive || previewActive
-                    ? 'Wait for the current run or preview to finish.'
-                    : null
-            }
-            onSelectNode={setSelectedNode}
+            heading={panelHeading}
+            stageMeta={panelMeta}
+            stageOptions={stageOptions}
+            scopeControl={scopeControl}
+            onSelectNode={selectFromCanvas}
           />
         </div>
       </fieldset>

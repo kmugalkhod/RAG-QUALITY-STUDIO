@@ -586,3 +586,40 @@ test('canvas node clicks and source form variants never resize or refit the grap
   ).toBeVisible();
   expect(await canvas.evaluate((element) => element.clientHeight)).toBe(height);
 });
+
+test('several websites share stages and a source can customize one for its own index', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.getByLabel('Start URL').fill('https://docs.example.org/');
+  await page.getByRole('button', { name: 'Add website', exact: true }).click();
+  await page.getByLabel('Start URL').fill('https://help.example.org/');
+  const sources = page.getByRole('list', { name: 'Sources in this pipeline' });
+  await expect(sources.getByRole('listitem')).toHaveCount(2);
+  // One card for the sources and one per stage, whatever the number of sources.
+  await expect(page.getByTestId('ingestion-node')).toHaveCount(6);
+
+  await page.getByRole('radio', { name: /One index per source/ }).click();
+  await expect(page.getByTestId('ingestion-node')).toHaveCount(8);
+  await page.getByLabel('Selected stage').selectOption({ label: 'Chunk' });
+  await expect(page.getByLabel('Applies to')).toHaveValue('all');
+  await page.getByLabel('Applies to').selectOption({ label: 'Only help.example.org' });
+  await page
+    .getByRole('button', { name: 'Customize chunking for this source', exact: true })
+    .click();
+  await page.getByLabel('Target tokens').fill('400');
+  await expect(sources.getByText('Custom chunking')).toBeVisible();
+  await expect(page.getByText(/1 source customizes this/)).toBeVisible();
+
+  await page.getByLabel('Applies to').selectOption('all');
+  await expect(page.getByLabel('Target tokens')).toHaveValue('600');
+  await expect(
+    page.getByText(/does not follow changes to the shared chunking settings/),
+  ).toBeVisible();
+
+  await page.getByLabel('Applies to').selectOption({ label: 'Only help.example.org' });
+  await page.getByRole('button', { name: 'Use shared settings', exact: true }).click();
+  await expect(sources.getByText('Custom chunking')).toHaveCount(0);
+  const width = await page.evaluate(() => document.documentElement.scrollWidth);
+  expect(width).toBeLessThanOrEqual(1440);
+});

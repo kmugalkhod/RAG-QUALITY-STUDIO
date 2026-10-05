@@ -1,10 +1,11 @@
+import type { ReactNode } from 'react';
+
 import { Callout, LINK, SUMMARY } from '../../../components/parts';
 import { Button } from '../../../components/ui/button';
 import { Checkbox } from '../../../components/ui/checkbox';
 import { Input } from '../../../components/ui/input';
 import { Label } from '../../../components/ui/label';
 import { NativeSelect, NativeSelectOption } from '../../../components/ui/native-select';
-import { RadioGroup, RadioGroupItem } from '../../../components/ui/radio-group';
 import { docsHref } from '../../../lib/docs';
 import { cn } from '../../../lib/utils';
 import type { ConnectionSettings, SourceConnection } from '../../connections/model';
@@ -16,8 +17,6 @@ import {
   fallbackQualityPolicy,
   fieldErrorsForNode,
   ingestionStageLabels as labels,
-  maxWebsiteRunPages,
-  maxWebsiteSources,
 } from '../editorModel';
 import type {
   ExistingFilesConfig,
@@ -76,15 +75,10 @@ export function IngestionNodeSettings({
   sourceCount = 1,
   sourceLabel,
   nodeLabel,
-  indexLayout = 'merged',
-  onIndexLayoutChange,
-  refreshSourceLabel = 'Refresh only',
-  addSourceBlocked,
-  websitePageTotal = 0,
-  onAddSource,
-  onRemoveSource,
-  onRefreshSource,
-  refreshSourceBlocked,
+  heading,
+  stageMeta,
+  stageOptions,
+  scopeControl,
   onSelectNode,
 }: {
   projectId: string;
@@ -110,19 +104,14 @@ export function IngestionNodeSettings({
   sourceLabel?: (nodeId: string) => string;
   /** Stage names that say which source a stage belongs to in a per-source layout. */
   nodeLabel?: (node: IngestionNode) => string;
-  indexLayout?: 'merged' | 'per_source';
-  /** Absent hides the layout choice. */
-  onIndexLayoutChange?: (layout: 'merged' | 'per_source') => void;
-  refreshSourceLabel?: string;
-  /** Why a Website source cannot be added, null when it can; absent hides the controls. */
-  addSourceBlocked?: string | null;
-  websitePageTotal?: number;
-  onAddSource?: () => void;
-  onRemoveSource?: (nodeId: string) => void;
-  /** Starts a run that collects only this source; absent hides the action. */
-  onRefreshSource?: (nodeId: string) => void;
-  /** Why the selected source cannot be refreshed alone, or null when it can. */
-  refreshSourceBlocked?: string | null;
+  /** Replaces "<stage> settings", for a stage shown once for several sources. */
+  heading?: string;
+  /** Replaces the "Stage N of M" line. */
+  stageMeta?: string;
+  /** Replaces the stage menu's entries, when the canvas shows grouped stages. */
+  stageOptions?: { value: string; label: string }[];
+  /** Shown above the stage's fields: which sources an edit applies to. */
+  scopeControl?: ReactNode;
   onSelectNode: (nodeId: string) => void;
 }) {
   const nameOf = (node: IngestionNode) =>
@@ -131,9 +120,8 @@ export function IngestionNodeSettings({
       : node.type === 'source' && sourceLabel
         ? sourceLabel(node.id)
         : stageName(node);
-  const perSource = indexLayout === 'per_source';
   // Server errors are keyed per node, so each source shows only its own.
-  const nodeErrors = fieldErrorsForNode(serverFieldErrors, selectedNode);
+  const nodeErrors = fieldErrorsForNode(serverFieldErrors, selected?.id ?? selectedNode);
   const selectedOcr =
     selected?.type === 'extract'
       ? (selected.ocr ?? {
@@ -237,10 +225,12 @@ export function IngestionNodeSettings({
     >
       <div className="flex shrink-0 flex-col gap-1 border-b border-border bg-surface px-4 py-4 md:px-6 desktop:sticky desktop:top-0 desktop:z-10">
         <h2 id="ingestion-settings-heading" className="text-base font-semibold text-foreground">
-          {selected ? `${nameOf(selected)} settings` : 'Node settings'}
+          {heading ?? (selected ? `${nameOf(selected)} settings` : 'Node settings')}
         </h2>
         <p className="text-xs text-foreground-muted">
-          Stage {nodes.findIndex((node) => node.id === selectedNode) + 1} of {nodes.length} ·{' '}
+          {stageMeta ??
+            `Stage ${nodes.findIndex((node) => node.id === selectedNode) + 1} of ${nodes.length}`}{' '}
+          ·{' '}
           {dirty
             ? 'Draft configuration'
             : saved
@@ -275,9 +265,15 @@ export function IngestionNodeSettings({
             value={selectedNode}
             onChange={(event) => onSelectNode(event.target.value)}
           >
-            {nodes.map((node, index) => (
-              <NativeSelectOption key={node.id} value={node.id}>
-                {index + 1} · {nameOf(node)}
+            {(
+              stageOptions ??
+              nodes.map((node, index) => ({
+                value: node.id,
+                label: `${index + 1} · ${nameOf(node)}`,
+              }))
+            ).map((option) => (
+              <NativeSelectOption key={option.value} value={option.value}>
+                {option.label}
               </NativeSelectOption>
             ))}
           </NativeSelect>
@@ -302,6 +298,7 @@ export function IngestionNodeSettings({
             </ul>
           </Callout>
         )}
+        {scopeControl}
         {selected?.type === 'source' && (
           <div className={STACK}>
             <Label>
@@ -339,89 +336,6 @@ export function IngestionNodeSettings({
               <p id="source-kind-fixed" className={HINT}>
                 Remove the other sources to change the source type.
               </p>
-            )}
-            {selected.config.kind === 'website' && addSourceBlocked !== undefined && (
-              <fieldset className={FIELDSET}>
-                <legend>Sources in this pipeline</legend>
-                {onIndexLayoutChange && schemaVersion === 2 && (
-                  <RadioGroup
-                    aria-label="Index layout"
-                    value={indexLayout}
-                    onValueChange={(value) => onIndexLayoutChange(value as 'merged' | 'per_source')}
-                  >
-                    <label className="flex items-center gap-2 text-sm text-foreground">
-                      <RadioGroupItem value="merged" />
-                      Merge every source into one index
-                    </label>
-                    <label className="flex items-center gap-2 text-sm text-foreground">
-                      <RadioGroupItem value="per_source" />
-                      Build one index per source
-                    </label>
-                  </RadioGroup>
-                )}
-                <p className={HINT}>
-                  {sourceCount} of {maxWebsiteSources} Website sources.{' '}
-                  {perSource
-                    ? 'Each source has its own Extract, Clean, Chunk, Embed and Publish stages and publishes its own index; select a stage to change that source’s settings or index name.'
-                    : 'Every source goes through the same Extract, Clean, Chunk and Embed settings into one index; pages found by more than one source are indexed once.'}
-                </p>
-                {sourceCount > 1 && (
-                  <p
-                    className={websitePageTotal > maxWebsiteRunPages ? FIELD_ERROR : HINT}
-                    role={websitePageTotal > maxWebsiteRunPages ? 'alert' : undefined}
-                  >
-                    Maximum pages across sources: {websitePageTotal.toLocaleString('en-US')} of{' '}
-                    {maxWebsiteRunPages.toLocaleString('en-US')}.
-                  </p>
-                )}
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={!!addSourceBlocked}
-                    aria-describedby={addSourceBlocked ? 'add-source-blocked' : undefined}
-                    onClick={onAddSource}
-                  >
-                    Add website source
-                  </Button>
-                  {sourceCount > 1 && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => onRemoveSource?.(selected.id)}
-                    >
-                      Remove {sourceLabel ? sourceLabel(selected.id) : 'this source'}
-                    </Button>
-                  )}
-                </div>
-                {addSourceBlocked && (
-                  <p id="add-source-blocked" className={HINT}>
-                    {addSourceBlocked}
-                  </p>
-                )}
-                {sourceCount > 1 && onRefreshSource && (
-                  <div className="flex flex-col items-start gap-1 border-t border-border pt-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      disabled={!!refreshSourceBlocked}
-                      aria-describedby="refresh-source-hint"
-                      onClick={() => onRefreshSource(selected.id)}
-                    >
-                      {refreshSourceLabel} {sourceLabel ? sourceLabel(selected.id) : 'this source'}
-                    </Button>
-                    <p id="refresh-source-hint" className={HINT}>
-                      {refreshSourceBlocked ??
-                        (perSource
-                          ? 'Collects only this site and publishes a new version of its own index; the other sources are not run.'
-                          : 'Collects only this site and publishes a new index version; the other sites keep their pages from the current index without being contacted.')}
-                    </p>
-                  </div>
-                )}
-              </fieldset>
             )}
             {!connectionSettings?.enabled && (
               <Callout role="note">

@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { expect, test } from 'vitest';
 
 import { IngestionNodeSettings } from '../../../src/features/ingestion-pipelines/components/IngestionNodeSettings';
+import { IngestionSourcesPanel } from '../../../src/features/ingestion-pipelines/components/IngestionSourcesPanel';
 import {
   addWebsiteSource,
   addWebsiteSourceBlocked,
@@ -107,15 +108,78 @@ test('scopes server field errors to the node they belong to', () => {
   });
 });
 
-function Harness() {
+function PanelHarness({
+  refreshBlocked = null,
+  onRefresh = () => undefined,
+}: {
+  refreshBlocked?: string | null;
+  onRefresh?: (nodeId: string) => void;
+}) {
   const [draft, setDraft] = useState(() => addWebsiteSource(websiteDraft()).draft);
   const [selected, setSelected] = useState('source-2');
-  const node = draft.execution.nodes.find((candidate) => candidate.id === selected);
   return (
+    <IngestionSourcesPanel
+      sources={sourceNodes(draft).map((node) => ({
+        id: node.id,
+        label: sourceLabel(draft, node.id),
+        host: null,
+        customized: [],
+      }))}
+      selectedSource={selected}
+      indexLayout="merged"
+      layoutLocked={null}
+      maxSources={5}
+      pageTotal={websitePageTotal(draft)}
+      maxPages={2500}
+      addBlocked={addWebsiteSourceBlocked(draft)}
+      refreshLabel="Refresh only"
+      refreshBlocked={refreshBlocked}
+      onSelect={setSelected}
+      onAdd={() => {
+        const added = addWebsiteSource(draft);
+        setDraft(added.draft);
+        setSelected(added.nodeId);
+      }}
+      onRemove={(id) => {
+        const next = removeSource(draft, id);
+        setDraft(next);
+        setSelected(sourceNodes(next)[0].id);
+      }}
+      onRefresh={onRefresh}
+      onLayoutChange={() => undefined}
+    />
+  );
+}
+
+test('adds and removes Website sources from the sources panel', () => {
+  render(<PanelHarness />);
+
+  expect(screen.getByText('2 of 5')).toBeVisible();
+  expect(screen.getByText('Maximum pages across sources: 100 of 2,500.')).toBeVisible();
+  expect(screen.getByRole('button', { name: 'Website 2 settings' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+
+  fireEvent.click(screen.getByRole('button', { name: 'Add website' }));
+  expect(screen.getByRole('button', { name: 'Website 3 settings' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+
+  fireEvent.click(screen.getByRole('button', { name: 'Remove Website 3' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Remove Website 1' }));
+  expect(screen.getByText('1 of 5')).toBeVisible();
+  expect(screen.queryByRole('button', { name: /^Remove/ })).toBeNull();
+});
+
+test('the source type is fixed while a pipeline has several sources', () => {
+  const draft = addWebsiteSource(websiteDraft()).draft;
+  render(
     <IngestionNodeSettings
       projectId="project"
-      selected={node}
-      selectedNode={selected}
+      selected={draft.execution.nodes.find((node) => node.id === 'source-2')}
+      selectedNode="source-2"
       nodes={draft.execution.nodes}
       dirty
       validation={[]}
@@ -126,93 +190,26 @@ function Harness() {
       schemaVersion={2}
       updateNode={() => undefined}
       changeSourceKind={() => undefined}
-      sourceCount={sourceNodes(draft).length}
+      sourceCount={2}
       sourceLabel={(id) => sourceLabel(draft, id)}
-      addSourceBlocked={addWebsiteSourceBlocked(draft)}
-      websitePageTotal={websitePageTotal(draft)}
-      onAddSource={() => {
-        const added = addWebsiteSource(draft);
-        setDraft(added.draft);
-        setSelected(added.nodeId);
-      }}
-      onRemoveSource={(id) => {
-        const next = removeSource(draft, id);
-        setDraft(next);
-        setSelected(sourceNodes(next)[0].id);
-      }}
-      onSelectNode={setSelected}
-    />
+      onSelectNode={() => undefined}
+    />,
   );
-}
-
-test('adds and removes Website sources from labeled settings controls', () => {
-  render(<Harness />);
-
   expect(screen.getByRole('heading', { name: 'Website 2 settings' })).toBeVisible();
   expect(screen.getByLabelText('Source type')).toBeDisabled();
   expect(screen.getByText('Remove the other sources to change the source type.')).toBeVisible();
-  expect(screen.getByText(/2 of 5 Website sources/)).toBeVisible();
-  expect(screen.getByText('Maximum pages across sources: 100 of 2,500.')).toBeVisible();
-
-  fireEvent.click(screen.getByRole('button', { name: 'Add website source' }));
-  expect(screen.getByRole('heading', { name: 'Website 3 settings' })).toBeVisible();
-  expect(screen.getByRole('option', { name: '2 · Website 2' })).toBeInTheDocument();
-
-  fireEvent.click(screen.getByRole('button', { name: 'Remove Website 3' }));
-  fireEvent.click(screen.getByRole('button', { name: 'Remove Website 1' }));
-  expect(screen.getByRole('heading', { name: 'Website settings' })).toBeVisible();
-  expect(screen.getByLabelText('Source type')).toBeEnabled();
-  expect(screen.queryByRole('button', { name: /^Remove/ })).toBeNull();
 });
 
-function RefreshHarness({
-  blocked,
-  onRefresh,
-}: {
-  blocked: string | null;
-  onRefresh: (nodeId: string) => void;
-}) {
-  const draft = addWebsiteSource(websiteDraft()).draft;
-  const node = draft.execution.nodes.find((candidate) => candidate.id === 'source-2');
-  return (
-    <IngestionNodeSettings
-      projectId="project"
-      selected={node}
-      selectedNode="source-2"
-      nodes={draft.execution.nodes}
-      dirty={false}
-      validation={[]}
-      connections={[]}
-      documents={[]}
-      knowledgeSets={[]}
-      websiteSource
-      schemaVersion={2}
-      updateNode={() => undefined}
-      changeSourceKind={() => undefined}
-      sourceCount={2}
-      sourceLabel={(id) => sourceLabel(draft, id)}
-      addSourceBlocked={null}
-      websitePageTotal={100}
-      onRefreshSource={onRefresh}
-      refreshSourceBlocked={blocked}
-      onSelectNode={() => undefined}
-    />
-  );
-}
-
-test('refreshes only the selected source when the saved version allows it', () => {
+test('refreshes only one source when the saved version allows it', () => {
   const refreshed: string[] = [];
-  const { unmount } = render(
-    <RefreshHarness blocked={null} onRefresh={(id) => refreshed.push(id)} />,
-  );
+  const { unmount } = render(<PanelHarness onRefresh={(id) => refreshed.push(id)} />);
   fireEvent.click(screen.getByRole('button', { name: 'Refresh only Website 2' }));
   expect(refreshed).toEqual(['source-2']);
-  expect(screen.getByText(/other sites keep their pages/)).toBeVisible();
   unmount();
 
   render(
-    <RefreshHarness
-      blocked="Save or discard your changes first."
+    <PanelHarness
+      refreshBlocked="Save or discard your changes first."
       onRefresh={(id) => refreshed.push(id)}
     />,
   );
