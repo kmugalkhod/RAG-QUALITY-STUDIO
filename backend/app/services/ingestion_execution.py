@@ -76,6 +76,39 @@ def transition(
         return True
 
 
+def start_nodes(
+    db_engine, run_id: UUID, node_ids: list[str], *, execution_token: UUID
+) -> bool:
+    """Mark several source nodes running at once, for sources that crawl together.
+
+    Unlike `transition`, nodes before them are left as they are, so one source
+    starting never marks another still crawling as finished.
+    """
+    worker_engine = db_engine.execution_options(isolation_level="READ COMMITTED")
+    with Session(worker_engine) as session:
+        nodes = session.scalars(
+            select(IngestionRunNode)
+            .where(IngestionRunNode.run_id == run_id)
+            .order_by(IngestionRunNode.ordinal)
+            .with_for_update()
+        ).all()
+        run = session.get(IngestionRun, run_id)
+        if (
+            run is None
+            or run.status not in ("queued", "running")
+            or run.execution_token != execution_token
+        ):
+            return False
+        timestamp = now()
+        for node in nodes:
+            if node.node_id in node_ids and node.status == "queued":
+                node.status = "running"
+                node.started_at = node.started_at or timestamp
+                node.updated_at = timestamp
+        session.commit()
+    return True
+
+
 def transition_for_processing_run(db_engine, processing_run_id: UUID, node_type: str):
     with Session(db_engine) as session:
         run_id = session.scalar(

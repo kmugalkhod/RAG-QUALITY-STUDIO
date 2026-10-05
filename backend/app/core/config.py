@@ -58,6 +58,10 @@ class Settings(BaseSettings):
     # Parallel page fetches per Website source; the per-origin crawl speed still
     # bounds the request rate to any one site.
     website_fetch_concurrency: int = Field(default=4, ge=1, le=8)
+    # Website sources one run crawls at the same time. Each holds at most one
+    # database connection at a time, so this stays within the engine's pool of 5
+    # (plus overflow); sources sharing an origin always crawl one after another.
+    website_run_source_concurrency: int = Field(default=3, ge=1, le=5)
     # Bounded by the 3670 s `ingestion.coordinate` and preview task time limits
     # and the dispatcher's stale windows, which assume discovery ends by 3600 s.
     website_deadline_min_seconds: float = Field(default=60, ge=10, le=3600)

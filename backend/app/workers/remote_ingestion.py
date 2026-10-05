@@ -1,6 +1,8 @@
 """Remote-source ingestion discovery, persistence, and publication advancement."""
 
 import itertools
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from collections import Counter
 from uuid import UUID
 
@@ -12,6 +14,7 @@ from app.connectors.base import ConnectorFailure, ConnectorIssue
 from app.connectors.confluence import ConfluenceConnector
 from app.connectors.notion import NotionConnector
 from app.connectors.s3 import S3Connector
+from app.connectors.safe_http import url_origin
 from app.connectors.website import (
     PreviewOutcome,
     PriorWebsiteRevision,
@@ -303,46 +306,148 @@ def _crawl_website(run_id, token, db_engine, connector_factory, job, execution, 
     """Fetch every Website source into the run's frontier; resumable per page.
 
     With several sources, a whole-site failure that retrying cannot fix ends
-    only that source; the run carries its last good pages forward.
+    only that source; the run carries its last good pages forward. Sources
+    whose allowed origins do not overlap crawl at the same time, up to
+    `website_run_source_concurrency`; sources sharing an origin crawl one
+    after another so each origin keeps a single request rate.
     """
     sources = [node for node in execution.nodes if node.type == "source"]
     refresh_only = _refresh_only(job)
-    for source in sources:
-        if refresh_only is not None and source.id not in refresh_only:
-            # Not refreshed: its pages are kept from the current ready index.
-            continue
-        if ((job.crawl_state or {}).get(source.id) or {}).get("complete"):
-            continue
-        if not ingestion_execution.transition(
-            db_engine, run_id, node_id=source.id, execution_token=token
-        ):
-            return False
-        # The policy recorded at run creation, never one re-resolved from
-        # current server settings, so recovery and retries keep the same limits.
-        policy = (job.snapshot.get("fetch_policies") or {}).get(source.id)
-        if policy is None:
-            raise ConnectorFailure(
-                ConnectorIssue(
-                    code="missing_fetch_policy",
-                    message="This run has no recorded Website fetch limits. Start a new run.",
-                    retryable=False,
-                )
-            )
-        store = website_crawl.RunCrawlStore(db_engine, run_id, token, source.id)
-        connector = connector_factory() if connector_factory else WebsiteConnector()
-        try:
-            crawled = connector.crawl(source.config, policy, priors, store)
-        except ConnectorFailure as exc:
-            if len(sources) < 2 or exc.issue.retryable:
-                raise
-            if not store.mark_failed(exc.issue):
+    pending = [
+        source
+        for source in sources
+        # Not refreshed sources keep their pages from the current ready index.
+        if (refresh_only is None or source.id in refresh_only)
+        and not ((job.crawl_state or {}).get(source.id) or {}).get("complete")
+    ]
+    if not pending:
+        return True
+    isolate = len(sources) >= 2
+    lanes = _origin_lanes(pending)
+    if len(lanes) == 1 or settings.website_run_source_concurrency == 1:
+        for source in pending:
+            if not ingestion_execution.transition(
+                db_engine, run_id, node_id=source.id, execution_token=token
+            ):
                 return False
-            continue
-        if not crawled:
+            if not _crawl_source(
+                run_id,
+                token,
+                db_engine,
+                connector_factory,
+                job,
+                source,
+                priors,
+                isolate,
+            ):
+                return False
+        return True
+
+    if not ingestion_execution.start_nodes(
+        db_engine, run_id, [source.id for source in pending], execution_token=token
+    ):
+        return False
+    stop = threading.Event()
+
+    def crawl_lane(lane):
+        for source in lane:
+            if stop.is_set():
+                return False
+            if not _crawl_source(
+                run_id,
+                token,
+                db_engine,
+                connector_factory,
+                job,
+                source,
+                priors,
+                isolate,
+                stop,
+            ):
+                return False
+        return True
+
+    workers = min(settings.website_run_source_concurrency, len(lanes))
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = [pool.submit(crawl_lane, lane) for lane in lanes]
+        error = None
+        completed = True
+        for future in as_completed(futures):
+            try:
+                if not future.result():
+                    completed = False
+                    stop.set()
+            except BaseException as exc:  # re-raised once every lane stopped
+                stop.set()
+                error = error or exc
+    if error is not None:
+        raise error
+    return completed
+
+
+def _origin_lanes(sources):
+    """Group sources whose allowed origins overlap, keeping pipeline order."""
+    lanes: list[tuple[set[str], list]] = []
+    for source in sources:
+        origins = {url_origin(str(value)) for value in source.config.allowed_origins}
+        joined = [lane for lane in lanes if lane[0] & origins]
+        merged_origins = set(origins).union(*(lane[0] for lane in joined))
+        merged = sorted(
+            [node for lane in joined for node in lane[1]] + [source],
+            key=sources.index,
+        )
+        lanes = [lane for lane in lanes if lane not in joined]
+        lanes.append((merged_origins, merged))
+    ordered = sorted(lanes, key=lambda lane: sources.index(lane[1][0]))
+    return [lane[1] for lane in ordered]
+
+
+class _StoppableStore:
+    """A crawl store that refuses further pages once another source stopped the run."""
+
+    def __init__(self, store, stop):
+        self._store = store
+        self._stop = stop
+
+    def __getattr__(self, name):
+        return getattr(self._store, name)
+
+    def commit(self, *args, **kwargs):
+        if self._stop.is_set():
             return False
-        if not store.mark_complete():
-            return False
-    return True
+        return self._store.commit(*args, **kwargs)
+
+
+def _crawl_source(
+    run_id, token, db_engine, connector_factory, job, source, priors, isolate, stop=None
+):
+    # The policy recorded at run creation, never one re-resolved from
+    # current server settings, so recovery and retries keep the same limits.
+    policy = (job.snapshot.get("fetch_policies") or {}).get(source.id)
+    if policy is None:
+        raise ConnectorFailure(
+            ConnectorIssue(
+                code="missing_fetch_policy",
+                message="This run has no recorded Website fetch limits. Start a new run.",
+                retryable=False,
+            )
+        )
+    store = website_crawl.RunCrawlStore(db_engine, run_id, token, source.id)
+    connector = connector_factory() if connector_factory else WebsiteConnector()
+    try:
+        crawled = connector.crawl(
+            source.config,
+            policy,
+            priors,
+            store if stop is None else _StoppableStore(store, stop),
+        )
+    except ConnectorFailure as exc:
+        if not isolate or exc.issue.retryable:
+            raise
+        return store.mark_failed(exc.issue)
+    if not crawled:
+        return False
+    return store.mark_complete()
 
 
 OUTCOMES_STATE = "__outcomes__"

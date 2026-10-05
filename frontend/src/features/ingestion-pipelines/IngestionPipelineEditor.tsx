@@ -1022,7 +1022,9 @@ export function IngestionPipelineEditor({
               perSourceSaved
                 ? 'Collect sources & publish indexes'
                 : websiteSource
-                  ? 'Collect source & publish index'
+                  ? sourceNodes(draft).length > 1
+                    ? 'Collect sources & publish index'
+                    : 'Collect source & publish index'
                   : 'Run ingestion'
             }
             canPreview={validation.length === 0 && !runActive}
