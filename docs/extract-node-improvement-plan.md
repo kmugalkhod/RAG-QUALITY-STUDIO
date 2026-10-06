@@ -1,6 +1,6 @@
 # Extract node improvement plan
 
-Status: approved 2026-10-06 (owner accepted D1–D3); Slice 0 in progress
+Status: approved 2026-10-06 (owner accepted D1–D3); Slice 0 done 2026-10-06; Slice 1 next
 Scope owner: ingestion Extract stage (backend extractors, schema-v2 Extract node, Extract settings panel)
 Related: `docs/robust-ingestion-plan.md` (Phase 2 design this builds on), `docs/ingestion-corpus-baseline.md` (current measured gate), `docs/extract-ingestion-qa-findings.csv` (2026-09-26 QA pass)
 
@@ -24,6 +24,7 @@ Each finding was checked against the code; F1 was reproduced with a generated PD
 | F6 | **Legacy `native-text-v1` PDF extraction is never measured or quality-checked.** | `extract_document`, `pdf.py:833-841`, skips `measured_document` and `evaluate_quality`. | A scanned PDF on a legacy pipeline produces no findings at all. |
 | F7 | **Website (and Notion/Confluence) ignore strategy, OCR and table mode, but the Extract panel still shows them.** | `website_ingestion._canonical_chunks` uses only the quality and language policies; `IngestionNodeSettings.tsx:755` is not source-aware. | Controls that have no effect, contrary to the AGENTS.md frontend rules. |
 | F8 | **DOCX tables ignore the `tables` setting** and are written as one `| a | b |` block per row with no header. | `formats._docx_segments`. | A row chunk without its header row loses the meaning of each column. |
+| F10 | **Auto loses all structure on plain single-column PDFs.** Auto uses layout blocks only when it detects a table, multiple columns or a native/layout character difference above 25%; otherwise the page becomes one native-text block. Found by the Slice 0 corpus. | `extract_document`, Auto branch (`pdf.py:947-960`); Slice 0 baseline: Auto heading recall 0%. | Auto is the default for robust extraction, so most ordinary PDFs reach Clean and Chunk with no headings, block types or boxes, and the F3/F4 fixes would not reach them. |
 | F9 | **Smaller issues.** `installed_ocr_languages()` starts a Tesseract process on every PDF extraction, even with OCR off; the 20-character OCR fallback threshold is hard-coded; image regions on pages that also contain native text are never OCR'd; language detection has stopwords only for en/es/fr/de. | `pdf.py:843`, `pdf.py:896`, `language.py`. | Extra latency per document, plus limited coverage. |
 
 ## 3. Decisions
@@ -53,7 +54,7 @@ PyMuPDF suggests the separate `pymupdf_layout` package for better layout analysi
 
 Each slice is a reviewable vertical change with tests, committed to local `main` after verification. Backend checks run in the isolated test stack (`compose.test.yaml`); frontend checks are lint, typecheck, Vitest and a browser pass at `http://127.0.0.1:5273` where the UI changes.
 
-### Slice 0 — Harder extraction corpus (baseline, no behavior change)
+### Slice 0 — Harder extraction corpus (baseline, no behavior change) — done 2026-10-06
 
 Make the corpus able to detect F1–F5 and F8, and record current numbers as the "before".
 
@@ -67,6 +68,8 @@ Make the corpus able to detect F1–F5 and F8, and record current numbers as the
 - Record the current values in `docs/ingestion-corpus-baseline.md` under a dated "Before Extract v2" section. Tests that encode the target behavior are added in later slices; this slice only measures.
 
 **Done when:** the report runs in the test stack and the baseline shows the F1 interleaving (reading-order pairs below 100%) and F2 truncation (cell retention below 100%) as measured numbers.
+
+**Result:** `backend/tests/extract_corpus.py` generates the fixtures and measures them; `backend/tests/test_extract_corpus.py` pins the `layout-ocr-v1` values and the SHA-256 of each non-OCR fixture's output (`extract_v1_golden.json`). Every targeted finding reproduced (reading order 80%, table cell retention 40.65% with a Balanced `fail`, heading-path coverage 0%, two titles, DOCX header coverage 0%, four OCR blocks for one paragraph), and the corpus found F10. Numbers are in `docs/ingestion-corpus-baseline.md`, "Before Extract v2".
 
 ### Slice 1 — `layout-ocr-v2` versioning and the reading-order fix (F1)
 
@@ -92,7 +95,7 @@ The first real behavior change.
 
 **Done when:** large-table cell retention is 100% on the corpus and Balanced publishes the 40-row fixture.
 
-### Slice 3 — PDF heading classification and heading paths (F3, F4)
+### Slice 3 — PDF heading classification, heading paths and structure under Auto (F3, F4, F10)
 
 - Heading rules in v2:
   - bold counts only when bold spans cover at least 80% of the block's characters;
@@ -100,11 +103,12 @@ The first real behavior change.
   - `title` only for the largest-font block on the first page;
   - heading level from document-wide ranking of distinct heading font sizes (largest = level 1, at most 6 levels).
 - Keep a heading stack across pages and set `heading_path` on every following block, the same way `formats._markdown_segments` does.
+- In v2, Auto uses the layout blocks for every page with native text, and falls back to the single native block only when layout extraction loses text (layout characters more than 25% below native). The page's `fallback_reason` records which was used.
 - No chunker change is needed: once body blocks carry the heading path, `_sections()` groups a heading with its paragraphs.
 
 **Tests:** a paragraph with one bold term stays a paragraph; H1/H2 levels and paths are correct; heading path continues across a page break; the chunk preview for the fixture starts body chunks with `Section: …`; heading precision and recall measured on the corpus; v1 unchanged.
 
-**Done when:** heading-path coverage of body blocks is above 95% on the heading fixture and no heading-only chunks are produced for it.
+**Done when:** heading-path coverage of body blocks is above 95% on the heading fixture under both Auto and Layout-aware, exactly one title block is detected, and no heading-only chunks are produced for it.
 
 ### Slice 4 — OCR paragraph blocks and lower overhead (F5, part of F9)
 

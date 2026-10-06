@@ -1,0 +1,14 @@
+{
+  "docx_table/auto": "f528246ed9b2805681c8c328af6e8a8c3a0202ad0001a8bba1b8237335c5bd36",
+  "docx_table/layout_aware": "f528246ed9b2805681c8c328af6e8a8c3a0202ad0001a8bba1b8237335c5bd36",
+  "docx_table/native": "f528246ed9b2805681c8c328af6e8a8c3a0202ad0001a8bba1b8237335c5bd36",
+  "headings/auto": "d59b07cbe535231b82ef723121c7902a35cd851d92b5eaa130923d29242532aa",
+  "headings/layout_aware": "5016044b125e89f301efb15fc6acb41d5347f7a13047750d2494ae7c56aee59d",
+  "headings/native": "d59b07cbe535231b82ef723121c7902a35cd851d92b5eaa130923d29242532aa",
+  "large_table/auto": "f828d49c93e4755c2dd1270aa5f5ec23d510ed752edadea3704f04f3105df440",
+  "large_table/layout_aware": "5ed43f7f601419b16c2a7b332318d01821753e9a159f5d81d4a759172a0c9060",
+  "large_table/native": "be52d1abf02b37a7ffbe8ff70d9ba06702b35b9ba1646dd80d7fba6f6cbf5dbf",
+  "two_column/auto": "61d6ff2bd9c991fe6d99a90205bb1f90ee32a7938b0eb6f299ef00ded3af387d",
+  "two_column/layout_aware": "73797d2353f7b6a0e7ee958cba598b72a6eeb67f10027a39ac04422467f7b205",
+  "two_column/native": "8346e316ae349f8250b5fc3ae9352e94514e1d6f62bad05d7c0e59c217059a40"
+}
