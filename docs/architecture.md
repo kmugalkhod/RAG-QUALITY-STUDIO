@@ -479,6 +479,13 @@ v2 column test needs narrow blocks on both halves of the page so headings and in
 list items do not read as columns. The trade-off is that a body-size, fully bold short
 line is treated as a heading even when an author meant emphasis.
 
+v2 OCR (Slice 4) groups Tesseract words by block and paragraph rather than by line and
+keeps the engine's order instead of re-sorting blocks by position, which would
+interleave scanned columns as v1 does for native ones. Each paragraph block records
+`line_count` and up to 100 normalized `line_boxes`. `installed_ocr_languages()` caches
+its result per process for five minutes, and extraction reads it only when OCR is on;
+both are runtime-only changes that do not alter v1 output.
+
 The inspector fetches project-scoped, annotation-free PNG thumbnails from the immutable
 raw artifact and overlays normalized block geometry in the browser. Structured table
 rows and their deterministic Markdown/plain-text evidence are both bounded. See the

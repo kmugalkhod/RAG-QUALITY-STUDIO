@@ -160,7 +160,23 @@ def _run_tesseract(
         ) from exc
 
 
+OCR_LANGUAGE_CACHE_SECONDS = 300
+_ocr_language_cache: tuple[float, list[str]] | None = None
+
+
 def installed_ocr_languages() -> list[str]:
+    """Installed Tesseract language packs, cached per process for five minutes."""
+
+    global _ocr_language_cache
+    now = time.monotonic()
+    if _ocr_language_cache is not None and now < _ocr_language_cache[0]:
+        return list(_ocr_language_cache[1])
+    languages = _list_ocr_languages()
+    _ocr_language_cache = (now + OCR_LANGUAGE_CACHE_SECONDS, languages)
+    return list(languages)
+
+
+def _list_ocr_languages() -> list[str]:
     try:
         result = _run_tesseract(
             ["tesseract", "--list-langs"], timeout=5, stdout=subprocess.PIPE
@@ -992,11 +1008,85 @@ def _deskew_angle(image: Image.Image) -> float:
     return best_angle if abs(best_angle) >= 0.5 else 0.0
 
 
+MAX_OCR_LINE_BOXES = 100
+
+
+def _ocr_paragraphs(
+    rows: list[dict[str, str]],
+    *,
+    image_width: int,
+    image_height: int,
+    page_number: int,
+    attributes: dict[str, Any],
+) -> list[CanonicalInputSegment]:
+    """One block per Tesseract paragraph, lines joined in engine reading order."""
+
+    paragraphs: dict[tuple[str, str], dict[str, list[dict[str, str]]]] = {}
+    for row in rows:
+        paragraph = (row.get("block_num", "0"), row.get("par_num", "0"))
+        paragraphs.setdefault(paragraph, {}).setdefault(
+            row.get("line_num", "0"), []
+        ).append(row)
+
+    def bounds(group: list[dict[str, str]]) -> tuple[int, int, int, int]:
+        return (
+            min(int(row.get("left") or 0) for row in group),
+            min(int(row.get("top") or 0) for row in group),
+            max(
+                int(row.get("left") or 0) + int(row.get("width") or 0) for row in group
+            ),
+            max(
+                int(row.get("top") or 0) + int(row.get("height") or 0) for row in group
+            ),
+        )
+
+    segments = []
+    for lines in paragraphs.values():
+        texts = [
+            " ".join((row.get("text") or "").strip() for row in words).strip()
+            for words in lines.values()
+        ]
+        text = "\n".join(value for value in texts if value)
+        if not text:
+            continue
+        words = [row for line in lines.values() for row in line]
+        line_boxes = []
+        for line in list(lines.values())[:MAX_OCR_LINE_BOXES]:
+            box = _normalized_box(bounds(line), image_width, image_height)
+            if box is not None:
+                line_boxes.append(
+                    [
+                        round(box.left, 4),
+                        round(box.top, 4),
+                        round(box.right, 4),
+                        round(box.bottom, 4),
+                    ]
+                )
+        segments.append(
+            CanonicalInputSegment(
+                text=text,
+                page_number=page_number,
+                block_type="paragraph",
+                bounding_box=_normalized_box(bounds(words), image_width, image_height),
+                attributes={
+                    **attributes,
+                    "engine_confidence": round(
+                        statistics.mean(float(row.get("conf") or 0) for row in words), 3
+                    ),
+                    "line_count": len(lines),
+                    "line_boxes": line_boxes,
+                },
+            )
+        )
+    return segments
+
+
 def _ocr_page(
     page: pymupdf.Page,
     *,
     page_number: int,
     settings: OcrSettings,
+    paragraphs: bool = False,
 ) -> tuple[list[CanonicalInputSegment], float | None, int, float]:
     width_pixels = math.ceil(float(page.rect.width) * settings.dpi / 72)
     height_pixels = math.ceil(float(page.rect.height) * settings.dpi / 72)
@@ -1082,6 +1172,26 @@ def _ocr_page(
         )
         groups.setdefault(key, []).append(row)
     image_width, image_height = image.size
+    if paragraphs:
+        # layout-ocr-v2 keeps Tesseract's block and paragraph order (plan Slice 4).
+        return (
+            _ocr_paragraphs(
+                [row for group in groups.values() for row in group],
+                image_width=image_width,
+                image_height=image_height,
+                page_number=page_number,
+                attributes={
+                    "origin": "ocr",
+                    "engine": "tesseract",
+                    "languages": list(settings.languages),
+                    "rotation_applied": rotation,
+                    "deskew_degrees": deskew,
+                },
+            ),
+            statistics.median(confidences) if confidences else None,
+            rotation,
+            deskew,
+        )
     segments = []
     for group in groups.values():
         text = " ".join((row.get("text") or "").strip() for row in group).strip()
@@ -1228,10 +1338,9 @@ def extract_document(
             document = apply_language_policy(document, settings.language_policy)
         return document, NativeTextExtractor.version
 
-    available_languages = set(installed_ocr_languages())
-    if (
-        settings.ocr.mode != "off"
-        and not set(settings.ocr.languages) <= available_languages
+    # The language list is only needed, and only read, when OCR can run.
+    if settings.ocr.mode != "off" and not set(settings.ocr.languages) <= set(
+        installed_ocr_languages()
     ):
         raise IngestionStageError(
             "extract",
@@ -1294,7 +1403,10 @@ def extract_document(
                         "OCR exceeded the configured document page limit.",
                     )
                 page_segments, confidence, applied_rotation, _ = _ocr_page(
-                    page, page_number=page_number, settings=settings.ocr
+                    page,
+                    page_number=page_number,
+                    settings=settings.ocr,
+                    paragraphs=layout_v2,
                 )
                 rotation = (rotation + applied_rotation) % 360
                 origin = "ocr"

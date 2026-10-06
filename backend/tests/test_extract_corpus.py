@@ -94,6 +94,8 @@ def test_layout_ocr_v2_extract_quality(tmp_path):
         "layout_aware_heading_recall_percent": 100.0,
         "layout_aware_title_blocks": 1,
         "layout_aware_heading_path_coverage_percent": 100.0,
+        # Slice 4: one OCR block per scanned paragraph.
+        "ocr_blocks_for_paragraph": 1,
     }
     if not include_ocr:
         expected.pop("ocr_blocks_for_paragraph", None)

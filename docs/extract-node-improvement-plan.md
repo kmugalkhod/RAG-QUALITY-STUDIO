@@ -1,6 +1,6 @@
 # Extract node improvement plan
 
-Status: approved 2026-10-06 (owner accepted D1–D3); Slices 0–3 done (Slices 2–3 on 2026-10-07); Slice 4 next
+Status: approved 2026-10-06 (owner accepted D1–D3); Slices 0–4 done (Slices 2–4 on 2026-10-07); Slice 5 next
 Scope owner: ingestion Extract stage (backend extractors, schema-v2 Extract node, Extract settings panel)
 Related: `docs/robust-ingestion-plan.md` (Phase 2 design this builds on), `docs/ingestion-corpus-baseline.md` (current measured gate), `docs/extract-ingestion-qa-findings.csv` (2026-09-26 QA pass)
 
@@ -116,7 +116,7 @@ The first real behavior change.
 
 **Result:** under v2, heading precision, recall and heading-path coverage are 100% under both Auto and Layout-aware, with one title (v1 Auto: 0% for all; v1 Layout-aware: 83.3% precision, two titles, 0% paths). Every heading that is followed by body text shares its chunk, and each body chunk's embedding text starts with its `Section:` path. The criterion was clarified during implementation: a title followed directly by a heading still forms its own small chunk, exactly as a Markdown `# Title` followed by `## Section` does today, because the chunker does not merge sections. A 4-page HTML-rendered PDF with 13 headings, inline bold, lists and a bold-led paragraph gave no missed or false headings. The v2 Auto column test was tightened because short headings and indented lists made single-column pages report `multiple_columns_detected`; they now report `layout_structure`.
 
-### Slice 4 — OCR paragraph blocks and lower overhead (F5, part of F9)
+### Slice 4 — OCR paragraph blocks and lower overhead (F5, part of F9) — done 2026-10-07
 
 - In v2, group Tesseract rows by `(block, paragraph)`, join lines with `\n` in reading order, and keep per-line boxes in bounded attributes for the inspector.
 - Cache `installed_ocr_languages()` per worker process with a short expiry (for example five minutes), and skip the call when OCR mode is `off`.
@@ -125,6 +125,8 @@ The first real behavior change.
 **Tests:** multi-line OCR paragraph is one block; confidence is the mean over its words; character error rate unchanged or better versus the Slice 0 baseline; OCR-off extraction runs no Tesseract subprocess (mocked).
 
 **Done when:** OCR blocks per paragraph is 1 on the corpus fixture and the OCR character-error gates in the baseline still pass.
+
+**Result:** the four-line scanned paragraph is one block under v2 (v1: four), with the same 0% character error rate and page confidence; the Phase 2 OCR gates still pass. v2 also keeps Tesseract's block order instead of a geometric re-sort, so scanned two-column pages follow the same rule as Slice 1. Extraction with OCR off no longer lists language packs (for v1 too, since the list was unused there), and the list is cached per process for five minutes. The `fallback_threshold_characters` page field was dropped: `ExtractedPage` is a strict contract, and the existing reason `native_text_below_20_characters` already records the threshold.
 
 ### Slice 5 — DOCX tables follow the table setting (F8)
 
