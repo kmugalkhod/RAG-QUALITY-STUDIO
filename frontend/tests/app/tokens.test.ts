@@ -117,6 +117,7 @@ const pairs: [string, string[], number][] = [
   ['--border-strong', ['--background', '--surface'], 3],
   ['--accent', ['--background', '--surface', '--surface-hover'], 3],
   ['--highlight', ['--banner'], 3],
+  ['--scrollbar', ['--background', '--surface'], 3],
 ];
 
 describe.each([
@@ -139,7 +140,7 @@ it('defines every color token in both themes', () => {
       !/radius|opacity|transition|shadow|icon/.test(name) &&
       !/^--(?:surface|surface-hover|danger)-fill-(?:hover|pressed)$/.test(name),
   );
-  expect(names).toHaveLength(25);
+  expect(names).toHaveLength(26);
   for (const name of names) {
     expect(light[name]).toBeTruthy();
   }

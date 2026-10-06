@@ -9,7 +9,7 @@ import { pageHref, pages } from './pages';
 import { navigationGroups, pipelineKindOf, type NavItem } from './shellNavigation';
 
 type ShellSidebarProps = {
-  route: { projectId?: string; page: string; query: URLSearchParams };
+  route: { projectId?: string; page: string; detail?: string; query: URLSearchParams };
   current?: Project;
   projects: Project[];
   profile: ReactNode;
@@ -103,7 +103,19 @@ function initials(name: string) {
 export function ShellSidebar({ route, current, projects, profile }: ShellSidebarProps) {
   const { projectId, page } = route;
   const [state, setState] = useSidebarState();
-  const { collapsed } = state;
+  // Pipeline editors start with the sidebar as icons so the canvas gets the width. Expanding
+  // it there lasts until the editor is left; the remembered preference is not changed.
+  const editor = page === 'pipelines' && !!route.detail && route.detail !== 'setup';
+  const editorKey = editor ? `${projectId}/${route.detail}` : '';
+  const [expandedIn, setExpandedIn] = useState('');
+  const collapsed = editor ? expandedIn !== editorKey : state.collapsed;
+  const toggleCollapsed = () => {
+    if (editor) {
+      setExpandedIn(collapsed ? editorKey : '');
+    } else {
+      setState((value) => ({ ...value, collapsed: !value.collapsed }));
+    }
+  };
   const groups = navigationGroups(route);
   const kind = pipelineKindOf(route);
   const subOpen = !collapsed && state.pipelinesOpen;
@@ -143,7 +155,7 @@ export function ShellSidebar({ route, current, projects, profile }: ShellSidebar
             aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             aria-expanded={!collapsed}
-            onClick={() => setState((value) => ({ ...value, collapsed: !value.collapsed }))}
+            onClick={toggleCollapsed}
           >
             <PanelLeft aria-hidden="true" className="text-foreground-muted" />
           </Button>

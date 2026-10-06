@@ -114,3 +114,25 @@ it('falls back to the defaults when the stored state is unreadable', () => {
   render(<Sidebar />);
   expect(screen.getByRole('button', { name: 'Collapse sidebar' })).toBeVisible();
 });
+
+it('shows icons in a pipeline editor without changing the remembered preference', async () => {
+  const user = userEvent.setup();
+  const editor = (detail: string) => (
+    <ShellSidebar
+      route={{ projectId: project.id, page: 'pipelines', detail, query: new URLSearchParams() }}
+      current={project}
+      projects={[]}
+      profile={null}
+    />
+  );
+  const { rerender } = render(editor('pipeline-1'));
+  expect(screen.getByRole('button', { name: 'Expand sidebar' })).toBeVisible();
+  await user.click(screen.getByRole('button', { name: 'Expand sidebar' }));
+  expect(screen.getByRole('button', { name: 'Collapse sidebar' })).toBeVisible();
+  // Another editor starts collapsed again; the guided setup and other pages keep the preference.
+  rerender(editor('pipeline-2'));
+  expect(screen.getByRole('button', { name: 'Expand sidebar' })).toBeVisible();
+  rerender(editor('setup'));
+  expect(screen.getByRole('button', { name: 'Collapse sidebar' })).toBeVisible();
+  expect(JSON.parse(localStorage.getItem('rqs.sidebar') ?? '{}').collapsed).toBe(false);
+});

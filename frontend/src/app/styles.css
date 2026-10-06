@@ -29,6 +29,7 @@
   --banner: #0e1726;
   --banner-border: #1b2940;
   --track: #2a2d33;
+  --scrollbar: #62666f;
   --highlight: #e0a63c;
   --success: #55b273;
   --warning: #d6a043;
@@ -70,6 +71,7 @@
   --banner: #eef4fc;
   --banner-border: #d2e1f5;
   --track: #dfe2e6;
+  --scrollbar: #7a7e85;
   --highlight: #9a6a0e;
   --success: #2a7243;
   --warning: #835a0e;
@@ -204,6 +206,9 @@
        strips and canvas share that height. Preview and run results take part of the canvas. */
     --ingestion-workspace: max(560px, calc(100dvh - var(--shell-chrome)));
     --ingestion-drawer: 45%;
+    /* Below desktop, preview and run results scroll inside this height instead of growing the
+       page (a page of run items can be thousands of pixels tall). */
+    --results-compact: 70dvh;
     /* The ingestion toolbar name field narrows to this before its actions wrap to a new row. */
     --toolbar-name-min: 128px;
     font-family: var(--font-sans);
@@ -222,6 +227,11 @@
   :focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: 2px;
+  }
+  /* Thin scrollbars in the theme's colors, without arrow buttons (spec 0003 follow-up). */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar) transparent;
   }
   /* Element rules the screens still rely on. */
   body {
