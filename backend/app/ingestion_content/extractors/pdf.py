@@ -50,6 +50,11 @@ LAYOUT_OCR_EXTRACTOR_VERSION = (
     f"pypdf-{pypdf_version}/pymupdf-{pymupdf.VersionBind}/tesseract-cli-v2/"
     f"{FORMAT_EXTRACTOR_VERSION}"
 )
+# layout-ocr-v2 keeps the computed column reading order (plan Slice 1).
+LAYOUT_OCR_V2_EXTRACTOR_VERSION = (
+    f"pypdf-{pypdf_version}/pymupdf-{pymupdf.VersionBind}/tesseract-cli-v2/"
+    f"layout-v2/{FORMAT_EXTRACTOR_VERSION}"
+)
 MAX_OCR_PIXELS_PER_PAGE = 20_000_000
 MAX_OCR_OUTPUT_BYTES = 5_000_000
 MAX_LAYOUT_BLOCKS_PER_PAGE = 10_000
@@ -287,11 +292,10 @@ def extraction_capabilities() -> dict[str, Any]:
 
 
 def extractor_version_for_settings(settings: ExtractSettings) -> str:
-    return (
-        NativeTextExtractor.version
-        if settings.config_version == "native-text-v1"
-        else LAYOUT_OCR_EXTRACTOR_VERSION
-    )
+    return {
+        "native-text-v1": NativeTextExtractor.version,
+        "layout-ocr-v2": LAYOUT_OCR_V2_EXTRACTOR_VERSION,
+    }.get(settings.config_version, LAYOUT_OCR_EXTRACTOR_VERSION)
 
 
 def _normalized_box(
@@ -483,11 +487,53 @@ def _safe_table(rows: list[list[Any]], mode: str) -> tuple[str, dict[str, Any], 
     return evidence or "[Empty table]", attributes, truncated
 
 
+def _overlaps_horizontally(first: BoundingBox, second: BoundingBox) -> bool:
+    return first.left < second.right and second.left < first.right
+
+
+def _place_tables(
+    ordered: list[CanonicalInputSegment], tables: list[CanonicalInputSegment]
+) -> list[CanonicalInputSegment]:
+    """Insert tables into a computed reading order without re-sorting the text.
+
+    A table follows the last segment above it in the same column band. With no such
+    segment it precedes the first segment below it, and otherwise ends the page.
+    """
+
+    result = list(ordered)
+    for table in tables:
+        box = table.bounding_box
+        if box is None:
+            result.append(table)
+            continue
+        above = [
+            index
+            for index, item in enumerate(result)
+            if item.bounding_box is not None
+            and item.bounding_box.top < box.top
+            and _overlaps_horizontally(item.bounding_box, box)
+        ]
+        if above:
+            result.insert(above[-1] + 1, table)
+            continue
+        below = next(
+            (
+                index
+                for index, item in enumerate(result)
+                if item.bounding_box is not None and item.bounding_box.top >= box.top
+            ),
+            len(result),
+        )
+        result.insert(below, table)
+    return result
+
+
 def _layout_page(
     page: pymupdf.Page,
     *,
     page_number: int,
     table_mode: str,
+    keep_reading_order: bool = False,
 ) -> tuple[list[CanonicalInputSegment], int, int, bool]:
     width, height = float(page.rect.width), float(page.rect.height)
     dictionary = page.get_text("dict", sort=False)
@@ -551,10 +597,11 @@ def _layout_page(
                 attributes={"origin": "layout", "engine": "pymupdf"},
             )
         )
+    table_segments = []
     for rows, box in sorted(tables, key=lambda value: (value[1][1], value[1][0])):
         evidence, attributes, truncated = _safe_table(rows, table_mode)
         malformed += int(truncated)
-        segments.append(
+        table_segments.append(
             CanonicalInputSegment(
                 text=evidence,
                 page_number=page_number,
@@ -563,6 +610,15 @@ def _layout_page(
                 attributes=attributes,
             )
         )
+    if keep_reading_order:
+        return (
+            _place_tables(segments, table_segments),
+            len(tables),
+            malformed,
+            suspicious,
+        )
+    # layout-ocr-v1 (frozen): this geometric sort interleaves column blocks.
+    segments.extend(table_segments)
     segments.sort(
         key=lambda item: (
             item.bounding_box.top if item.bounding_box else 2.0,
@@ -925,7 +981,10 @@ def extract_document(
             else:
                 layout_segments, page_tables, page_malformed, page_suspicious = (
                     _layout_page(
-                        page, page_number=page_number, table_mode=settings.tables
+                        page,
+                        page_number=page_number,
+                        table_mode=settings.tables,
+                        keep_reading_order=settings.config_version == "layout-ocr-v2",
                     )
                 )
                 layout_characters = sum(len(item.text) for item in layout_segments)
@@ -1017,7 +1076,7 @@ def extract_document(
     document = evaluate_quality(document, settings.quality_policy)
     if getattr(settings, "language_policy", None) is not None:
         document = apply_language_policy(document, settings.language_policy)
-    return document, LAYOUT_OCR_EXTRACTOR_VERSION
+    return document, extractor_version_for_settings(settings)
 
 
 def render_pdf_thumbnail(

@@ -50,6 +50,12 @@ export const defaultSensitiveDataPolicy: SensitiveDataPolicy = {
   government_id_formats: ['us_ssn', 'in_aadhaar'],
 };
 
+/** New drafts use the current extractor; saved layout-ocr-v1 versions stay frozen. */
+export const currentExtractVersion = 'layout-ocr-v2';
+
+export const isLayoutExtractVersion = (version: string | undefined) =>
+  version === 'layout-ocr-v1' || version === currentExtractVersion;
+
 export const terminalIngestionStatuses = new Set(['succeeded', 'failed', 'cancelled', 'expired']);
 
 export const defaultQualityPolicy: QualityPolicy = {
@@ -654,7 +660,7 @@ export function defaultIngestionDraft(
           defaultQualityPolicy,
       ),
       language_policy: structuredClone(defaultLanguagePolicy),
-      config_version: 'layout-ocr-v1',
+      config_version: currentExtractVersion,
     },
     {
       id: 'clean',
@@ -753,7 +759,7 @@ export function describeIngestionNode(node: IngestionNode, documents: Document[]
     return node.knowledge_set_name;
   }
   if (node.type === 'extract') {
-    if (node.config_version !== 'layout-ocr-v1') {
+    if (!isLayoutExtractVersion(node.config_version)) {
       return 'Native text · compatibility';
     }
     const strategy =
@@ -762,7 +768,8 @@ export function describeIngestionNode(node: IngestionNode, documents: Document[]
         : node.strategy === 'native'
           ? 'Native'
           : 'Auto';
-    return `${strategy} · OCR ${node.ocr?.mode ?? 'off'}`;
+    const summary = `${strategy} · OCR ${node.ocr?.mode ?? 'off'}`;
+    return node.config_version === currentExtractVersion ? summary : `${summary} · upgrade available`;
   }
   if (node.type === 'clean') {
     return node.profile === 'structure-aware-v1'

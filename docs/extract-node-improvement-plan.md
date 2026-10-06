@@ -1,6 +1,6 @@
 # Extract node improvement plan
 
-Status: approved 2026-10-06 (owner accepted D1–D3); Slice 0 done 2026-10-06; Slice 1 next
+Status: approved 2026-10-06 (owner accepted D1–D3); Slices 0–1 done 2026-10-06; Slice 2 next
 Scope owner: ingestion Extract stage (backend extractors, schema-v2 Extract node, Extract settings panel)
 Related: `docs/robust-ingestion-plan.md` (Phase 2 design this builds on), `docs/ingestion-corpus-baseline.md` (current measured gate), `docs/extract-ingestion-qa-findings.csv` (2026-09-26 QA pass)
 
@@ -71,7 +71,7 @@ Make the corpus able to detect F1–F5 and F8, and record current numbers as the
 
 **Result:** `backend/tests/extract_corpus.py` generates the fixtures and measures them; `backend/tests/test_extract_corpus.py` pins the `layout-ocr-v1` values and the SHA-256 of each non-OCR fixture's output (`extract_v1_golden.json`). Every targeted finding reproduced (reading order 80%, table cell retention 40.65% with a Balanced `fail`, heading-path coverage 0%, two titles, DOCX header coverage 0%, four OCR blocks for one paragraph), and the corpus found F10. Numbers are in `docs/ingestion-corpus-baseline.md`, "Before Extract v2".
 
-### Slice 1 — `layout-ocr-v2` versioning and the reading-order fix (F1)
+### Slice 1 — `layout-ocr-v2` versioning and the reading-order fix (F1) — done 2026-10-06
 
 The first real behavior change.
 
@@ -83,6 +83,8 @@ The first real behavior change.
 **Tests:** v2 multi-block two-column order is `L1 L2 L3 R1 R2 R3`; a table placed between paragraphs keeps its position; v1 output for the existing corpus is unchanged (golden comparison); the processing hash differs between v1 and v2; schema rejects `native_text` with v2; frontend unit test for the upgrade action.
 
 **Done when:** corpus reading-order pairs reach 100% on the new fixture under v2, v1 output is unchanged, and the upgrade flow works in the browser.
+
+**Result:** v2 reading-order pairs are 100% under Auto and Layout-aware (v1: 80%); every other corpus measure is unchanged, and the v1 digests still match. A table at the bottom of a left column now precedes the right column. The OpenAPI reference was updated by hand for the new enum value because `generate_api_reference.py` already fails on the unclassified `/api/projects/{project_id}/answer-deployments` route, which is outside this plan.
 
 ### Slice 2 — PDF table row groups instead of truncation (F2)
 

@@ -628,7 +628,11 @@ class ExtractNodeV2(NodeBase):
     # New drafts persist a typed policy with an explicit warning publication action.
     quality_policy: QualityPolicyV1 | LegacyQualityPolicy = "default-v1"
     language_policy: LanguagePolicyV1 = Field(default_factory=LanguagePolicyV1)
-    config_version: Literal["native-text-v1", "layout-ocr-v1"] = "native-text-v1"
+    # layout-ocr-v1 is frozen so saved versions reproduce; layout-ocr-v2 carries the
+    # extraction fixes from docs/extract-node-improvement-plan.md.
+    config_version: Literal["native-text-v1", "layout-ocr-v1", "layout-ocr-v2"] = (
+        "native-text-v1"
+    )
 
     @model_validator(mode="after")
     def versioned_settings(self):
@@ -639,7 +643,8 @@ class ExtractNodeV2(NodeBase):
                 )
         elif self.strategy == "native_text":
             raise ValueError(
-                "layout-ocr-v1 extraction requires Auto, Native or Layout-aware strategy."
+                f"{self.config_version} extraction requires Auto, Native or "
+                "Layout-aware strategy."
             )
         return self
 

@@ -64,3 +64,20 @@ def test_layout_ocr_v1_extract_quality_baseline(tmp_path):
     if not include_ocr:
         expected.pop("ocr_blocks_for_paragraph", None)
     assert report == expected
+
+
+def test_layout_ocr_v2_keeps_column_reading_order(tmp_path):
+    """Slice 1 changes only reading order; every other measure matches v1."""
+
+    include_ocr = "eng" in extraction.installed_ocr_languages()
+    report = measure_extract_corpus(
+        tmp_path, config_version="layout-ocr-v2", include_ocr=include_ocr
+    )
+    expected = {
+        **V1_BASELINE,
+        "auto_reading_order_percent": 100.0,
+        "layout_aware_reading_order_percent": 100.0,
+    }
+    if not include_ocr:
+        expected.pop("ocr_blocks_for_paragraph", None)
+    assert report == expected

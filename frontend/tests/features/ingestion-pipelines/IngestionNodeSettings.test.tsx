@@ -60,7 +60,13 @@ test('edits algorithm-specific chunk settings without mixing incompatible fields
   expect(screen.queryByLabelText('Target tokens')).not.toBeInTheDocument();
 });
 
-function PolicyHarness({ kind }: { kind: 'extract' | 'clean' }) {
+function PolicyHarness({
+  kind,
+  extractVersion = 'layout-ocr-v2',
+}: {
+  kind: 'extract' | 'clean';
+  extractVersion?: string;
+}) {
   const [node, setNode] = useState<IngestionNode>(
     kind === 'extract'
       ? {
@@ -77,7 +83,7 @@ function PolicyHarness({ kind }: { kind: 'extract' | 'clean' }) {
             timeout_seconds: 30,
           },
           tables: 'preserve',
-          config_version: 'layout-ocr-v1',
+          config_version: extractVersion,
         }
       : {
           id: 'clean',
@@ -151,4 +157,21 @@ test('edits exact and near-duplicate decisions with a visible threshold', () => 
     'project-file:one, https://example.com/copy',
   );
   expect(screen.getByText(/Canonical order: pinned source/i)).toBeInTheDocument();
+});
+
+test('offers a saved layout-ocr-v1 extractor an explicit upgrade', () => {
+  render(<PolicyHarness kind="extract" extractVersion="layout-ocr-v1" />);
+  expect(screen.getByText('Saved with layout-ocr-v1')).toBeInTheDocument();
+  expect(screen.getByLabelText('Extraction strategy')).toHaveValue('auto');
+
+  fireEvent.click(screen.getByRole('button', { name: 'Upgrade extraction' }));
+
+  expect(screen.queryByText('Saved with layout-ocr-v1')).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Upgrade extraction' })).not.toBeInTheDocument();
+  expect(screen.getByLabelText('Extraction strategy')).toHaveValue('auto');
+});
+
+test('shows no upgrade for the current extractor', () => {
+  render(<PolicyHarness kind="extract" />);
+  expect(screen.queryByRole('button', { name: 'Upgrade extraction' })).not.toBeInTheDocument();
 });

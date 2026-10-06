@@ -11,12 +11,14 @@ import { cn } from '../../../lib/utils';
 import type { ConnectionSettings, SourceConnection } from '../../connections/model';
 import type { Document, KnowledgeSet } from '../../documents/model';
 import {
+  currentExtractVersion,
   defaultDuplicatePolicy,
   defaultLanguagePolicy,
   defaultSensitiveDataPolicy,
   fallbackQualityPolicy,
   fieldErrorsForNode,
   ingestionStageLabels as labels,
+  isLayoutExtractVersion,
 } from '../editorModel';
 import type {
   ExistingFilesConfig,
@@ -758,7 +760,7 @@ export function IngestionNodeSettings({
               Extract readable text with page-level provenance. PDF layout and OCR fallbacks run
               offline inside bounded workers.
             </p>
-            {schemaVersion === 1 || selected.config_version !== 'layout-ocr-v1' ? (
+            {schemaVersion === 1 || !isLayoutExtractVersion(selected.config_version) ? (
               <>
                 <dl className={FACTS}>
                   <dt>Strategy</dt>
@@ -793,7 +795,7 @@ export function IngestionNodeSettings({
                           )?.settings ?? fallbackQualityPolicy('default-v1'),
                         ),
                         language_policy: structuredClone(defaultLanguagePolicy),
-                        config_version: 'layout-ocr-v1',
+                        config_version: currentExtractVersion,
                       })
                     }
                   >
@@ -803,6 +805,25 @@ export function IngestionNodeSettings({
               </>
             ) : (
               <>
+                {selected.config_version !== currentExtractVersion && (
+                  <Callout role="note" title={`Saved with ${selected.config_version}`}>
+                    <p>
+                      This version keeps its original extractor so earlier runs reproduce. The
+                      current extractor, {currentExtractVersion}, keeps the reading order of
+                      multi-column pages. Saving the upgrade creates a new pipeline version, and its
+                      next run processes documents again.
+                    </p>
+                    <div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => updateExtract({ config_version: currentExtractVersion })}
+                      >
+                        Upgrade extraction
+                      </Button>
+                    </div>
+                  </Callout>
+                )}
                 <Label>
                   Extraction strategy
                   <NativeSelect

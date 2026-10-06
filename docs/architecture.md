@@ -451,6 +451,16 @@ attempts commit neither chunks nor derivations and cannot advance a knowledge se
 current-ready pointer. Schema-v1 and `native-text-v1` schema-v2 executions retain their
 historical parser behavior and data.
 
+Extract configuration versions are frozen once released (decision D1 of
+[the Extract node improvement plan](extract-node-improvement-plan.md), 2026-10-06).
+`layout-ocr-v1` output is pinned by digests in `backend/tests/extract_corpus.py`; fixes
+ship in `layout-ocr-v2`, which has its own extractor version and therefore its own
+processing identity. New drafts default to v2 and saved v1 nodes upgrade only through
+an explicit draft change. The first v2 change keeps the computed column reading order
+and places each table after the last block above it in the same column band, where v1
+re-sorted every block by position and interleaved columns. The trade-off is that the
+extractor keeps small, version-gated branches instead of one current behavior.
+
 The inspector fetches project-scoped, annotation-free PNG thumbnails from the immutable
 raw artifact and overlays normalized block geometry in the browser. Structured table
 rows and their deterministic Markdown/plain-text evidence are both bounded. See the

@@ -13,7 +13,7 @@ from PIL import Image
 from pypdf import PdfReader, PdfWriter
 
 from app.ingestion_content.extractors import pdf as extraction
-from app.ingestion_content.processing import IngestionStageError
+from app.ingestion_content.processing import IngestionStageError, processing_identity
 from app.ingestion_content.quality import evaluate_quality, measured_document
 from app.schemas.ingestion import ExtractNodeV2
 
@@ -273,13 +273,15 @@ def test_extract_schema_preserves_legacy_and_rejects_mixed_versions():
             strategy="auto",
             config_version="native-text-v1",
         )
-    with pytest.raises(ValueError, match="requires Auto"):
-        ExtractNodeV2(
-            id="extract",
-            type="extract",
-            strategy="native_text",
-            config_version="layout-ocr-v1",
-        )
+    for version in ("layout-ocr-v1", "layout-ocr-v2"):
+        with pytest.raises(ValueError, match="requires Auto"):
+            ExtractNodeV2(
+                id="extract",
+                type="extract",
+                strategy="native_text",
+                config_version=version,
+            )
+    assert settings(config_version="layout-ocr-v2").strategy == "auto"
 
 
 def test_layout_profile_preserves_geometry_reading_order_and_table(tmp_path):
@@ -511,3 +513,98 @@ def test_table_payload_is_bounded():
     assert len(attributes["table"]["rows"]) <= 25
     assert all(len(row) <= 10 for row in attributes["table"]["rows"])
     assert len(evidence.encode()) < 16_000
+
+
+def _ruled_table(page: pymupdf.Page, left: float, top: float, labels: list[str]):
+    x_values = [left, left + 100, left + 200]
+    y_values = [top, top + 30, top + 60]
+    for x in x_values:
+        page.draw_line((x, y_values[0]), (x, y_values[-1]))
+    for y in y_values:
+        page.draw_line((x_values[0], y), (x_values[-1], y))
+    for index, label in enumerate(labels):
+        page.insert_text(
+            (x_values[index % 2] + 6, y_values[index // 2] + 20), label, fontsize=9
+        )
+
+
+def _paragraph(page: pymupdf.Page, rect: pymupdf.Rect, marker: str):
+    page.insert_textbox(
+        rect,
+        f"{marker} paragraph. Each review step keeps its owner, date and outcome.",
+        fontsize=10,
+    )
+
+
+def _order(document) -> list[str]:
+    return [
+        "TABLE" if block.type == "table" else block.text.split(" ")[0]
+        for block in document.blocks
+    ]
+
+
+def test_layout_ocr_v2_places_tables_inside_the_computed_reading_order(tmp_path):
+    single = tmp_path / "single.pdf"
+    with pymupdf.open() as document:
+        page = document.new_page(width=612, height=792)
+        _paragraph(page, pymupdf.Rect(54, 60, 558, 120), "Above")
+        _ruled_table(page, 54, 150, ["Head A", "Head B", "Cell A", "Cell B"])
+        _paragraph(page, pymupdf.Rect(54, 250, 558, 310), "Below")
+        document.save(single)
+
+    columns = tmp_path / "columns.pdf"
+    with pymupdf.open() as document:
+        page = document.new_page(width=612, height=792)
+        for index, marker in enumerate(("Lone", "Ltwo")):
+            top = 60 + index * 120
+            _paragraph(page, pymupdf.Rect(54, top, 270, top + 100), marker)
+        _ruled_table(page, 54, 320, ["Head A", "Head B", "Cell A", "Cell B"])
+        for index, marker in enumerate(("Rone", "Rtwo")):
+            top = 75 + index * 120
+            _paragraph(page, pymupdf.Rect(340, top, 558, top + 100), marker)
+        document.save(columns)
+
+    v2 = settings(strategy="layout_aware", config_version="layout-ocr-v2")
+    single_v2, version = extraction.extract_document(
+        single, "application/pdf", single.name, v2
+    )
+    assert _order(single_v2) == ["Above", "TABLE", "Below"]
+    assert version == extraction.LAYOUT_OCR_V2_EXTRACTOR_VERSION
+    assert "layout-v2" in version
+
+    columns_v2, _ = extraction.extract_document(
+        columns, "application/pdf", columns.name, v2
+    )
+    # The table closes the left column before the right column starts.
+    assert _order(columns_v2) == ["Lone", "Ltwo", "TABLE", "Rone", "Rtwo"]
+
+    columns_v1, v1_version = extraction.extract_document(
+        columns,
+        "application/pdf",
+        columns.name,
+        settings(strategy="layout_aware"),
+    )
+    assert _order(columns_v1) == ["Lone", "Rone", "Ltwo", "Rtwo", "TABLE"]
+    assert v1_version == extraction.LAYOUT_OCR_EXTRACTOR_VERSION
+
+
+def test_layout_ocr_v2_has_its_own_processing_identity():
+    def identity(config_version: str) -> str:
+        node = settings(config_version=config_version)
+        return processing_identity(
+            schema_version=2,
+            extractor_version=extraction.extractor_version_for_settings(node),
+            cleaner_version="cleaner",
+            chunker_version="chunker",
+            extract=node.model_dump(mode="json", exclude={"id", "type"}),
+            clean={},
+            chunk={},
+        )[1]
+
+    assert identity("layout-ocr-v1") != identity("layout-ocr-v2")
+    assert (
+        extraction.extractor_version_for_settings(
+            ExtractNodeV2(id="extract", type="extract")
+        )
+        == extraction.NativeTextExtractor.version
+    )

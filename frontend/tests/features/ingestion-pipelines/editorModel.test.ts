@@ -36,7 +36,7 @@ describe('ingestion editor model', () => {
       ocr: { mode: 'off', languages: ['eng'] },
       quality_policy: defaultQualityPolicy,
       language_policy: defaultLanguagePolicy,
-      config_version: 'layout-ocr-v1',
+      config_version: 'layout-ocr-v2',
     });
     expect(draft.execution.edges).toEqual([
       { source: 'source', target: 'extract' },
@@ -177,6 +177,9 @@ describe('ingestion editor model', () => {
 
     expect(describeIngestionNode(source, [])).toBe('1 selected document');
     expect(describeIngestionNode(extract, [])).toBe('Auto · OCR off');
+    expect(
+      describeIngestionNode({ ...extract, config_version: 'layout-ocr-v1' } as typeof extract, []),
+    ).toBe('Auto · OCR off · upgrade available');
     expect(describeIngestionNode(chunk, [])).toBe('Section-aware · 600 target · 800 max tokens');
   });
 
