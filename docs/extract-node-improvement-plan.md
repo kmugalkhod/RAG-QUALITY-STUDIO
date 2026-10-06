@@ -1,6 +1,6 @@
 # Extract node improvement plan
 
-Status: approved 2026-10-06 (owner accepted D1–D3); Slices 0–7 done (Slices 2–7 on 2026-10-07); Slice 8 next
+Status: approved 2026-10-06 (owner accepted D1–D3); All slices done (0–1 on 2026-10-06, 2–8 on 2026-10-07)
 Scope owner: ingestion Extract stage (backend extractors, schema-v2 Extract node, Extract settings panel)
 Related: `docs/robust-ingestion-plan.md` (Phase 2 design this builds on), `docs/ingestion-corpus-baseline.md` (current measured gate), `docs/extract-ingestion-qa-findings.csv` (2026-09-26 QA pass)
 
@@ -156,11 +156,13 @@ The first real behavior change.
 
 **Result:** `extractReadsFiles()` in `editorModel.ts` decides from the draft's source kinds. Page-only pipelines show a **Quality and language only** note instead of strategy, OCR and table evidence; pipelines with an uploaded-files or S3 source show those controls under one scope line (strategy and OCR apply to PDFs; table evidence to PDF, DOCX, CSV and XLSX tables) rather than a "PDFs only" suffix on each label, so accessible names stay unchanged. The browser check found two more controls without effect for page-only pipelines, both now hidden: the `layout-ocr-v1` **Upgrade extraction** callout (an upgrade would only reprocess) and the stage-card summary, which now reads **Quality and language policies**. Verified in the browser on the saved Website pipeline and an unsaved uploaded-files draft, desktop and 390px, with no horizontal overflow; nothing was saved.
 
-### Slice 8 — Release baseline and docs
+### Slice 8 — Release baseline and docs — done 2026-10-07
 
 - Regenerate `docs/ingestion-corpus-baseline.md` with an "Extract v2" section next to the Slice 0 numbers.
 - Update `docs/site/docs/ingestion/extraction` and the API reference (`generate_api_reference.py --check`), `docs/implementation-plan.md` status and `docs/architecture.md`.
 - Run the Extract-related rows of `docs/extract-ingestion-qa-findings.csv` again against v2 and record the results.
+
+**Result:** the "Extract v2" section of `docs/ingestion-corpus-baseline.md` records v1 and v2 side by side. The Phase 2 gates now run for both versions and hold with identical values; one reported field changes by design (v2 Auto labels the mixed file's text page Layout instead of Native), and the gate checks one text page and one OCR page. The settings rows of the September QA are unaffected by v2; the runtime rows were re-checked through a real preview on the rebuilt dev stack in a separate QA project and recorded in `docs/qa/extract-v2-2026-10-07/results.csv` (11 PASS). A full run with embeddings and retrieval (EX-038, EX-059/060) was not run because it spends provider credit, and the corrected PDF behind EX-053–058 is not in the repository. The API reference was not regenerated: no schema changed after Slice 1, and the generator already fails on an unrelated route.
 
 ## 5. Acceptance criteria (whole plan)
 

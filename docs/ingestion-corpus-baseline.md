@@ -92,3 +92,40 @@ parser upgrade:
 docker compose -p rag-studio-tests -f compose.test.yaml run --rm --no-deps \
   -e UPDATE_EXTRACT_GOLDEN=1 tests python -m pytest -q tests/test_extract_corpus.py
 ```
+
+## Extract v2 (2026-10-07)
+
+Measured at the end of `docs/extract-node-improvement-plan.md` (Slice 8) in the same
+pinned test container and versions as the "Before Extract v2" section. The v1 column
+re-measures `layout-ocr-v1`, which is frozen and still matches its recorded digests.
+
+| Measure | v1 Auto | v1 Layout-aware | v2 Auto | v2 Layout-aware |
+| --- | ---: | ---: | ---: | ---: |
+| Reading-order pairs, three paragraphs per column | 80.0% | 80.0% | 100.0% | 100.0% |
+| Heading precision | 0.0% (none) | 83.3% | 100.0% | 100.0% |
+| Heading recall | 0.0% | 100.0% | 100.0% | 100.0% |
+| Title blocks (expected 1) | 0 | 2 | 1 | 1 |
+| Body blocks with the correct heading path | 0.0% | 0.0% | 100.0% | 100.0% |
+| 40-row table: cells retained (246) | 40.65% | 40.65% | 100.0% | 100.0% |
+| 40-row table: Balanced decision | fail | fail | pass | pass |
+
+| Measure | v1 | v2 |
+| --- | ---: | ---: |
+| DOCX data rows carrying the header row | 0.0% | 100.0% |
+| OCR blocks for one four-line paragraph | 4 | 1 |
+
+The Phase 2 gates above hold under v2 with identical values: 100% native character
+preservation, 0.570% median and 1.141% p95 OCR character error rate, 100% reviewed
+reading-order pairs and table cell association, deterministic reruns and a 90-degree
+rotation correction. One reported field changes by design: v2 Auto reads text pages
+through layout analysis, so the mixed native/scan file reports one Layout page and one
+OCR page instead of one Native page and one OCR page. The gate test now checks one text
+page and one OCR page for each version.
+
+Single-run timings in the test container (diagnostic only): a 100,000-row CSV took
+about 2.4 s under v2 against about 4.6 s under v1, and grouping a 2,000-row PDF table
+took about 0.5 s.
+
+`backend/tests/test_extract_corpus.py` pins both the v1 values and the v2 values in this
+section; `backend/tests/test_layout_extraction.py` runs the Phase 2 gates for both
+versions.

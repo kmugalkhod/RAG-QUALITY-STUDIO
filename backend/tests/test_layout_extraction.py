@@ -136,7 +136,9 @@ def character_error_rate(expected: str, observed: str) -> float:
     return previous[-1] / max(1, len(expected))
 
 
-def measure_reviewed_corpus(tmp_path: Path) -> dict[str, float | int]:
+def measure_reviewed_corpus(
+    tmp_path: Path, config_version: str = "layout-ocr-v1"
+) -> dict[str, float | int]:
     manifest = json.loads(CORPUS_MANIFEST.read_text())
     native_path = tmp_path / "corpus-native.pdf"
     scan_path = tmp_path / "corpus-scan.pdf"
@@ -153,20 +155,21 @@ def measure_reviewed_corpus(tmp_path: Path) -> dict[str, float | int]:
         native_path,
         "application/pdf",
         native_path.name,
-        settings(strategy="native"),
+        settings(config_version=config_version, strategy="native"),
     )
     native_observed = normalized(" ".join(block.text for block in native.blocks))
     native_expected = normalized(manifest["native_text"])
     native_ratio = SequenceMatcher(None, native_expected, native_observed).ratio()
 
     ocr_settings = settings(
+        config_version=config_version,
         ocr={
             "mode": "always",
             "languages": ["eng"],
             "rotate_pages": False,
             "deskew": True,
             "dpi": 200,
-        }
+        },
     )
     scan, _ = extraction.extract_document(
         scan_path, "application/pdf", scan_path.name, ocr_settings
@@ -177,13 +180,14 @@ def measure_reviewed_corpus(tmp_path: Path) -> dict[str, float | int]:
         "application/pdf",
         rotated_path.name,
         settings(
+            config_version=config_version,
             ocr={
                 "mode": "always",
                 "languages": ["eng"],
                 "rotate_pages": True,
                 "deskew": True,
                 "dpi": 200,
-            }
+            },
         ),
     )
     rotated_text = normalized(" ".join(block.text for block in rotated.blocks))
@@ -199,13 +203,16 @@ def measure_reviewed_corpus(tmp_path: Path) -> dict[str, float | int]:
         mixed_path,
         "application/pdf",
         mixed_path.name,
-        settings(ocr={"mode": "auto", "languages": ["eng"], "deskew": False}),
+        settings(
+            config_version=config_version,
+            ocr={"mode": "auto", "languages": ["eng"], "deskew": False},
+        ),
     )
     layout, _ = extraction.extract_document(
         layout_path,
         "application/pdf",
         layout_path.name,
-        settings(strategy="layout_aware"),
+        settings(config_version=config_version, strategy="layout_aware"),
     )
     layout_text = "\n".join(block.text for block in layout.blocks)
     order_positions = [layout_text.index(value) for value in manifest["reading_order"]]
@@ -221,7 +228,7 @@ def measure_reviewed_corpus(tmp_path: Path) -> dict[str, float | int]:
         layout_path,
         "application/pdf",
         layout_path.name,
-        settings(strategy="layout_aware"),
+        settings(config_version=config_version, strategy="layout_aware"),
     )
     deterministic = layout.model_dump(
         exclude={"measurements": {"extraction_duration_ms"}}
@@ -236,6 +243,7 @@ def measure_reviewed_corpus(tmp_path: Path) -> dict[str, float | int]:
         ),
         "deterministic_rerun_percent": 100 if deterministic else 0,
         "mixed_native_pages": mixed.measurements.native_page_count,
+        "mixed_layout_pages": mixed.measurements.layout_page_count,
         "mixed_ocr_pages": mixed.measurements.ocr_page_count,
         "rotated_correction_degrees": rotated.pages[0].rotation_degrees,
         "native_extraction_ms": native.measurements.extraction_duration_ms,
@@ -434,17 +442,28 @@ def test_packaged_ocr_extracts_reviewed_scan(tmp_path):
     assert "tesseract-cli-v2" in version
 
 
-def test_reviewed_extraction_corpus_meets_phase_two_thresholds(tmp_path):
+@pytest.mark.parametrize("config_version", ["layout-ocr-v1", "layout-ocr-v2"])
+def test_reviewed_extraction_corpus_meets_phase_two_thresholds(
+    tmp_path, config_version
+):
     if "eng" not in extraction.installed_ocr_languages():
         pytest.skip("The deterministic container OCR engine is not installed.")
-    report = measure_reviewed_corpus(tmp_path)
+    report = measure_reviewed_corpus(tmp_path, config_version)
     assert report["native_text_preservation_percent"] >= 99.5
     assert report["ocr_cer_median_percent"] <= 5
     assert report["ocr_cer_p95_percent"] <= 12
     assert report["reading_order_percent"] >= 95
     assert report["table_cell_association_percent"] >= 95
     assert report["deterministic_rerun_percent"] == 100
-    assert report["mixed_native_pages"] == 1
+    # v2 Auto reads text pages through layout analysis (plan Slice 3), so the mixed
+    # file's text page is labelled layout instead of native; its scan is still OCR.
+    text_origin = (
+        "mixed_native_pages"
+        if config_version == "layout-ocr-v1"
+        else ("mixed_layout_pages")
+    )
+    assert report[text_origin] == 1
+    assert report["mixed_native_pages"] + report["mixed_layout_pages"] == 1
     assert report["mixed_ocr_pages"] == 1
     assert report["rotated_correction_degrees"] == 90
 
