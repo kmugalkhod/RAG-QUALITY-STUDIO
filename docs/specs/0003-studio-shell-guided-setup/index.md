@@ -1,6 +1,6 @@
 # Spec 0003: Studio shell and guided pipeline setup
 
-Status: mockup approved by the owner on 2026-10-06; not built yet.
+Status: mockup approved by the owner on 2026-10-06; built on 2026-10-06 (see the implementation plan for verification and the owner's build decisions).
 Mockup: https://claude.ai/artifact/Y3xLjDf1eLAaDaeMAo2TaF (clickable; press Play on a frame). Its source is saved in `mockup/`:
 
 - `Main.dc.html` is the dark desktop screen with all five steps.

@@ -6,7 +6,7 @@ This area is the React and TypeScript Studio workspace. It manages projects, doc
 
 ## Key files
 
-`src/main.tsx` mounts the app and imports the one authored stylesheet. `src/app/App.tsx` owns the shell and project route context. `src/app/navigation.ts` parses hash routes and guards unsaved pipeline drafts. `src/app/WorkspacePage.tsx` selects feature entry points. `src/features/` owns product behavior and feature API modules. `src/lib/api.ts` owns authenticated transport and safe errors. `src/components/ui/` contains locally owned UI primitives. `tests/` mirrors source for Vitest, and `e2e/` holds Playwright journeys.
+`src/main.tsx` mounts the app and imports the one authored stylesheet. `src/app/App.tsx` owns the shell and project route context; `src/app/ShellSidebar.tsx`, `ShellTopBar.tsx`, `QuickJump.tsx` and `shellNavigation.ts` are the spec 0003 sidebar, top bar and quick jump. `src/app/navigation.ts` parses hash routes and guards unsaved pipeline drafts. `src/app/WorkspacePage.tsx` selects feature entry points. `src/features/` owns product behavior and feature API modules. `src/lib/api.ts` owns authenticated transport and safe errors. `src/components/ui/` contains locally owned UI primitives. `tests/` mirrors source for Vitest, and `e2e/` holds Playwright journeys.
 
 ## Commands
 
@@ -16,7 +16,7 @@ From `frontend/`, you can run `npm ci`, `npm run dev -- --port 5273`, `npm run l
 
 ## Conventions
 
-Keep feature requests in each feature's `api.ts` and reusable domain rules in its model. The backend owns validation and authorization. Follow `../DESIGN.md`, the token based light and dark system from spec 0002 (`../docs/specs/0002-workspace-ui-redesign/index.md`); use only the approved token keys the lint guard allows, and keep accessible controls and responsive behavior. `src/app/styles.css` is the only authored app stylesheet. Keep answer and ingestion pipeline editors separate, and keep saved versions immutable while drafts remain editable. Clear stale project data and async responses when the route or project changes.
+Keep feature requests in each feature's `api.ts` and reusable domain rules in its model. The backend owns validation and authorization. Follow `../DESIGN.md`, the token based light and dark system from spec 0002 (`../docs/specs/0002-workspace-ui-redesign/index.md`) as updated by spec 0003 (`../docs/specs/0003-studio-shell-guided-setup/index.md`); use only the approved token keys the lint guard allows, and keep accessible controls and responsive behavior. `src/app/styles.css` is the only authored app stylesheet. Keep answer and ingestion pipeline editors separate, and keep saved versions immutable while drafts remain editable. Clear stale project data and async responses when the route or project changes.
 
 ## Gotchas
 
