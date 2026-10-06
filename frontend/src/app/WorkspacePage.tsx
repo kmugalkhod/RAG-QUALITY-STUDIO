@@ -14,6 +14,11 @@ const IngestionPipelineEditor = lazy(() =>
     default: module.IngestionPipelineEditor,
   })),
 );
+const GuidedSetup = lazy(() =>
+  import('../features/ingestion-pipelines/GuidedSetup').then((module) => ({
+    default: module.GuidedSetup,
+  })),
+);
 const KnowledgeBase = lazy(() =>
   import('../features/documents/KnowledgeBase').then((module) => ({
     default: module.KnowledgeBase,
@@ -96,6 +101,9 @@ function WorkspaceRoute({ route, onProjectCreated }: WorkspacePageProps) {
     case 'knowledge-base':
       return <KnowledgeBase projectId={projectId} documentId={query.get('document') || ''} />;
     case 'pipelines':
+      if (detail === 'setup' && query.get('kind') === 'ingestion') {
+        return <GuidedSetup projectId={projectId} />;
+      }
       return detail ? (
         query.get('kind') === 'ingestion' ? (
           <IngestionPipelineEditor

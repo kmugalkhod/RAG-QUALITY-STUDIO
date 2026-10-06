@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ArrowRight, Plus, Workflow } from 'lucide-react';
+import { ArrowRight, Globe, Plus, Workflow } from 'lucide-react';
 
 import { LIST, LIST_ROW } from '../../components/parts';
 import { PageHeader } from '../../components/PageHeader';
@@ -185,12 +185,22 @@ export function PipelinesPage({
             : 'Saved configurations for acquiring and indexing project knowledge.'
         }
         action={
-          <Button asChild>
-            <a href={`#/projects/${projectId}/pipelines/new${isAnswer ? '' : '?kind=ingestion'}`}>
-              <Plus aria-hidden="true" />
-              {isAnswer ? 'New answer pipeline' : 'New ingestion pipeline'}
-            </a>
-          </Button>
+          <div className="flex flex-wrap gap-2 max-md:flex-col max-md:*:w-full">
+            {!isAnswer && (
+              <Button variant="outline" asChild>
+                <a href={`#/projects/${projectId}/pipelines/setup?kind=ingestion`}>
+                  <Globe aria-hidden="true" />
+                  Guided setup
+                </a>
+              </Button>
+            )}
+            <Button asChild>
+              <a href={`#/projects/${projectId}/pipelines/new${isAnswer ? '' : '?kind=ingestion'}`}>
+                <Plus aria-hidden="true" />
+                {isAnswer ? 'New answer pipeline' : 'New ingestion pipeline'}
+              </a>
+            </Button>
+          </div>
         }
       />
       <Tabs
