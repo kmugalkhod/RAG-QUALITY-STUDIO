@@ -773,6 +773,12 @@ export function IngestionNodeSettings({
                   <dd>{selected.config_version ?? '1'}</dd>
                 </dl>
                 {schemaVersion === 2 && (
+                  <p className={HINT}>
+                    Runs report quality findings for this extractor as warnings only; they do not
+                    stop publication. Enable robust extraction to apply the quality policy.
+                  </p>
+                )}
+                {schemaVersion === 2 && (
                   <Button
                     type="button"
                     variant="outline"

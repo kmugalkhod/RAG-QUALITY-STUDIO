@@ -1,6 +1,6 @@
 # Extract node improvement plan
 
-Status: approved 2026-10-06 (owner accepted D1–D3); Slices 0–5 done (Slices 2–5 on 2026-10-07); Slice 6 next
+Status: approved 2026-10-06 (owner accepted D1–D3); Slices 0–6 done (Slices 2–6 on 2026-10-07); Slice 7 next
 Scope owner: ingestion Extract stage (backend extractors, schema-v2 Extract node, Extract settings panel)
 Related: `docs/robust-ingestion-plan.md` (Phase 2 design this builds on), `docs/ingestion-corpus-baseline.md` (current measured gate), `docs/extract-ingestion-qa-findings.csv` (2026-09-26 QA pass)
 
@@ -137,12 +137,14 @@ The first real behavior change.
 
 **Result:** CSV, TSV and XLSX also emitted one block per row, so all three were aligned. Under v2 the corpus DOCX table carries its header in every block (v1: 0%), a 1,200-row CSV keeps every row in header-repeating groups, XLSX keeps one table per sheet with formulas as text, a nested DOCX table stays inside its parent cell, and `table_count` counts tables. v1 output was compared against the previous commit for CSV, TSV, XLSX and DOCX samples and is identical. The shared helper moved to `app/ingestion_content/tables.py`; Slice 2's shortened-cell fallback for an oversized row was replaced by a block with full evidence and no structured copy (v2 is unreleased). Group sizing uses additive per-row costs: a 100,000-row CSV takes about 2.4 s (v1: about 4.6 s; the first v2 draft took 21.7 s). PPTX tables are still not extracted; that is outside this plan.
 
-### Slice 6 — Legacy native-text findings (F6)
+### Slice 6 — Legacy native-text findings (F6) — done 2026-10-07
 
 - Run `measured_document` and `evaluate_quality` on the `native-text-v1` path with the decision forced back to its previous value (D2), so findings are attached and visible but publication does not change.
 - The Extract panel and run results show these findings with **Upgrade extraction** as the remedy.
 
 **Tests:** a no-text PDF on `native-text-v1` reports `no_extractable_text` and `empty_pages` findings and keeps its previous decision; run results render the findings.
+
+**Result:** F6 overstated the gap. The legacy parser already rejects image-only and text-free PDFs with an explicit error ("Scanned PDF requires OCR…"), so those never reach quality checks. What passed silently were blank pages without images and garbled text (replacement or control characters). `native-text-v1` PDFs now carry measurements and findings; errors are reported as warnings ending with "Select Enable robust extraction in the Extract settings to apply the saved quality policy.", and the decision stays `pass` before the language policy runs, which still excludes or fails as before. A blank middle page reports `empty_pages` on page 2; the blocks are identical to the previous output. Pages now carry their real character and block counts (previously 0), which the measurement needs. The legacy Extract panel says findings are warnings only; existing run results already render findings with their remediation.
 
 ### Slice 7 — Source-aware Extract panel (F7)
 

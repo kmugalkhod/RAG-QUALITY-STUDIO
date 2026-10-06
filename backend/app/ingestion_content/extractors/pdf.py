@@ -1176,6 +1176,50 @@ def _text_document(path: Path, title: str | None) -> ExtractedDocumentV1:
     return measured_document(document, duration_ms=0)
 
 
+LEGACY_QUALITY_REMEDIATION = (
+    "Select Enable robust extraction in the Extract settings to apply the saved "
+    "quality policy."
+)
+
+
+def _report_only_quality(
+    document: ExtractedDocumentV1, policy, *, duration_ms: int
+) -> ExtractedDocumentV1:
+    """Measure a native-text-v1 PDF and report findings without changing publication.
+
+    Decision D2 of the Extract plan: legacy versions keep their publication decision,
+    so errors are reported as warnings that point to the upgrade.
+    """
+
+    decision = document.measurements.quality_decision
+    evaluated = evaluate_quality(
+        measured_document(document, duration_ms=duration_ms), policy
+    )
+    findings = [
+        finding.model_copy(
+            update={
+                "severity": "warning"
+                if finding.severity == "error"
+                else finding.severity,
+                "remediation": " ".join(
+                    value
+                    for value in (finding.remediation, LEGACY_QUALITY_REMEDIATION)
+                    if value
+                )[:500],
+            }
+        )
+        for finding in evaluated.findings
+    ]
+    return evaluated.model_copy(
+        update={
+            "findings": findings,
+            "measurements": evaluated.measurements.model_copy(
+                update={"quality_decision": decision}
+            ),
+        }
+    )
+
+
 def extract_document(
     path: Path,
     declared_media_type: str,
@@ -1219,7 +1263,24 @@ def extract_document(
             segments = list(NativeTextExtractor().extract(path, detected))
         except ProcessingError as exc:
             raise IngestionStageError("extract", "extraction_failed", str(exc)) from exc
-        document = build_extracted_document(segments, media_type=detected, title=title)
+        page_metadata: dict[int, dict[str, Any]] = {}
+        for segment in segments:
+            if segment.page_number is None:
+                continue
+            page = page_metadata.setdefault(
+                segment.page_number,
+                {"origin": "native", "character_count": 0, "block_count": 0},
+            )
+            if segment.text:
+                page["character_count"] += len(segment.text)
+                page["block_count"] += 1
+        document = _report_only_quality(
+            build_extracted_document(
+                segments, media_type=detected, title=title, page_metadata=page_metadata
+            ),
+            settings.quality_policy,
+            duration_ms=round((time.monotonic() - started) * 1000),
+        )
         if getattr(settings, "language_policy", None) is not None:
             document = apply_language_policy(document, settings.language_policy)
         return document, NativeTextExtractor.version

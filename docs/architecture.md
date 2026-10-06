@@ -497,6 +497,13 @@ Group sizes are computed from additive per-row JSON costs and confirmed exactly 
 group, which keeps a 100,000-row CSV at about 2.4 s against about 4.6 s for v1's
 row-per-block output in the test container. v2 `table_count` counts tables, not blocks.
 
+Legacy `native-text-v1` PDFs (Slice 6, decision D2) are now measured and evaluated
+against their saved quality policy, but only to report: errors become warnings whose
+remediation points to **Enable robust extraction**, and the previous publication
+decision is restored before the language policy runs. Pages now carry their real
+character and block counts, so blank pages appear in findings; blocks are unchanged.
+The legacy parser already fails image-only and text-free PDFs with an explicit error.
+
 The inspector fetches project-scoped, annotation-free PNG thumbnails from the immutable
 raw artifact and overlays normalized block geometry in the browser. Structured table
 rows and their deterministic Markdown/plain-text evidence are both bounded. See the

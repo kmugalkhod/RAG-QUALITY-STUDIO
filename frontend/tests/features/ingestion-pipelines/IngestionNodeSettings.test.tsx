@@ -175,3 +175,11 @@ test('shows no upgrade for the current extractor', () => {
   render(<PolicyHarness kind="extract" />);
   expect(screen.queryByRole('button', { name: 'Upgrade extraction' })).not.toBeInTheDocument();
 });
+
+test('explains that legacy native-text findings are warnings only', () => {
+  render(<PolicyHarness kind="extract" extractVersion="native-text-v1" />);
+  expect(
+    screen.getByText(/quality findings for this extractor as warnings only/),
+  ).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Enable robust extraction' })).toBeInTheDocument();
+});
