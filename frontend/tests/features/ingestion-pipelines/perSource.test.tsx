@@ -161,7 +161,12 @@ test('the group strip lists each source index with its outcome', () => {
     />,
   );
   expect(screen.getByText('Some indexes failed')).toBeVisible();
-  expect(screen.getByText('2 indexes, one per source')).toBeVisible();
+  expect(screen.getByText(/2 indexes, one per source · 1 published/)).toBeVisible();
+  // A failed index opens the rows, so the failure is not hidden behind Details.
+  expect(screen.getByRole('button', { name: 'Hide details' })).toHaveAttribute(
+    'aria-expanded',
+    'true',
+  );
   expect(screen.getByText('Docs · a.example · version 1')).toBeVisible();
   expect(screen.getByRole('link', { name: 'Inspect index' })).toHaveAttribute(
     'href',
@@ -170,4 +175,36 @@ test('the group strip lists each source index with its outcome', () => {
   expect(screen.getByRole('alert')).toHaveTextContent('The sitemap could not be read.');
   fireEvent.click(screen.getAllByRole('button', { name: 'Run details' })[1]);
   expect(onShowDetails).toHaveBeenCalledWith(expect.objectContaining({ id: 'b' }));
+});
+
+test('a fully published group shows one summary line until Details opens the rows', () => {
+  const group: IngestionRunGroup = {
+    id: 'group',
+    project_id: 'project',
+    pipeline_version_id: 'version',
+    schedule_id: null,
+    trigger_kind: 'manual',
+    status: 'succeeded',
+    completion: 'complete',
+    created_at: '2026-10-05T00:00:00Z',
+    runs: [
+      run({ id: 'a', branch_source_node_id: 'source', published_index_id: 'index-a' }),
+      run({ id: 'b', branch_source_node_id: 'source-2', published_index_id: 'index-b' }),
+    ],
+  };
+  render(
+    <IngestionGroupStrip
+      projectId="project"
+      group={group}
+      busy={false}
+      label={(id) => (id === 'source' ? 'Website 1' : 'Website 2')}
+      onCancel={vi.fn()}
+      onShowDetails={vi.fn()}
+      onDismiss={vi.fn()}
+    />,
+  );
+  expect(screen.getByText('2 indexes, one per source · 2 published')).toBeVisible();
+  expect(screen.queryByRole('list', { name: 'Indexes in this run' })).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Details' }));
+  expect(screen.getAllByRole('link', { name: 'Inspect index' })).toHaveLength(2);
 });

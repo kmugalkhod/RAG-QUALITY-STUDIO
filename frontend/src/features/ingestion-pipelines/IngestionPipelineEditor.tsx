@@ -1498,7 +1498,7 @@ export function IngestionPipelineEditor({
                     <X aria-hidden="true" />
                   </Button>
                 </div>
-                <div className="min-h-0 overflow-y-auto overscroll-contain *:border-t-0 desktop:flex-1">
+                <div className="min-h-0 overflow-y-auto overscroll-contain *:border-t-0 max-desktop:max-h-(--results-compact) desktop:flex-1">
                   {results === 'preview' && preview ? (
                     <IngestionPreviewResults
                       projectId={projectId}

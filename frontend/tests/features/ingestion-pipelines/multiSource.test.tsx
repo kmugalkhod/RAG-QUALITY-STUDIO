@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { useState } from 'react';
-import { expect, test } from 'vitest';
+import { expect, test, vi } from 'vitest';
 
 import { IngestionNodeSettings } from '../../../src/features/ingestion-pipelines/components/IngestionNodeSettings';
 import { IngestionSourcesPanel } from '../../../src/features/ingestion-pipelines/components/IngestionSourcesPanel';
@@ -151,7 +151,14 @@ function PanelHarness({
   );
 }
 
+// A source's run and remove actions open in its card from the "⋯" button.
+function action(source: string, name: string) {
+  fireEvent.click(screen.getByRole('button', { name: `Actions for ${source}` }));
+  return screen.getByRole('button', { name });
+}
+
 test('adds and removes Website sources from the sources panel', () => {
+  const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
   render(<PanelHarness />);
 
   expect(screen.getByText('2 of 5')).toBeVisible();
@@ -167,10 +174,16 @@ test('adds and removes Website sources from the sources panel', () => {
     'true',
   );
 
-  fireEvent.click(screen.getByRole('button', { name: 'Remove Website 3' }));
+  expect(screen.queryByRole('button', { name: 'Remove Website 3' })).toBeNull();
+  fireEvent.click(action('Website 3', 'Remove Website 3'));
+  expect(confirm).toHaveBeenCalledWith(expect.stringContaining('Remove Website 3'));
+  // Cancelling the confirmation keeps the source.
+  confirm.mockReturnValueOnce(false);
+  fireEvent.click(action('Website 1', 'Remove Website 1'));
+  expect(screen.getByText('2 of 5')).toBeVisible();
   fireEvent.click(screen.getByRole('button', { name: 'Remove Website 1' }));
   expect(screen.getByText('1 of 5')).toBeVisible();
-  expect(screen.queryByRole('button', { name: /^Remove/ })).toBeNull();
+  expect(screen.queryByRole('button', { name: /^Actions for/ })).toBeNull();
 });
 
 test('the source type is fixed while a pipeline has several sources', () => {
@@ -203,7 +216,7 @@ test('the source type is fixed while a pipeline has several sources', () => {
 test('refreshes only one source when the saved version allows it', () => {
   const refreshed: string[] = [];
   const { unmount } = render(<PanelHarness onRefresh={(id) => refreshed.push(id)} />);
-  fireEvent.click(screen.getByRole('button', { name: 'Refresh only Website 2' }));
+  fireEvent.click(action('Website 2', 'Refresh only Website 2'));
   expect(refreshed).toEqual(['source-2']);
   unmount();
 
@@ -213,7 +226,7 @@ test('refreshes only one source when the saved version allows it', () => {
       onRefresh={(id) => refreshed.push(id)}
     />,
   );
-  const button = screen.getByRole('button', { name: 'Refresh only Website 2' });
+  const button = action('Website 2', 'Refresh only Website 2');
   expect(button).toHaveAttribute('aria-disabled', 'true');
   fireEvent.click(button);
   expect(refreshed).toEqual(['source-2']);

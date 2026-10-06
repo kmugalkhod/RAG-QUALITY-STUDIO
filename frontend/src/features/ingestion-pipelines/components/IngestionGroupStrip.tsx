@@ -1,4 +1,5 @@
-import { Square, X } from 'lucide-react';
+import { useState } from 'react';
+import { ChevronDown, ChevronUp, Square, X } from 'lucide-react';
 
 import { LINK, META } from '../../../components/parts';
 import { StatusBadge } from '../../../components/StatusBadge';
@@ -23,7 +24,11 @@ const runStatusLabels: Record<IngestionRun['status'], string> = {
   cancelled: 'Cancelled',
 };
 
-/** The latest run group of a one-index-per-source pipeline: one row per source's index. */
+/**
+ * The latest run group of a one-index-per-source pipeline: one summary line, with one row per
+ * source's index behind Details. A group with a failed index opens its rows, so a failure is
+ * never hidden; the source cards show each source's status as well.
+ */
 export function IngestionGroupStrip({
   projectId,
   group,
@@ -44,6 +49,10 @@ export function IngestionGroupStrip({
   onDismiss: () => void;
 }) {
   const active = group.status === 'queued' || group.status === 'running';
+  const failed = group.runs.filter((run) => run.status === 'failed').length;
+  const published = group.runs.filter((run) => run.status === 'succeeded').length;
+  const [open, setOpen] = useState(failed > 0 || !!detailsRunId);
+  const shown = open || !!detailsRunId;
   // `partial` and `cancelled` reuse the neutral and failed tones of the badge.
   const tone = group.status === 'partial' ? 'failed' : group.status;
   return (
@@ -61,7 +70,19 @@ export function IngestionGroupStrip({
         )}
         <p className={META}>
           {group.runs.length === 1 ? '1 index' : `${group.runs.length} indexes, one per source`}
+          {!active && ` · ${published} published`}
+          {failed > 0 && <span className="text-danger"> · {failed} failed</span>}
         </p>
+        <Button
+          size="sm"
+          variant="ghost"
+          aria-expanded={shown}
+          aria-controls="ingestion-run-indexes"
+          onClick={() => setOpen(!shown)}
+        >
+          {shown ? 'Hide details' : 'Details'}
+          {shown ? <ChevronUp aria-hidden="true" /> : <ChevronDown aria-hidden="true" />}
+        </Button>
         <span className="flex-1" />
         {active ? (
           <Button variant="ghost" size="sm" disabled={busy} onClick={onCancel}>
@@ -80,52 +101,58 @@ export function IngestionGroupStrip({
           </Button>
         )}
       </div>
-      <ul className="flex flex-col gap-1" aria-label="Indexes in this run">
-        {group.runs.map((run) => {
-          const finished = !['queued', 'running'].includes(run.status);
-          return (
-            <li
-              key={run.id}
-              className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-foreground"
-            >
-              <strong className="font-medium">
-                {run.branch_source_node_id ? label(run.branch_source_node_id) : 'Source'}
-              </strong>
-              <StatusBadge status={run.status}>
-                {runStatusLabels[run.status]}
-                {!finished ? ` · ${run.progress}%` : ''}
-              </StatusBadge>
-              <span className={cn(META, 'min-w-0 truncate')} title={run.knowledge_set_name}>
-                {run.knowledge_set_name}
-                {run.published_index_version ? ` · version ${run.published_index_version}` : ''}
-              </span>
-              {run.error && (
-                <span role="alert" className="min-w-0 truncate text-danger" title={run.error}>
-                  {run.error}
+      {shown && (
+        <ul
+          id="ingestion-run-indexes"
+          className="flex flex-col gap-1"
+          aria-label="Indexes in this run"
+        >
+          {group.runs.map((run) => {
+            const finished = !['queued', 'running'].includes(run.status);
+            return (
+              <li
+                key={run.id}
+                className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-foreground"
+              >
+                <strong className="font-medium">
+                  {run.branch_source_node_id ? label(run.branch_source_node_id) : 'Source'}
+                </strong>
+                <StatusBadge status={run.status}>
+                  {runStatusLabels[run.status]}
+                  {!finished ? ` · ${run.progress}%` : ''}
+                </StatusBadge>
+                <span className={cn(META, 'min-w-0 truncate')} title={run.knowledge_set_name}>
+                  {run.knowledge_set_name}
+                  {run.published_index_version ? ` · version ${run.published_index_version}` : ''}
                 </span>
-              )}
-              {run.status === 'succeeded' && run.published_index_id && (
-                <a
-                  className={cn(LINK, 'text-xs')}
-                  href={`#/projects/${projectId}/knowledge-base?view=indexes&index=${run.published_index_id}`}
-                >
-                  Inspect index
-                </a>
-              )}
-              {finished && (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  aria-pressed={detailsRunId === run.id}
-                  onClick={() => onShowDetails(run)}
-                >
-                  Run details
-                </Button>
-              )}
-            </li>
-          );
-        })}
-      </ul>
+                {run.error && (
+                  <span role="alert" className="min-w-0 truncate text-danger" title={run.error}>
+                    {run.error}
+                  </span>
+                )}
+                {run.status === 'succeeded' && run.published_index_id && (
+                  <a
+                    className={cn(LINK, 'text-xs')}
+                    href={`#/projects/${projectId}/knowledge-base?view=indexes&index=${run.published_index_id}`}
+                  >
+                    Inspect index
+                  </a>
+                )}
+                {finished && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    aria-pressed={detailsRunId === run.id}
+                    onClick={() => onShowDetails(run)}
+                  >
+                    Run details
+                  </Button>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </div>
   );
 }

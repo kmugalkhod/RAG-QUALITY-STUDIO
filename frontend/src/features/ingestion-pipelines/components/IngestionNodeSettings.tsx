@@ -227,36 +227,38 @@ export function IngestionNodeSettings({
         <h2 id="ingestion-settings-heading" className="text-base font-semibold text-foreground">
           {heading ?? (selected ? `${nameOf(selected)} settings` : 'Node settings')}
         </h2>
-        <p className="text-xs text-foreground-muted">
-          {stageMeta ??
-            `Stage ${nodes.findIndex((node) => node.id === selectedNode) + 1} of ${nodes.length}`}{' '}
-          ·{' '}
-          {dirty
-            ? 'Draft configuration'
-            : saved
-              ? `Version ${saved.version}`
-              : 'Draft configuration'}
+        <p className="flex flex-wrap items-center gap-x-2 text-xs text-foreground-muted">
+          <span>
+            {stageMeta ??
+              `Stage ${nodes.findIndex((node) => node.id === selectedNode) + 1} of ${nodes.length}`}{' '}
+            ·{' '}
+            {dirty
+              ? 'Draft configuration'
+              : saved
+                ? `Version ${saved.version}`
+                : 'Draft configuration'}
+          </span>
+          {selected && (
+            <a
+              className={cn(LINK, 'text-xs')}
+              href={
+                selected.type === 'source'
+                  ? docsHref('ingestion/sources')
+                  : selected.type === 'extract'
+                    ? docsHref('ingestion/extraction')
+                    : selected.type === 'clean'
+                      ? docsHref('ingestion/cleaning')
+                      : selected.type === 'chunk' || selected.type === 'embed'
+                        ? docsHref('ingestion/chunking')
+                        : docsHref('knowledge-base/collections')
+              }
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              About this stage
+            </a>
+          )}
         </p>
-        {selected && (
-          <a
-            className={cn(LINK, 'self-start')}
-            href={
-              selected.type === 'source'
-                ? docsHref('ingestion/sources')
-                : selected.type === 'extract'
-                  ? docsHref('ingestion/extraction')
-                  : selected.type === 'clean'
-                    ? docsHref('ingestion/cleaning')
-                    : selected.type === 'chunk' || selected.type === 'embed'
-                      ? docsHref('ingestion/chunking')
-                      : docsHref('knowledge-base/collections')
-            }
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            About this stage
-          </a>
-        )}
         {/* Keyboard and screen reader route to every stage, outside canvas clicks. */}
         <Label className="mt-3 mb-0">
           Selected stage
@@ -337,14 +339,21 @@ export function IngestionNodeSettings({
                 Remove the other sources to change the source type.
               </p>
             )}
-            {!connectionSettings?.enabled && (
-              <Callout role="note">
-                <p>
-                  Amazon S3, Notion, and Confluence need the local encrypted connection vault.{' '}
-                  <a href={`#/projects/${projectId}/settings`}>Review setup in project settings</a>.
-                </p>
-              </Callout>
-            )}
+            {/* Points to vault setup while the source type can still change, or for a
+                credentialed source; several sources fix the type, so it is not shown then. */}
+            {!connectionSettings?.enabled &&
+              (sourceCount <= 1 ||
+                ['s3', 'notion', 'confluence'].includes(selected.config.kind)) && (
+                <Callout role="note">
+                  <p>
+                    Amazon S3, Notion, and Confluence need the local encrypted connection vault.{' '}
+                    <a href={`#/projects/${projectId}/settings`}>
+                      Review setup in project settings
+                    </a>
+                    .
+                  </p>
+                </Callout>
+              )}
             {selected.config.kind === 'existing_files' ? (
               <>
                 <p className={HINT}>

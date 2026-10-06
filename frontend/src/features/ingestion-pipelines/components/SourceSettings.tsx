@@ -222,11 +222,6 @@ export function WebsiteSettings({
 
   return (
     <>
-      <p className={HINT}>
-        Choose the pages to ingest. Preview checks the scope; a run publishes an index after all
-        required pages succeed. The server sets timeouts, byte budgets and robots.txt handling and
-        shows the limits it used with each preview and run.
-      </p>
       <Label>
         Discovery mode
         <NativeSelect
@@ -342,6 +337,14 @@ export function WebsiteSettings({
               'Requests to the site never exceed this rate.',
             )}
         </div>
+      </details>
+      <details className={DETAILS}>
+        <summary className={SUMMARY}>How website ingestion works</summary>
+        <p className={HINT}>
+          Choose the pages to ingest. Preview checks the scope; a run publishes an index after all
+          required pages succeed. The server sets timeouts, byte budgets and robots.txt handling and
+          shows the limits it used with each preview and run.
+        </p>
       </details>
     </>
   );

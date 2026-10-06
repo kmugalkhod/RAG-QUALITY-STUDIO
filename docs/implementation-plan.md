@@ -1,5 +1,11 @@
 # Implementation plan
 
+## Ingestion editor declutter — spec 0003 follow-up (2026-10-06)
+
+Status: **implemented and verified locally**. The owner found the multi-site ingestion editor crowded (bright default scrollbars, a three-row run summary, seven-line source cards with repeated red Remove links, the Output choice below the fold, explanations above the settings fields, a squeezed canvas, and a 15,000px phone page with Run details open). Approved changes: thin token scrollbars (3:1 thumb) everywhere; the app sidebar starts collapsed in pipeline editors; a one-line run summary with Details (failed indexes open the rows); three-line source cards with an in-card "⋯" action row and a Remove confirmation; Output as a Combined / Per source switch under the Sources header; fields-first source settings with the website explanation in a disclosure and the vault notice only where it applies; results capped at 70dvh below desktop. A floating Radix dropdown menu was tried for the card actions and dropped: opening it blocked jsdom's event loop for about a minute per test, and the in-card row needs no positioning.
+
+**Acceptance evidence:** lint, typecheck, 358 Vitest tests, Prettier and the build pass. Serially on the isolated e2e stack, 152 Playwright tests pass: every ingestion editor layout journey (including per-source overrides), the guided setup, shell, workspace and pipeline kind journeys, and the visual journey on every route in both themes (contrast and horizontal overflow). On the owner's three-site pipeline at 1440px the sources panel, Output choice and the source fields now fit without scrolling, and at 390px the page with Run details open is about 3,300px instead of 15,000px, with no console errors.
+
 ## Studio shell and guided pipeline setup — spec 0003 (2026-10-06)
 
 Status: **implemented and verified locally; not pushed**. [Spec 0003](specs/0003-studio-shell-guided-setup/index.md) was built in slices on local main: the Geist font and palette tokens, the card shell (grouped collapsible sidebar, top bar with breadcrumb, quick jump, API status, runs in progress and theme toggle), and the five-step guided setup for Website ingestion pipelines. Frontend only; no API, schema or worker changes.
