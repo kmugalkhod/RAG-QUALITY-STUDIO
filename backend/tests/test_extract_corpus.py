@@ -96,6 +96,8 @@ def test_layout_ocr_v2_extract_quality(tmp_path):
         "layout_aware_heading_path_coverage_percent": 100.0,
         # Slice 4: one OCR block per scanned paragraph.
         "ocr_blocks_for_paragraph": 1,
+        # Slice 5: DOCX tables keep their header in every group.
+        "docx_header_coverage_percent": 100.0,
     }
     if not include_ocr:
         expected.pop("ocr_blocks_for_paragraph", None)

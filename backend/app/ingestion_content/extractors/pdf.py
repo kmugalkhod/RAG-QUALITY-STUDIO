@@ -33,8 +33,10 @@ from app.ingestion_content.contracts import (
 from app.ingestion_content.processing import IngestionStageError, NativeTextExtractor
 from app.ingestion_content.quality import evaluate_quality, measured_document
 from app.ingestion_content.language import apply_language_policy
+from app.ingestion_content.tables import table_row_groups
 from app.ingestion_content.extractors.formats import (
     FORMAT_EXTRACTOR_VERSION,
+    FORMAT_V2_EXTRACTOR_VERSION,
     STRUCTURED_MEDIA_TYPES,
     detect_structured_media_type,
     extract_structured_document,
@@ -54,7 +56,7 @@ LAYOUT_OCR_EXTRACTOR_VERSION = (
 # layout-ocr-v2 keeps the computed column reading order (plan Slice 1).
 LAYOUT_OCR_V2_EXTRACTOR_VERSION = (
     f"pypdf-{pypdf_version}/pymupdf-{pymupdf.VersionBind}/tesseract-cli-v2/"
-    f"layout-v2/{FORMAT_EXTRACTOR_VERSION}"
+    f"layout-v2/{FORMAT_V2_EXTRACTOR_VERSION}"
 )
 MAX_OCR_PIXELS_PER_PAGE = 20_000_000
 MAX_OCR_OUTPUT_BYTES = 5_000_000
@@ -65,7 +67,6 @@ MAX_TABLE_CELL_CHARACTERS = 160
 MAX_TABLE_V2_ROWS = 2_000
 MAX_TABLE_V2_COLUMNS = 50
 MAX_TABLE_V2_CELL_CHARACTERS = 1_000
-TABLE_ATTRIBUTE_BUDGET = 15_500
 _LIST_PREFIX = re.compile(r"^(?:[-•◦⁃] |\(?\d{1,4}[.)] )")
 # layout-ocr-v2 heading rules (plan Slice 3).
 _SENTENCE_END = re.compile(r"[.!?;,]$")
@@ -638,140 +639,18 @@ def _safe_table(rows: list[list[Any]], mode: str) -> tuple[str, dict[str, Any], 
     return evidence or "[Empty table]", attributes, truncated
 
 
-def _bounded_table_grid(rows: list[list[Any]]) -> tuple[list[list[str]], bool]:
-    limited = len(rows) > MAX_TABLE_V2_ROWS or any(
-        len(row) > MAX_TABLE_V2_COLUMNS for row in rows
-    )
-    bounded = []
-    for row in rows[:MAX_TABLE_V2_ROWS]:
-        cells = []
-        for cell in row[:MAX_TABLE_V2_COLUMNS]:
-            value = "" if cell is None else str(cell)
-            if len(value) > MAX_TABLE_V2_CELL_CHARACTERS:
-                value = value[:MAX_TABLE_V2_CELL_CHARACTERS]
-                limited = True
-            cells.append(value)
-        bounded.append(cells)
-    width = max((len(row) for row in bounded), default=0)
-    return [row + [""] * (width - len(row)) for row in bounded], limited
-
-
-def _render_table(grid: list[list[str]]) -> tuple[str, str]:
-    def markdown_cell(value: str) -> str:
-        return value.replace("\\", "\\\\").replace("|", "\\|").replace("\n", " ")
-
-    width = max((len(row) for row in grid), default=0)
-    markdown = ""
-    if grid and width:
-        escaped = [[markdown_cell(cell) for cell in row] for row in grid]
-        lines = ["| " + " | ".join(escaped[0]) + " |"]
-        lines.append("| " + " | ".join(["---"] * width) + " |")
-        lines.extend("| " + " | ".join(row) + " |" for row in escaped[1:])
-        markdown = "\n".join(lines)
-    plain = "\n".join(
-        "\t".join(cell.replace("\t", " ").replace("\n", " ") for cell in row)
-        for row in grid
-    )
-    return markdown, plain
-
-
-def _table_group(
-    header: list[str],
-    body: list[list[str]],
-    mode: str,
-    *,
-    table: dict[str, Any],
-) -> tuple[str, dict[str, Any]]:
-    grid = [header, *body]
-    markdown, plain = _render_table(grid)
-    attributes = {
-        "origin": "layout",
-        "engine": "pymupdf",
-        "table": {**table, "rows": grid, "header_row": header},
-        "markdown": markdown,
-        "plain_text": plain,
-        "evidence_rendering": "plain_text" if mode == "plain_text" else "markdown",
-    }
-    evidence = plain if mode == "plain_text" else markdown
-    return evidence or "[Empty table]", attributes
-
-
-def _attribute_bytes(attributes: dict[str, Any]) -> int:
-    return len(json.dumps(attributes, ensure_ascii=True).encode())
-
-
 def _table_row_groups(
     rows: list[list[Any]], mode: str, *, table_id: str
 ) -> tuple[list[tuple[str, dict[str, Any], int, int]], bool]:
-    """Split one table into header-repeating row groups within the attribute budget.
-
-    Returns (evidence, attributes, first grid row, last grid row) per group and
-    whether a safety limit cut the table. Splitting alone is not a quality issue.
-    """
-
-    grid, limited = _bounded_table_grid(rows)
-    if not grid:
-        return [], limited
-    header, body = grid[0], grid[1:]
-    shape = {
-        "table_id": table_id,
-        "row_count": len(rows),
-        "column_count": max((len(row) for row in rows), default=0),
-        "truncated": limited,
-    }
-    # Sizes are measured with the widest placeholder values so final groups fit.
-    probe = {
-        **shape,
-        "truncated": False,
-        "group_index": MAX_TABLE_V2_ROWS,
-        "group_count": MAX_TABLE_V2_ROWS,
-        "row_start": MAX_TABLE_V2_ROWS,
-        "row_end": MAX_TABLE_V2_ROWS,
-        "header_repeated": False,
-    }
-
-    def size(group_body: list[list[str]]) -> int:
-        return _attribute_bytes(_table_group(header, group_body, mode, table=probe)[1])
-
-    partitions: list[list[list[str]]] = []
-    current: list[list[str]] = []
-    for row in body:
-        if current and size([*current, row]) > TABLE_ATTRIBUTE_BUDGET:
-            partitions.append(current)
-            current = []
-        if not current and size([row]) > TABLE_ATTRIBUTE_BUDGET:
-            # A single row larger than the budget keeps shortened cells.
-            cap = MAX_TABLE_V2_CELL_CHARACTERS
-            while cap > 16 and size([[cell[:cap] for cell in row]]) > (
-                TABLE_ATTRIBUTE_BUDGET
-            ):
-                cap //= 2
-            row = [cell[:cap] for cell in row]
-            limited = True
-        current.append(row)
-    partitions.append(current)
-    shape["truncated"] = limited
-
-    groups = []
-    first = 1
-    for index, group_body in enumerate(partitions):
-        last = first + len(group_body) - 1
-        evidence, attributes = _table_group(
-            header,
-            group_body,
-            mode,
-            table={
-                **shape,
-                "group_index": index,
-                "group_count": len(partitions),
-                "row_start": first,
-                "row_end": last,
-                "header_repeated": index > 0,
-            },
-        )
-        groups.append((evidence, attributes, first, last))
-        first = last + 1
-    return groups, limited
+    return table_row_groups(
+        rows,
+        mode,
+        table_id=table_id,
+        max_rows=MAX_TABLE_V2_ROWS,
+        max_columns=MAX_TABLE_V2_COLUMNS,
+        max_cell_characters=MAX_TABLE_V2_CELL_CHARACTERS,
+        base_attributes={"origin": "layout", "engine": "pymupdf"},
+    )
 
 
 def _overlaps_horizontally(first: BoundingBox, second: BoundingBox) -> bool:
@@ -1323,7 +1202,14 @@ def extract_document(
             document = apply_language_policy(document, settings.language_policy)
         return document, NativeTextExtractor.version
     if detected in STRUCTURED_MEDIA_TYPES:
-        document, version = extract_structured_document(path, detected, title)
+        document, version = extract_structured_document(
+            path,
+            detected,
+            title,
+            table_mode=settings.tables
+            if settings.config_version == "layout-ocr-v2"
+            else None,
+        )
         document = evaluate_quality(document, settings.quality_policy)
         if getattr(settings, "language_policy", None) is not None:
             document = apply_language_policy(document, settings.language_policy)

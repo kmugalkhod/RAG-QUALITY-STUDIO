@@ -73,15 +73,24 @@ def test_only_safety_limits_mark_a_table_as_cut():
     assert over_rows[-1][1]["table"]["row_end"] == extraction.MAX_TABLE_V2_ROWS - 1
     assert all(group[1]["table"]["truncated"] for group in over_rows)
 
-    wide_row = [["h"] * 20, ["y" * 1_000] * 20]
-    shortened, limited = extraction._table_row_groups(
-        wide_row, "markdown", table_id="t"
+
+def test_a_row_wider_than_the_budget_keeps_its_full_evidence():
+    rows = [["h"] * 20, ["short"] * 20, ["y" * 1_000] * 20, ["after"] * 20]
+    groups, limited = extraction._table_row_groups(rows, "markdown", table_id="t")
+
+    assert limited is False
+    assert [(first, last) for _, _, first, last in groups] == [(1, 1), (2, 2), (3, 3)]
+    evidence, attributes, _, _ = groups[1]
+    assert evidence.count("y" * 1_000) == 20
+    assert evidence.startswith("| h | h |")
+    assert attributes["table"]["rows_omitted"] is True
+    assert "rows" not in attributes["table"]
+    assert attributes["table"]["header_row"] == ["h"] * 20
+    assert all(
+        len(json.dumps(group[1], ensure_ascii=True).encode()) <= 15_500
+        for group in groups
     )
-    assert limited is True
-    assert len(shortened) == 1
-    attributes = shortened[0][1]
-    assert len(json.dumps(attributes, ensure_ascii=True).encode()) <= 15_500
-    assert 16 <= len(attributes["table"]["rows"][1][0]) < 1_000
+    assert "rows" in groups[0][1]["table"] and "rows" in groups[2][1]["table"]
 
 
 def test_v2_publishes_a_whole_40_row_table_under_balanced(tmp_path):

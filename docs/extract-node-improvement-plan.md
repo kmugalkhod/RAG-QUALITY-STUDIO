@@ -1,6 +1,6 @@
 # Extract node improvement plan
 
-Status: approved 2026-10-06 (owner accepted D1–D3); Slices 0–4 done (Slices 2–4 on 2026-10-07); Slice 5 next
+Status: approved 2026-10-06 (owner accepted D1–D3); Slices 0–5 done (Slices 2–5 on 2026-10-07); Slice 6 next
 Scope owner: ingestion Extract stage (backend extractors, schema-v2 Extract node, Extract settings panel)
 Related: `docs/robust-ingestion-plan.md` (Phase 2 design this builds on), `docs/ingestion-corpus-baseline.md` (current measured gate), `docs/extract-ingestion-qa-findings.csv` (2026-09-26 QA pass)
 
@@ -128,12 +128,14 @@ The first real behavior change.
 
 **Result:** the four-line scanned paragraph is one block under v2 (v1: four), with the same 0% character error rate and page confidence; the Phase 2 OCR gates still pass. v2 also keeps Tesseract's block order instead of a geometric re-sort, so scanned two-column pages follow the same rule as Slice 1. Extraction with OCR off no longer lists language packs (for v1 too, since the list was unused there), and the list is cached per process for five minutes. The `fallback_threshold_characters` page field was dropped: `ExtractedPage` is a strict contract, and the existing reason `native_text_below_20_characters` already records the threshold.
 
-### Slice 5 — DOCX tables follow the table setting (F8)
+### Slice 5 — DOCX tables follow the table setting (F8) — done 2026-10-07
 
 - Extend the structured-format extractor (`formats-v2`, used only under `layout-ocr-v2`) so DOCX tables are built as whole tables with the same row-group rendering as Slice 2, including the header row and `tables` mode.
 - Check CSV, TSV and XLSX use the same header-repeating groups; align them only if they don't already.
 
 **Tests:** DOCX table renders as Markdown with header in each group, and as tab-separated text in `plain_text` mode; `formats-v1` output unchanged for v1 pipelines.
+
+**Result:** CSV, TSV and XLSX also emitted one block per row, so all three were aligned. Under v2 the corpus DOCX table carries its header in every block (v1: 0%), a 1,200-row CSV keeps every row in header-repeating groups, XLSX keeps one table per sheet with formulas as text, a nested DOCX table stays inside its parent cell, and `table_count` counts tables. v1 output was compared against the previous commit for CSV, TSV, XLSX and DOCX samples and is identical. The shared helper moved to `app/ingestion_content/tables.py`; Slice 2's shortened-cell fallback for an oversized row was replaced by a block with full evidence and no structured copy (v2 is unreleased). Group sizing uses additive per-row costs: a 100,000-row CSV takes about 2.4 s (v1: about 4.6 s; the first v2 draft took 21.7 s). PPTX tables are still not extracted; that is outside this plan.
 
 ### Slice 6 — Legacy native-text findings (F6)
 

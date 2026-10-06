@@ -486,6 +486,17 @@ interleave scanned columns as v1 does for native ones. Each paragraph block reco
 its result per process for five minutes, and extraction reads it only when OCR is on;
 both are runtime-only changes that do not alter v1 output.
 
+Table grouping lives in `app/ingestion_content/tables.py` and is shared by the v2 PDF
+extractor and `formats-v2` (Slice 5), which `layout-ocr-v2` selects for DOCX, CSV/TSV
+and XLSX through `extract_structured_document(..., table_mode=...)`. Each caller passes
+its own limits: PDF tables keep the 2,000-row, 50-column and 1,000-character bounds,
+while structured files rely on their existing format limits and never shorten cells.
+A row too large for the 16 KiB attribute budget becomes its own block whose evidence
+text is complete and whose attributes omit the structured copies (`rows_omitted`).
+Group sizes are computed from additive per-row JSON costs and confirmed exactly per
+group, which keeps a 100,000-row CSV at about 2.4 s against about 4.6 s for v1's
+row-per-block output in the test container. v2 `table_count` counts tables, not blocks.
+
 The inspector fetches project-scoped, annotation-free PNG thumbnails from the immutable
 raw artifact and overlays normalized block geometry in the browser. Structured table
 rows and their deterministic Markdown/plain-text evidence are both bounded. See the

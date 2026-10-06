@@ -16,6 +16,7 @@ from app.ingestion_content.canonical import (
 )
 from app.ingestion_content.processing import IngestionStageError
 from app.ingestion_content.quality import measured_document
+from app.ingestion_content.tables import table_row_groups
 from app.pipelines.parsing import MAX_CHARACTERS, ProcessingError, validate_text
 
 
@@ -28,6 +29,8 @@ CSV = "text/csv"
 TSV = "text/tab-separated-values"
 STRUCTURED_MEDIA_TYPES = {DOCX, PPTX, XLSX, MARKDOWN, HTML, CSV, TSV}
 FORMAT_EXTRACTOR_VERSION = "formats-v1"
+# formats-v2 (layout-ocr-v2 only) keeps whole tables in header-repeating groups.
+FORMAT_V2_EXTRACTOR_VERSION = "formats-v2"
 
 MAX_ARCHIVE_MEMBERS = 5_000
 MAX_ARCHIVE_UNCOMPRESSED_BYTES = 100 * 1024 * 1024
@@ -318,9 +321,64 @@ def _html_segments(text: str) -> list[CanonicalInputSegment]:
     return parser.segments
 
 
-def _tabular_segments(
-    text: str, delimiter: str, label: str
+def _table_segments(
+    rows: list[list[str]],
+    mode: str,
+    *,
+    table_id: str,
+    page_number: int | None = None,
+    heading_path: tuple[str, ...] = (),
+    table_fields: dict | None = None,
 ) -> list[CanonicalInputSegment]:
+    """v2 table blocks; format limits are enforced before rows reach this point."""
+
+    groups, _ = table_row_groups(
+        rows,
+        mode,
+        table_id=table_id,
+        max_rows=MAX_TABULAR_ROWS,
+        max_columns=MAX_TABULAR_COLUMNS,
+        max_cell_characters=None,
+        base_attributes={"origin": "native"},
+        table_fields=table_fields,
+    )
+    return [
+        CanonicalInputSegment(
+            evidence,
+            page_number=page_number,
+            block_type="table",
+            heading_path=heading_path,
+            attributes=attributes,
+        )
+        for evidence, attributes, _, _ in groups
+    ]
+
+
+def _tabular_segments(
+    text: str, delimiter: str, label: str, table_mode: str | None = None
+) -> list[CanonicalInputSegment]:
+    rows = _tabular_rows(text, delimiter)
+    if table_mode is not None:
+        return _table_segments(
+            [[value.strip() for value in row] for row in rows],
+            table_mode,
+            table_id="t1",
+            table_fields={"name": label},
+        )
+    result = []
+    for index, row in enumerate(rows):
+        escaped = [value.replace("|", "\\|").strip() for value in row]
+        result.append(
+            CanonicalInputSegment(
+                text="| " + " | ".join(escaped) + " |",
+                block_type="table",
+                attributes={"table": label, "row": index + 1, "header": index == 0},
+            )
+        )
+    return result
+
+
+def _tabular_rows(text: str, delimiter: str) -> list[list[str]]:
     csv.field_size_limit(100_000)
     try:
         rows = csv.reader(io.StringIO(text), delimiter=delimiter, strict=True)
@@ -348,14 +406,7 @@ def _tabular_segments(
                     "table_limit",
                     "The tabular document exceeds its cell limit.",
                 )
-            escaped = [value.replace("|", "\\|").strip() for value in row]
-            result.append(
-                CanonicalInputSegment(
-                    text="| " + " | ".join(escaped) + " |",
-                    block_type="table",
-                    attributes={"table": label, "row": index + 1, "header": index == 0},
-                )
-            )
+            result.append(row)
         return result
     except (csv.Error, UnicodeError) as exc:
         raise IngestionStageError(
@@ -376,7 +427,9 @@ def _texts(element) -> list[str]:
     return [value.text or "" for value in element.findall(".//{*}t")]
 
 
-def _docx_segments(archive: zipfile.ZipFile) -> list[CanonicalInputSegment]:
+def _docx_segments(
+    archive: zipfile.ZipFile, table_mode: str | None = None
+) -> list[CanonicalInputSegment]:
     if any(name.lower().endswith("vbaproject.bin") for name in archive.namelist()):
         raise IngestionStageError(
             "extract",
@@ -387,6 +440,7 @@ def _docx_segments(archive: zipfile.ZipFile) -> list[CanonicalInputSegment]:
     body = root.find(".//{*}body")
     result: list[CanonicalInputSegment] = []
     headings: list[str] = []
+    tables = 0
     for child in list(body) if body is not None else []:
         if child.tag.endswith("}p"):
             value = "".join(_texts(child)).strip()
@@ -413,6 +467,22 @@ def _docx_segments(archive: zipfile.ZipFile) -> list[CanonicalInputSegment]:
             result.append(
                 CanonicalInputSegment(value, block_type=kind, heading_path=path)
             )
+        elif child.tag.endswith("}tbl") and table_mode is not None:
+            # Direct rows only: a nested table's text stays inside its parent cell.
+            rows = [
+                ["".join(_texts(cell)).strip() for cell in row.findall("./{*}tc")]
+                for row in child.findall("./{*}tr")
+            ]
+            if rows:
+                tables += 1
+                result.extend(
+                    _table_segments(
+                        rows,
+                        table_mode,
+                        table_id=f"t{tables}",
+                        heading_path=tuple(headings),
+                    )
+                )
         elif child.tag.endswith("}tbl"):
             for row_index, row in enumerate(child.findall(".//{*}tr")):
                 cells = [
@@ -459,7 +529,37 @@ def _pptx_segments(archive: zipfile.ZipFile) -> list[CanonicalInputSegment]:
     return result
 
 
-def _xlsx_segments(archive: zipfile.ZipFile) -> list[CanonicalInputSegment]:
+def _xlsx_segments(
+    archive: zipfile.ZipFile, table_mode: str | None = None
+) -> list[CanonicalInputSegment]:
+    rows = _xlsx_rows(archive)
+    if table_mode is not None:
+        result = []
+        for sheet in sorted({sheet for sheet, _, _ in rows}):
+            result.extend(
+                _table_segments(
+                    [values for number, _, values in rows if number == sheet],
+                    table_mode,
+                    table_id=f"sheet{sheet}",
+                    page_number=sheet,
+                    table_fields={"sheet": sheet},
+                )
+            )
+        return result
+    return [
+        CanonicalInputSegment(
+            "| " + " | ".join(value.replace("|", "\\|") for value in values) + " |",
+            page_number=sheet_number,
+            block_type="table",
+            attributes={"sheet": sheet_number, "row": row_number},
+        )
+        for sheet_number, row_number, values in rows
+    ]
+
+
+def _xlsx_rows(archive: zipfile.ZipFile) -> list[tuple[int, int, list[str]]]:
+    """(sheet number, workbook row number, values) for every non-empty row."""
+
     shared: list[str] = []
     if "xl/sharedStrings.xml" in archive.namelist():
         shared = [
@@ -505,20 +605,19 @@ def _xlsx_segments(archive: zipfile.ZipFile) -> list[CanonicalInputSegment]:
                     "extract", "table_limit", "The workbook exceeds its column limit."
                 )
             if values:
-                result.append(
-                    CanonicalInputSegment(
-                        "| "
-                        + " | ".join(value.replace("|", "\\|") for value in values)
-                        + " |",
-                        page_number=sheet_number,
-                        block_type="table",
-                        attributes={"sheet": sheet_number, "row": rows},
-                    )
-                )
+                result.append((sheet_number, rows, values))
     return result
 
 
-def extract_structured_document(path: Path, media_type: str, title: str | None):
+def extract_structured_document(
+    path: Path,
+    media_type: str,
+    title: str | None,
+    *,
+    table_mode: str | None = None,
+):
+    """Extract a structured file; `table_mode` selects formats-v2 table groups."""
+
     if media_type in {MARKDOWN, HTML, CSV, TSV}:
         text = _bounded_text(path.read_text("utf-8"))
         if media_type == MARKDOWN:
@@ -527,16 +626,19 @@ def extract_structured_document(path: Path, media_type: str, title: str | None):
             segments = _html_segments(text)
         else:
             segments = _tabular_segments(
-                text, "," if media_type == CSV else "\t", title or "table"
+                text,
+                "," if media_type == CSV else "\t",
+                title or "table",
+                table_mode,
             )
     else:
         with _safe_archive(path) as archive:
             if media_type == DOCX:
-                segments = _docx_segments(archive)
+                segments = _docx_segments(archive, table_mode)
             elif media_type == PPTX:
                 segments = _pptx_segments(archive)
             elif media_type == XLSX:
-                segments = _xlsx_segments(archive)
+                segments = _xlsx_segments(archive, table_mode)
             else:
                 raise IngestionStageError(
                     "extract",
@@ -569,11 +671,18 @@ def extract_structured_document(path: Path, media_type: str, title: str | None):
     document = build_extracted_document(
         segments, media_type=media_type, title=title, page_metadata=page_metadata
     )
+    if table_mode is None:
+        table_count = sum(segment.block_type == "table" for segment in segments)
+    else:
+        # v2 counts tables, not the row groups that carry them.
+        table_count = len(
+            {
+                (segment.page_number, segment.attributes["table"]["table_id"])
+                for segment in segments
+                if segment.block_type == "table"
+            }
+        )
     return (
-        measured_document(
-            document,
-            duration_ms=0,
-            table_count=sum(segment.block_type == "table" for segment in segments),
-        ),
-        FORMAT_EXTRACTOR_VERSION,
+        measured_document(document, duration_ms=0, table_count=table_count),
+        FORMAT_EXTRACTOR_VERSION if table_mode is None else FORMAT_V2_EXTRACTOR_VERSION,
     )
