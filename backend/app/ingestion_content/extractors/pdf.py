@@ -13,6 +13,7 @@ import subprocess
 import tempfile
 import time
 from collections.abc import Callable
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -66,6 +67,15 @@ MAX_TABLE_V2_COLUMNS = 50
 MAX_TABLE_V2_CELL_CHARACTERS = 1_000
 TABLE_ATTRIBUTE_BUDGET = 15_500
 _LIST_PREFIX = re.compile(r"^(?:[-•◦⁃] |\(?\d{1,4}[.)] )")
+# layout-ocr-v2 heading rules (plan Slice 3).
+_SENTENCE_END = re.compile(r"[.!?;,]$")
+_NUMBERED_HEADING = re.compile(r"^\(?\d{1,3}(?:\.\d{1,3})*[.)]?\s+\S")
+_BOLD_FONT = re.compile(r"bold|black|heavy|semibold|demi", re.IGNORECASE)
+MAX_HEADING_CHARACTERS = 200
+MAX_HEADING_LINES = 3
+MAX_HEADING_LEVELS = 6
+# v2 Auto keeps layout blocks unless they hold under 75% of the native characters.
+LAYOUT_TEXT_LOSS_RATIO = 0.75
 
 
 class OcrSettings(Protocol):
@@ -424,6 +434,126 @@ def _classify_block(
     return "paragraph"
 
 
+def _bold_coverage(spans: list[dict[str, Any]]) -> float:
+    total = bold = 0
+    for span in spans:
+        characters = len(str(span.get("text", "")).strip())
+        if not characters:
+            continue
+        total += characters
+        if int(span.get("flags", 0)) & 16 or _BOLD_FONT.search(
+            str(span.get("font", ""))
+        ):
+            bold += characters
+    return bold / total if total else 0.0
+
+
+def _classify_block_v2(
+    text: str,
+    spans: list[dict[str, Any]],
+    *,
+    body_size: float,
+    top: float,
+    page_height: float,
+) -> tuple[str, float]:
+    """Classify a layout block; titles and heading levels are decided per document."""
+
+    sizes = [float(span.get("size", body_size)) for span in spans if span.get("text")]
+    size = statistics.median(sizes) if sizes else body_size
+    fonts = " ".join(str(span.get("font", "")).lower() for span in spans)
+    shaped_like_heading = (
+        len(text) <= MAX_HEADING_CHARACTERS
+        and text.count("\n") < MAX_HEADING_LINES
+        and (
+            not _SENTENCE_END.search(text.rstrip())
+            or bool(_NUMBERED_HEADING.match(text))
+        )
+    )
+    if shaped_like_heading and (
+        size >= body_size * 1.2 or _bold_coverage(spans) >= 0.8
+    ):
+        return "heading", size
+    if _LIST_PREFIX.match(text):
+        return "list_item", size
+    if "courier" in fonts or "mono" in fonts:
+        return "code", size
+    if re.match(r"^(?:figure|fig\.|table)\s+\d", text, re.IGNORECASE):
+        return "image_caption", size
+    if size <= body_size * 0.82 and top >= page_height * 0.72:
+        return "footnote", size
+    if text.startswith(">"):
+        return "quote", size
+    return "paragraph", size
+
+
+def _heading_key(size: float) -> float:
+    return round(size * 2) / 2
+
+
+def _heading_structure(
+    segments: list[CanonicalInputSegment],
+) -> list[CanonicalInputSegment]:
+    """Assign one title, heading levels and heading paths across the document.
+
+    Levels rank distinct heading font sizes, largest first. The title is the first
+    page-1 heading when the document has other headings and its size is larger than
+    all of them; it is not part of heading paths. Paths continue across pages until a heading of the same or a
+    higher level replaces them.
+    """
+
+    headings = [
+        index
+        for index, segment in enumerate(segments)
+        if segment.block_type == "heading"
+        and isinstance((segment.attributes or {}).get("font_size"), (int, float))
+    ]
+
+    def size_of(index: int) -> float:
+        return _heading_key(float(segments[index].attributes["font_size"]))
+
+    title_index = None
+    first_page = [index for index in headings if segments[index].page_number == 1]
+    # A lone heading stays a section heading so its paragraphs keep the path.
+    if first_page and len(headings) > 1:
+        candidate = first_page[0]
+        if all(
+            size_of(candidate) > size_of(other)
+            for other in headings
+            if other != candidate
+        ):
+            title_index = candidate
+    sizes = sorted(
+        {size_of(index) for index in headings if index != title_index}, reverse=True
+    )
+    levels = {
+        size: min(rank + 1, MAX_HEADING_LEVELS) for rank, size in enumerate(sizes)
+    }
+
+    result = []
+    stack: list[tuple[int, str]] = []
+    for index, segment in enumerate(segments):
+        attributes = dict(segment.attributes or {})
+        if index == title_index:
+            result.append(replace(segment, block_type="title", heading_path=()))
+            continue
+        if index in headings:
+            level = levels[size_of(index)]
+            while stack and stack[-1][0] >= level:
+                stack.pop()
+            attributes["heading_level"] = level
+            result.append(
+                replace(
+                    segment,
+                    heading_path=tuple(text for _, text in stack),
+                    attributes=attributes,
+                )
+            )
+            stack.append((level, " ".join(segment.text.split())[:500]))
+            continue
+        result.append(replace(segment, heading_path=tuple(text for _, text in stack)))
+    return result
+
+
 def _safe_table(rows: list[list[Any]], mode: str) -> tuple[str, dict[str, Any], bool]:
     row_count = len(rows)
     column_count = max((len(row) for row in rows), default=0)
@@ -752,21 +882,30 @@ def _layout_page(
         if not text:
             continue
         box = tuple(float(value) for value in block["bbox"])
+        attributes: dict[str, Any] = {"origin": "layout", "engine": "pymupdf"}
+        if layout_v2:
+            block_type, size = _classify_block_v2(
+                text, spans, body_size=body_size, top=box[1], page_height=height
+            )
+            if block_type == "heading":
+                attributes["font_size"] = round(size, 2)
+        else:
+            block_type = _classify_block(
+                text,
+                spans,
+                body_size=body_size,
+                top=box[1],
+                bottom=box[3],
+                page_height=height,
+                ordinal=ordinal,
+            )
         segments.append(
             CanonicalInputSegment(
                 text=text,
                 page_number=page_number,
-                block_type=_classify_block(
-                    text,
-                    spans,
-                    body_size=body_size,
-                    top=box[1],
-                    bottom=box[3],
-                    page_height=height,
-                    ordinal=ordinal,
-                ),
+                block_type=block_type,
                 bounding_box=_normalized_box(box, width, height),
-                attributes={"origin": "layout", "engine": "pymupdf"},
+                attributes=attributes,
             )
         )
     ordered_tables = sorted(tables, key=lambda value: (value[1][1], value[1][0]))
@@ -1126,6 +1265,7 @@ def extract_document(
     malformed_tables = 0
     suspicious_order = 0
     ocr_pages = 0
+    layout_v2 = settings.config_version == "layout-ocr-v2"
     try:
         for index, native_text in enumerate(native_pages):
             if cancelled and cancelled():
@@ -1177,7 +1317,7 @@ def extract_document(
                         page,
                         page_number=page_number,
                         table_mode=settings.tables,
-                        layout_v2=settings.config_version == "layout-ocr-v2",
+                        layout_v2=layout_v2,
                     )
                 )
                 layout_characters = sum(len(item.text) for item in layout_segments)
@@ -1196,7 +1336,30 @@ def extract_document(
                 )
                 use_layout = settings.strategy == "layout_aware"
                 reason = "layout_profile"
-                if settings.strategy == "auto":
+                if settings.strategy == "auto" and layout_v2:
+                    # v2 keeps structure unless layout analysis lost text. Columns need
+                    # narrow blocks on both halves, so short headings and indented
+                    # list items on a single-column page do not count.
+                    narrow = [
+                        item.bounding_box
+                        for item in layout_segments
+                        if item.bounding_box
+                        and item.bounding_box.right - item.bounding_box.left < 0.62
+                    ]
+                    two_columns = (
+                        sum(box.right <= 0.55 for box in narrow) >= 2
+                        and sum(box.left >= 0.45 for box in narrow) >= 2
+                    )
+                    if page_tables:
+                        use_layout, reason = True, "table_detected"
+                    elif two_columns:
+                        use_layout, reason = True, "multiple_columns_detected"
+                    elif layout_characters < native_characters * LAYOUT_TEXT_LOSS_RATIO:
+                        use_layout, reason = False, None
+                        fallback_reason = "layout_text_loss"
+                    else:
+                        use_layout, reason = True, "layout_structure"
+                elif settings.strategy == "auto":
                     if page_tables:
                         use_layout, reason = True, "table_detected"
                     elif multi_column:
@@ -1252,6 +1415,8 @@ def extract_document(
             segments.extend(page_segments)
     finally:
         pdf.close()
+    if layout_v2:
+        segments = _heading_structure(segments)
     document = build_extracted_document(
         segments,
         media_type=detected,

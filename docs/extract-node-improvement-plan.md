@@ -1,6 +1,6 @@
 # Extract node improvement plan
 
-Status: approved 2026-10-06 (owner accepted D1–D3); Slices 0–2 done (Slice 2 on 2026-10-07); Slice 3 next
+Status: approved 2026-10-06 (owner accepted D1–D3); Slices 0–3 done (Slices 2–3 on 2026-10-07); Slice 4 next
 Scope owner: ingestion Extract stage (backend extractors, schema-v2 Extract node, Extract settings panel)
 Related: `docs/robust-ingestion-plan.md` (Phase 2 design this builds on), `docs/ingestion-corpus-baseline.md` (current measured gate), `docs/extract-ingestion-qa-findings.csv` (2026-09-26 QA pass)
 
@@ -99,7 +99,7 @@ The first real behavior change.
 
 **Result:** under v2 the 40-row fixture keeps all 246 cells with no malformed finding and a Balanced `pass` (v1: 40.65% and `fail`). A 300-row × 8-column table splits into several groups, each within the 15.5 KB budget and starting with the header, with contiguous row ranges and every row retained. Section-aware chunks of the fixture all start with the header row and stay within 800 tokens. A row wider than the budget keeps shortened cells and is reported as cut. Grouping a 2,000-row table takes about 0.5 s in the test container.
 
-### Slice 3 — PDF heading classification, heading paths and structure under Auto (F3, F4, F10)
+### Slice 3 — PDF heading classification, heading paths and structure under Auto (F3, F4, F10) — done 2026-10-07
 
 - Heading rules in v2:
   - bold counts only when bold spans cover at least 80% of the block's characters;
@@ -113,6 +113,8 @@ The first real behavior change.
 **Tests:** a paragraph with one bold term stays a paragraph; H1/H2 levels and paths are correct; heading path continues across a page break; the chunk preview for the fixture starts body chunks with `Section: …`; heading precision and recall measured on the corpus; v1 unchanged.
 
 **Done when:** heading-path coverage of body blocks is above 95% on the heading fixture under both Auto and Layout-aware, exactly one title block is detected, and no heading-only chunks are produced for it.
+
+**Result:** under v2, heading precision, recall and heading-path coverage are 100% under both Auto and Layout-aware, with one title (v1 Auto: 0% for all; v1 Layout-aware: 83.3% precision, two titles, 0% paths). Every heading that is followed by body text shares its chunk, and each body chunk's embedding text starts with its `Section:` path. The criterion was clarified during implementation: a title followed directly by a heading still forms its own small chunk, exactly as a Markdown `# Title` followed by `## Section` does today, because the chunker does not merge sections. A 4-page HTML-rendered PDF with 13 headings, inline bold, lists and a bold-led paragraph gave no missed or false headings. The v2 Auto column test was tightened because short headings and indented lists made single-column pages report `multiple_columns_detected`; they now report `layout_structure`.
 
 ### Slice 4 — OCR paragraph blocks and lower overhead (F5, part of F9)
 

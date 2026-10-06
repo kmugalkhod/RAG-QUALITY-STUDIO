@@ -469,6 +469,16 @@ splits a large table block by rows and repeats its header, so the extractor does
 size groups to chunk settings. Splitting is not a quality finding; only tables beyond
 2,000 rows, 50 columns or 1,000 characters per cell are cut and counted as malformed.
 
+v2 PDF structure (Slice 3): layout blocks are classified per page, then a document-wide
+pass picks one title (the first page-1 heading when it is larger than every other
+heading), ranks distinct heading font sizes into at most six levels and gives every
+following block the open heading path, across pages. The title is not part of paths,
+matching how a Markdown `# Title` followed directly by `## Section` already chunks.
+Auto uses layout blocks unless they hold under 75% of the page's native characters; the
+v2 column test needs narrow blocks on both halves of the page so headings and indented
+list items do not read as columns. The trade-off is that a body-size, fully bold short
+line is treated as a heading even when an author meant emphasis.
+
 The inspector fetches project-scoped, annotation-free PNG thumbnails from the immutable
 raw artifact and overlays normalized block geometry in the browser. Structured table
 rows and their deterministic Markdown/plain-text evidence are both bounded. See the
