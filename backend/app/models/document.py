@@ -108,7 +108,7 @@ class ProcessingRun(Base):
     chunk_size: Mapped[int]
     overlap: Mapped[int]
     config_version: Mapped[str] = mapped_column(String(32), default="characters-v1")
-    parser_version: Mapped[str] = mapped_column(String(64))
+    parser_version: Mapped[str] = mapped_column(String(120))
     processing_config: Mapped[dict | None] = mapped_column(JSONB)
     processing_config_hash: Mapped[str | None] = mapped_column(String(64))
     derivation_config_hash: Mapped[str | None] = mapped_column(String(64))

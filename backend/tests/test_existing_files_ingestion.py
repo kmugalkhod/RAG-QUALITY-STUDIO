@@ -15,7 +15,10 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.auth import Principal
 from app.connectors.existing_files import ExistingFilesConnector
-from app.ingestion_content.extractors.pdf import installed_ocr_languages
+from app.ingestion_content.extractors.pdf import (
+    LAYOUT_OCR_V2_EXTRACTOR_VERSION,
+    installed_ocr_languages,
+)
 from app.models.document import Chunk, ProcessingRun
 from app.models.derivation import ChunkBlockSpan
 from app.models.index import IndexChunk, IndexVersion, KnowledgeSet
@@ -424,6 +427,37 @@ def robust_extract(payload, *, ocr_mode):
         }
     )
     return payload
+
+
+def test_layout_ocr_v2_run_records_its_full_extractor_version(ingestion_api):
+    """The v2 extractor version is longer than the original 64-character column."""
+
+    client, engine, project_id, _, config, _ = ingestion_api
+    document, _ = prepare(client, engine, project_id, name="v2.txt")
+    payload = robust_extract(
+        ingestion_draft([document["id"]], config, schema_version=2), ocr_mode="off"
+    )
+    extract = next(
+        node for node in payload["execution"]["nodes"] if node["type"] == "extract"
+    )
+    extract["config_version"] = "layout-ocr-v2"
+    saved = client.post(f"/api/projects/{project_id}/pipelines", json=payload)
+    assert saved.status_code == 201, saved.text
+    version = saved.json()
+    accepted = client.post(
+        f"/api/projects/{project_id}/pipelines/{version['pipeline_id']}"
+        f"/versions/{version['id']}/ingestion-runs"
+    )
+    assert accepted.status_code == 202, accepted.text
+    assert len(LAYOUT_OCR_V2_EXTRACTOR_VERSION) > 64
+    with Session(engine) as session:
+        versions = session.scalars(
+            select(ProcessingRun.parser_version).where(
+                ProcessingRun.document_id == UUID(document["id"]),
+                ProcessingRun.config_version == "ingestion-v2",
+            )
+        ).all()
+    assert LAYOUT_OCR_V2_EXTRACTOR_VERSION in versions
 
 
 def test_node_transitions_are_serialized_across_document_workers(ingestion_api):
