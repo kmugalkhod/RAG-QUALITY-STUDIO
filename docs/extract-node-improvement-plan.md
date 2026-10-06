@@ -1,6 +1,6 @@
 # Extract node improvement plan
 
-Status: approved 2026-10-06 (owner accepted D1–D3); Slices 0–1 done 2026-10-06; Slice 2 next
+Status: approved 2026-10-06 (owner accepted D1–D3); Slices 0–2 done (Slice 2 on 2026-10-07); Slice 3 next
 Scope owner: ingestion Extract stage (backend extractors, schema-v2 Extract node, Extract settings panel)
 Related: `docs/robust-ingestion-plan.md` (Phase 2 design this builds on), `docs/ingestion-corpus-baseline.md` (current measured gate), `docs/extract-ingestion-qa-findings.csv` (2026-09-26 QA pass)
 
@@ -86,7 +86,7 @@ The first real behavior change.
 
 **Result:** v2 reading-order pairs are 100% under Auto and Layout-aware (v1: 80%); every other corpus measure is unchanged, and the v1 digests still match. A table at the bottom of a left column now precedes the right column. The OpenAPI reference was updated by hand for the new enum value because `generate_api_reference.py` already fails on the unclassified `/api/projects/{project_id}/answer-deployments` route, which is outside this plan.
 
-### Slice 2 — PDF table row groups instead of truncation (F2)
+### Slice 2 — PDF table row groups instead of truncation (F2) — done 2026-10-07
 
 - In v2, split a PyMuPDF table into row groups that fit the existing 15.5 KB attribute budget. Each group is one `table` block that repeats the header row and records `table_id`, `row_start`, `row_end`, `row_count`, `column_count` and `header_repeated: true`.
 - Raise the bounds to a total safety limit, for example 2,000 rows × 50 columns × 1,000 characters per cell per table, still enforced.
@@ -96,6 +96,8 @@ The first real behavior change.
 **Tests:** 40×6 table yields multiple groups, 100% of cells retained, header in each group, no `malformed_tables` finding under Balanced; table beyond the safety limit produces the finding; row groups survive Clean (`preserve_structure`) and stay within chunk maximum tokens; v1 truncation behavior unchanged.
 
 **Done when:** large-table cell retention is 100% on the corpus and Balanced publishes the 40-row fixture.
+
+**Result:** under v2 the 40-row fixture keeps all 246 cells with no malformed finding and a Balanced `pass` (v1: 40.65% and `fail`). A 300-row × 8-column table splits into several groups, each within the 15.5 KB budget and starting with the header, with contiguous row ranges and every row retained. Section-aware chunks of the fixture all start with the header row and stay within 800 tokens. A row wider than the budget keeps shortened cells and is reported as cut. Grouping a 2,000-row table takes about 0.5 s in the test container.
 
 ### Slice 3 — PDF heading classification, heading paths and structure under Auto (F3, F4, F10)
 

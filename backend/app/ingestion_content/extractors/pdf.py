@@ -60,6 +60,11 @@ MAX_OCR_OUTPUT_BYTES = 5_000_000
 MAX_LAYOUT_BLOCKS_PER_PAGE = 10_000
 MAX_TABLE_CELLS = 100
 MAX_TABLE_CELL_CHARACTERS = 160
+# layout-ocr-v2 keeps whole tables as row groups within these safety limits.
+MAX_TABLE_V2_ROWS = 2_000
+MAX_TABLE_V2_COLUMNS = 50
+MAX_TABLE_V2_CELL_CHARACTERS = 1_000
+TABLE_ATTRIBUTE_BUDGET = 15_500
 _LIST_PREFIX = re.compile(r"^(?:[-•◦⁃] |\(?\d{1,4}[.)] )")
 
 
@@ -487,24 +492,163 @@ def _safe_table(rows: list[list[Any]], mode: str) -> tuple[str, dict[str, Any], 
     return evidence or "[Empty table]", attributes, truncated
 
 
+def _bounded_table_grid(rows: list[list[Any]]) -> tuple[list[list[str]], bool]:
+    limited = len(rows) > MAX_TABLE_V2_ROWS or any(
+        len(row) > MAX_TABLE_V2_COLUMNS for row in rows
+    )
+    bounded = []
+    for row in rows[:MAX_TABLE_V2_ROWS]:
+        cells = []
+        for cell in row[:MAX_TABLE_V2_COLUMNS]:
+            value = "" if cell is None else str(cell)
+            if len(value) > MAX_TABLE_V2_CELL_CHARACTERS:
+                value = value[:MAX_TABLE_V2_CELL_CHARACTERS]
+                limited = True
+            cells.append(value)
+        bounded.append(cells)
+    width = max((len(row) for row in bounded), default=0)
+    return [row + [""] * (width - len(row)) for row in bounded], limited
+
+
+def _render_table(grid: list[list[str]]) -> tuple[str, str]:
+    def markdown_cell(value: str) -> str:
+        return value.replace("\\", "\\\\").replace("|", "\\|").replace("\n", " ")
+
+    width = max((len(row) for row in grid), default=0)
+    markdown = ""
+    if grid and width:
+        escaped = [[markdown_cell(cell) for cell in row] for row in grid]
+        lines = ["| " + " | ".join(escaped[0]) + " |"]
+        lines.append("| " + " | ".join(["---"] * width) + " |")
+        lines.extend("| " + " | ".join(row) + " |" for row in escaped[1:])
+        markdown = "\n".join(lines)
+    plain = "\n".join(
+        "\t".join(cell.replace("\t", " ").replace("\n", " ") for cell in row)
+        for row in grid
+    )
+    return markdown, plain
+
+
+def _table_group(
+    header: list[str],
+    body: list[list[str]],
+    mode: str,
+    *,
+    table: dict[str, Any],
+) -> tuple[str, dict[str, Any]]:
+    grid = [header, *body]
+    markdown, plain = _render_table(grid)
+    attributes = {
+        "origin": "layout",
+        "engine": "pymupdf",
+        "table": {**table, "rows": grid, "header_row": header},
+        "markdown": markdown,
+        "plain_text": plain,
+        "evidence_rendering": "plain_text" if mode == "plain_text" else "markdown",
+    }
+    evidence = plain if mode == "plain_text" else markdown
+    return evidence or "[Empty table]", attributes
+
+
+def _attribute_bytes(attributes: dict[str, Any]) -> int:
+    return len(json.dumps(attributes, ensure_ascii=True).encode())
+
+
+def _table_row_groups(
+    rows: list[list[Any]], mode: str, *, table_id: str
+) -> tuple[list[tuple[str, dict[str, Any], int, int]], bool]:
+    """Split one table into header-repeating row groups within the attribute budget.
+
+    Returns (evidence, attributes, first grid row, last grid row) per group and
+    whether a safety limit cut the table. Splitting alone is not a quality issue.
+    """
+
+    grid, limited = _bounded_table_grid(rows)
+    if not grid:
+        return [], limited
+    header, body = grid[0], grid[1:]
+    shape = {
+        "table_id": table_id,
+        "row_count": len(rows),
+        "column_count": max((len(row) for row in rows), default=0),
+        "truncated": limited,
+    }
+    # Sizes are measured with the widest placeholder values so final groups fit.
+    probe = {
+        **shape,
+        "truncated": False,
+        "group_index": MAX_TABLE_V2_ROWS,
+        "group_count": MAX_TABLE_V2_ROWS,
+        "row_start": MAX_TABLE_V2_ROWS,
+        "row_end": MAX_TABLE_V2_ROWS,
+        "header_repeated": False,
+    }
+
+    def size(group_body: list[list[str]]) -> int:
+        return _attribute_bytes(_table_group(header, group_body, mode, table=probe)[1])
+
+    partitions: list[list[list[str]]] = []
+    current: list[list[str]] = []
+    for row in body:
+        if current and size([*current, row]) > TABLE_ATTRIBUTE_BUDGET:
+            partitions.append(current)
+            current = []
+        if not current and size([row]) > TABLE_ATTRIBUTE_BUDGET:
+            # A single row larger than the budget keeps shortened cells.
+            cap = MAX_TABLE_V2_CELL_CHARACTERS
+            while cap > 16 and size([[cell[:cap] for cell in row]]) > (
+                TABLE_ATTRIBUTE_BUDGET
+            ):
+                cap //= 2
+            row = [cell[:cap] for cell in row]
+            limited = True
+        current.append(row)
+    partitions.append(current)
+    shape["truncated"] = limited
+
+    groups = []
+    first = 1
+    for index, group_body in enumerate(partitions):
+        last = first + len(group_body) - 1
+        evidence, attributes = _table_group(
+            header,
+            group_body,
+            mode,
+            table={
+                **shape,
+                "group_index": index,
+                "group_count": len(partitions),
+                "row_start": first,
+                "row_end": last,
+                "header_repeated": index > 0,
+            },
+        )
+        groups.append((evidence, attributes, first, last))
+        first = last + 1
+    return groups, limited
+
+
 def _overlaps_horizontally(first: BoundingBox, second: BoundingBox) -> bool:
     return first.left < second.right and second.left < first.right
 
 
 def _place_tables(
-    ordered: list[CanonicalInputSegment], tables: list[CanonicalInputSegment]
+    ordered: list[CanonicalInputSegment], tables: list[list[CanonicalInputSegment]]
 ) -> list[CanonicalInputSegment]:
     """Insert tables into a computed reading order without re-sorting the text.
 
     A table follows the last segment above it in the same column band. With no such
-    segment it precedes the first segment below it, and otherwise ends the page.
+    segment it precedes the first segment below it, and otherwise ends the page. The
+    row groups of one table stay together in order.
     """
 
     result = list(ordered)
-    for table in tables:
-        box = table.bounding_box
+    for groups in tables:
+        if not groups:
+            continue
+        box = groups[0].bounding_box
         if box is None:
-            result.append(table)
+            result.extend(groups)
             continue
         above = [
             index
@@ -514,18 +658,42 @@ def _place_tables(
             and _overlaps_horizontally(item.bounding_box, box)
         ]
         if above:
-            result.insert(above[-1] + 1, table)
-            continue
-        below = next(
-            (
-                index
-                for index, item in enumerate(result)
-                if item.bounding_box is not None and item.bounding_box.top >= box.top
-            ),
-            len(result),
-        )
-        result.insert(below, table)
+            position = above[-1] + 1
+        else:
+            position = next(
+                (
+                    index
+                    for index, item in enumerate(result)
+                    if item.bounding_box is not None
+                    and item.bounding_box.top >= box.top
+                ),
+                len(result),
+            )
+        result[position:position] = groups
     return result
+
+
+def _group_box(
+    table_box: tuple[float, float, float, float],
+    row_boxes: list,
+    first: int,
+    last: int,
+) -> tuple[float, float, float, float]:
+    """Union of a group's row bands, or the whole table when bands are unavailable."""
+
+    bands = [
+        tuple(float(value) for value in band)
+        for band in row_boxes[first : last + 1]
+        if band is not None and len(band) == 4
+    ]
+    if not bands or len(bands) != last - first + 1:
+        return table_box
+    return (
+        min(band[0] for band in bands),
+        min(band[1] for band in bands),
+        max(band[2] for band in bands),
+        max(band[3] for band in bands),
+    )
 
 
 def _layout_page(
@@ -533,7 +701,7 @@ def _layout_page(
     *,
     page_number: int,
     table_mode: str,
-    keep_reading_order: bool = False,
+    layout_v2: bool = False,
 ) -> tuple[list[CanonicalInputSegment], int, int, bool]:
     width, height = float(page.rect.width), float(page.rect.height)
     dictionary = page.get_text("dict", sort=False)
@@ -555,14 +723,18 @@ def _layout_page(
     ]
     body_size = statistics.median(span_sizes) if span_sizes else 11.0
     table_boxes: list[tuple[float, float, float, float]] = []
-    tables: list[tuple[list[list[Any]], tuple[float, float, float, float]]] = []
+    tables: list[tuple[list[list[Any]], tuple[float, float, float, float], list]] = []
     malformed = 0
     try:
         finder = page.find_tables()
         for table in finder.tables:
             rows = table.extract()
             box = tuple(float(value) for value in table.bbox)
-            tables.append((rows, box))
+            # Row bands give each v2 row group its own inspector geometry.
+            row_boxes = (
+                [getattr(row, "bbox", None) for row in table.rows] if layout_v2 else []
+            )
+            tables.append((rows, box, row_boxes))
             table_boxes.append(box)
     except Exception:
         malformed += 1
@@ -597,8 +769,36 @@ def _layout_page(
                 attributes={"origin": "layout", "engine": "pymupdf"},
             )
         )
+    ordered_tables = sorted(tables, key=lambda value: (value[1][1], value[1][0]))
+    if layout_v2:
+        placed_tables = []
+        for table_index, (rows, box, row_boxes) in enumerate(ordered_tables):
+            groups, limited = _table_row_groups(
+                rows, table_mode, table_id=f"p{page_number}-t{table_index + 1}"
+            )
+            malformed += int(limited)
+            placed_tables.append(
+                [
+                    CanonicalInputSegment(
+                        text=evidence,
+                        page_number=page_number,
+                        block_type="table",
+                        bounding_box=_normalized_box(
+                            _group_box(box, row_boxes, first, last), width, height
+                        ),
+                        attributes=attributes,
+                    )
+                    for evidence, attributes, first, last in groups
+                ]
+            )
+        return (
+            _place_tables(segments, placed_tables),
+            len(tables),
+            malformed,
+            suspicious,
+        )
     table_segments = []
-    for rows, box in sorted(tables, key=lambda value: (value[1][1], value[1][0])):
+    for rows, box, _ in ordered_tables:
         evidence, attributes, truncated = _safe_table(rows, table_mode)
         malformed += int(truncated)
         table_segments.append(
@@ -609,13 +809,6 @@ def _layout_page(
                 bounding_box=_normalized_box(box, width, height),
                 attributes=attributes,
             )
-        )
-    if keep_reading_order:
-        return (
-            _place_tables(segments, table_segments),
-            len(tables),
-            malformed,
-            suspicious,
         )
     # layout-ocr-v1 (frozen): this geometric sort interleaves column blocks.
     segments.extend(table_segments)
@@ -984,7 +1177,7 @@ def extract_document(
                         page,
                         page_number=page_number,
                         table_mode=settings.tables,
-                        keep_reading_order=settings.config_version == "layout-ocr-v2",
+                        layout_v2=settings.config_version == "layout-ocr-v2",
                     )
                 )
                 layout_characters = sum(len(item.text) for item in layout_segments)

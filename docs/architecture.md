@@ -461,6 +461,14 @@ and places each table after the last block above it in the same column band, whe
 re-sorted every block by position and interleaved columns. The trade-off is that the
 extractor keeps small, version-gated branches instead of one current behavior.
 
+v2 also keeps whole PDF tables (Slice 2). A table becomes consecutive `table` blocks,
+each repeating the header row and recording `table_id`, `group_index`, `group_count`,
+`row_start` and `row_end`, sized to the 16 KiB block-attribute limit; each block's box
+is the union of its PyMuPDF row bands when available. Section-aware chunking already
+splits a large table block by rows and repeats its header, so the extractor does not
+size groups to chunk settings. Splitting is not a quality finding; only tables beyond
+2,000 rows, 50 columns or 1,000 characters per cell are cut and counted as malformed.
+
 The inspector fetches project-scoped, annotation-free PNG thumbnails from the immutable
 raw artifact and overlays normalized block geometry in the browser. Structured table
 rows and their deterministic Markdown/plain-text evidence are both bounded. See the

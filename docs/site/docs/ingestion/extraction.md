@@ -24,4 +24,6 @@ Expected response shape includes `ocr.available`, `ocr.languages`, and extractio
 
 Expected result: page metadata identifies native/layout/OCR origin when available, and the preview shows extracted blocks before cleaning. An image-only PDF with OCR off may have no usable text or a quality failure. OCR is not an assurance that every scan or table will be read correctly.
 
+With `layout-ocr-v2`, a large PDF table is kept whole as consecutive table blocks, each repeating the header row, up to 2,000 rows, 50 columns and 1,000 characters per cell. Only a table beyond those limits is cut and reported as a malformed-table finding. `layout-ocr-v1` keeps its original bound of 25 rows and 10 columns.
+
 If OCR options are disabled, install/configure the required language packs on the server and reread capabilities. For a failed page, inspect the safe finding and the original authorized artifact; correct scan orientation/quality or adjust a bounded policy for a reason, then preview again. A changed extraction policy needs **Save version** before a run. See [quality findings](./quality.md), [cleaning](./cleaning.md), and [previews](./previews.md). Local deterministic PDF/OCR tests cover bounded cases; external OCR services and arbitrary document quality have not been verified.

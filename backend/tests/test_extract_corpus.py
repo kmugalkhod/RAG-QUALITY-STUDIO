@@ -66,8 +66,8 @@ def test_layout_ocr_v1_extract_quality_baseline(tmp_path):
     assert report == expected
 
 
-def test_layout_ocr_v2_keeps_column_reading_order(tmp_path):
-    """Slice 1 changes only reading order; every other measure matches v1."""
+def test_layout_ocr_v2_extract_quality(tmp_path):
+    """Measures v2 changes so far; every measure not listed matches v1."""
 
     include_ocr = "eng" in extraction.installed_ocr_languages()
     report = measure_extract_corpus(
@@ -75,8 +75,16 @@ def test_layout_ocr_v2_keeps_column_reading_order(tmp_path):
     )
     expected = {
         **V1_BASELINE,
+        # Slice 1: computed column order is kept.
         "auto_reading_order_percent": 100.0,
         "layout_aware_reading_order_percent": 100.0,
+        # Slice 2: whole tables in header-repeating row groups.
+        "auto_large_table_cell_retention_percent": 100.0,
+        "auto_large_table_malformed_count": 0,
+        "auto_large_table_decision": "pass",
+        "layout_aware_large_table_cell_retention_percent": 100.0,
+        "layout_aware_large_table_malformed_count": 0,
+        "layout_aware_large_table_decision": "pass",
     }
     if not include_ocr:
         expected.pop("ocr_blocks_for_paragraph", None)
