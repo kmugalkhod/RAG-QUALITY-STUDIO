@@ -1,6 +1,6 @@
 # Extract node improvement plan
 
-Status: approved 2026-10-06 (owner accepted D1–D3); Slices 0–6 done (Slices 2–6 on 2026-10-07); Slice 7 next
+Status: approved 2026-10-06 (owner accepted D1–D3); Slices 0–7 done (Slices 2–7 on 2026-10-07); Slice 8 next
 Scope owner: ingestion Extract stage (backend extractors, schema-v2 Extract node, Extract settings panel)
 Related: `docs/robust-ingestion-plan.md` (Phase 2 design this builds on), `docs/ingestion-corpus-baseline.md` (current measured gate), `docs/extract-ingestion-qa-findings.csv` (2026-09-26 QA pass)
 
@@ -146,13 +146,15 @@ The first real behavior change.
 
 **Result:** F6 overstated the gap. The legacy parser already rejects image-only and text-free PDFs with an explicit error ("Scanned PDF requires OCR…"), so those never reach quality checks. What passed silently were blank pages without images and garbled text (replacement or control characters). `native-text-v1` PDFs now carry measurements and findings; errors are reported as warnings ending with "Select Enable robust extraction in the Extract settings to apply the saved quality policy.", and the decision stays `pass` before the language policy runs, which still excludes or fails as before. A blank middle page reports `empty_pages` on page 2; the blocks are identical to the previous output. Pages now carry their real character and block counts (previously 0), which the measurement needs. The legacy Extract panel says findings are warnings only; existing run results already render findings with their remediation.
 
-### Slice 7 — Source-aware Extract panel (F7)
+### Slice 7 — Source-aware Extract panel (F7) — done 2026-10-07
 
 - When every source in the pipeline is Website, Notion or Confluence, the Extract panel shows only the quality and language policies, with one line saying that strategy, OCR and table settings apply to uploaded files and S3 documents. When any source is Existing files or S3, all controls show, each PDF-only control labeled "PDFs only".
 - Saved values are kept, not stripped, so changing the source back restores them and no new pipeline version is created by opening the panel.
 - Server behavior is unchanged; this is presentation only.
 
 **Tests:** Vitest for each source mix; browser check of a Website pipeline and an Existing files pipeline on desktop and at 390px.
+
+**Result:** `extractReadsFiles()` in `editorModel.ts` decides from the draft's source kinds. Page-only pipelines show a **Quality and language only** note instead of strategy, OCR and table evidence; pipelines with an uploaded-files or S3 source show those controls under one scope line (strategy and OCR apply to PDFs; table evidence to PDF, DOCX, CSV and XLSX tables) rather than a "PDFs only" suffix on each label, so accessible names stay unchanged. The browser check found two more controls without effect for page-only pipelines, both now hidden: the `layout-ocr-v1` **Upgrade extraction** callout (an upgrade would only reprocess) and the stage-card summary, which now reads **Quality and language policies**. Verified in the browser on the saved Website pipeline and an unsaved uploaded-files draft, desktop and 390px, with no horizontal overflow; nothing was saved.
 
 ### Slice 8 — Release baseline and docs
 

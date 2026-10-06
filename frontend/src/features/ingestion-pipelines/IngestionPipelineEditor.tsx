@@ -40,6 +40,7 @@ import {
   defaultS3,
   defaultWebsite,
   describeIngestionNode as detail,
+  extractReadsFiles,
   editableIngestionVersion as editableVersion,
   requestErrorMessage as message,
   serverFieldErrors as fieldErrorsFrom,
@@ -361,7 +362,11 @@ export function IngestionPipelineEditor({
       return state ? Boolean(state.started_at) : undefined;
     };
     if (usesSourcesPanel(draft)) {
-      const { cards } = sourcesViewCards(draft, (node) => detail(node, documents), customized);
+      const { cards } = sourcesViewCards(
+        draft,
+        (node) => detail(node, documents, extractReadsFiles(draft.execution.nodes)),
+        customized,
+      );
       const real = draft.execution.nodes.find((node) => node.id === selectedNode);
       const stage = real
         ? real.type === 'source'
@@ -405,7 +410,7 @@ export function IngestionPipelineEditor({
       data: {
         stage: node.type,
         label: nodeLabel(draft, node),
-        detail: detail(node, documents),
+        detail: detail(node, documents, extractReadsFiles(draft.execution.nodes)),
         // Sources take no input and Publish has no output, however many sources there are.
         first: node.type === 'source',
         last: node.type === 'publish_index',
@@ -1184,7 +1189,9 @@ export function IngestionPipelineEditor({
         mode = {
           kind: 'inherit',
           sourceName: sourceName(scopedSource),
-          sharedSummary: shared.node ? detail(shared.node, documents) : '',
+          sharedSummary: shared.node
+            ? detail(shared.node, documents, extractReadsFiles(draft.execution.nodes))
+            : '',
         };
       }
       scopeControl = (
@@ -1220,7 +1227,11 @@ export function IngestionPipelineEditor({
     }
   }
   const viewEdges = view
-    ? sourcesViewCards(draft, (node) => detail(node, documents), customized).edges
+    ? sourcesViewCards(
+        draft,
+        (node) => detail(node, documents, extractReadsFiles(draft.execution.nodes)),
+        customized,
+      ).edges
     : draft.execution.edges;
   const stageOptions = view
     ? [

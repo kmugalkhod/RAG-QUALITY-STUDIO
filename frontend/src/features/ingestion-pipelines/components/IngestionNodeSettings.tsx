@@ -15,6 +15,7 @@ import {
   defaultDuplicatePolicy,
   defaultLanguagePolicy,
   defaultSensitiveDataPolicy,
+  extractReadsFiles,
   fallbackQualityPolicy,
   fieldErrorsForNode,
   ingestionStageLabels as labels,
@@ -124,6 +125,7 @@ export function IngestionNodeSettings({
         : stageName(node);
   // Server errors are keyed per node, so each source shows only its own.
   const nodeErrors = fieldErrorsForNode(serverFieldErrors, selected?.id ?? selectedNode);
+  const readsFiles = extractReadsFiles(nodes);
   const selectedOcr =
     selected?.type === 'extract'
       ? (selected.ocr ?? {
@@ -811,7 +813,7 @@ export function IngestionNodeSettings({
               </>
             ) : (
               <>
-                {selected.config_version !== currentExtractVersion && (
+                {readsFiles && selected.config_version !== currentExtractVersion && (
                   <Callout role="note" title={`Saved with ${selected.config_version}`}>
                     <p>
                       This version keeps its original extractor so earlier runs reproduce. The
@@ -830,197 +832,220 @@ export function IngestionNodeSettings({
                     </div>
                   </Callout>
                 )}
-                <Label>
-                  Extraction strategy
-                  <NativeSelect
-                    value={selected.strategy ?? 'auto'}
-                    onChange={(event) =>
-                      updateExtract({
-                        strategy: event.target.value as 'auto' | 'native' | 'layout_aware',
-                      })
-                    }
-                  >
-                    <NativeSelectOption value="auto">Auto · page-level fallback</NativeSelectOption>
-                    <NativeSelectOption value="native">Native text</NativeSelectOption>
-                    <NativeSelectOption value="layout_aware">Layout-aware</NativeSelectOption>
-                  </NativeSelect>
-                </Label>
-                <Label>
-                  OCR policy
-                  <NativeSelect
-                    value={selectedOcr?.mode ?? 'off'}
-                    onChange={(event) =>
-                      selectedOcr &&
-                      updateExtract({
-                        ocr: {
-                          ...selectedOcr,
-                          mode: event.target.value as 'off' | 'auto' | 'always',
-                        },
-                      })
-                    }
-                  >
-                    <NativeSelectOption value="off">Off</NativeSelectOption>
-                    <NativeSelectOption
-                      value="auto"
-                      disabled={!extractionCapabilities?.ocr.available}
-                    >
-                      Automatic fallback
-                    </NativeSelectOption>
-                    <NativeSelectOption
-                      value="always"
-                      disabled={!extractionCapabilities?.ocr.available}
-                    >
-                      Always
-                    </NativeSelectOption>
-                  </NativeSelect>
-                </Label>
-                {!extractionCapabilities?.ocr.available && (
-                  <Callout role="note">
+                {!readsFiles && (
+                  <Callout role="note" title="Quality and language only">
                     <p>
-                      {extractionCapabilities?.ocr.reason ??
-                        'OCR capability information is unavailable.'}
+                      Website, Notion and Confluence pages are read as structured text, so
+                      extraction strategy, OCR and table evidence do not apply to them. Saved values
+                      are kept and take effect for uploaded files and Amazon S3 sources.
                     </p>
                   </Callout>
                 )}
-                {selectedOcr && selectedOcr.mode !== 'off' && (
+                {readsFiles && (
+                  <p className={HINT}>
+                    Strategy and OCR apply to PDFs. Table evidence applies to tables in PDF, DOCX,
+                    CSV and XLSX files.
+                  </p>
+                )}
+                {readsFiles && (
                   <>
-                    <fieldset className={FIELDSET}>
-                      <legend>OCR languages</legend>
-                      {(extractionCapabilities?.ocr.languages ?? []).map((language) => {
-                        const checked = selectedOcr.languages.includes(language);
-                        return (
-                          <label className={OPTION} key={language}>
-                            <Checkbox
-                              checked={checked}
-                              disabled={checked && selectedOcr.languages.length === 1}
-                              onCheckedChange={(checked) =>
-                                updateExtract({
-                                  ocr: {
-                                    ...selectedOcr,
-                                    languages:
-                                      checked === true
-                                        ? [...selectedOcr.languages, language].slice(0, 3)
-                                        : selectedOcr.languages.filter(
-                                            (value) => value !== language,
-                                          ),
-                                  },
-                                })
-                              }
-                            />
-                            <span>
-                              <strong>{language}</strong>
-                              <small>Installed local language pack</small>
-                            </span>
-                          </label>
-                        );
-                      })}
-                    </fieldset>
-                    <label className={OPTION}>
-                      <Checkbox
-                        checked={selectedOcr.rotate_pages}
-                        onCheckedChange={(checked) =>
-                          updateExtract({
-                            ocr: { ...selectedOcr, rotate_pages: checked === true },
-                          })
-                        }
-                      />
-                      <span>
-                        <strong>Detect page rotation</strong>
-                        <small>Apply only bounded 90-degree orientation correction.</small>
-                      </span>
-                    </label>
-                    <label className={OPTION}>
-                      <Checkbox
-                        checked={selectedOcr.deskew}
-                        onCheckedChange={(checked) =>
-                          updateExtract({ ocr: { ...selectedOcr, deskew: checked === true } })
-                        }
-                      />
-                      <span>
-                        <strong>Deskew scans</strong>
-                        <small>Search a bounded ±3-degree correction before OCR.</small>
-                      </span>
-                    </label>
                     <Label>
-                      OCR resolution (DPI)
-                      <Input
-                        type="number"
-                        min={150}
-                        max={300}
-                        aria-invalid={!!nodeErrors['ocr.dpi']}
-                        value={selectedOcr.dpi}
+                      Extraction strategy
+                      <NativeSelect
+                        value={selected.strategy ?? 'auto'}
                         onChange={(event) =>
                           updateExtract({
-                            ocr: { ...selectedOcr, dpi: Number(event.target.value) },
+                            strategy: event.target.value as 'auto' | 'native' | 'layout_aware',
                           })
                         }
-                      />
-                      {nodeErrors['ocr.dpi'] && (
-                        <small role="alert" className={FIELD_ERROR}>
-                          {nodeErrors['ocr.dpi']}
-                        </small>
-                      )}
+                      >
+                        <NativeSelectOption value="auto">
+                          Auto · page-level fallback
+                        </NativeSelectOption>
+                        <NativeSelectOption value="native">Native text</NativeSelectOption>
+                        <NativeSelectOption value="layout_aware">Layout-aware</NativeSelectOption>
+                      </NativeSelect>
                     </Label>
                     <Label>
-                      Maximum OCR pages
-                      <Input
-                        type="number"
-                        min={1}
-                        max={extractionCapabilities?.ocr.max_pages ?? 100}
-                        aria-invalid={!!nodeErrors['ocr.max_pages']}
-                        value={selectedOcr.max_pages}
+                      OCR policy
+                      <NativeSelect
+                        value={selectedOcr?.mode ?? 'off'}
                         onChange={(event) =>
-                          updateExtract({
-                            ocr: { ...selectedOcr, max_pages: Number(event.target.value) },
-                          })
-                        }
-                      />
-                      {nodeErrors['ocr.max_pages'] && (
-                        <small role="alert" className={FIELD_ERROR}>
-                          {nodeErrors['ocr.max_pages']}
-                        </small>
-                      )}
-                    </Label>
-                    <Label>
-                      Per-page timeout (seconds)
-                      <Input
-                        type="number"
-                        min={5}
-                        max={60}
-                        aria-invalid={!!nodeErrors['ocr.timeout_seconds']}
-                        value={selectedOcr.timeout_seconds}
-                        onChange={(event) =>
+                          selectedOcr &&
                           updateExtract({
                             ocr: {
                               ...selectedOcr,
-                              timeout_seconds: Number(event.target.value),
+                              mode: event.target.value as 'off' | 'auto' | 'always',
                             },
                           })
                         }
-                      />
-                      {nodeErrors['ocr.timeout_seconds'] && (
-                        <small role="alert" className={FIELD_ERROR}>
-                          {nodeErrors['ocr.timeout_seconds']}
-                        </small>
-                      )}
+                      >
+                        <NativeSelectOption value="off">Off</NativeSelectOption>
+                        <NativeSelectOption
+                          value="auto"
+                          disabled={!extractionCapabilities?.ocr.available}
+                        >
+                          Automatic fallback
+                        </NativeSelectOption>
+                        <NativeSelectOption
+                          value="always"
+                          disabled={!extractionCapabilities?.ocr.available}
+                        >
+                          Always
+                        </NativeSelectOption>
+                      </NativeSelect>
+                    </Label>
+                    {!extractionCapabilities?.ocr.available && (
+                      <Callout role="note">
+                        <p>
+                          {extractionCapabilities?.ocr.reason ??
+                            'OCR capability information is unavailable.'}
+                        </p>
+                      </Callout>
+                    )}
+                    {selectedOcr && selectedOcr.mode !== 'off' && (
+                      <>
+                        <fieldset className={FIELDSET}>
+                          <legend>OCR languages</legend>
+                          {(extractionCapabilities?.ocr.languages ?? []).map((language) => {
+                            const checked = selectedOcr.languages.includes(language);
+                            return (
+                              <label className={OPTION} key={language}>
+                                <Checkbox
+                                  checked={checked}
+                                  disabled={checked && selectedOcr.languages.length === 1}
+                                  onCheckedChange={(checked) =>
+                                    updateExtract({
+                                      ocr: {
+                                        ...selectedOcr,
+                                        languages:
+                                          checked === true
+                                            ? [...selectedOcr.languages, language].slice(0, 3)
+                                            : selectedOcr.languages.filter(
+                                                (value) => value !== language,
+                                              ),
+                                      },
+                                    })
+                                  }
+                                />
+                                <span>
+                                  <strong>{language}</strong>
+                                  <small>Installed local language pack</small>
+                                </span>
+                              </label>
+                            );
+                          })}
+                        </fieldset>
+                        <label className={OPTION}>
+                          <Checkbox
+                            checked={selectedOcr.rotate_pages}
+                            onCheckedChange={(checked) =>
+                              updateExtract({
+                                ocr: { ...selectedOcr, rotate_pages: checked === true },
+                              })
+                            }
+                          />
+                          <span>
+                            <strong>Detect page rotation</strong>
+                            <small>Apply only bounded 90-degree orientation correction.</small>
+                          </span>
+                        </label>
+                        <label className={OPTION}>
+                          <Checkbox
+                            checked={selectedOcr.deskew}
+                            onCheckedChange={(checked) =>
+                              updateExtract({ ocr: { ...selectedOcr, deskew: checked === true } })
+                            }
+                          />
+                          <span>
+                            <strong>Deskew scans</strong>
+                            <small>Search a bounded ±3-degree correction before OCR.</small>
+                          </span>
+                        </label>
+                        <Label>
+                          OCR resolution (DPI)
+                          <Input
+                            type="number"
+                            min={150}
+                            max={300}
+                            aria-invalid={!!nodeErrors['ocr.dpi']}
+                            value={selectedOcr.dpi}
+                            onChange={(event) =>
+                              updateExtract({
+                                ocr: { ...selectedOcr, dpi: Number(event.target.value) },
+                              })
+                            }
+                          />
+                          {nodeErrors['ocr.dpi'] && (
+                            <small role="alert" className={FIELD_ERROR}>
+                              {nodeErrors['ocr.dpi']}
+                            </small>
+                          )}
+                        </Label>
+                        <Label>
+                          Maximum OCR pages
+                          <Input
+                            type="number"
+                            min={1}
+                            max={extractionCapabilities?.ocr.max_pages ?? 100}
+                            aria-invalid={!!nodeErrors['ocr.max_pages']}
+                            value={selectedOcr.max_pages}
+                            onChange={(event) =>
+                              updateExtract({
+                                ocr: { ...selectedOcr, max_pages: Number(event.target.value) },
+                              })
+                            }
+                          />
+                          {nodeErrors['ocr.max_pages'] && (
+                            <small role="alert" className={FIELD_ERROR}>
+                              {nodeErrors['ocr.max_pages']}
+                            </small>
+                          )}
+                        </Label>
+                        <Label>
+                          Per-page timeout (seconds)
+                          <Input
+                            type="number"
+                            min={5}
+                            max={60}
+                            aria-invalid={!!nodeErrors['ocr.timeout_seconds']}
+                            value={selectedOcr.timeout_seconds}
+                            onChange={(event) =>
+                              updateExtract({
+                                ocr: {
+                                  ...selectedOcr,
+                                  timeout_seconds: Number(event.target.value),
+                                },
+                              })
+                            }
+                          />
+                          {nodeErrors['ocr.timeout_seconds'] && (
+                            <small role="alert" className={FIELD_ERROR}>
+                              {nodeErrors['ocr.timeout_seconds']}
+                            </small>
+                          )}
+                        </Label>
+                      </>
+                    )}
+                    <Label>
+                      Table evidence
+                      <NativeSelect
+                        value={selected.tables ?? 'preserve'}
+                        onChange={(event) =>
+                          updateExtract({
+                            tables: event.target.value as 'preserve' | 'markdown' | 'plain_text',
+                          })
+                        }
+                      >
+                        <NativeSelectOption value="preserve">
+                          Structured + Markdown
+                        </NativeSelectOption>
+                        <NativeSelectOption value="markdown">Markdown</NativeSelectOption>
+                        <NativeSelectOption value="plain_text">Plain text</NativeSelectOption>
+                      </NativeSelect>
                     </Label>
                   </>
                 )}
-                <Label>
-                  Table evidence
-                  <NativeSelect
-                    value={selected.tables ?? 'preserve'}
-                    onChange={(event) =>
-                      updateExtract({
-                        tables: event.target.value as 'preserve' | 'markdown' | 'plain_text',
-                      })
-                    }
-                  >
-                    <NativeSelectOption value="preserve">Structured + Markdown</NativeSelectOption>
-                    <NativeSelectOption value="markdown">Markdown</NativeSelectOption>
-                    <NativeSelectOption value="plain_text">Plain text</NativeSelectOption>
-                  </NativeSelect>
-                </Label>
                 <Label>
                   Quality policy
                   <NativeSelect

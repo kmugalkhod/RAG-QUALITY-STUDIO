@@ -6,10 +6,24 @@ import {
   defaultSensitiveDataPolicy,
   describeCadence,
   describeIngestionNode,
+  extractReadsFiles,
   upgradeIngestionDraft,
 } from '../../../src/features/ingestion-pipelines/editorModel';
 
 describe('ingestion editor model', () => {
+  test('extract file settings apply only when a source reads files', () => {
+    const source = (kind: string) =>
+      ({ id: kind, type: 'source', config: { kind } }) as Parameters<
+        typeof extractReadsFiles
+      >[0][number];
+    expect(extractReadsFiles([])).toBe(true);
+    expect(extractReadsFiles([source('website'), source('notion'), source('confluence')])).toBe(
+      false,
+    );
+    expect(extractReadsFiles([source('website'), source('s3')])).toBe(true);
+    expect(extractReadsFiles([source('existing_files')])).toBe(true);
+  });
+
   test('builds the supported linear draft without losing embedding identity', () => {
     const draft = defaultIngestionDraft(
       {
@@ -181,6 +195,7 @@ describe('ingestion editor model', () => {
       describeIngestionNode({ ...extract, config_version: 'layout-ocr-v1' } as typeof extract, []),
     ).toBe('Auto · OCR off · upgrade available');
     expect(describeIngestionNode(chunk, [])).toBe('Section-aware · 600 target · 800 max tokens');
+    expect(describeIngestionNode(extract, [], false)).toBe('Quality and language policies');
   });
 
   test('describes interval and daily schedules without changing cadence data', () => {

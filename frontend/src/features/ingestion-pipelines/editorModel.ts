@@ -56,6 +56,15 @@ export const currentExtractVersion = 'layout-ocr-v2';
 export const isLayoutExtractVersion = (version: string | undefined) =>
   version === 'layout-ocr-v1' || version === currentExtractVersion;
 
+/**
+ * Extraction strategy, OCR and table settings read uploaded and S3 files only.
+ * Website, Notion and Confluence pages use the quality and language policies alone.
+ */
+export function extractReadsFiles(nodes: IngestionNode[]): boolean {
+  const kinds = nodes.flatMap((node) => (node.type === 'source' ? [node.config.kind] : []));
+  return kinds.length === 0 || kinds.some((kind) => kind === 'existing_files' || kind === 's3');
+}
+
 export const terminalIngestionStatuses = new Set(['succeeded', 'failed', 'cancelled', 'expired']);
 
 export const defaultQualityPolicy: QualityPolicy = {
@@ -704,7 +713,11 @@ export function defaultIngestionDraft(
   };
 }
 
-export function describeIngestionNode(node: IngestionNode, documents: Document[]) {
+export function describeIngestionNode(
+  node: IngestionNode,
+  documents: Document[],
+  readsFiles = true,
+) {
   if (node.type === 'source' && node.config.kind === 'existing_files') {
     return `${node.config.document_ids.length} selected document${node.config.document_ids.length === 1 ? '' : 's'}`;
   }
@@ -762,6 +775,10 @@ export function describeIngestionNode(node: IngestionNode, documents: Document[]
     if (!isLayoutExtractVersion(node.config_version)) {
       return 'Native text · compatibility';
     }
+    if (!readsFiles) {
+      // Page-based sources use only the quality and language policies.
+      return 'Quality and language policies';
+    }
     const strategy =
       node.strategy === 'layout_aware'
         ? 'Layout-aware'
@@ -769,7 +786,9 @@ export function describeIngestionNode(node: IngestionNode, documents: Document[]
           ? 'Native'
           : 'Auto';
     const summary = `${strategy} · OCR ${node.ocr?.mode ?? 'off'}`;
-    return node.config_version === currentExtractVersion ? summary : `${summary} · upgrade available`;
+    return node.config_version === currentExtractVersion
+      ? summary
+      : `${summary} · upgrade available`;
   }
   if (node.type === 'clean') {
     return node.profile === 'structure-aware-v1'

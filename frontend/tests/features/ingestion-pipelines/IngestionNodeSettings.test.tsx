@@ -183,3 +183,78 @@ test('explains that legacy native-text findings are warnings only', () => {
   ).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Enable robust extraction' })).toBeInTheDocument();
 });
+
+function SourcesHarness({
+  kinds,
+  version = 'layout-ocr-v2',
+}: {
+  kinds: string[];
+  version?: string;
+}) {
+  const extract: IngestionNode = {
+    id: 'extract',
+    type: 'extract',
+    strategy: 'layout_aware',
+    ocr: {
+      mode: 'off',
+      languages: ['eng'],
+      rotate_pages: true,
+      deskew: true,
+      dpi: 200,
+      max_pages: 50,
+      timeout_seconds: 30,
+    },
+    tables: 'plain_text',
+    config_version: version,
+  };
+  const sources = kinds.map(
+    (kind, index) => ({ id: `source-${index}`, type: 'source', config: { kind } }) as IngestionNode,
+  );
+  return (
+    <IngestionNodeSettings
+      projectId="project"
+      selected={extract}
+      selectedNode="extract"
+      nodes={[...sources, extract]}
+      dirty={false}
+      validation={[]}
+      connections={[]}
+      documents={[]}
+      knowledgeSets={[]}
+      websiteSource={kinds.includes('website')}
+      schemaVersion={2}
+      updateNode={() => undefined}
+      changeSourceKind={() => undefined}
+      onSelectNode={() => undefined}
+    />
+  );
+}
+
+test('shows only quality and language settings for page-based sources', () => {
+  render(<SourcesHarness kinds={['website', 'website']} />);
+  expect(screen.getByText('Quality and language only')).toBeInTheDocument();
+  expect(screen.queryByLabelText('Extraction strategy')).not.toBeInTheDocument();
+  expect(screen.queryByLabelText('OCR policy')).not.toBeInTheDocument();
+  expect(screen.queryByLabelText('Table evidence')).not.toBeInTheDocument();
+  expect(screen.getByLabelText('Quality policy')).toBeInTheDocument();
+  expect(screen.getByText('Language policy')).toBeInTheDocument();
+});
+
+test('shows file extraction settings with their scope for file sources', () => {
+  for (const kinds of [['s3'], ['existing_files'], ['notion', 's3']]) {
+    const { unmount } = render(<SourcesHarness kinds={kinds} />);
+    expect(screen.queryByText('Quality and language only')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Extraction strategy')).toHaveValue('layout_aware');
+    expect(screen.getByLabelText('Table evidence')).toHaveValue('plain_text');
+    expect(screen.getByText(/Strategy and OCR apply to PDFs/)).toBeInTheDocument();
+    unmount();
+  }
+});
+
+test('offers no extractor upgrade when no source reads files', () => {
+  const { unmount } = render(<SourcesHarness kinds={['website']} version="layout-ocr-v1" />);
+  expect(screen.queryByRole('button', { name: 'Upgrade extraction' })).not.toBeInTheDocument();
+  unmount();
+  render(<SourcesHarness kinds={['s3']} version="layout-ocr-v1" />);
+  expect(screen.getByRole('button', { name: 'Upgrade extraction' })).toBeInTheDocument();
+});
