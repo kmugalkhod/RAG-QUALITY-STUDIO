@@ -3,32 +3,41 @@
 @import '@clerk/ui/themes/shadcn.css';
 
 /* @tokens:start */
-/* Design tokens from docs/specs/0002-workspace-ui-redesign/index.md (Feature design).
-   :root holds the dark theme, so the app renders dark even if theme-init.js fails. */
+/* Design tokens from docs/specs/0003-studio-shell-guided-setup/index.md (Visual tokens), which
+   keeps the structure of spec 0002. :root holds the dark theme, so the app renders dark even if
+   theme-init.js fails. Control boundaries keep a 3:1 border (WCAG 1.4.11), so the mockup's
+   #34373e is not used for them. */
 :root {
   color-scheme: dark;
-  --background: #0b0c0e;
-  --surface: #131518;
-  --surface-raised: #1a1d21;
-  --surface-hover: #1a1d21;
+  --background: #09090b;
+  --surface: #111113;
+  --surface-raised: #141518;
+  --surface-hover: #1b1c20;
+  --surface-active: #18202d;
   --overlay: rgb(0 0 0 / 60%);
-  --border: rgb(255 255 255 / 8%);
+  --border: #212328;
   --border-strong: rgb(255 255 255 / 40%);
-  --foreground: #e6e7e9;
-  --foreground-muted: #9a9ea6;
-  --foreground-subtle: #6b7079;
-  --accent: #4b8bd4;
-  --accent-fill: #2b62ad;
+  --foreground: #e8e9ec;
+  --heading: #d3dbe8;
+  --foreground-muted: #9a9ea7;
+  --foreground-subtle: #6c7079;
+  --accent: #4c8fe0;
+  --accent-fill: #2f6fd6;
   --accent-foreground: #ffffff;
   --accent-fill-hover: color-mix(in oklab, var(--accent-fill), black 6%);
   --accent-fill-pressed: color-mix(in oklab, var(--accent-fill), black 12%);
-  --success: #3f9a5e;
-  --warning: #c48a2a;
-  --danger: #d9625a;
+  --banner: #0e1726;
+  --banner-border: #1b2940;
+  --track: #2a2d33;
+  --highlight: #e0a63c;
+  --success: #55b273;
+  --warning: #d6a043;
+  --danger: #e3766f;
   --danger-fill: #b23c33;
   --shadow-popover: 0 1px 2px rgb(0 0 0 / 40%);
-  --radius-control: 4px;
+  --radius-control: 6px;
   --radius-card: 8px;
+  --radius-shell: 10px;
   --disabled-opacity: 0.5;
   --transition-fast: 150ms;
   --transition-press: 100ms;
@@ -43,21 +52,27 @@
 }
 :root[data-theme='light'] {
   color-scheme: light;
-  --background: #f7f7f8;
+  --background: #e8eaed;
   --surface: #ffffff;
-  --surface-raised: #ffffff;
-  --surface-hover: #f1f2f3;
+  --surface-raised: #fafbfc;
+  --surface-hover: #f1f2f4;
+  --surface-active: #e9f1fc;
   --overlay: rgb(0 0 0 / 40%);
-  --border: rgb(0 0 0 / 8%);
+  --border: #e2e4e8;
   --border-strong: rgb(0 0 0 / 45%);
   --foreground: #16181b;
+  --heading: #1b2a40;
   --foreground-muted: #5d6269;
   --foreground-subtle: #8a8f97;
   --accent: #2a63b5;
   --accent-fill: #2a63b5;
   --accent-foreground: #ffffff;
-  --success: #2e7d4a;
-  --warning: #8f6210;
+  --banner: #eef4fc;
+  --banner-border: #d2e1f5;
+  --track: #dfe2e6;
+  --highlight: #9a6a0e;
+  --success: #2a7243;
+  --warning: #835a0e;
   --danger: #b23c33;
   --danger-fill: #b23c33;
   --shadow-popover: 0 1px 2px rgb(0 0 0 / 6%);
@@ -73,7 +88,8 @@
   --blur-*: initial;
   /* Layout breakpoint for desktop (spec 0002 layout rules); md stays 768px. */
   --breakpoint-desktop: 72rem;
-  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-sans: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'Geist Mono', ui-monospace, 'SFMono-Regular', Consolas, monospace;
   --spacing-0: 0px;
   --spacing-1: 4px;
   --spacing-2: 8px;
@@ -83,8 +99,8 @@
   --spacing-8: 32px;
   --spacing-12: 48px;
   --spacing-16: 64px;
-  --spacing-control-sm: 32px;
-  --spacing-control-md: 40px;
+  --spacing-control-sm: 28px;
+  --spacing-control-md: 34px;
   --spacing-control-lg: 48px;
   --spacing-row-header: 36px;
   --spacing-row: 44px;
@@ -94,26 +110,30 @@
   --spacing-sidebar: 224px;
   --spacing-node: 288px;
   --spacing-panel: 320px;
-  --text-xs: 12px;
-  --text-xs--line-height: 16px;
-  --text-sm: 14px;
-  --text-sm--line-height: 20px;
+  --text-xs: 11px;
+  --text-xs--line-height: 15px;
+  --text-sm: 13px;
+  --text-sm--line-height: 18px;
+  --text-md: 14px;
+  --text-md--line-height: 20px;
   --text-base: 16px;
   --text-base--line-height: 24px;
   --text-lg: 20px;
   --text-lg--line-height: 28px;
   --text-xl: 24px;
-  --text-xl--line-height: 32px;
+  --text-xl--line-height: 30px;
 }
 @theme inline {
   --color-background: var(--background);
   --color-surface: var(--surface);
   --color-surface-raised: var(--surface-raised);
   --color-surface-hover: var(--surface-hover);
+  --color-surface-active: var(--surface-active);
   --color-overlay: var(--overlay);
   --color-border: var(--border);
   --color-border-strong: var(--border-strong);
   --color-foreground: var(--foreground);
+  --color-heading: var(--heading);
   --color-foreground-muted: var(--foreground-muted);
   --color-foreground-subtle: var(--foreground-subtle);
   --color-accent: var(--accent);
@@ -121,12 +141,17 @@
   --color-accent-foreground: var(--accent-foreground);
   --color-accent-fill-hover: var(--accent-fill-hover);
   --color-accent-fill-pressed: var(--accent-fill-pressed);
+  --color-banner: var(--banner);
+  --color-banner-border: var(--banner-border);
+  --color-track: var(--track);
+  --color-highlight: var(--highlight);
   --color-success: var(--success);
   --color-warning: var(--warning);
   --color-danger: var(--danger);
   --color-danger-fill: var(--danger-fill);
   --radius-control: var(--radius-control);
   --radius-card: var(--radius-card);
+  --radius-shell: var(--radius-shell);
   --shadow-popover: var(--shadow-popover);
 }
 /* @tokens:end */
@@ -136,8 +161,15 @@
 
 @layer base {
   @font-face {
-    font-family: Inter;
-    src: url('/fonts/InterVariable.woff2') format('woff2');
+    font-family: Geist;
+    src: url('/fonts/GeistVariable.woff2') format('woff2');
+    font-weight: 100 900;
+    font-style: normal;
+    font-display: swap;
+  }
+  @font-face {
+    font-family: 'Geist Mono';
+    src: url('/fonts/GeistMonoVariable.woff2') format('woff2');
     font-weight: 100 900;
     font-style: normal;
     font-display: swap;

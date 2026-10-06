@@ -57,7 +57,7 @@ Current structure:
 - `@layer components` is for shared selectors, when a pattern cannot be a primitive variant. It is empty today.
 - The React Flow vendor block (between `/* @vendor:react-flow:start */` and `/* @vendor:react-flow:end */`) stays unlayered, because React Flow's own stylesheet is unlayered. It maps React Flow variables onto the tokens.
 - `public/theme-init.js` sets `data-theme` before the stylesheet loads, from the stored choice or the OS setting. `src/app/useTheme.ts` owns the header toggle, the OS listener and cross tab sync.
-- Inter is self hosted from `public/fonts/`; `Inter-LICENSE.txt` keeps its OFL text beside the committed font asset.
+- Geist and Geist Mono are self hosted from `public/fonts/` (variable woff2 files from the `geist` npm package 1.7.2, copied in, not installed); `Geist-LICENSE.txt` keeps their OFL text beside the committed font assets.
 
 Rules for changes:
 

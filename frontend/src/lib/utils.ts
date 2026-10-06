@@ -1,6 +1,6 @@
 import { createCn } from 'cn/config';
 
-// Teach the class merger the approved design keys (spec 0002), so a call site's
+// Teach the class merger the approved design keys (specs 0002 and 0003), so a call site's
 // `h-control-lg` replaces a primitive's `h-control-md` instead of both applying.
 export const cn = createCn({
   extend: {
@@ -18,7 +18,7 @@ export const cn = createCn({
         'node',
         'panel',
       ],
-      radius: ['control', 'card'],
+      radius: ['control', 'card', 'shell'],
       shadow: ['popover'],
     },
   },

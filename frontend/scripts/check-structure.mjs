@@ -14,7 +14,8 @@ async function inspect(directory) {
     errors.push(`Remove empty source directory: ${relative(frontend, directory)}`);
   for (const entry of entries) {
     const path = resolve(directory, entry.name);
-    const name = relative(frontend, path);
+    // Forward slashes on every platform, so the checks below match on Windows too.
+    const name = relative(frontend, path).replaceAll('\\', '/');
     if (entry.isDirectory()) {
       await inspect(path);
       continue;
@@ -64,8 +65,8 @@ const SIZE_KEYWORDS = new Set([
   'max',
   'none',
 ]);
-const TEXT_SIZES = new Set(['xs', 'sm', 'base', 'lg', 'xl']);
-const RADIUS_KEYS = new Set(['control', 'card', 'full', 'none']);
+const TEXT_SIZES = new Set(['xs', 'sm', 'md', 'base', 'lg', 'xl']);
+const RADIUS_KEYS = new Set(['control', 'card', 'shell', 'full', 'none']);
 const SHADOW_KEYS = new Set(['popover', 'none']);
 const PALETTE =
   /^(?:slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)-\d{2,3}$|^(?:white|black)$/;
@@ -122,7 +123,7 @@ function checkCss(text, report) {
     }
     if (
       property === 'font-size' &&
-      !/^(?:var\(--text-(?:xs|sm|base|lg|xl)\)|inherit)$/.test(value)
+      !/^(?:var\(--text-(?:xs|sm|md|base|lg|xl)\)|inherit)$/.test(value)
     ) {
       report('font-size', offset, value);
     }
@@ -262,7 +263,7 @@ function classViolation(utility) {
     if (TEXT_SIZES.has(key)) {
       return null;
     }
-    if (/^(?:\d?xl|[2-9]xl)$/.test(key) || /^(?:xs|sm|base|lg|xl)\//.test(key)) {
+    if (/^(?:\d?xl|[2-9]xl)$/.test(key) || /^(?:xs|sm|md|base|lg|xl)\//.test(key)) {
       return 'text key';
     }
   }

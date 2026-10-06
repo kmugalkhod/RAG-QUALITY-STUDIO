@@ -1,7 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-// Contrast checks for the token table in spec 0002 (AC-2), read straight from styles.css.
+// Contrast checks for the token table in spec 0002 (AC-2) with the spec 0003 palette, read
+// straight from styles.css.
 const css = readFileSync(resolve(__dirname, '../../src/app/styles.css'), 'utf8');
 const tokenBlock = css.slice(css.indexOf('/* @tokens:start */'), css.indexOf('/* @tokens:end */'));
 
@@ -90,10 +91,19 @@ function contrast(theme: Record<string, string>, foreground: string, background:
   return (high + 0.05) / (low + 0.05);
 }
 
-const pages = ['--background', '--surface', '--surface-raised', '--surface-hover'];
+const pages = [
+  '--background',
+  '--surface',
+  '--surface-raised',
+  '--surface-hover',
+  '--surface-active',
+];
 const pairs: [string, string[], number][] = [
   ['--foreground', pages, 4.5],
   ['--foreground-muted', pages, 4.5],
+  ['--heading', ['--background', '--surface'], 4.5],
+  ['--foreground', ['--banner'], 4.5],
+  ['--accent', ['--banner', '--surface-active', '--surface-raised'], 4.5],
   ['--accent', ['--background', '--surface'], 4.5],
   ['--success', ['--background', '--surface'], 4.5],
   ['--warning', ['--background', '--surface'], 4.5],
@@ -106,6 +116,7 @@ const pairs: [string, string[], number][] = [
   // Non text: control boundaries and the focus ring need 3:1.
   ['--border-strong', ['--background', '--surface'], 3],
   ['--accent', ['--background', '--surface', '--surface-hover'], 3],
+  ['--highlight', ['--banner'], 3],
 ];
 
 describe.each([
@@ -128,7 +139,7 @@ it('defines every color token in both themes', () => {
       !/radius|opacity|transition|shadow|icon/.test(name) &&
       !/^--(?:surface|surface-hover|danger)-fill-(?:hover|pressed)$/.test(name),
   );
-  expect(names).toHaveLength(19);
+  expect(names).toHaveLength(25);
   for (const name of names) {
     expect(light[name]).toBeTruthy();
   }

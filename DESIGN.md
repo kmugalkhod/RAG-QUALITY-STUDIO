@@ -1,6 +1,6 @@
 # Workspace design
 
-The visual authority is [spec 0002](docs/specs/0002-workspace-ui-redesign/index.md), built and closed out on 2026-10-01. It replaced the charcoal and periwinkle direction from 2026-09-10. RAG Quality Studio is an operating interface: clear project context, readable configuration and evidence, persistent navigation, and one primary action for the current state. The main flow is open a project, prepare knowledge, ask a question, compare.
+The visual authority is [spec 0002](docs/specs/0002-workspace-ui-redesign/index.md), built and closed out on 2026-10-01, as updated by [spec 0003](docs/specs/0003-studio-shell-guided-setup/index.md) (approved 2026-10-06): the Geist font, a deeper near black palette, 34px controls, the card shell and the guided pipeline setup. Spec 0002 replaced the charcoal and periwinkle direction from 2026-09-10. RAG Quality Studio is an operating interface: clear project context, readable configuration and evidence, persistent navigation, and one primary action for the current state. The main flow is open a project, prepare knowledge, ask a question, compare.
 
 ## References
 
@@ -18,10 +18,10 @@ Mobbin could not be used (paid plan and a sign in the automated browser could no
 Every value lives in the token block of `frontend/src/app/styles.css`, between `/* @tokens:start */` and `/* @tokens:end */`. The spec's Feature design section holds the full color table with each contrast ratio.
 
 - **Spacing**: an 8pt grid with a 4px half step. Only the keys 1, 2, 3, 4, 6, 8, 12 and 16 exist (4 to 64px). Padding and margins use multiples of 8; 4 and 12px are for icon gaps and badges.
-- **Named sizes**: `control-sm` 32px, `control-md` 40px, `control-lg` 48px, `row-header` 36px, `row` 44px, `tabbar` 56px, `node-h` 80px, `node-legacy` 220px, `sidebar` 224px, `node` 288px, `panel` 320px.
-- **Type**: Inter at five sizes, each with its own line height: `xs` 12/16 for meta and badges, `sm` 14/20 for body and controls, `base` 16/24 for section titles, `lg` 20/28 for page titles, `xl` 24/32 for a page hero. Weights are 400 for reading (body, counts and field values, even inside a medium label), 500 for interaction (buttons, labels, nav and list row titles) and 600 for page, section and card titles. Metrics use tabular numerals.
-- **Color**: near monochrome surfaces (`background`, `surface`, `surface-raised`, `surface-hover`), two borders (`border` for hairlines, `border-strong` for control boundaries), three text levels (`foreground`, `foreground-muted`, `foreground-subtle` for decorative icons only), one blue accent (`accent` for links, selection and focus, `accent-fill` for the primary button), and status colors (`success`, `warning`, `danger`, `danger-fill`).
-- **Other**: `rounded-control` 4px, `rounded-card` 8px, `rounded-full`; one shadow, `shadow-popover`; `--disabled-opacity` 0.5; 150ms for hover and 100ms for press.
+- **Named sizes**: `control-sm` 28px, `control-md` 34px, `control-lg` 48px, `row-header` 36px, `row` 44px, `tabbar` 56px, `node-h` 80px, `node-legacy` 220px, `sidebar` 224px, `node` 288px, `panel` 320px.
+- **Type**: Geist at six sizes, each with its own line height: `xs` 11/15 for hints, meta and badges, `sm` 13/18 for body and controls, `md` 14/20 for row titles, `base` 16/24 for section titles (and phone form fields, so iOS never zooms), `lg` 20/28 for page titles and live figures, `xl` 24/30 for a page heading. Geist Mono (`font-mono`) sets counts and IDs. Weights are 400 for reading (body, counts and field values, even inside a medium label), 500 for interaction (buttons, labels, nav) and for the plain sentence headings of the guided setup, and 600 for page, section, card and row titles. Metrics use tabular numerals.
+- **Color**: near monochrome surfaces (`background`, `surface` for cards and panels, `surface-raised` for rows, `surface-hover`, `surface-active` for the selected nav item or choice), two borders (`border` for hairlines, `border-strong` for control boundaries at 3:1), text levels (`foreground`, `heading` for the guided setup's large sentence, `foreground-muted`, `foreground-subtle` for decorative icons only), one blue accent (`accent` for links, selection and focus, `accent-fill` for the primary button), the tip banner (`banner`, `banner-border`, with `highlight`, an amber used only for its icon), `track` for slider and progress tracks, and status colors (`success`, `warning`, `danger`, `danger-fill`). The mockup's dark `#34373e` strong border is not used, because it reaches only about 1.6:1 against a panel.
+- **Other**: `rounded-control` 6px, `rounded-card` 8px, `rounded-shell` 10px for the shell cards, `rounded-full`; one shadow, `shadow-popover`; `--disabled-opacity` 0.5; 150ms for hover and 100ms for press.
 
 Tailwind's default spacing, type, color, radius, shadow and blur scales are reset, so any other key generates no CSS.
 
@@ -41,8 +41,8 @@ Light and dark are complete palettes. `:root` holds dark and `:root[data-theme="
 
 ## Controls and states
 
-- **Buttons**: three sizes (32, 40 and 48px) and six variants (primary, secondary, outline, ghost, destructive, link). On touch screens small and medium controls grow to 48px. Focus is a 2px accent ring with a 2px offset. Pressed is CSS `:active` with a 1px shift. Disabled uses `aria-disabled` so the button stays focusable. Loading keeps the width and shows a spinner. Primary and destructive presses give a short vibration on Android.
-- **Fields**: 40px, 48px on touch.
+- **Buttons**: three sizes (28, 34 and 48px) and six variants (primary, secondary, outline, ghost, destructive, link). On touch screens small and medium controls grow to 48px. Focus is a 2px accent ring with a 2px offset. Pressed is CSS `:active` with a 1px shift. Disabled uses `aria-disabled` so the button stays focusable. Loading keeps the width and shows a spinner. Primary and destructive presses give a short vibration on Android.
+- **Fields**: 34px, 48px on touch.
 - **Targets**: every interactive element is at least 44 by 44px on touch. Inline prose links and React Flow handles are exempt, because node settings forms are the accessible path.
 - **Page states**: list and detail routes render the shared LoadingState, EmptyState (one action) and ErrorState (Retry). Settings renders loading and error. Editors show ErrorState for a missing pipeline.
 
@@ -56,7 +56,7 @@ No gradients, no glow or blur shadows, no glass or backdrop blur, no sparkle or 
 
 ## Website widget
 
-The widget in `widget/` shares no code with Studio. Its stylesheet copies the same spacing, type, radius and both palettes as its own variables and follows the visitor's OS theme, not the host page. Each appearance option (blue, slate, green) has a fill and a text accent for each theme, all at 4.5:1 or better. The launcher is 56px and every target is 44px.
+The widget in `widget/` shares no code with Studio. Its stylesheet copies the spec 0002 spacing, type, radius and both palettes as its own variables (spec 0003 did not change the widget) and follows the visitor's OS theme, not the host page. Each appearance option (blue, slate, green) has a fill and a text accent for each theme, all at 4.5:1 or better. The launcher is 56px and every target is 44px.
 
 ## Enforcement and verification
 
