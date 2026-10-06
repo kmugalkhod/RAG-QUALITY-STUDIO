@@ -3,16 +3,16 @@ import { ErrorState } from '../components/states/ErrorState';
 import { LoadingState } from '../components/states/LoadingState';
 import { cn } from '../lib/utils';
 import { useEffect } from 'react';
-import { FolderOpen, Layers3 } from 'lucide-react';
+import { FolderOpen } from 'lucide-react';
 import { useRoute } from './navigation';
 import { pages } from './pages';
 import { BottomTabBar } from './BottomTabBar';
 import { DisconnectedBanner } from './DisconnectedBanner';
-import { ThemeToggle } from './ThemeToggle';
-import { WorkspaceSidebar } from './WorkspaceSidebar';
+import { ShellSidebar, SidebarProfile } from './ShellSidebar';
+import { ShellTopBar, type Crumb } from './ShellTopBar';
 import { WorkspacePage } from './WorkspacePage';
 import { useWorkspaceProjects } from './useWorkspaceProjects';
-import { OrganizationSwitcher, UserButton, useClerk } from '@clerk/react';
+import { OrganizationSwitcher, UserButton, useClerk, useOrganization, useUser } from '@clerk/react';
 
 // Phones keep only the user button; the organization controls stay on wider screens.
 function AuthControls() {
@@ -28,6 +28,32 @@ function AuthControls() {
       <UserButton />
     </div>
   );
+}
+
+// The profile footer from the signed in Clerk user and their organization role.
+function ClerkProfile() {
+  const { user } = useUser();
+  const { organization, membership } = useOrganization();
+  const role = membership?.role?.replace(/^org:/, '') ?? 'member';
+  return (
+    <SidebarProfile
+      name={user?.fullName || user?.primaryEmailAddress?.emailAddress || 'Signed in'}
+      role={`${role} · ${organization?.name ?? 'personal'}`}
+    />
+  );
+}
+
+function detailLabel(page: string, detail: string, kind: string | null) {
+  if (page === 'pipelines') {
+    if (detail === 'setup') {
+      return 'Guided setup';
+    }
+    if (detail === 'new') {
+      return kind === 'ingestion' ? 'New ingestion pipeline' : 'New answer pipeline';
+    }
+    return 'Editor';
+  }
+  return page === 'experiments' ? 'Experiment' : page === 'deployments' ? 'Deployment' : detail;
 }
 
 // Pages that manage their own full height layout, so the shell adds no padding.
@@ -84,8 +110,21 @@ export function App() {
   const fullBleed = FULL_BLEED.has(page) || (page === 'pipelines' && !!detail);
   const viewport = VIEWPORT_PAGES.has(page);
   const projectName = current?.name || (error ? 'Project' : 'Loading project…');
+  const crumbs: Crumb[] = projectId
+    ? [
+        { label: projectName, href: `#/projects/${projectId}/overview` },
+        {
+          label: title,
+          href: `#/projects/${projectId}/${page}${page === 'pipelines' && route.query.get('kind') === 'ingestion' ? '?kind=ingestion' : ''}`,
+        },
+        ...(detail ? [{ label: detailLabel(page, detail, route.query.get('kind')) }] : []),
+      ]
+    : [{ label: 'Workspace', href: '#/' }, { label: title }];
+  if (projectId && page === 'overview') {
+    crumbs.splice(1, 1, { label: title });
+  }
   return (
-    <div className="flex min-h-dvh bg-background text-foreground">
+    <div className="flex min-h-dvh gap-2 bg-background px-2 text-foreground">
       <a
         className="sr-only z-50 rounded-control bg-surface px-4 py-2 text-sm text-foreground focus:not-sr-only focus:absolute focus:top-2 focus:left-2"
         href="#main"
@@ -96,49 +135,36 @@ export function App() {
       >
         Skip to content
       </a>
-      <WorkspaceSidebar projectId={projectId} page={page} current={current} projects={projects} />
-      <div className={cn('flex min-w-0 flex-1 flex-col', viewport && 'desktop:h-dvh')}>
-        <header className="sticky top-0 z-30 flex h-12 shrink-0 items-center justify-between gap-4 border-b border-border bg-background px-4 md:px-6">
-          <p className="hidden min-w-0 truncate text-sm text-foreground-muted md:block">
-            {projectId ? projectName : 'Workspace'} <span aria-hidden="true">/</span>{' '}
-            <strong className="font-medium text-foreground">
-              {title}
-              {page === 'pipelines' && detail ? ' / Editor' : ''}
-            </strong>
-          </p>
-          <div className="flex min-w-0 items-center md:hidden">
-            {projectId ? (
-              <a
-                href="#/"
-                aria-label={`${projectName}, back to all projects`}
-                className="flex h-control-lg min-w-0 items-center rounded-control text-sm font-semibold text-foreground outline-none focus-visible:outline-2 focus-visible:outline-accent"
-              >
-                <span className="truncate">{projectName}</span>
-              </a>
-            ) : (
-              <a
-                href="#/"
-                aria-label="RAG Quality Studio home"
-                className="flex h-control-lg items-center gap-2 rounded-control text-sm font-semibold text-foreground outline-none focus-visible:outline-2 focus-visible:outline-accent"
-              >
-                <Layers3 aria-hidden="true" className="size-(--icon-lg) text-accent" />
-                RAG Quality Studio
-              </a>
-            )}
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
-            <ThemeToggle />
-            {clerkEnabled && <AuthControls />}
-          </div>
-        </header>
+      <ShellSidebar
+        route={route}
+        current={current}
+        projects={projects}
+        profile={
+          clerkEnabled ? (
+            <ClerkProfile />
+          ) : (
+            <SidebarProfile name="Local owner" role="Owner · local" />
+          )
+        }
+      />
+      <div className={cn('flex min-w-0 flex-1 flex-col pb-2', viewport && 'desktop:h-dvh')}>
+        <div className="sticky top-0 z-30 shrink-0 bg-background py-2">
+          <ShellTopBar
+            crumbs={crumbs}
+            projectId={projectId}
+            projectName={projectName}
+            projects={projects}
+            account={clerkEnabled ? <AuthControls /> : undefined}
+          />
+        </div>
         <DisconnectedBanner />
         <main
           id="main"
           tabIndex={-1}
           className={cn(
-            'w-full min-w-0 flex-1 p-4 md:p-6',
+            'w-full min-w-0 flex-1 overflow-clip rounded-shell border border-border bg-surface p-4 md:p-6',
             fullBleed && 'p-0 md:p-0',
-            projectId && 'max-md:pb-(--tabbar-clearance)',
+            projectId && 'max-md:mb-(--tabbar-clearance)',
             viewport && 'desktop:flex desktop:min-h-0 desktop:flex-col desktop:overflow-hidden',
           )}
         >

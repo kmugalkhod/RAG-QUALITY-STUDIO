@@ -151,6 +151,17 @@ export function listIngestionRuns(
   );
 }
 
+/** The project's 20 most recent runs, newest first, for the shell's runs-in-progress count. */
+export function listRecentIngestionRuns(
+  projectId: string,
+  signal?: AbortSignal,
+): Promise<Page<IngestionRun>> {
+  return request<Page<IngestionRun>>(
+    `/projects/${encodeURIComponent(projectId)}/ingestion-runs?limit=20`,
+    { signal },
+  );
+}
+
 export function listIngestionRunItems(
   projectId: string,
   runId: string,

@@ -5,8 +5,12 @@ import { App } from '../../src/app/App';
 import { useWorkspaceProjects } from '../../src/app/useWorkspaceProjects';
 
 vi.mock('../../src/app/useWorkspaceProjects');
-vi.mock('../../src/app/WorkspaceSidebar', () => ({
-  WorkspaceSidebar: () => <nav aria-label="Mock sidebar" />,
+vi.mock('../../src/app/ShellSidebar', () => ({
+  ShellSidebar: () => <nav aria-label="Mock sidebar" />,
+  SidebarProfile: () => null,
+}));
+vi.mock('../../src/app/ShellTopBar', () => ({
+  ShellTopBar: () => <header />,
 }));
 vi.mock('../../src/app/WorkspacePage', () => ({
   WorkspacePage: () => <p>Projects route</p>,

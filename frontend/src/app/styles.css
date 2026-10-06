@@ -107,7 +107,7 @@
   --spacing-tabbar: 56px;
   --spacing-node-h: 80px;
   --spacing-node-legacy: 220px;
-  --spacing-sidebar: 224px;
+  --spacing-sidebar: 240px;
   --spacing-node: 288px;
   --spacing-panel: 320px;
   --text-xs: 11px;
@@ -177,16 +177,32 @@
   :root {
     /* Bottom padding that keeps phone content clear of the 56px tab bar (spec 0002, AC-5). */
     --tabbar-clearance: calc(56px + 16px + env(safe-area-inset-bottom));
+    /* The tab bar itself, for content that sticks to the bottom of a phone screen. */
+    --tabbar-height: calc(56px + env(safe-area-inset-bottom));
+    /* Spec 0003 shell: the top bar row is 64px (8px gap, the 48px card, 8px gap); the content
+       card adds two 1px borders and the 8px gap below it, so 74px of chrome in all. */
+    --shell-chrome: 74px;
+    /* The inside of the content card when it fills the viewport. */
+    --shell-content: calc(100dvh - var(--shell-chrome));
+    /* The 2px accent marker of the active sidebar item. */
+    --nav-marker: 2px;
+    /* The top bar's quick jump list. */
+    --quick-jump-width: min(360px, calc(100vw - 16px));
+    --quick-jump-height: min(480px, 70dvh);
+    /* Guided setup controls on desktop, and the slider's tick dots. */
+    --guided-control: 270px;
+    --guided-key: 150px;
+    --slider-tick: 2px;
     /* Pipeline canvas heights: beside the settings panel on desktop, fixed on smaller screens.
-       On desktop it fills the viewport below the 48px shell header and 64px editor toolbar. */
-    --editor-canvas: max(480px, calc(100dvh - 112px));
+       On desktop it fills the viewport below the shell chrome and the 64px editor toolbar. */
+    --editor-canvas: max(480px, calc(100dvh - var(--shell-chrome) - 64px));
     --canvas-compact: 480px;
     /* The widget appearance preview matches the widget panel on a desktop site. */
     --widget-preview-height: 480px;
     --widget-preview-width: 400px;
-    /* The ingestion editor fills the viewport below the 48px shell header; its toolbar, status
+    /* The ingestion editor fills the viewport below the shell chrome; its toolbar, status
        strips and canvas share that height. Preview and run results take part of the canvas. */
-    --ingestion-workspace: max(560px, calc(100dvh - 48px));
+    --ingestion-workspace: max(560px, calc(100dvh - var(--shell-chrome)));
     --ingestion-drawer: 45%;
     /* The ingestion toolbar name field narrows to this before its actions wrap to a new row. */
     --toolbar-name-min: 128px;
