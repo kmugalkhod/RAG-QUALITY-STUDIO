@@ -1,5 +1,11 @@
 # Implementation plan
 
+## Section context and simple Extract panel — spec 0005 (2026-10-07)
+
+Status: **slice 1 done and verified; slice 2 in progress**. [Spec 0005](specs/0005-section-context-and-simple-extract.md) acts on the spec 0004 findings.
+
+**Slice 1:** the answer model now receives each chunk's section path as an untrusted `section` field (`app/pipelines/generation.py`). Sources without one serialize exactly as before, and the query snapshot records `context_format`. On the spec 0004 corpus, v2 handbook answers supported by the evidence the model received rose from 0/6 to 6/6, with correctness unchanged at 40/40 ($0.0248, `docs/qa/extract-ab-2026-10-07/round2/`). Verification: `tests/test_generation_context.py` plus 71 query, pipeline, experiment and comparison tests on the isolated PostgreSQL stack; ruff check and format pass.
+
 ## Extract v1 vs v2 answer-quality comparison — spec 0004 (2026-10-07)
 
 Status: **run on 2026-10-07; outcome inconclusive under the pre-set rule**. [Spec 0004](specs/0004-extract-v1-v2-answer-quality.md) built a v1 and a v2 index from the same 9 fictional documents (`backend/scripts/extract_ab/`) and asked 40 questions through two answer pipeline versions that differ only in the index. The owner ruled out `gemini-2.5-flash` as a judge, so answers were labelled blind against a fixed rubric instead of with RAGAS.

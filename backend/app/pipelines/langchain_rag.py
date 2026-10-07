@@ -26,7 +26,11 @@ from langchain_core.runnables import (
 )
 from pydantic import ConfigDict, Field
 
-from app.pipelines.generation import build_context, validate_citations
+from app.pipelines.generation import (
+    build_context,
+    context_format,
+    validate_citations,
+)
 from app.providers import embeddings, generation
 from app.schemas.index import RetrievalRequest
 from app.services import indexes
@@ -238,6 +242,7 @@ def compile_answer_chain(
         updates = {
             "evidence": sources,
             "messages": messages,
+            "context_format": context_format(sources),
             "retrieved_count": len(items),
             "omitted_count": len(items) - len(sources),
         }

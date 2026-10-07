@@ -9,6 +9,9 @@ repeated without duplicating uploads, pipelines, indexes or paid answers:
     python run.py ask        <work> --allow-paid   # asks every question through both arms
     python run.py fetch      <work>                # writes answers.jsonl for score.py
 
+`--round N --arms v2` repeats `ask` and `fetch` for a later answer-side change
+(spec 0005); round N keeps its own query runs and writes answers_roundN.jsonl.
+
 Run inside the backend container against http://127.0.0.1:8000 (local auth mode).
 """
 
@@ -47,7 +50,10 @@ MEDIA_TYPES = {
 
 
 class Run:
-    def __init__(self, work: Path, base_url: str):
+    def __init__(self, work: Path, base_url: str, round_number: int = 1, arms=None):
+        self.round = round_number
+        self.arms = arms or list(ARMS)
+        self.runs_key = "query_runs" if round_number == 1 else f"query_runs_round{round_number}"
         self.work = work
         self.work.mkdir(parents=True, exist_ok=True)
         self.state_path = work / "state.json"
@@ -297,13 +303,18 @@ class Run:
             }
             self.save()
 
-        runs = self.state.setdefault("query_runs", {})
+        runs = self.state.setdefault(self.runs_key, {})
         for question in score.load_questions():
-            for arm in ARMS:
+            for arm in self.arms:
                 key = f"{question['id']}:{arm}"
                 if key in runs and runs[key]["status"] != "running":
                     continue
-                spent = sum(r.get("cost_usd") or 0 for r in runs.values())
+                spent = sum(
+                    r.get("cost_usd") or 0
+                    for name, rounds in self.state.items()
+                    if name.startswith("query_runs")
+                    for r in rounds.values()
+                )
                 if spent > COST_CAP_USD:
                     raise SystemExit(f"Cost cap reached: ${spent:.4f} recorded.")
                 if key not in runs:
@@ -342,11 +353,9 @@ class Run:
     def fetch(self) -> None:
         lines = []
         for question in score.load_questions():
-            for arm in ARMS:
-                run = self.call(
-                    "GET",
-                    f"{self.project}/query-runs/{self.state['query_runs'][f'{question["id"]}:{arm}']['id']}",
-                )
+            for arm in self.arms:
+                run_id = self.state[self.runs_key][f"{question['id']}:{arm}"]["id"]
+                run = self.call("GET", f"{self.project}/query-runs/{run_id}")
                 snapshot = run["snapshot"]
                 retrieved = (snapshot.get("retrieval_result") or {}).get("items") or []
                 lines.append(
@@ -368,12 +377,14 @@ class Run:
                             for item in retrieved
                         ],
                         "citations": snapshot.get("citations"),
+                        "context_format": snapshot.get("context_format"),
                         "latency_ms": snapshot.get("total_ms"),
                         "tokens": (snapshot.get("usage") or {}).get("total_tokens"),
                         "cost_usd": snapshot.get("cost_usd"),
                     }
                 )
-        (self.work / "answers.jsonl").write_text(
+        name = "answers.jsonl" if self.round == 1 else f"answers_round{self.round}.jsonl"
+        (self.work / name).write_text(
             "".join(json.dumps(line) + "\n" for line in lines)
         )
         print(f"Wrote {len(lines)} answers.")
@@ -541,9 +552,12 @@ if __name__ == "__main__":
     parser.add_argument("work", type=Path)
     parser.add_argument("--allow-paid", action="store_true")
     parser.add_argument("--base-url", default="http://127.0.0.1:8000")
+    parser.add_argument("--round", type=int, default=1)
+    parser.add_argument("--arms", nargs="+", choices=list(ARMS))
     arguments = parser.parse_args()
     if arguments.stage in {"index", "ask"} and not arguments.allow_paid:
         sys.exit(
             f"The {arguments.stage} stage calls a paid provider; pass --allow-paid."
         )
-    getattr(Run(arguments.work, arguments.base_url), arguments.stage)()
+    runner = Run(arguments.work, arguments.base_url, arguments.round, arguments.arms)
+    getattr(runner, arguments.stage)()

@@ -971,5 +971,207 @@
       "status": "insufficient_evidence",
       "cost_usd": 0.0004535
     }
+  },
+  "query_runs_round2": {
+    "q01:v2": {
+      "id": "00e48cc1-9b94-4e35-8914-25df2bbf354e",
+      "status": "succeeded",
+      "cost_usd": 0.0005389
+    },
+    "q02:v2": {
+      "id": "857df777-3f8f-47ec-854b-be5c20950f55",
+      "status": "succeeded",
+      "cost_usd": 0.0008193
+    },
+    "q03:v2": {
+      "id": "41625aac-671e-4791-8440-2d8014a1cb12",
+      "status": "succeeded",
+      "cost_usd": 0.0006468
+    },
+    "q04:v2": {
+      "id": "fc552aac-7dc1-45ec-8997-cb1e31406b6e",
+      "status": "succeeded",
+      "cost_usd": 0.0006465
+    },
+    "q05:v2": {
+      "id": "7da44c5c-3cbe-45b9-bdf0-2e32f567c8a0",
+      "status": "succeeded",
+      "cost_usd": 0.0007483
+    },
+    "q06:v2": {
+      "id": "82c3f439-49b6-4e69-b401-341476b2ffa2",
+      "status": "succeeded",
+      "cost_usd": 0.0004697
+    },
+    "q07:v2": {
+      "id": "6f779ee7-11f0-4846-992a-a67ab9c5cd30",
+      "status": "succeeded",
+      "cost_usd": 0.00088
+    },
+    "q08:v2": {
+      "id": "c7dee0c7-1728-4076-8514-b465d946ecd1",
+      "status": "succeeded",
+      "cost_usd": 0.0008725
+    },
+    "q09:v2": {
+      "id": "65aa43ae-0561-4022-abee-3d50b40d9691",
+      "status": "succeeded",
+      "cost_usd": 0.0008831
+    },
+    "q10:v2": {
+      "id": "4ca7aa78-fa5c-4daf-8e17-8f91e1c94b53",
+      "status": "succeeded",
+      "cost_usd": 0.0008786
+    },
+    "q11:v2": {
+      "id": "2828ff88-d167-4da7-b475-0737670e2193",
+      "status": "succeeded",
+      "cost_usd": 0.001015
+    },
+    "q12:v2": {
+      "id": "3da4bc1d-c306-45f9-af11-2b0577318737",
+      "status": "succeeded",
+      "cost_usd": 0.00088
+    },
+    "q13:v2": {
+      "id": "3afbe26a-63e7-4d2d-ac23-1e508d9c5e69",
+      "status": "succeeded",
+      "cost_usd": 0.0004145
+    },
+    "q14:v2": {
+      "id": "92cda456-a9aa-4661-b457-42c05a91cc39",
+      "status": "succeeded",
+      "cost_usd": 0.000402
+    },
+    "q15:v2": {
+      "id": "2489f258-9434-4d46-8648-6d61b8b7408f",
+      "status": "succeeded",
+      "cost_usd": 0.0003342
+    },
+    "q16:v2": {
+      "id": "5a4e2c2c-1058-413b-8716-9905dc16cb8e",
+      "status": "succeeded",
+      "cost_usd": 0.0002927
+    },
+    "q17:v2": {
+      "id": "aef18217-5083-4394-9660-ddc011eadcd7",
+      "status": "succeeded",
+      "cost_usd": 0.0003635
+    },
+    "q18:v2": {
+      "id": "338ac9cf-9569-4388-a50a-f218e9f22a60",
+      "status": "succeeded",
+      "cost_usd": 0.0002382
+    },
+    "q19:v2": {
+      "id": "afc25d51-3c85-4d5b-bc67-8ab964aed8a3",
+      "status": "succeeded",
+      "cost_usd": 0.0005225
+    },
+    "q20:v2": {
+      "id": "361a3b2e-fe16-45bf-8ebf-e020f00131dc",
+      "status": "succeeded",
+      "cost_usd": 0.0004454
+    },
+    "q21:v2": {
+      "id": "c6de567b-d5ec-4255-815a-c80f1ff0fd4a",
+      "status": "succeeded",
+      "cost_usd": 0.0006554
+    },
+    "q22:v2": {
+      "id": "3d59d874-d17a-4179-9af0-99b5f0a7f9c8",
+      "status": "succeeded",
+      "cost_usd": 0.0007155
+    },
+    "q23:v2": {
+      "id": "94244a50-6317-4ac7-a1bc-39858a5ca503",
+      "status": "succeeded",
+      "cost_usd": 0.0006224
+    },
+    "q24:v2": {
+      "id": "14339147-9da1-44f7-bfb9-e6d1d81b8193",
+      "status": "succeeded",
+      "cost_usd": 0.0005172
+    },
+    "q25:v2": {
+      "id": "de1fca19-6a87-47db-b8f5-aeb11e930a87",
+      "status": "succeeded",
+      "cost_usd": 0.0007946
+    },
+    "q26:v2": {
+      "id": "29e70728-a27e-44b5-975b-fab065047af1",
+      "status": "succeeded",
+      "cost_usd": 0.0007715
+    },
+    "q27:v2": {
+      "id": "c8263b67-8ac0-4801-b640-241164b61c22",
+      "status": "succeeded",
+      "cost_usd": 0.000769
+    },
+    "q28:v2": {
+      "id": "380003be-a3fd-4d16-b75e-1673d78ecfe7",
+      "status": "succeeded",
+      "cost_usd": 0.000438
+    },
+    "q29:v2": {
+      "id": "5b247aab-986d-4f7f-bdc3-f8311d185b58",
+      "status": "succeeded",
+      "cost_usd": 0.0005164
+    },
+    "q30:v2": {
+      "id": "2586296a-2149-474b-9e3a-5142bfa75375",
+      "status": "succeeded",
+      "cost_usd": 0.0007211
+    },
+    "q31:v2": {
+      "id": "2f72ce29-2691-4240-839a-ea0e8b09ad42",
+      "status": "succeeded",
+      "cost_usd": 0.00048
+    },
+    "q32:v2": {
+      "id": "c9d15478-9425-4d91-9cdc-321b26c02302",
+      "status": "succeeded",
+      "cost_usd": 0.0003662
+    },
+    "q33:v2": {
+      "id": "0df20646-5ef8-42e6-b550-fdb627298b42",
+      "status": "succeeded",
+      "cost_usd": 0.0006051
+    },
+    "q34:v2": {
+      "id": "e2f7e216-794e-4e82-bd51-f6765d433a4d",
+      "status": "succeeded",
+      "cost_usd": 0.0004976
+    },
+    "q35:v2": {
+      "id": "fa7a0fd5-79ee-433c-b23e-028218362f89",
+      "status": "insufficient_evidence",
+      "cost_usd": 0.0006701
+    },
+    "q36:v2": {
+      "id": "5b8831e0-1183-4d6d-b673-ae2339ebe64f",
+      "status": "insufficient_evidence",
+      "cost_usd": 0.0004108
+    },
+    "q37:v2": {
+      "id": "e5ea58d1-26bb-423a-acaf-9df0b4636eb0",
+      "status": "insufficient_evidence",
+      "cost_usd": 0.001025
+    },
+    "q38:v2": {
+      "id": "8b6144bb-4ddf-418e-bfb8-f3847a95aa17",
+      "status": "insufficient_evidence",
+      "cost_usd": 0.0008796
+    },
+    "q39:v2": {
+      "id": "038a2bc7-9b2f-4e5e-ac10-285ab555f388",
+      "status": "insufficient_evidence",
+      "cost_usd": 0.0006424
+    },
+    "q40:v2": {
+      "id": "2a69e17c-156a-4292-8299-821181fb5419",
+      "status": "insufficient_evidence",
+      "cost_usd": 0.0004471
+    }
   }
 }
