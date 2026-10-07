@@ -1,0 +1,81 @@
+id,slot,label,reason,supported,supported_reason
+q01,X,correct,States the reference fact; no contradicting claim.,yes,Cited chunk states the subject and the value together.
+q01,Y,correct,States the reference fact; no contradicting claim.,yes,Cited chunk states the subject and the value together.
+q02,X,correct,States the reference fact; no contradicting claim.,no,Cited chunk has the value but not the site name; the chunk boundary split them.
+q02,Y,correct,States the reference fact; no contradicting claim.,yes,Cited chunk states the subject and the value together.
+q03,X,wrong-abstain,Abstained; attributed the 11-day pump service to Saltmarsh Annex instead of Moorland Crossing.,n/a,Abstained; no claim to support.
+q03,Y,correct,States the reference fact; no contradicting claim.,yes,Cited chunk states the subject and the value together.
+q04,X,correct,States the reference fact; no contradicting claim.,yes,Cited chunk states the subject and the value together.
+q04,Y,correct,States the reference fact; no contradicting claim.,no,Cited chunk has the value but not the site name; the chunk boundary split them.
+q05,X,wrong-abstain,Abstained; attributed the 8.2 bar limit to Fenwick Quay instead of Ashby Lantern Works.,n/a,Abstained; no claim to support.
+q05,Y,correct,States the reference fact; no contradicting claim.,yes,Cited chunk states the subject and the value together.
+q06,X,correct,States the reference fact; no contradicting claim.,yes,Cited chunk states the subject and the value together.
+q06,Y,correct,States the reference fact; no contradicting claim.,yes,Cited chunk states the subject and the value together.
+q07,X,correct,States the reference fact; no contradicting claim.,yes,Cited chunk states the subject and the value together.
+q07,Y,correct,States the reference fact; no contradicting claim.,yes,Cited chunk states the subject and the value together.
+q08,X,correct,States the reference fact; no contradicting claim.,yes,Cited chunk states the subject and the value together.
+q08,Y,wrong-abstain,Abstained although the 18-hour response time is in the corpus.,n/a,Abstained; no claim to support.
+q09,X,wrong-abstain,Abstained although the EUR 51.40 rate is in the corpus.,n/a,Abstained; no claim to support.
+q09,Y,correct,States the reference fact; no contradicting claim.,yes,Cited chunk states the subject and the value together.
+q10,X,correct,States the reference fact; no contradicting claim.,no,Cited page-2 table chunk has no column header; the column meaning is inferred.
+q10,Y,correct,States the reference fact; no contradicting claim.,no,Cited page-2 table chunk has no column header; the column meaning is inferred.
+q11,X,correct,States the reference fact; no contradicting claim.,no,Cited page-2 table chunk has no column header; the column meaning is inferred.
+q11,Y,correct,States the reference fact; no contradicting claim.,no,Cited page-2 table chunk has no column header; the column meaning is inferred.
+q12,X,correct,States the reference fact; no contradicting claim.,no,Cited page-2 table chunk has no column header; the column meaning is inferred.
+q12,Y,correct,States the reference fact; no contradicting claim.,no,Cited page-2 table chunk has no column header; the column meaning is inferred.
+q13,X,correct,States the reference fact; no contradicting claim.,yes,Cited chunk states the subject and the value together.
+q13,Y,correct,States the reference fact; no contradicting claim.,no,"Cited text has the value but not the part (Employees/Contractors/Interns); the part is only in the section path or a separate heading chunk, which the model is not told links them."
+q14,X,correct,States the reference fact; no contradicting claim.,no,"Cited text has the value but not the part (Employees/Contractors/Interns); the part is only in the section path or a separate heading chunk, which the model is not told links them."
+q14,Y,correct,States the reference fact; no contradicting claim.,no,"Cited text has the value but not the part (Employees/Contractors/Interns); the part is only in the section path or a separate heading chunk, which the model is not told links them."
+q15,X,correct,States the reference fact; no contradicting claim.,no,"Cited text has the value but not the part (Employees/Contractors/Interns); the part is only in the section path or a separate heading chunk, which the model is not told links them."
+q15,Y,correct,States the reference fact; no contradicting claim.,yes,Cited chunk states the subject and the value together.
+q16,X,correct,States the reference fact; no contradicting claim.,no,"Cited text has the value but not the part (Employees/Contractors/Interns); the part is only in the section path or a separate heading chunk, which the model is not told links them."
+q16,Y,correct,States the reference fact; no contradicting claim.,no,"Cited text has the value but not the part (Employees/Contractors/Interns); the part is only in the section path or a separate heading chunk, which the model is not told links them."
+q17,X,correct,States the reference fact; no contradicting claim.,no,"Cited text has the value but not the part (Employees/Contractors/Interns); the part is only in the section path or a separate heading chunk, which the model is not told links them."
+q17,Y,correct,States the reference fact; no contradicting claim.,yes,Cited chunk states the subject and the value together.
+q18,X,correct,States the reference fact; no contradicting claim.,no,"Cited text has the value but not the part (Employees/Contractors/Interns); the part is only in the section path or a separate heading chunk, which the model is not told links them."
+q18,Y,correct,States the reference fact; no contradicting claim.,no,"Cited text has the value but not the part (Employees/Contractors/Interns); the part is only in the section path or a separate heading chunk, which the model is not told links them."
+q19,X,correct,States the reference fact; no contradicting claim.,yes,Cited chunk states the subject and the value together.
+q19,Y,correct,States the reference fact; no contradicting claim.,yes,Cited chunk states the subject and the value together.
+q20,X,correct,States the reference fact; no contradicting claim.,yes,Cited chunk states the subject and the value together.
+q20,Y,correct,States the reference fact; no contradicting claim.,yes,Cited chunk states the subject and the value together.
+q21,X,correct,States the reference fact; no contradicting claim.,yes,Cited chunk states the subject and the value together.
+q21,Y,correct,States the reference fact; no contradicting claim.,yes,Cited chunk states the subject and the value together.
+q22,X,correct,States the reference fact; no contradicting claim.,yes,Cited chunk states the subject and the value together.
+q22,Y,correct,States the reference fact; no contradicting claim.,yes,Cited chunk states the subject and the value together.
+q23,X,correct,States the reference fact; no contradicting claim.,yes,Cited chunk states the subject and the value together.
+q23,Y,correct,States the reference fact; no contradicting claim.,yes,Cited chunk states the subject and the value together.
+q24,X,correct,States the reference fact; no contradicting claim.,yes,Cited chunk states the subject and the value together.
+q24,Y,correct,States the reference fact; no contradicting claim.,yes,Cited chunk states the subject and the value together.
+q25,X,correct,States the reference fact; no contradicting claim.,yes,Cited chunk states the subject and the value together.
+q25,Y,correct,States the reference fact; no contradicting claim.,no,Cited CSV rows have no column header; the column meaning is inferred.
+q26,X,correct,States the reference fact; no contradicting claim.,no,Cited CSV rows have no column header; the column meaning is inferred.
+q26,Y,correct,States the reference fact; no contradicting claim.,yes,Cited chunk states the subject and the value together.
+q27,X,correct,States the reference fact; no contradicting claim.,yes,Cited chunk states the subject and the value together.
+q27,Y,correct,States the reference fact; no contradicting claim.,yes,Cited chunk states the subject and the value together.
+q28,X,correct,States the reference fact; no contradicting claim.,yes,Cited chunk states the subject and the value together.
+q28,Y,correct,States the reference fact; no contradicting claim.,yes,Cited chunk states the subject and the value together.
+q29,X,correct,States the reference fact; no contradicting claim.,yes,Cited chunk states the subject and the value together.
+q29,Y,correct,States the reference fact; no contradicting claim.,yes,Cited chunk states the subject and the value together.
+q30,X,correct,States the reference fact; no contradicting claim.,yes,Cited chunk states the subject and the value together.
+q30,Y,correct,States the reference fact; no contradicting claim.,yes,Cited chunk states the subject and the value together.
+q31,X,correct,States the reference fact; no contradicting claim.,yes,Cited chunk states the subject and the value together.
+q31,Y,correct,States the reference fact; no contradicting claim.,yes,Cited chunk states the subject and the value together.
+q32,X,correct,States the reference fact; no contradicting claim.,yes,Cited chunk states the subject and the value together.
+q32,Y,correct,States the reference fact; no contradicting claim.,yes,Cited chunk states the subject and the value together.
+q33,X,correct,States the reference fact; no contradicting claim.,yes,Cited chunk states the subject and the value together.
+q33,Y,correct,States the reference fact; no contradicting claim.,yes,Cited chunk states the subject and the value together.
+q34,X,correct,States the reference fact; no contradicting claim.,yes,Cited chunk states the subject and the value together.
+q34,Y,correct,States the reference fact; no contradicting claim.,yes,Cited chunk states the subject and the value together.
+q35,X,correct-abstain,Declined with INSUFFICIENT_EVIDENCE; the fact is not in the corpus.,n/a,Abstained; no claim to support.
+q35,Y,correct-abstain,Declined with INSUFFICIENT_EVIDENCE; the fact is not in the corpus.,n/a,Abstained; no claim to support.
+q36,X,correct-abstain,Declined with INSUFFICIENT_EVIDENCE; the fact is not in the corpus.,n/a,Abstained; no claim to support.
+q36,Y,correct-abstain,Declined with INSUFFICIENT_EVIDENCE; the fact is not in the corpus.,n/a,Abstained; no claim to support.
+q37,X,correct-abstain,Declined with INSUFFICIENT_EVIDENCE; the fact is not in the corpus.,n/a,Abstained; no claim to support.
+q37,Y,correct-abstain,Declined with INSUFFICIENT_EVIDENCE; the fact is not in the corpus.,n/a,Abstained; no claim to support.
+q38,X,correct-abstain,Declined with INSUFFICIENT_EVIDENCE; the fact is not in the corpus.,n/a,Abstained; no claim to support.
+q38,Y,correct-abstain,Declined with INSUFFICIENT_EVIDENCE; the fact is not in the corpus.,n/a,Abstained; no claim to support.
+q39,X,correct-abstain,Declined with INSUFFICIENT_EVIDENCE; the fact is not in the corpus.,n/a,Abstained; no claim to support.
+q39,Y,correct-abstain,Declined with INSUFFICIENT_EVIDENCE; the fact is not in the corpus.,n/a,Abstained; no claim to support.
+q40,X,correct-abstain,Declined with INSUFFICIENT_EVIDENCE; the fact is not in the corpus.,n/a,Abstained; no claim to support.
+q40,Y,correct-abstain,Declined with INSUFFICIENT_EVIDENCE; the fact is not in the corpus.,n/a,Abstained; no claim to support.

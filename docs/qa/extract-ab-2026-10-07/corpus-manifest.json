@@ -1,0 +1,59 @@
+{
+  "corpus": "extract-ab-v1",
+  "documents": [
+    {
+      "filename": "field-guide-two-column.pdf",
+      "category": "C1",
+      "targets": "F1 reading order",
+      "sha256": "34872cc86935a5c5b137b002b89628e80920291dc2fb465767d899df57b773c4"
+    },
+    {
+      "filename": "service-rates.pdf",
+      "category": "C2",
+      "targets": "F2 PDF tables",
+      "sha256": "d7a9703453a3c67c37726b14142b1966fa3c74f38cc0834e6ac4e700ec372d5f"
+    },
+    {
+      "filename": "staff-handbook.pdf",
+      "category": "C3",
+      "targets": "F3/F4/F10 headings",
+      "sha256": "89d7c26602435b337b76eece7d3e2f98a9e03bac5d301ab9f3266497b6f65cb1"
+    },
+    {
+      "filename": "scanned-memo.pdf",
+      "category": "C4",
+      "targets": "F5 OCR paragraphs",
+      "sha256": "a0cad9a8f7c9ffabc547fa3106ab0f65950bdb26689f1ddbcc748bb3883abb4f"
+    },
+    {
+      "filename": "vendor-register.docx",
+      "category": "C5",
+      "targets": "F8 DOCX tables",
+      "sha256": "e6912d119c657cfe46a72db85a8bc84891f540e549fd5bdaca91ed173b5113ce"
+    },
+    {
+      "filename": "equipment.csv",
+      "category": "C6",
+      "targets": "F8 CSV tables",
+      "sha256": "c651b3a15d33d45ff16a556105625243f6fea52e72c258bbb4aefe183c8f438f"
+    },
+    {
+      "filename": "budget.xlsx",
+      "category": "C6",
+      "targets": "F8 XLSX tables",
+      "sha256": "542cf9cd1842a37f162d900508669a706240c82e774e9a013b48c8569c0bbe6c"
+    },
+    {
+      "filename": "travel-policy.pdf",
+      "category": "K1",
+      "targets": "control",
+      "sha256": "f487debe80670b1e56918b577e23e1f463b60a0c5151edc59f01a2bd98036a5c"
+    },
+    {
+      "filename": "faq.txt",
+      "category": "K2",
+      "targets": "control",
+      "sha256": "05a5cf8e4a0ffe2f4412be7e859f90598bffb246910513d213d785b619a3310c"
+    }
+  ]
+}

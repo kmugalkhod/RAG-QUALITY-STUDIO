@@ -1,0 +1,81 @@
+id,question,reference_answer,slot,status,answer
+q01,What time do the gates open on weekdays at the Harbor Point depot?,05:40.,X,succeeded,The gates at the Harbor Point depot open at 05:40 on weekdays [S1].
+q01,What time do the gates open on weekdays at the Harbor Point depot?,05:40.,Y,succeeded,"On weekdays, the gates at the Harbor Point depot open at 05:40 [S1]."
+q02,At what temperature are the cold rooms at Kestrel Yard held?,2 degrees Celsius.,X,succeeded,The cold rooms at Kestrel Yard are held at 2 degrees Celsius [S1].
+q02,At what temperature are the cold rooms at Kestrel Yard held?,2 degrees Celsius.,Y,succeeded,The cold rooms at Kestrel Yard are held at 2 degrees Celsius [S1].
+q03,How often are the fuel pumps at Moorland Crossing serviced?,Every 11 days.,X,insufficient_evidence,"INSUFFICIENT_EVIDENCE. The provided text states that the fuel pumps at the Saltmarsh Annex are serviced every 11 days, but it does not specify how often the fuel pumps at Moorland Crossing are serviced [S1]."
+q03,How often are the fuel pumps at Moorland Crossing serviced?,Every 11 days.,Y,succeeded,The fuel pumps at Moorland Crossing are serviced every 11 days [S1].
+q04,How long does induction last at the Saltmarsh Annex?,3 days.,X,succeeded,Induction at the Saltmarsh Annex lasts 3 days [S1].
+q04,How long does induction last at the Saltmarsh Annex?,3 days.,Y,succeeded,Induction at the Saltmarsh Annex lasts 3 days [S1].
+q05,What tyre pressure limit is used at Ashby Lantern Works?,8.2 bar.,X,insufficient_evidence,"INSUFFICIENT_EVIDENCE. The provided text states that Ashby Lantern Works is a vehicle workshop and that Fenwick Quay checks tyre pressure against a limit of 8.2 bar, but it does not specify the tyre pressure limit used at Ashby Lantern Works [S1]."
+q05,What tyre pressure limit is used at Ashby Lantern Works?,8.2 bar.,Y,succeeded,The tyre pressure limit used at Ashby Lantern Works is 8.2 bar [S1].
+q06,How far ahead must freight be booked at Fenwick Quay?,36 hours ahead.,X,succeeded,"Freight must be booked 36 hours ahead at Fenwick Quay [S1, S3]."
+q06,How far ahead must freight be booked at Fenwick Quay?,36 hours ahead.,Y,succeeded,"Freight must be booked 36 hours ahead at Fenwick Quay [S1, S2]."
+q07,What is the hourly rate for Roof inspection in the West region?,EUR 40.55 per hour.,X,succeeded,The hourly rate for Roof inspection in the West region is 40.55 EUR [S1].
+q07,What is the hourly rate for Roof inspection in the West region?,EUR 40.55 per hour.,Y,succeeded,The hourly rate for Roof inspection in the West region is 40.55 EUR [S1].
+q08,What is the response time for Lift maintenance in the East region?,18 hours.,X,succeeded,The response time for Lift maintenance in the East region is 18 hours [S1].
+q08,What is the response time for Lift maintenance in the East region?,18 hours.,Y,insufficient_evidence,"INSUFFICIENT_EVIDENCE. The provided documents do not contain information about the response time for ""Lift maintenance"" in the East region."
+q09,What is the hourly rate for Gutter clearing in the North region?,EUR 51.40 per hour.,X,insufficient_evidence,"INSUFFICIENT_EVIDENCE. The provided evidence does not contain information about the hourly rate for ""Gutter clearing"" in the North region."
+q09,What is the hourly rate for Gutter clearing in the North region?,EUR 51.40 per hour.,Y,succeeded,The hourly rate for Gutter clearing in the North region is 51.40 EUR [S1].
+q10,What is the response time for Lighting upgrade in the West region?,27 hours.,X,succeeded,The response time for a Lighting upgrade in the West region is 27 hours [S2].
+q10,What is the response time for Lighting upgrade in the West region?,27 hours.,Y,succeeded,The response time for a Lighting upgrade in the West region is 27 hours [S2].
+q11,What is the hourly rate for Security patrol in the West region?,EUR 37.15 per hour.,X,succeeded,The hourly rate for Security patrol in the West region is 37.15 EUR [S3].
+q11,What is the hourly rate for Security patrol in the West region?,EUR 37.15 per hour.,Y,succeeded,The hourly rate for Security patrol in the West region is 37.15 EUR [S4].
+q12,What is the hourly rate for Ventilation clean in the East region?,EUR 49.70 per hour.,X,succeeded,The hourly rate for Ventilation clean in the East region is 49.70 EUR [S2].
+q12,What is the hourly rate for Ventilation clean in the East region?,EUR 49.70 per hour.,Y,succeeded,The hourly rate for Ventilation clean in the East region is 49.70 EUR [S4].
+q13,What is the notice period for employees?,37 calendar days.,X,succeeded,The notice period for employees is 37 calendar days [S1].
+q13,What is the notice period for employees?,37 calendar days.,Y,succeeded,"The notice period for employees is 37 calendar days [S1]. It begins the day after written notice is received by the people team [S1]. This period can only be shortened by written agreement, and any unused leave is included in the final payment [S1]."
+q14,What is the monthly expense limit for employees?,EUR 450 per month.,X,succeeded,"The monthly expense limit for employees is EUR 450 for travel and meal expenses [S1, S4]."
+q14,What is the monthly expense limit for employees?,EUR 450 per month.,Y,succeeded,The monthly expense limit for employees is EUR 450 [S3].
+q15,What is the notice period for contractors?,14 calendar days.,X,succeeded,"The notice period for contractors is 14 calendar days [S1, S4]. This period begins the day after the people team receives written notice [S1]. It can only be shortened by written agreement [S1]. Any unused leave will be included in the final payment [S1]."
+q15,What is the notice period for contractors?,14 calendar days.,Y,succeeded,"The notice period for contractors is 14 calendar days [S1]. It begins the day after written notice is received by the people team [S1]. This period can only be shortened by written agreement, and any unused leave is settled in the final payment [S1]."
+q16,Within how many working days must contractors return their equipment?,Within 2 working days of the last working day.,X,succeeded,"Contractors must return their equipment within 2 working days of the last working day [S1, S5]."
+q16,Within how many working days must contractors return their equipment?,Within 2 working days of the last working day.,Y,succeeded,Contractors must return their equipment within 2 working days of the last working day [S3].
+q17,What is the notice period for interns?,7 calendar days.,X,succeeded,"The notice period for interns is 7 calendar days [S1, S3]."
+q17,What is the notice period for interns?,7 calendar days.,Y,succeeded,The notice period for interns is 7 calendar days [S1]. This period begins the day after the people team receives written notice [S1].
+q18,What is the monthly expense limit for interns?,EUR 60 per month.,X,succeeded,"The monthly expense limit for interns is EUR 60 for travel and meal expenses [S1, S2]. Claims must include receipts and be submitted within two months of the expense [S1]."
+q18,What is the monthly expense limit for interns?,EUR 60 per month.,Y,succeeded,The monthly expense limit for interns is EUR 60 [S3].
+q19,From what time is breakfast served at the Quarry Lane warehouse canteen?,From 06:15 (until 09:00) every weekday.,X,succeeded,Breakfast is served from 06:15 at the Quarry Lane warehouse canteen [S1].
+q19,From what time is breakfast served at the Quarry Lane warehouse canteen?,From 06:15 (until 09:00) every weekday.,Y,succeeded,"Breakfast will be served from 06:15 every weekday at the Quarry Lane warehouse canteen, starting from the first Monday of next month [S1]."
+q20,What is the new final departure time of the night bus from Quarry Lane?,23:40.,X,succeeded,The new final departure time of the night bus from Quarry Lane is 23:40 [S1].
+q20,What is the new final departure time of the night bus from Quarry Lane?,23:40.,Y,succeeded,The new final departure time of the night bus from Quarry Lane is 23:40 [S1].
+q21,Where is the new fire drill assembly point for the Linden Street office?,The north car park.,X,succeeded,The new fire drill assembly point for the Linden Street office is the north car park [S1].
+q21,Where is the new fire drill assembly point for the Linden Street office?,The north car park.,Y,succeeded,The new fire drill assembly point for the Linden Street office is the north car park [S1].
+q22,How much does a replacement locker key cost at the Linden Street office?,EUR 12.,X,succeeded,A replacement locker key at the Linden Street office costs EUR 12 [S1].
+q22,How much does a replacement locker key cost at the Linden Street office?,EUR 12.,Y,succeeded,A replacement locker key at the Linden Street office costs EUR 12 [S1].
+q23,When does the contract with Larkspur Freight end?,31 March 2027 (2027-03-31).,X,succeeded,The contract with Larkspur Freight ends on 2027-03-31 [S1].
+q23,When does the contract with Larkspur Freight end?,31 March 2027 (2027-03-31).,Y,succeeded,The contract with Larkspur Freight ends on 2027-03-31 [S1].
+q24,Who is the account manager for Copperline Print?,Mira Okafor.,X,succeeded,Mira Okafor is the account manager for Copperline Print [S1].
+q24,Who is the account manager for Copperline Print?,Mira Okafor.,Y,succeeded,Mira Okafor is the account manager for Copperline Print [S1].
+q25,When was asset EQ-1017 last calibrated?,9 September 2026 (2026-09-09).,X,succeeded,Asset EQ-1017 was last calibrated on 2026-09-09 [S2].
+q25,When was asset EQ-1017 last calibrated?,9 September 2026 (2026-09-09).,Y,succeeded,Asset EQ-1017 was last calibrated on 2026-09-09 [S2].
+q26,Where is asset EQ-1023 located?,Ashby Lantern Works.,X,succeeded,Asset EQ-1023 is located at Ashby Lantern Works [S2].
+q26,Where is asset EQ-1023 located?,Ashby Lantern Works.,Y,succeeded,Asset EQ-1023 is located at Ashby Lantern Works [S2].
+q27,What is the approved budget for Logistics in Q3?,"EUR 160,500.",X,succeeded,"The approved budget for Logistics in Q3 is 160,500 EUR [S1]."
+q27,What is the approved budget for Logistics in Q3?,"EUR 160,500.",Y,succeeded,"The approved budget for Logistics in Q3 is 160,500 EUR [S1]."
+q28,What is the approved budget for Training in Q2?,"EUR 185,000.",X,succeeded,The approved budget for Training in Q2 is 185000 EUR [S1].
+q28,What is the approved budget for Training in Q2?,"EUR 185,000.",Y,succeeded,"The approved budget for Training in Q2 is 185,000 EUR [S1]."
+q29,What is the maximum hotel rate per night outside the capital?,EUR 140 per night.,X,succeeded,The maximum hotel rate per night outside the capital is EUR 140 [S1].
+q29,What is the maximum hotel rate per night outside the capital?,EUR 140 per night.,Y,succeeded,The maximum hotel rate per night outside the capital is EUR 140 [S1].
+q30,What mileage rate is paid for private cars used on company business?,EUR 0.32 per kilometre.,X,succeeded,Mileage for private cars used on company business is paid at EUR 0.32 per kilometer [S1].
+q30,What mileage rate is paid for private cars used on company business?,EUR 0.32 per kilometre.,Y,succeeded,Mileage for private cars used on company business is paid at EUR 0.32 per kilometer [S1].
+q31,How far in advance must rail tickets be booked through the travel desk?,At least five working days before the journey.,X,succeeded,Rail tickets must be booked through the travel desk at least five working days before the journey [S1].
+q31,How far in advance must rail tickets be booked through the travel desk?,At least five working days before the journey.,Y,succeeded,Rail tickets must be booked through the travel desk at least five working days before the journey [S1].
+q32,How long is a staff portal password reset link valid?,20 minutes.,X,succeeded,A staff portal password reset link is valid for 20 minutes [S1].
+q32,How long is a staff portal password reset link valid?,20 minutes.,Y,succeeded,A staff portal password reset link is valid for 20 minutes [S1].
+q33,What extension do I call if a vehicle breaks down?,Extension 4417 (the fleet desk).,X,succeeded,Call the fleet desk on extension 4417 [S2].
+q33,What extension do I call if a vehicle breaks down?,Extension 4417 (the fleet desk).,Y,succeeded,Call the fleet desk on extension 4417 if a vehicle breaks down [S2].
+q34,On which day of the month are payslips published?,On the 26th of each month.,X,succeeded,Payslips are published on the 26th of each month [S1].
+q34,On which day of the month are payslips published?,On the 26th of each month.,Y,succeeded,Payslips are published on the 26th of each month [S1].
+q35,What is the parking fee at the Harbor Point depot?,(unanswerable),X,insufficient_evidence,INSUFFICIENT_EVIDENCE. The provided text describes the Harbor Point depot but does not mention any parking fees [S1].
+q35,What is the parking fee at the Harbor Point depot?,(unanswerable),Y,insufficient_evidence,INSUFFICIENT_EVIDENCE. The provided text does not mention any parking fees at the Harbor Point depot.
+q36,What is the notice period for board members?,(unanswerable),X,insufficient_evidence,"INSUFFICIENT_EVIDENCE. The provided text outlines notice periods for contractors, interns, and employees, but does not mention board members [S1, S2, S3]."
+q36,What is the notice period for board members?,(unanswerable),Y,insufficient_evidence,"INSUFFICIENT_EVIDENCE. The provided text does not specify the notice period for board members. It outlines different notice periods (14, 37, and 7 calendar days) but does not link them to specific roles like board members [S1, S2, S3]."
+q37,What is the hourly rate for Drain survey in the Central region?,(unanswerable),X,insufficient_evidence,"INSUFFICIENT_EVIDENCE. The provided data does not include the hourly rate for Drain survey in the Central region. It only lists rates for North, South, East, and West regions [S1]."
+q37,What is the hourly rate for Drain survey in the Central region?,(unanswerable),Y,insufficient_evidence,"INSUFFICIENT_EVIDENCE. The provided data does not include the hourly rate for Drain survey in the Central region; it only lists rates for North, South, East, and West regions [S1]."
+q38,When was asset EQ-1050 last calibrated?,(unanswerable),X,insufficient_evidence,"INSUFFICIENT_EVIDENCE. The provided documents do not contain information about when asset EQ-1050 was last calibrated [S1, S2, S3, S4]."
+q38,When was asset EQ-1050 last calibrated?,(unanswerable),Y,insufficient_evidence,"INSUFFICIENT_EVIDENCE. The provided documents do not contain information about when asset EQ-1050 was last calibrated. The asset tags in the provided tables range from EQ-1001 to EQ-1030 [S1, S2, S3]."
+q39,What is the approved budget for Marketing in Q2?,(unanswerable),X,insufficient_evidence,"INSUFFICIENT_EVIDENCE. The provided data does not contain information about the approved budget for Marketing in Q2 [S1, S2, S3, S4, S5]."
+q39,What is the approved budget for Marketing in Q2?,(unanswerable),Y,insufficient_evidence,"INSUFFICIENT_EVIDENCE. The provided evidence does not contain information about the approved budget for Marketing in Q2 [S1, S2, S3, S4, S5]."
+q40,How long is the lunch break at the Linden Street office?,(unanswerable),X,insufficient_evidence,INSUFFICIENT_EVIDENCE. The provided documents do not contain information about the length of the lunch break at the Linden Street office.
+q40,How long is the lunch break at the Linden Street office?,(unanswerable),Y,insufficient_evidence,"INSUFFICIENT_EVIDENCE. The provided documents discuss fire drill planning and locker renewals at the Linden Street office, but do not mention the duration of lunch breaks there [S1]."

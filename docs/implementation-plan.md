@@ -1,5 +1,15 @@
 # Implementation plan
 
+## Extract v1 vs v2 answer-quality comparison — spec 0004 (2026-10-07)
+
+Status: **run on 2026-10-07; outcome inconclusive under the pre-set rule**. [Spec 0004](specs/0004-extract-v1-v2-answer-quality.md) built a v1 and a v2 index from the same 9 fictional documents (`backend/scripts/extract_ab/`) and asked 40 questions through two answer pipeline versions that differ only in the index. The owner ruled out `gemini-2.5-flash` as a judge, so answers were labelled blind against a fixed rubric instead of with RAGAS.
+
+**Result:** v2 answered 40/40 correctly and v1 36/40, with no v2 losses. Two v1 errors are the column-interleaving defect. The evidence measure moved only +1, because v2's section headings are embedded for search but never sent to the answer model. With the default quality policy, v1 could not publish the corpus at all. Recorded cost: $0.0512. Results are in `docs/qa/extract-ab-2026-10-07/`.
+
+**Verification:** `backend/tests/test_extract_ab.py` (16 tests: corpus determinism, expectations present in the source text, scoring, blinding and the decision rule) passes in the backend container; ruff check and format pass.
+
+**Limits and next step:** the labels are Claude's; the owner's review of the questions and the spot-check of 10 labels are pending. Next: [spec 0005](specs/0005-section-context-and-simple-extract.md).
+
 ## Extract node v2 — `docs/extract-node-improvement-plan.md` (2026-10-06 to 2026-10-07)
 
 **Acceptance criteria:** fixes ship as `layout-ocr-v2` while `layout-ocr-v1` and `native-text-v1` keep their exact output (decision D1); legacy native-text findings are report-only (D2); no new dependency (D3). On the extended corpus v2 must keep column reading order, whole tables, headings with heading paths and OCR paragraphs, and the Phase 2 gates must still pass.
