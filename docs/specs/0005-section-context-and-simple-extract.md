@@ -1,7 +1,7 @@
 # 0005. Section context for answers and a simple Extract panel
 
 **Date**: 2026-10-07
-**Status**: Approved for implementation by the owner on 2026-10-07 ("once you developed spec for improve go and develop it"). Slice 1 done and verified on 2026-10-07; slice 2 in progress.
+**Status**: Approved for implementation by the owner on 2026-10-07 ("once you developed spec for improve go and develop it"). Both slices done and verified on local `main` on 2026-10-07.
 
 ## Summary
 
@@ -65,6 +65,14 @@ Everything else, unchanged and with the same labels, moves into a `<details>` se
 - Vitest: the simple controls write the same values as the advanced ones; a saved `always` OCR mode survives; the Custom option appears only for non-preset policies; the deviation count and reset; auto-open on an advanced validation error; the page-source variant; every existing test still passes (labels unchanged).
 - Playwright: update journeys that operate advanced fields so that they open the section first. Run the affected ingestion editor journeys on the isolated e2e stack.
 - Browser check at `http://127.0.0.1:5273` on desktop and phone width, in light and dark themes.
+
+**Result (2026-10-07):** built as specified in `editorModel.ts` (`recommendedExtractSettings`, `qualityChoice`, `extractDifferences` and `resetExtractAdvanced`, shared with new drafts and **Enable robust extraction**) and `IngestionNodeSettings.tsx`. Two changes came from the visual check. The technical introduction now shows only in the legacy native-text view. The collapsed summary reads "Advanced extraction settings · recommended" or "· N changed", with the full list inside.
+
+- 10 new Vitest tests pass, and the full frontend suite passes (375 tests); typecheck and lint pass.
+- `e2e/ingestion-layout.spec.ts` passes 12/12, including the Extract stage on desktop, tablet and phone without overflow.
+- On the isolated e2e stack, `docs-ingestion-depth` T3 passes. T5 passes the edited steps, including the new Advanced step and the expected Strict-policy failure, then stops at an older screenshot selector (`.section-heading`) that has not existed since `aca7877`. That selector predates this spec.
+- Screenshots were taken on desktop (light and dark) and phone; there were no console errors.
+- Docs site: typecheck and build pass. `check:public` fails on example-file hashes, because this Windows checkout converts line endings (`core.autocrlf=true`); the committed bytes match the reviewed hash.
 
 ## Out of scope (recorded from spec 0004)
 

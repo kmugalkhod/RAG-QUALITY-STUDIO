@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 
 import { Callout, LINK, SUMMARY } from '../../../components/parts';
 import { Button } from '../../../components/ui/button';
@@ -15,11 +15,17 @@ import {
   defaultDuplicatePolicy,
   defaultLanguagePolicy,
   defaultSensitiveDataPolicy,
+  extractDifferences,
   extractReadsFiles,
   fallbackQualityPolicy,
   fieldErrorsForNode,
   ingestionStageLabels as labels,
   isLayoutExtractVersion,
+  qualityChoice,
+  type QualityChoice,
+  qualityPolicyForChoice,
+  recommendedExtractSettings,
+  resetExtractAdvanced,
 } from '../editorModel';
 import type {
   ExistingFilesConfig,
@@ -51,6 +57,34 @@ const sourceNames: Record<SourceKind, string> = {
   s3: 'Amazon S3',
   notion: 'Notion',
   confluence: 'Confluence',
+};
+
+// Readable names for common Tesseract language packs; unknown codes show as-is.
+const languageNames: Record<string, string> = {
+  eng: 'English',
+  fra: 'French',
+  deu: 'German',
+  spa: 'Spanish',
+  ita: 'Italian',
+  por: 'Portuguese',
+  nld: 'Dutch',
+  hin: 'Hindi',
+  mar: 'Marathi',
+  ara: 'Arabic',
+  chi_sim: 'Chinese (simplified)',
+  jpn: 'Japanese',
+};
+
+function languageName(code: string) {
+  return languageNames[code] ? `${languageNames[code]} (${code})` : code;
+}
+
+const qualityChoiceHelp: Record<QualityChoice, string> = {
+  stop: 'A file that fails the quality checks stops the run, so nothing new is published until you review it. The last published index stays in use.',
+  publish:
+    'Quality problems are shown as warnings and those files are still published. Files that cannot be read at all are left out and listed in the run.',
+  custom:
+    'This pipeline uses custom quality rules. Review them under Advanced extraction settings.',
 };
 
 function stageName(node: IngestionNode) {
@@ -126,6 +160,7 @@ export function IngestionNodeSettings({
   // Server errors are keyed per node, so each source shows only its own.
   const nodeErrors = fieldErrorsForNode(serverFieldErrors, selected?.id ?? selectedNode);
   const readsFiles = extractReadsFiles(nodes);
+  const [extractAdvancedOpen, setExtractAdvancedOpen] = useState(false);
   const selectedOcr =
     selected?.type === 'extract'
       ? (selected.ocr ?? {
@@ -157,6 +192,23 @@ export function IngestionNodeSettings({
     selected?.type === 'extract'
       ? (selected.language_policy ?? structuredClone(defaultLanguagePolicy))
       : structuredClone(defaultLanguagePolicy);
+  const selectedQualityChoice: QualityChoice =
+    selected?.type === 'extract'
+      ? qualityChoice(selected.quality_policy, extractionCapabilities)
+      : 'stop';
+  const extractAdvanced =
+    selected?.type === 'extract'
+      ? extractDifferences(selected, extractionCapabilities, readsFiles)
+      : [];
+  // Server errors on advanced fields open the section so they are never hidden.
+  const hasExtractAdvancedError = Object.keys(nodeErrors).some(
+    (key) =>
+      key.startsWith('ocr.') ||
+      key.startsWith('quality_policy') ||
+      key.startsWith('language_policy') ||
+      key === 'strategy' ||
+      key === 'tables',
+  );
   const selectedDuplicate =
     selected?.type === 'clean'
       ? (selected.duplicate_policy ?? structuredClone(defaultDuplicatePolicy))
@@ -758,12 +810,12 @@ export function IngestionNodeSettings({
         )}
         {selected?.type === 'extract' && (
           <div className={STACK}>
-            <p className={HINT}>
-              Extract readable text with page-level provenance. PDF layout and OCR fallbacks run
-              offline inside bounded workers.
-            </p>
             {schemaVersion === 1 || !isLayoutExtractVersion(selected.config_version) ? (
               <>
+                <p className={HINT}>
+                  Extract readable text with page-level provenance. PDF layout and OCR fallbacks run
+                  offline inside bounded workers.
+                </p>
                 <dl className={FACTS}>
                   <dt>Strategy</dt>
                   <dd>
@@ -786,23 +838,7 @@ export function IngestionNodeSettings({
                     variant="outline"
                     onClick={() =>
                       updateExtract({
-                        strategy: 'auto',
-                        ocr: {
-                          mode: extractionCapabilities?.ocr.available ? 'auto' : 'off',
-                          languages: extractionCapabilities?.ocr.languages.slice(0, 1) ?? ['eng'],
-                          rotate_pages: true,
-                          deskew: true,
-                          dpi: 200,
-                          max_pages: Math.min(extractionCapabilities?.ocr.max_pages ?? 50, 50),
-                          timeout_seconds: 30,
-                        },
-                        tables: 'preserve',
-                        quality_policy: structuredClone(
-                          extractionCapabilities?.quality_policies.find(
-                            (value) => value.id === 'default-v1',
-                          )?.settings ?? fallbackQualityPolicy('default-v1'),
-                        ),
-                        language_policy: structuredClone(defaultLanguagePolicy),
+                        ...recommendedExtractSettings(extractionCapabilities),
                         config_version: currentExtractVersion,
                       })
                     }
@@ -842,59 +878,37 @@ export function IngestionNodeSettings({
                   </Callout>
                 )}
                 {readsFiles && (
-                  <p className={HINT}>
-                    Strategy and OCR apply to PDFs. Table evidence applies to tables in PDF, DOCX,
-                    CSV and XLSX files.
-                  </p>
-                )}
-                {readsFiles && (
                   <>
-                    <Label>
-                      Extraction strategy
-                      <NativeSelect
-                        value={selected.strategy ?? 'auto'}
-                        onChange={(event) =>
-                          updateExtract({
-                            strategy: event.target.value as 'auto' | 'native' | 'layout_aware',
-                          })
+                    <p className={HINT}>
+                      Text, tables and headings are read automatically. Scanned pages are read with
+                      OCR when they have no text layer.
+                    </p>
+                    <label className={OPTION}>
+                      <Checkbox
+                        checked={selectedOcr?.mode !== 'off'}
+                        disabled={
+                          !extractionCapabilities?.ocr.available && selectedOcr?.mode === 'off'
                         }
-                      >
-                        <NativeSelectOption value="auto">
-                          Auto · page-level fallback
-                        </NativeSelectOption>
-                        <NativeSelectOption value="native">Native text</NativeSelectOption>
-                        <NativeSelectOption value="layout_aware">Layout-aware</NativeSelectOption>
-                      </NativeSelect>
-                    </Label>
-                    <Label>
-                      OCR policy
-                      <NativeSelect
-                        value={selectedOcr?.mode ?? 'off'}
-                        onChange={(event) =>
+                        onCheckedChange={(checked) =>
                           selectedOcr &&
                           updateExtract({
                             ocr: {
                               ...selectedOcr,
-                              mode: event.target.value as 'off' | 'auto' | 'always',
+                              mode:
+                                checked !== true
+                                  ? 'off'
+                                  : selectedOcr.mode === 'always'
+                                    ? 'always'
+                                    : 'auto',
                             },
                           })
                         }
-                      >
-                        <NativeSelectOption value="off">Off</NativeSelectOption>
-                        <NativeSelectOption
-                          value="auto"
-                          disabled={!extractionCapabilities?.ocr.available}
-                        >
-                          Automatic fallback
-                        </NativeSelectOption>
-                        <NativeSelectOption
-                          value="always"
-                          disabled={!extractionCapabilities?.ocr.available}
-                        >
-                          Always
-                        </NativeSelectOption>
-                      </NativeSelect>
-                    </Label>
+                      />
+                      <span>
+                        <strong>Read scanned pages (OCR)</strong>
+                        <small>For PDF pages that are images, such as scans and photos.</small>
+                      </span>
+                    </label>
                     {!extractionCapabilities?.ocr.available && (
                       <Callout role="note">
                         <p>
@@ -904,391 +918,335 @@ export function IngestionNodeSettings({
                       </Callout>
                     )}
                     {selectedOcr && selectedOcr.mode !== 'off' && (
-                      <>
-                        <fieldset className={FIELDSET}>
-                          <legend>OCR languages</legend>
-                          {(extractionCapabilities?.ocr.languages ?? []).map((language) => {
-                            const checked = selectedOcr.languages.includes(language);
-                            return (
-                              <label className={OPTION} key={language}>
-                                <Checkbox
-                                  checked={checked}
-                                  disabled={checked && selectedOcr.languages.length === 1}
-                                  onCheckedChange={(checked) =>
-                                    updateExtract({
-                                      ocr: {
-                                        ...selectedOcr,
-                                        languages:
-                                          checked === true
-                                            ? [...selectedOcr.languages, language].slice(0, 3)
-                                            : selectedOcr.languages.filter(
-                                                (value) => value !== language,
-                                              ),
-                                      },
-                                    })
-                                  }
-                                />
-                                <span>
-                                  <strong>{language}</strong>
-                                  <small>Installed local language pack</small>
-                                </span>
-                              </label>
-                            );
-                          })}
-                        </fieldset>
-                        <label className={OPTION}>
-                          <Checkbox
-                            checked={selectedOcr.rotate_pages}
-                            onCheckedChange={(checked) =>
-                              updateExtract({
-                                ocr: { ...selectedOcr, rotate_pages: checked === true },
-                              })
-                            }
-                          />
-                          <span>
-                            <strong>Detect page rotation</strong>
-                            <small>Apply only bounded 90-degree orientation correction.</small>
-                          </span>
-                        </label>
-                        <label className={OPTION}>
-                          <Checkbox
-                            checked={selectedOcr.deskew}
-                            onCheckedChange={(checked) =>
-                              updateExtract({ ocr: { ...selectedOcr, deskew: checked === true } })
-                            }
-                          />
-                          <span>
-                            <strong>Deskew scans</strong>
-                            <small>Search a bounded ±3-degree correction before OCR.</small>
-                          </span>
-                        </label>
-                        <Label>
-                          OCR resolution (DPI)
-                          <Input
-                            type="number"
-                            min={150}
-                            max={300}
-                            aria-invalid={!!nodeErrors['ocr.dpi']}
-                            value={selectedOcr.dpi}
-                            onChange={(event) =>
-                              updateExtract({
-                                ocr: { ...selectedOcr, dpi: Number(event.target.value) },
-                              })
-                            }
-                          />
-                          {nodeErrors['ocr.dpi'] && (
-                            <small role="alert" className={FIELD_ERROR}>
-                              {nodeErrors['ocr.dpi']}
-                            </small>
-                          )}
-                        </Label>
-                        <Label>
-                          Maximum OCR pages
-                          <Input
-                            type="number"
-                            min={1}
-                            max={extractionCapabilities?.ocr.max_pages ?? 100}
-                            aria-invalid={!!nodeErrors['ocr.max_pages']}
-                            value={selectedOcr.max_pages}
-                            onChange={(event) =>
-                              updateExtract({
-                                ocr: { ...selectedOcr, max_pages: Number(event.target.value) },
-                              })
-                            }
-                          />
-                          {nodeErrors['ocr.max_pages'] && (
-                            <small role="alert" className={FIELD_ERROR}>
-                              {nodeErrors['ocr.max_pages']}
-                            </small>
-                          )}
-                        </Label>
-                        <Label>
-                          Per-page timeout (seconds)
-                          <Input
-                            type="number"
-                            min={5}
-                            max={60}
-                            aria-invalid={!!nodeErrors['ocr.timeout_seconds']}
-                            value={selectedOcr.timeout_seconds}
-                            onChange={(event) =>
-                              updateExtract({
-                                ocr: {
-                                  ...selectedOcr,
-                                  timeout_seconds: Number(event.target.value),
-                                },
-                              })
-                            }
-                          />
-                          {nodeErrors['ocr.timeout_seconds'] && (
-                            <small role="alert" className={FIELD_ERROR}>
-                              {nodeErrors['ocr.timeout_seconds']}
-                            </small>
-                          )}
-                        </Label>
-                      </>
+                      <fieldset className={FIELDSET}>
+                        <legend>Languages in scanned pages</legend>
+                        {(extractionCapabilities?.ocr.languages ?? []).map((language) => {
+                          const checked = selectedOcr.languages.includes(language);
+                          return (
+                            <label className={OPTION} key={language}>
+                              <Checkbox
+                                checked={checked}
+                                disabled={checked && selectedOcr.languages.length === 1}
+                                onCheckedChange={(checked) =>
+                                  updateExtract({
+                                    ocr: {
+                                      ...selectedOcr,
+                                      languages:
+                                        checked === true
+                                          ? [...selectedOcr.languages, language].slice(0, 3)
+                                          : selectedOcr.languages.filter(
+                                              (value) => value !== language,
+                                            ),
+                                    },
+                                  })
+                                }
+                              />
+                              <span>
+                                <strong>{languageName(language)}</strong>
+                                <small>Installed local language pack</small>
+                              </span>
+                            </label>
+                          );
+                        })}
+                      </fieldset>
                     )}
-                    <Label>
-                      Table evidence
-                      <NativeSelect
-                        value={selected.tables ?? 'preserve'}
-                        onChange={(event) =>
-                          updateExtract({
-                            tables: event.target.value as 'preserve' | 'markdown' | 'plain_text',
-                          })
-                        }
-                      >
-                        <NativeSelectOption value="preserve">
-                          Structured + Markdown
-                        </NativeSelectOption>
-                        <NativeSelectOption value="markdown">Markdown</NativeSelectOption>
-                        <NativeSelectOption value="plain_text">Plain text</NativeSelectOption>
-                      </NativeSelect>
-                    </Label>
                   </>
                 )}
                 <Label>
-                  Quality policy
+                  If a file can&apos;t be read well
                   <NativeSelect
-                    value={selectedQualityId}
-                    onChange={(event) => {
-                      const id = event.target.value as QualityPolicyId;
+                    value={selectedQualityChoice}
+                    onChange={(event) =>
                       updateExtract({
-                        quality_policy: structuredClone(
-                          extractionCapabilities?.quality_policies.find((value) => value.id === id)
-                            ?.settings ?? fallbackQualityPolicy(id),
+                        quality_policy: qualityPolicyForChoice(
+                          event.target.value as 'stop' | 'publish',
+                          extractionCapabilities,
                         ),
-                      });
-                    }}
+                      })
+                    }
                   >
-                    {(extractionCapabilities?.quality_policies ?? []).map((policy) => (
-                      <NativeSelectOption key={policy.id} value={policy.id}>
-                        {policy.name}
+                    <NativeSelectOption value="stop">Stop and let me review</NativeSelectOption>
+                    <NativeSelectOption value="publish">
+                      Publish the other files and show warnings
+                    </NativeSelectOption>
+                    {selectedQualityChoice === 'custom' && (
+                      <NativeSelectOption value="custom" disabled>
+                        Custom (see Advanced)
                       </NativeSelectOption>
-                    ))}
-                    {!extractionCapabilities && (
-                      <>
-                        <NativeSelectOption value="default-v1">Balanced</NativeSelectOption>
-                        <NativeSelectOption value="strict-v1">Strict</NativeSelectOption>
-                        <NativeSelectOption value="warn-v1">Review warnings</NativeSelectOption>
-                      </>
                     )}
                   </NativeSelect>
                 </Label>
-                <p className={HINT}>
-                  {extractionCapabilities?.quality_policies.find(
-                    (value) => value.id === selectedQualityId,
-                  )?.description ?? 'Saved extraction thresholds control publication.'}
-                </p>
-                <Label>
-                  Warning publication
-                  <NativeSelect
-                    value={selectedQuality.warning_action}
-                    onChange={(event) =>
-                      updateExtract({
-                        quality_policy: {
-                          ...selectedQuality,
-                          warning_action: event.target.value as 'publish' | 'fail',
-                        },
-                      })
-                    }
-                  >
-                    <NativeSelectOption value="fail">Block publication</NativeSelectOption>
-                    <NativeSelectOption value="publish">
-                      Publish with visible warning
-                    </NativeSelectOption>
-                  </NativeSelect>
-                </Label>
-                <Label>
-                  Failed optional items
-                  <NativeSelect
-                    value={selectedQuality.failed_item_action}
-                    onChange={(event) =>
-                      updateExtract({
-                        quality_policy: {
-                          ...selectedQuality,
-                          failed_item_action: event.target.value as 'fail' | 'exclude',
-                        },
-                      })
-                    }
-                  >
-                    <NativeSelectOption value="fail">Fail the run</NativeSelectOption>
-                    <NativeSelectOption value="exclude">Exclude and report</NativeSelectOption>
-                  </NativeSelect>
-                </Label>
-                <details className={DETAILS}>
-                  <summary className={SUMMARY}>Quality thresholds</summary>
-                  <div className={STACK}>
-                    <Label>
-                      Maximum empty-page ratio
-                      <Input
-                        type="number"
-                        min={0}
-                        max={1}
-                        step={0.01}
-                        value={selectedQuality.thresholds.maximum_empty_page_ratio}
-                        onChange={(event) =>
-                          updateExtract({
-                            quality_policy: {
-                              ...selectedQuality,
-                              thresholds: {
-                                ...selectedQuality.thresholds,
-                                maximum_empty_page_ratio: Number(event.target.value),
-                              },
-                            },
-                          })
-                        }
-                      />
-                    </Label>
-                    <Label>
-                      Maximum replacement-character ratio
-                      <Input
-                        type="number"
-                        min={0}
-                        max={1}
-                        step={0.0001}
-                        value={selectedQuality.thresholds.maximum_replacement_character_ratio}
-                        onChange={(event) =>
-                          updateExtract({
-                            quality_policy: {
-                              ...selectedQuality,
-                              thresholds: {
-                                ...selectedQuality.thresholds,
-                                maximum_replacement_character_ratio: Number(event.target.value),
-                              },
-                            },
-                          })
-                        }
-                      />
-                    </Label>
-                    <Label>
-                      Maximum control-character ratio
-                      <Input
-                        type="number"
-                        min={0}
-                        max={1}
-                        step={0.0001}
-                        value={selectedQuality.thresholds.maximum_control_character_ratio}
-                        onChange={(event) =>
-                          updateExtract({
-                            quality_policy: {
-                              ...selectedQuality,
-                              thresholds: {
-                                ...selectedQuality.thresholds,
-                                maximum_control_character_ratio: Number(event.target.value),
-                              },
-                            },
-                          })
-                        }
-                      />
-                    </Label>
-                    <Label>
-                      Minimum OCR engine confidence
-                      <Input
-                        type="number"
-                        min={0}
-                        max={100}
-                        value={selectedQuality.thresholds.minimum_ocr_confidence}
-                        onChange={(event) =>
-                          updateExtract({
-                            quality_policy: {
-                              ...selectedQuality,
-                              thresholds: {
-                                ...selectedQuality.thresholds,
-                                minimum_ocr_confidence: Number(event.target.value),
-                              },
-                            },
-                          })
-                        }
-                      />
-                    </Label>
-                    <label className={CHECK_ROW}>
-                      <Checkbox
-                        checked={selectedQuality.thresholds.fail_on_suspicious_reading_order}
-                        onCheckedChange={(checked) =>
-                          updateExtract({
-                            quality_policy: {
-                              ...selectedQuality,
-                              thresholds: {
-                                ...selectedQuality.thresholds,
-                                fail_on_suspicious_reading_order: checked === true,
-                              },
-                            },
-                          })
-                        }
-                      />
-                      Fail on suspicious reading order
-                    </label>
-                    <label className={CHECK_ROW}>
-                      <Checkbox
-                        checked={selectedQuality.thresholds.fail_on_malformed_tables}
-                        onCheckedChange={(checked) =>
-                          updateExtract({
-                            quality_policy: {
-                              ...selectedQuality,
-                              thresholds: {
-                                ...selectedQuality.thresholds,
-                                fail_on_malformed_tables: checked === true,
-                              },
-                            },
-                          })
-                        }
-                      />
-                      Fail on malformed tables
-                    </label>
-                  </div>
-                </details>
-                <details className={DETAILS}>
-                  <summary className={SUMMARY}>Language policy</summary>
+                <p className={HINT}>{qualityChoiceHelp[selectedQualityChoice]}</p>
+                <details
+                  className={DETAILS}
+                  open={extractAdvancedOpen || hasExtractAdvancedError}
+                  onToggle={(event) => setExtractAdvancedOpen(event.currentTarget.open)}
+                >
+                  <summary className={SUMMARY}>
+                    <span>Advanced extraction settings</span>
+                    <small className={HINT}>
+                      ·{' '}
+                      {extractAdvanced.length === 0
+                        ? 'recommended'
+                        : `${extractAdvanced.length} changed`}
+                    </small>
+                  </summary>
                   <div className={STACK}>
                     <p className={HINT}>
-                      Detection records model/version and confidence. Source text is never
-                      translated.
+                      {extractAdvanced.length === 0
+                        ? 'Using recommended settings.'
+                        : `${extractAdvanced.length} ${
+                            extractAdvanced.length === 1 ? 'setting differs' : 'settings differ'
+                          } from recommended: ${extractAdvanced.join(', ')}.`}
+                    </p>
+                    {extractAdvanced.length > 0 && (
+                      <div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() =>
+                            updateExtract(resetExtractAdvanced(selected, extractionCapabilities))
+                          }
+                        >
+                          Reset to recommended
+                        </Button>
+                      </div>
+                    )}
+                    {readsFiles && (
+                      <p className={HINT}>
+                        Strategy and OCR apply to PDFs. Table evidence applies to tables in PDF,
+                        DOCX, CSV and XLSX files.
+                      </p>
+                    )}
+                    {readsFiles && (
+                      <>
+                        <Label>
+                          Extraction strategy
+                          <NativeSelect
+                            value={selected.strategy ?? 'auto'}
+                            onChange={(event) =>
+                              updateExtract({
+                                strategy: event.target.value as 'auto' | 'native' | 'layout_aware',
+                              })
+                            }
+                          >
+                            <NativeSelectOption value="auto">
+                              Auto · page-level fallback
+                            </NativeSelectOption>
+                            <NativeSelectOption value="native">Native text</NativeSelectOption>
+                            <NativeSelectOption value="layout_aware">
+                              Layout-aware
+                            </NativeSelectOption>
+                          </NativeSelect>
+                        </Label>
+                        <Label>
+                          OCR policy
+                          <NativeSelect
+                            value={selectedOcr?.mode ?? 'off'}
+                            onChange={(event) =>
+                              selectedOcr &&
+                              updateExtract({
+                                ocr: {
+                                  ...selectedOcr,
+                                  mode: event.target.value as 'off' | 'auto' | 'always',
+                                },
+                              })
+                            }
+                          >
+                            <NativeSelectOption value="off">Off</NativeSelectOption>
+                            <NativeSelectOption
+                              value="auto"
+                              disabled={!extractionCapabilities?.ocr.available}
+                            >
+                              Automatic fallback
+                            </NativeSelectOption>
+                            <NativeSelectOption
+                              value="always"
+                              disabled={!extractionCapabilities?.ocr.available}
+                            >
+                              Always
+                            </NativeSelectOption>
+                          </NativeSelect>
+                        </Label>
+                        {selectedOcr && selectedOcr.mode !== 'off' && (
+                          <>
+                            <label className={OPTION}>
+                              <Checkbox
+                                checked={selectedOcr.rotate_pages}
+                                onCheckedChange={(checked) =>
+                                  updateExtract({
+                                    ocr: { ...selectedOcr, rotate_pages: checked === true },
+                                  })
+                                }
+                              />
+                              <span>
+                                <strong>Detect page rotation</strong>
+                                <small>Apply only bounded 90-degree orientation correction.</small>
+                              </span>
+                            </label>
+                            <label className={OPTION}>
+                              <Checkbox
+                                checked={selectedOcr.deskew}
+                                onCheckedChange={(checked) =>
+                                  updateExtract({
+                                    ocr: { ...selectedOcr, deskew: checked === true },
+                                  })
+                                }
+                              />
+                              <span>
+                                <strong>Deskew scans</strong>
+                                <small>Search a bounded ±3-degree correction before OCR.</small>
+                              </span>
+                            </label>
+                            <Label>
+                              OCR resolution (DPI)
+                              <Input
+                                type="number"
+                                min={150}
+                                max={300}
+                                aria-invalid={!!nodeErrors['ocr.dpi']}
+                                value={selectedOcr.dpi}
+                                onChange={(event) =>
+                                  updateExtract({
+                                    ocr: { ...selectedOcr, dpi: Number(event.target.value) },
+                                  })
+                                }
+                              />
+                              {nodeErrors['ocr.dpi'] && (
+                                <small role="alert" className={FIELD_ERROR}>
+                                  {nodeErrors['ocr.dpi']}
+                                </small>
+                              )}
+                            </Label>
+                            <Label>
+                              Maximum OCR pages
+                              <Input
+                                type="number"
+                                min={1}
+                                max={extractionCapabilities?.ocr.max_pages ?? 100}
+                                aria-invalid={!!nodeErrors['ocr.max_pages']}
+                                value={selectedOcr.max_pages}
+                                onChange={(event) =>
+                                  updateExtract({
+                                    ocr: { ...selectedOcr, max_pages: Number(event.target.value) },
+                                  })
+                                }
+                              />
+                              {nodeErrors['ocr.max_pages'] && (
+                                <small role="alert" className={FIELD_ERROR}>
+                                  {nodeErrors['ocr.max_pages']}
+                                </small>
+                              )}
+                            </Label>
+                            <Label>
+                              Per-page timeout (seconds)
+                              <Input
+                                type="number"
+                                min={5}
+                                max={60}
+                                aria-invalid={!!nodeErrors['ocr.timeout_seconds']}
+                                value={selectedOcr.timeout_seconds}
+                                onChange={(event) =>
+                                  updateExtract({
+                                    ocr: {
+                                      ...selectedOcr,
+                                      timeout_seconds: Number(event.target.value),
+                                    },
+                                  })
+                                }
+                              />
+                              {nodeErrors['ocr.timeout_seconds'] && (
+                                <small role="alert" className={FIELD_ERROR}>
+                                  {nodeErrors['ocr.timeout_seconds']}
+                                </small>
+                              )}
+                            </Label>
+                          </>
+                        )}
+                        <Label>
+                          Table evidence
+                          <NativeSelect
+                            value={selected.tables ?? 'preserve'}
+                            onChange={(event) =>
+                              updateExtract({
+                                tables: event.target.value as
+                                  | 'preserve'
+                                  | 'markdown'
+                                  | 'plain_text',
+                              })
+                            }
+                          >
+                            <NativeSelectOption value="preserve">
+                              Structured + Markdown
+                            </NativeSelectOption>
+                            <NativeSelectOption value="markdown">Markdown</NativeSelectOption>
+                            <NativeSelectOption value="plain_text">Plain text</NativeSelectOption>
+                          </NativeSelect>
+                        </Label>
+                      </>
+                    )}
+                    <Label>
+                      Quality policy
+                      <NativeSelect
+                        value={selectedQualityId}
+                        onChange={(event) => {
+                          const id = event.target.value as QualityPolicyId;
+                          updateExtract({
+                            quality_policy: structuredClone(
+                              extractionCapabilities?.quality_policies.find(
+                                (value) => value.id === id,
+                              )?.settings ?? fallbackQualityPolicy(id),
+                            ),
+                          });
+                        }}
+                      >
+                        {(extractionCapabilities?.quality_policies ?? []).map((policy) => (
+                          <NativeSelectOption key={policy.id} value={policy.id}>
+                            {policy.name}
+                          </NativeSelectOption>
+                        ))}
+                        {!extractionCapabilities && (
+                          <>
+                            <NativeSelectOption value="default-v1">Balanced</NativeSelectOption>
+                            <NativeSelectOption value="strict-v1">Strict</NativeSelectOption>
+                            <NativeSelectOption value="warn-v1">Review warnings</NativeSelectOption>
+                          </>
+                        )}
+                      </NativeSelect>
+                    </Label>
+                    <p className={HINT}>
+                      {extractionCapabilities?.quality_policies.find(
+                        (value) => value.id === selectedQualityId,
+                      )?.description ?? 'Saved extraction thresholds control publication.'}
                     </p>
                     <Label>
-                      Allowed language tags
-                      <Input
-                        value={selectedLanguage.allowlist.join(', ')}
-                        placeholder="Empty allows all; for example en, fr"
-                        onChange={(event) =>
-                          updateExtract({
-                            language_policy: {
-                              ...selectedLanguage,
-                              allowlist: event.target.value
-                                .split(',')
-                                .map((value) => value.trim().toLowerCase())
-                                .filter(Boolean),
-                            },
-                          })
-                        }
-                      />
-                    </Label>
-                    <Label>
-                      Minimum detection confidence
-                      <Input
-                        type="number"
-                        min={0}
-                        max={1}
-                        step={0.05}
-                        value={selectedLanguage.minimum_confidence}
-                        onChange={(event) =>
-                          updateExtract({
-                            language_policy: {
-                              ...selectedLanguage,
-                              minimum_confidence: Number(event.target.value),
-                            },
-                          })
-                        }
-                      />
-                    </Label>
-                    <Label>
-                      Disallowed language
+                      Warning publication
                       <NativeSelect
-                        value={selectedLanguage.disallowed_action}
+                        value={selectedQuality.warning_action}
                         onChange={(event) =>
                           updateExtract({
-                            language_policy: {
-                              ...selectedLanguage,
-                              disallowed_action: event.target.value as 'fail' | 'exclude',
+                            quality_policy: {
+                              ...selectedQuality,
+                              warning_action: event.target.value as 'publish' | 'fail',
+                            },
+                          })
+                        }
+                      >
+                        <NativeSelectOption value="fail">Block publication</NativeSelectOption>
+                        <NativeSelectOption value="publish">
+                          Publish with visible warning
+                        </NativeSelectOption>
+                      </NativeSelect>
+                    </Label>
+                    <Label>
+                      Failed optional items
+                      <NativeSelect
+                        value={selectedQuality.failed_item_action}
+                        onChange={(event) =>
+                          updateExtract({
+                            quality_policy: {
+                              ...selectedQuality,
+                              failed_item_action: event.target.value as 'fail' | 'exclude',
                             },
                           })
                         }
@@ -1297,27 +1255,213 @@ export function IngestionNodeSettings({
                         <NativeSelectOption value="exclude">Exclude and report</NativeSelectOption>
                       </NativeSelect>
                     </Label>
-                    <Label>
-                      Mixed-language documents
-                      <NativeSelect
-                        value={selectedLanguage.mixed_language_action}
-                        onChange={(event) =>
-                          updateExtract({
-                            language_policy: {
-                              ...selectedLanguage,
-                              mixed_language_action: event.target.value as
-                                | 'allow'
-                                | 'warn'
-                                | 'fail',
-                            },
-                          })
-                        }
-                      >
-                        <NativeSelectOption value="allow">Allow</NativeSelectOption>
-                        <NativeSelectOption value="warn">Warn</NativeSelectOption>
-                        <NativeSelectOption value="fail">Fail</NativeSelectOption>
-                      </NativeSelect>
-                    </Label>
+                    <details className={DETAILS}>
+                      <summary className={SUMMARY}>Quality thresholds</summary>
+                      <div className={STACK}>
+                        <Label>
+                          Maximum empty-page ratio
+                          <Input
+                            type="number"
+                            min={0}
+                            max={1}
+                            step={0.01}
+                            value={selectedQuality.thresholds.maximum_empty_page_ratio}
+                            onChange={(event) =>
+                              updateExtract({
+                                quality_policy: {
+                                  ...selectedQuality,
+                                  thresholds: {
+                                    ...selectedQuality.thresholds,
+                                    maximum_empty_page_ratio: Number(event.target.value),
+                                  },
+                                },
+                              })
+                            }
+                          />
+                        </Label>
+                        <Label>
+                          Maximum replacement-character ratio
+                          <Input
+                            type="number"
+                            min={0}
+                            max={1}
+                            step={0.0001}
+                            value={selectedQuality.thresholds.maximum_replacement_character_ratio}
+                            onChange={(event) =>
+                              updateExtract({
+                                quality_policy: {
+                                  ...selectedQuality,
+                                  thresholds: {
+                                    ...selectedQuality.thresholds,
+                                    maximum_replacement_character_ratio: Number(event.target.value),
+                                  },
+                                },
+                              })
+                            }
+                          />
+                        </Label>
+                        <Label>
+                          Maximum control-character ratio
+                          <Input
+                            type="number"
+                            min={0}
+                            max={1}
+                            step={0.0001}
+                            value={selectedQuality.thresholds.maximum_control_character_ratio}
+                            onChange={(event) =>
+                              updateExtract({
+                                quality_policy: {
+                                  ...selectedQuality,
+                                  thresholds: {
+                                    ...selectedQuality.thresholds,
+                                    maximum_control_character_ratio: Number(event.target.value),
+                                  },
+                                },
+                              })
+                            }
+                          />
+                        </Label>
+                        <Label>
+                          Minimum OCR engine confidence
+                          <Input
+                            type="number"
+                            min={0}
+                            max={100}
+                            value={selectedQuality.thresholds.minimum_ocr_confidence}
+                            onChange={(event) =>
+                              updateExtract({
+                                quality_policy: {
+                                  ...selectedQuality,
+                                  thresholds: {
+                                    ...selectedQuality.thresholds,
+                                    minimum_ocr_confidence: Number(event.target.value),
+                                  },
+                                },
+                              })
+                            }
+                          />
+                        </Label>
+                        <label className={CHECK_ROW}>
+                          <Checkbox
+                            checked={selectedQuality.thresholds.fail_on_suspicious_reading_order}
+                            onCheckedChange={(checked) =>
+                              updateExtract({
+                                quality_policy: {
+                                  ...selectedQuality,
+                                  thresholds: {
+                                    ...selectedQuality.thresholds,
+                                    fail_on_suspicious_reading_order: checked === true,
+                                  },
+                                },
+                              })
+                            }
+                          />
+                          Fail on suspicious reading order
+                        </label>
+                        <label className={CHECK_ROW}>
+                          <Checkbox
+                            checked={selectedQuality.thresholds.fail_on_malformed_tables}
+                            onCheckedChange={(checked) =>
+                              updateExtract({
+                                quality_policy: {
+                                  ...selectedQuality,
+                                  thresholds: {
+                                    ...selectedQuality.thresholds,
+                                    fail_on_malformed_tables: checked === true,
+                                  },
+                                },
+                              })
+                            }
+                          />
+                          Fail on malformed tables
+                        </label>
+                      </div>
+                    </details>
+                    <details className={DETAILS}>
+                      <summary className={SUMMARY}>Language policy</summary>
+                      <div className={STACK}>
+                        <p className={HINT}>
+                          Detection records model/version and confidence. Source text is never
+                          translated.
+                        </p>
+                        <Label>
+                          Allowed language tags
+                          <Input
+                            value={selectedLanguage.allowlist.join(', ')}
+                            placeholder="Empty allows all; for example en, fr"
+                            onChange={(event) =>
+                              updateExtract({
+                                language_policy: {
+                                  ...selectedLanguage,
+                                  allowlist: event.target.value
+                                    .split(',')
+                                    .map((value) => value.trim().toLowerCase())
+                                    .filter(Boolean),
+                                },
+                              })
+                            }
+                          />
+                        </Label>
+                        <Label>
+                          Minimum detection confidence
+                          <Input
+                            type="number"
+                            min={0}
+                            max={1}
+                            step={0.05}
+                            value={selectedLanguage.minimum_confidence}
+                            onChange={(event) =>
+                              updateExtract({
+                                language_policy: {
+                                  ...selectedLanguage,
+                                  minimum_confidence: Number(event.target.value),
+                                },
+                              })
+                            }
+                          />
+                        </Label>
+                        <Label>
+                          Disallowed language
+                          <NativeSelect
+                            value={selectedLanguage.disallowed_action}
+                            onChange={(event) =>
+                              updateExtract({
+                                language_policy: {
+                                  ...selectedLanguage,
+                                  disallowed_action: event.target.value as 'fail' | 'exclude',
+                                },
+                              })
+                            }
+                          >
+                            <NativeSelectOption value="fail">Fail the run</NativeSelectOption>
+                            <NativeSelectOption value="exclude">
+                              Exclude and report
+                            </NativeSelectOption>
+                          </NativeSelect>
+                        </Label>
+                        <Label>
+                          Mixed-language documents
+                          <NativeSelect
+                            value={selectedLanguage.mixed_language_action}
+                            onChange={(event) =>
+                              updateExtract({
+                                language_policy: {
+                                  ...selectedLanguage,
+                                  mixed_language_action: event.target.value as
+                                    | 'allow'
+                                    | 'warn'
+                                    | 'fail',
+                                },
+                              })
+                            }
+                          >
+                            <NativeSelectOption value="allow">Allow</NativeSelectOption>
+                            <NativeSelectOption value="warn">Warn</NativeSelectOption>
+                            <NativeSelectOption value="fail">Fail</NativeSelectOption>
+                          </NativeSelect>
+                        </Label>
+                      </div>
+                    </details>
                   </div>
                 </details>
               </>

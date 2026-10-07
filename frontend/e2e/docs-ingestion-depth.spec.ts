@@ -113,6 +113,7 @@ test('documentation T5: strict finding, repaired source and redacted publication
   await page.getByLabel('Pipeline name').fill('Harbor quality repair');
   await page.getByText('harbor-quality-corrupt.txt', { exact: true }).click();
   await page.getByLabel('Selected stage').selectOption('extract');
+  await page.getByText('Advanced extraction settings', { exact: true }).click();
   await page.getByLabel('Quality policy').selectOption('strict-v1');
   await page.getByText('Quality thresholds', { exact: true }).click();
   await page.getByLabel('Maximum replacement-character ratio').fill('0');

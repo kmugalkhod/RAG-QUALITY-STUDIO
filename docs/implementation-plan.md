@@ -2,9 +2,13 @@
 
 ## Section context and simple Extract panel — spec 0005 (2026-10-07)
 
-Status: **slice 1 done and verified; slice 2 in progress**. [Spec 0005](specs/0005-section-context-and-simple-extract.md) acts on the spec 0004 findings.
+Status: **both slices done and verified on local `main`; not pushed**. [Spec 0005](specs/0005-section-context-and-simple-extract.md) acts on the spec 0004 findings.
 
 **Slice 1:** the answer model now receives each chunk's section path as an untrusted `section` field (`app/pipelines/generation.py`). Sources without one serialize exactly as before, and the query snapshot records `context_format`. On the spec 0004 corpus, v2 handbook answers supported by the evidence the model received rose from 0/6 to 6/6, with correctness unchanged at 40/40 ($0.0248, `docs/qa/extract-ab-2026-10-07/round2/`). Verification: `tests/test_generation_context.py` plus 71 query, pipeline, experiment and comparison tests on the isolated PostgreSQL stack; ruff check and format pass.
+
+**Slice 2:** the Extract panel shows **Read scanned pages (OCR)**, **Languages in scanned pages** and **If a file can't be read well** (**Stop and let me review**, **Publish the other files and show warnings**, or a read-only **Custom**). Every other setting keeps its label under a collapsed **Advanced extraction settings** section. That section summarizes differences from the recommended values, offers **Reset to recommended** and opens itself on an advanced-field server error. Saved values and extraction behavior are unchanged. Verification: 10 new Vitest tests, the full frontend suite (375), typecheck, lint, 12/12 `ingestion-layout` Playwright journeys, and the edited `docs-ingestion-depth` steps on the isolated stack. T5 still stops later, at a `.section-heading` screenshot selector removed in `aca7877`. Desktop and phone screenshots were reviewed. The docs-site pages were updated; `check:public` fails only on CRLF example hashes in this Windows checkout.
+
+**Limits and next step:** the owner should review the new panel wording and the spec 0004 questions and labels. Remaining follow-ups: heading-only chunks and table headers across pages (each needs a new versioned chunker or extractor), the guided-setup Processing step, docs-site screenshots, and the T5 screenshot selector.
 
 ## Extract v1 vs v2 answer-quality comparison — spec 0004 (2026-10-07)
 

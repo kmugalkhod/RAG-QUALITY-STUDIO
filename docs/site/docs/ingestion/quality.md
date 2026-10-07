@@ -16,7 +16,7 @@ Use an isolated project and download <a href="/examples/harbor-quality-corrupt.t
 
 ## T5: reproduce and repair
 
-1. Open **Pipelines → Ingestion pipelines → New ingestion pipeline**. In Source **Stage settings**, select only `harbor-quality-corrupt.txt`. Select **Extract** and, if the saved draft is legacy, **Enable robust extraction**. Set **Quality policy** to **Strict**. Open **Quality thresholds** and set **Maximum replacement-character ratio** to `0`; this intentionally rejects any replacement glyph in the synthetic file.
+1. Open **Pipelines → Ingestion pipelines → New ingestion pipeline**. In Source **Stage settings**, select only `harbor-quality-corrupt.txt`. Select **Extract** and, if the saved draft is legacy, **Enable robust extraction**. Open **Advanced extraction settings** and set **Quality policy** to **Strict**; **If a file can't be read well** then shows **Custom (see Advanced)**. Open **Quality thresholds** and set **Maximum replacement-character ratio** to `0`; this intentionally rejects any replacement glyph in the synthetic file.
 2. Select **Clean → Sensitive-data policy** and confirm **Redact sensitive values before chunking and embedding** with the `email` action set to **Redact value**. Select **Preview processing**, then **Inspect stages**. Read the item quality decision and the `replacement_character_ratio_high` finding. Compare **Extracted**, **Cleaned**, **Changes**, and **Chunks**. The cleaned text should show `[EMAIL]` rather than `sample@example.test` if that detector applies.
 
    ![Strict synthetic preview reports one quality failure before any index is published](/img/screenshots/09-quality-failure.png)

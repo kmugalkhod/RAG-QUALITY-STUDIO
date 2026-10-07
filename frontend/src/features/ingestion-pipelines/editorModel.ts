@@ -107,6 +107,150 @@ export function fallbackQualityPolicy(id: QualityPolicy['id']): QualityPolicy {
   return structuredClone(defaultQualityPolicy);
 }
 
+type ExtractNode = Extract<IngestionNode, { type: 'extract' }>;
+type OcrSettings = NonNullable<ExtractNode['ocr']>;
+
+function qualityPolicySettings(
+  id: QualityPolicy['id'],
+  capabilities?: ExtractionCapabilities,
+): QualityPolicy {
+  return structuredClone(
+    capabilities?.quality_policies.find((value) => value.id === id)?.settings ??
+      fallbackQualityPolicy(id),
+  );
+}
+
+/** The extraction values a new pipeline gets; the Extract panel compares against them. */
+export function recommendedExtractSettings(capabilities?: ExtractionCapabilities) {
+  return {
+    strategy: 'auto' as const,
+    ocr: {
+      mode: capabilities?.ocr.available ? ('auto' as const) : ('off' as const),
+      languages: capabilities?.ocr.languages.slice(0, 1) ?? ['eng'],
+      rotate_pages: true,
+      deskew: true,
+      dpi: 200,
+      max_pages: Math.min(capabilities?.ocr.max_pages ?? 50, 50),
+      timeout_seconds: 30,
+    },
+    tables: 'preserve' as const,
+    quality_policy: qualityPolicySettings('default-v1', capabilities),
+    language_policy: structuredClone(defaultLanguagePolicy),
+  };
+}
+
+/** Key-order independent comparison; saved JSONB does not keep key order. */
+function sameValue(left: unknown, right: unknown): boolean {
+  if (left === right) {
+    return true;
+  }
+  if (typeof left !== 'object' || typeof right !== 'object' || !left || !right) {
+    return false;
+  }
+  if (Array.isArray(left) !== Array.isArray(right)) {
+    return false;
+  }
+  const leftKeys = Object.keys(left);
+  const rightKeys = Object.keys(right);
+  return (
+    leftKeys.length === rightKeys.length &&
+    leftKeys.every((key) =>
+      sameValue((left as Record<string, unknown>)[key], (right as Record<string, unknown>)[key]),
+    )
+  );
+}
+
+export type QualityChoice = 'stop' | 'publish' | 'custom';
+
+/**
+ * The plain-language publication choice: the two unchanged presets, or "custom" for
+ * any other saved policy (strict, or edited thresholds).
+ */
+export function qualityChoice(
+  policy: ExtractNode['quality_policy'],
+  capabilities?: ExtractionCapabilities,
+): QualityChoice {
+  const id = typeof policy === 'string' ? policy : (policy?.id ?? 'default-v1');
+  if (id !== 'default-v1' && id !== 'warn-v1') {
+    return 'custom';
+  }
+  if (typeof policy === 'object' && !sameValue(policy, qualityPolicySettings(id, capabilities))) {
+    return 'custom';
+  }
+  return id === 'default-v1' ? 'stop' : 'publish';
+}
+
+export function qualityPolicyForChoice(
+  choice: Exclude<QualityChoice, 'custom'>,
+  capabilities?: ExtractionCapabilities,
+): QualityPolicy {
+  return qualityPolicySettings(choice === 'stop' ? 'default-v1' : 'warn-v1', capabilities);
+}
+
+/**
+ * Advanced settings that differ from the recommended values, by their panel label.
+ * OCR on/off, OCR languages and the two quality presets are simple-panel choices,
+ * so they never count here.
+ */
+export function extractDifferences(
+  node: ExtractNode,
+  capabilities: ExtractionCapabilities | undefined,
+  readsFiles: boolean,
+): string[] {
+  const recommended = recommendedExtractSettings(capabilities);
+  const ocr = node.ocr ?? recommended.ocr;
+  const differences: string[] = [];
+  if (readsFiles) {
+    const fileChecks: [string, boolean][] = [
+      ['Extraction strategy', (node.strategy ?? 'auto') !== recommended.strategy],
+      ['OCR policy', ocr.mode === 'always'],
+      ['Detect page rotation', ocr.rotate_pages !== recommended.ocr.rotate_pages],
+      ['Deskew scans', ocr.deskew !== recommended.ocr.deskew],
+      ['OCR resolution (DPI)', ocr.dpi !== recommended.ocr.dpi],
+      ['Maximum OCR pages', ocr.max_pages !== recommended.ocr.max_pages],
+      ['Per-page timeout (seconds)', ocr.timeout_seconds !== recommended.ocr.timeout_seconds],
+      ['Table evidence', (node.tables ?? 'preserve') !== recommended.tables],
+    ];
+    differences.push(...fileChecks.filter(([, differs]) => differs).map(([label]) => label));
+  }
+  if (qualityChoice(node.quality_policy, capabilities) === 'custom') {
+    differences.push('Quality policy');
+  }
+  if (
+    !sameValue(node.language_policy ?? recommended.language_policy, recommended.language_policy)
+  ) {
+    differences.push('Language policy');
+  }
+  return differences;
+}
+
+/**
+ * Restores every advanced setting. The user's OCR on/off choice, OCR languages and a
+ * preset quality choice are kept; "always" OCR becomes automatic.
+ */
+export function resetExtractAdvanced(
+  node: ExtractNode,
+  capabilities?: ExtractionCapabilities,
+): Partial<ExtractNode> {
+  const recommended = recommendedExtractSettings(capabilities);
+  const ocr: OcrSettings = {
+    ...recommended.ocr,
+    mode: node.ocr?.mode === 'off' ? 'off' : recommended.ocr.mode,
+    languages: node.ocr?.languages ?? recommended.ocr.languages,
+  };
+  const choice = qualityChoice(node.quality_policy, capabilities);
+  return {
+    strategy: recommended.strategy,
+    ocr,
+    tables: recommended.tables,
+    quality_policy:
+      choice === 'custom'
+        ? recommended.quality_policy
+        : qualityPolicyForChoice(choice, capabilities),
+    language_policy: recommended.language_policy,
+  };
+}
+
 export const ingestionStageLabels: Record<IngestionNode['type'], string> = {
   source: 'Source',
   extract: 'Extract',
@@ -653,22 +797,7 @@ export function defaultIngestionDraft(
     {
       id: 'extract',
       type: 'extract',
-      strategy: 'auto',
-      ocr: {
-        mode: capabilities?.ocr.available ? 'auto' : 'off',
-        languages: capabilities?.ocr.languages.slice(0, 1) ?? ['eng'],
-        rotate_pages: true,
-        deskew: true,
-        dpi: 200,
-        max_pages: Math.min(capabilities?.ocr.max_pages ?? 50, 50),
-        timeout_seconds: 30,
-      },
-      tables: 'preserve',
-      quality_policy: structuredClone(
-        capabilities?.quality_policies.find((value) => value.id === 'default-v1')?.settings ??
-          defaultQualityPolicy,
-      ),
-      language_policy: structuredClone(defaultLanguagePolicy),
+      ...recommendedExtractSettings(capabilities),
       config_version: currentExtractVersion,
     },
     {
