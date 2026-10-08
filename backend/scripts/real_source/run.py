@@ -29,7 +29,6 @@ import time
 import unicodedata
 from pathlib import Path
 
-import httpx
 
 HERE = Path(__file__).parent
 PROJECT_NAME = "Real-source test 2026-10"
@@ -93,6 +92,8 @@ class Run:
         self.state = (
             json.loads(self.state_path.read_text()) if self.state_path.exists() else {}
         )
+        import httpx  # only the API stages need it; workbook.py imports this module
+
         self.client = httpx.Client(base_url=base_url, timeout=180)
         self.sources = load_sources()
 
@@ -101,6 +102,12 @@ class Run:
 
     def call(self, method: str, path: str, **kwargs):
         response = self.client.request(method, path, **kwargs)
+        for _ in range(10):
+            # The app's local embedding request budget resets every minute.
+            if response.status_code != 503 or "budget" not in response.text:
+                break
+            time.sleep(65)
+            response = self.client.request(method, path, **kwargs)
         if response.status_code >= 400:
             raise SystemExit(
                 f"{method} {path} -> {response.status_code}: {response.text[:2000]}"

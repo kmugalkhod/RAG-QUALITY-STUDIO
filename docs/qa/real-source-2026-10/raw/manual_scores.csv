@@ -1,0 +1,29 @@
+round,question_id,slot,label,reason,supported,supported_reason
+R2,f1-q1,X,correct,"States L=12, H=768, A=12.",yes,A cited chunk contains the expected phrase.
+R1w,f1-q1,Y,correct,"States L=12, H=768, A=12.",yes,A cited chunk contains the expected phrase.
+R1w,f1-q4,X,correct,Names both corpora with sizes.,yes,A cited chunk contains the expected phrase.
+R2,f1-q4,Y,correct,Names both corpora with sizes.,yes,A cited chunk contains the expected phrase.
+R2,f2-q1,X,correct,"States $74,580.",yes,A cited chunk contains the expected phrase.
+R1w,f2-q1,Y,correct,"States $74,580.",yes,A cited chunk contains the expected phrase.
+R1w,f2-q4,X,wrong-abstain,"Declined although $110,800 for married couples was in the evidence; the table row itself was unusable.",n/a,No answer to support.
+R2,f2-q4,Y,wrong-abstain,"Declined although $110,800 for married couples was in the evidence; the table row itself was unusable.",n/a,No answer to support.
+R2,f2-q6,X,correct,"States $45,440.",yes,A cited chunk contains the expected phrase.
+R1w,f2-q6,Y,correct,"States $45,440.",yes,A cited chunk contains the expected phrase.
+R2,f3-q1,X,correct,States 139 pictures.,yes,A cited chunk contains the expected phrase.
+R1w,f3-q1,Y,correct,States 139 pictures.,yes,A cited chunk contains the expected phrase.
+R1w,f3-q4,X,correct,States 7.3 kg.,yes,A cited chunk contains the expected phrase.
+R2,f3-q4,Y,correct,States 7.3 kg.,yes,A cited chunk contains the expected phrase.
+R2,f3-q8,X,correct-abstain,Correctly declines; Surveyor VII is not in the source.,n/a,No answer to support.
+R1w,f3-q8,Y,correct-abstain,Correctly declines; Surveyor VII is not in the source.,n/a,No answer to support.
+R1,w1-q1,X,correct,Names collections.deque.,yes,A cited chunk contains the expected phrase.
+R1,w1-q3,X,correct,Gives python -m venv tutorial-env.,yes,A cited chunk contains the expected phrase.
+R1,w1-q8,X,correct-abstain,Declines; adds a cited aside that does not invent a date.,n/a,No answer to support.
+R1,w2-q1,X,correct,"States 8,848.86 m.",yes,A cited chunk contains the expected phrase.
+R1,w2-q3,X,correct,"States 215,000 to 230,000 m3/s.",yes,A cited chunk contains the expected phrase.
+R1,w2-q5,X,correct,"Mendeleev, 1869.",yes,A cited chunk contains the expected phrase.
+R1,w3-q1,X,correct,States £6.40.,yes,A cited chunk contains the expected phrase.
+R1,w3-q2,X,correct,"States £50,271 to £125,140.",yes,A cited chunk contains the expected phrase.
+R1,w3-q6,X,correct,States £455 despite the flattened table.,yes,A cited chunk contains the expected phrase.
+R1,w4-q1,X,correct,Refuses to brew coffee with a teapot.,yes,A cited chunk contains the expected phrase.
+R1,w4-q4,X,correct,Function plus surrounding lexical environment.,yes,A cited chunk contains the expected phrase.
+R1,w4-q8,X,correct-abstain,Declines and notes 402 Payment Required is different.,n/a,No answer to support.

@@ -1,5 +1,11 @@
 # Implementation plan
 
+## Real-source ingestion test — spec 0006 (2026-10-09)
+
+**Result:** four real websites (Python tutorial, Wikipedia, GOV.UK, MDN) and three real PDFs (BERT paper, US Census report, a 1967 NASA scan) were ingested through the product in eight rounds, with 54 source-written questions, retrieval checks and 20 blind-scored answers. Websites reached 25/28 Hit@5 with the recommended settings; the recommended files run was blocked by the Census report, and with "publish others with warnings" files reached 17/19. Of the Extract settings, only the quality choice, OCR (off breaks scans) and chunk size changed results; DPI, table format, strategy, timeout and rotation did not. Workbook and verdict: `docs/qa/real-source-2026-10/`. About $0.20 spent of a $1 cap.
+
+**Next:** fix X1-X3 (blocking default on real reports, borderless-table row loss, "publish the others" semantics) and then simplify the Extract settings per the verdict, each as its own spec. Owner spot-check of 10 blind answer labels is pending.
+
 ## Section context and simple Extract panel — spec 0005 (2026-10-07)
 
 Status: **both slices done and verified on local `main`; not pushed**. [Spec 0005](specs/0005-section-context-and-simple-extract.md) acts on the spec 0004 findings.

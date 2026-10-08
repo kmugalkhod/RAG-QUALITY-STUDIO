@@ -1,0 +1,321 @@
+"""Build the spec 0006 workbook from saved results (run on a machine with openpyxl).
+
+    python workbook.py <results dir> <output.xlsx>
+
+<results dir> holds state.json, structure.json, answers_<round>.jsonl,
+manual_scores.csv, verdict.json and findings.json. Summary percentages are Excel
+formulas over the Retrieval sheet, so they follow any correction to that sheet.
+"""
+
+from __future__ import annotations
+
+import csv
+import json
+import sys
+from datetime import datetime
+from pathlib import Path
+
+from openpyxl import Workbook
+from openpyxl.styles import Alignment, Font, PatternFill
+from openpyxl.utils import get_column_letter
+
+HERE = Path(__file__).parent
+sys.path.insert(0, str(HERE))
+from run import BASELINE, ROUNDS, load_questions, load_sources  # noqa: E402
+
+FONT = "Arial"
+HEADER_FILL = PatternFill("solid", start_color="1F3864")
+NOTE_FONT = Font(name=FONT, italic=True, size=9, color="555555")
+# Rounds that build each track; other rounds reuse BASELINE[track].
+TRACK_ROUNDS = {
+    "web": [r for r, spec in ROUNDS.items() if "web" in spec["tracks"]],
+    "files": [r for r, spec in ROUNDS.items() if "files" in spec["tracks"]],
+}
+
+
+def style_sheet(sheet, widths: dict[str, int], header_row: int = 1) -> None:
+    for row in sheet.iter_rows():
+        for cell in row:
+            cell.font = Font(name=FONT, size=10, bold=cell.row == header_row,
+                             color="FFFFFF" if cell.row == header_row else "000000")
+            cell.alignment = Alignment(vertical="top", wrap_text=True)
+            if cell.row == header_row:
+                cell.fill = HEADER_FILL
+    for column, width in widths.items():
+        sheet.column_dimensions[column].width = width
+    sheet.freeze_panes = sheet.cell(row=header_row + 1, column=1)
+
+
+def add_rows(sheet, header: list[str], rows: list[list]) -> None:
+    sheet.append(header)
+    for row in rows:
+        sheet.append(row)
+
+
+def main(results: Path, output: Path) -> None:
+    state = json.loads((results / "state.json").read_text(encoding="utf-8"))
+    structure = json.loads((results / "structure.json").read_text(encoding="utf-8"))
+    verdict = json.loads((results / "verdict.json").read_text(encoding="utf-8"))
+    findings = json.loads((results / "findings.json").read_text(encoding="utf-8"))
+    sources = load_sources()
+    questions = {q["id"]: q for q in load_questions()}
+    scores = {}
+    scores_path = results / "manual_scores.csv"
+    if scores_path.exists():
+        with scores_path.open(encoding="utf-8") as handle:
+            for row in csv.DictReader(handle):
+                scores[(row["round"], row["question_id"])] = row
+
+    workbook = Workbook()
+    summary = workbook.active
+    summary.title = "Summary"
+
+    # Sources ---------------------------------------------------------------
+    sheet = workbook.create_sheet("Sources")
+    rows = []
+    for source_id, config in sources["websites"].items():
+        note = sources["website_notes"][source_id]
+        selection = config["selection"]
+        scope = (
+            f"Crawl from {selection['start_url']}, depth {config['max_depth']}, "
+            f"at most {config['max_pages']} pages"
+            if selection["mode"] == "crawl"
+            else f"{len(selection['urls'])} listed URLs"
+        )
+        rows.append([source_id, "Website", note["name"],
+                     selection.get("start_url") or "\n".join(selection.get("urls", [])),
+                     note["licence"], scope, sources["fetched_on"], ""])
+    for source_id, file in sources["files"].items():
+        rows.append([source_id, "File (PDF)", file["name"], file["url"], file["licence"],
+                     f"{file['pages']} pages", sources["fetched_on"], file["sha256"]])
+    add_rows(sheet, ["ID", "Type", "Name", "URL(s)", "Licence", "Scope", "Fetched on",
+                     "SHA-256 (files)"], rows)
+    style_sheet(sheet, {"A": 6, "B": 11, "C": 34, "D": 60, "E": 34, "F": 30, "G": 12, "H": 30})
+
+    # Runs ------------------------------------------------------------------
+    sheet = workbook.create_sheet("Runs")
+    header = ["Round", "Track", "What changed", "Extractor", "OCR", "OCR DPI",
+              "Max OCR pages", "Table evidence", "If a file can't be read well",
+              "Chunk target / max / overlap", "Website pages", "Status", "Error",
+              "Items ready", "Items failed", "Items excluded", "Chunks",
+              "Duration (s)", "Embedding cost est. (USD)"]
+    rows = []
+    for key, run in state.get("runs", {}).items():
+        track, round_id = key.split(":")
+        spec = ROUNDS[round_id]
+        ocr = {"mode": "auto", "dpi": 200, "max_pages": 50, **spec.get("ocr", {})}
+        extract = {"config_version": "layout-ocr-v2", "tables": "preserve",
+                   **spec.get("extract", {})}
+        chunk = {"target_tokens": 600, "maximum_tokens": 800, "overlap_tokens": 80,
+                 **spec.get("chunk", {})}
+        quality = spec.get("quality", {}).get(track, "default-v1")
+        quality_label = {"default-v1": "Stop and let me review",
+                         "warn-v1": "Publish the other files and show warnings"}[quality]
+        items = run.get("items", [])
+        started = run.get("started_at")
+        finished = run.get("finished_at")
+        duration = None
+        if started and finished:
+            duration = round(
+                (datetime.fromisoformat(finished.replace("Z", "+00:00")) - datetime.fromisoformat(started.replace("Z", "+00:00"))).total_seconds()
+            )
+        rows.append([
+            round_id, track, spec["label"],
+            extract["config_version"] if track == "files" else "n/a (HTML)",
+            ocr["mode"] if track == "files" else "n/a",
+            ocr["dpi"] if track == "files" else "n/a",
+            ocr["max_pages"] if track == "files" else "n/a",
+            extract["tables"] if track == "files" else "n/a (HTML)",
+            quality_label,
+            f"{chunk['target_tokens']} / {chunk['maximum_tokens']} / {chunk['overlap_tokens']}",
+            ("Fetched live" if round_id == "R1" else "Reused R1 snapshot") if track == "web" else "n/a",
+            run.get("status"), run.get("error") or "",
+            sum(i.get("status") in {"ready", "succeeded"} for i in items),
+            sum(i.get("status") == "failed" for i in items),
+            sum(i.get("status") == "excluded" for i in items),
+            run.get("chunk_count"), duration, run.get("embedding_estimate_usd"),
+        ])
+    rows.sort(key=lambda r: (list(ROUNDS).index(r[0]), r[1]))
+    add_rows(sheet, header, rows)
+    last = len(rows) + 1
+    sheet.append([])
+    sheet.append(["Total embedding estimate (USD)", "", "", "", "", "", "", "", "", "", "",
+                  "", "", "", "", "", "", "", f"=SUM(S2:S{last})"])
+    sheet.append(["Estimate basis: indexed UTF-8 bytes x $0.02 per million (OpenRouter list "
+                  "price for openai/text-embedding-3-small, 2026-10-09). Bytes overstate "
+                  "tokens, so this is an upper bound; the app does not record embedding cost."])
+    style_sheet(sheet, {get_column_letter(i): w for i, w in enumerate(
+        [7, 7, 30, 14, 7, 8, 9, 13, 24, 14, 16, 10, 40, 8, 8, 8, 8, 9, 12], start=1)})
+    for row in sheet.iter_rows(min_row=last + 2):
+        for cell in row:
+            cell.font = Font(name=FONT, size=10, bold=cell.row == last + 2)
+    sheet.cell(row=last + 3, column=1).font = NOTE_FONT
+    runs_total_cell = f"Runs!S{last + 2}"
+
+    # Structure ---------------------------------------------------------------
+    sheet = workbook.create_sheet("Structure")
+    header = ["Round", "Track", "Source", "Run status", "Items", "Items ready",
+              "Items failed", "Items excluded", "Pages or URLs indexed", "Chunks",
+              "Median chunk tokens", "Max chunk tokens", "Chunks with section path (%)",
+              "Table chunks (pipe rows)", "Table chunks with header",
+              "Short single-line chunks"]
+    rows = [[s["round"], s["track"], s["source"], s["run_status"], s["items"],
+             s["items_ready"], s["items_failed"], s["items_excluded"],
+             s["pages_or_urls_indexed"], s["chunks"], s["chunk_tokens_median"],
+             s["chunk_tokens_max"], s["chunks_with_section_percent"], s["table_chunks"],
+             s["table_chunks_with_header"], s["heading_only_chunks"]] for s in structure]
+    rows.sort(key=lambda r: (list(ROUNDS).index(r[0]), r[1], r[2]))
+    add_rows(sheet, header, rows)
+    style_sheet(sheet, {get_column_letter(i): 11 for i in range(1, 17)})
+
+    # Retrieval -----------------------------------------------------------------
+    sheet = workbook.create_sheet("Retrieval")
+    header = ["Round", "Source", "Question ID", "Question", "Kind", "Expected phrase(s)",
+              "Index used (round)", "First hit rank", "Hit@1", "Hit@5",
+              "Top result source", "Top result section", "Top result excerpt"]
+    rows = []
+    for round_id in ROUNDS:
+        results_round = state.get("retrieval", {}).get(round_id, {})
+        for question_id, question in questions.items():
+            track = "web" if question["source"].startswith("W") else "files"
+            if track not in ROUNDS[round_id]["tracks"] and round_id != "R1":
+                continue
+            result = results_round.get(question_id)
+            if result is None:
+                continue
+            top = (result.get("top") or [{}])[0]
+            answerable = bool(question["phrases"])
+            hit1 = result.get("hit_at_1", False)
+            hit5 = result.get("hit_at_5", False)
+            rows.append([
+                round_id, question["source"], question_id, question["question"],
+                question["kind"], " + ".join(question["phrases"]) or "(not in source)",
+                result.get("index_round") if result.get("status") == "ok" else "no index",
+                result.get("first_hit_rank"),
+                ("yes" if hit1 else "no") if answerable else "n/a",
+                ("yes" if hit5 else "no") if answerable else "n/a",
+                top.get("source"), top.get("section"),
+                (top.get("text") or "")[:250],
+            ])
+    add_rows(sheet, header, rows)
+    retrieval_last = len(rows) + 1
+    style_sheet(sheet, {"A": 7, "B": 7, "C": 8, "D": 44, "E": 11, "F": 26, "G": 10,
+                        "H": 8, "I": 7, "J": 7, "K": 34, "L": 30, "M": 60})
+
+    # Answers -------------------------------------------------------------------
+    sheet = workbook.create_sheet("Answers")
+    header = ["Round", "Index used", "Question ID", "Question", "Reference answer",
+              "Model answer", "Label (blind)", "Reason", "Supported by cited evidence",
+              "Supported reason", "Cost (USD)"]
+    rows = []
+    answer_total = 0.0
+    for round_id in ROUNDS:
+        path = results / f"answers_{round_id}.jsonl"
+        if not path.exists():
+            continue
+        for line in path.read_text(encoding="utf-8").splitlines():
+            answer = json.loads(line)
+            score = scores.get((round_id, answer["question_id"]), {})
+            answer_total += answer.get("cost_usd") or 0
+            rows.append([
+                round_id, answer.get("index_round"), answer["question_id"],
+                questions[answer["question_id"]]["question"],
+                questions[answer["question_id"]]["answer"],
+                answer.get("answer") or answer.get("status"),
+                score.get("label", ""), score.get("reason", ""),
+                score.get("supported", ""), score.get("supported_reason", ""),
+                answer.get("cost_usd"),
+            ])
+    add_rows(sheet, header, rows)
+    answers_last = len(rows) + 1
+    sheet.append([])
+    sheet.append(["Total answer cost (USD)", "", "", "", "", "", "", "", "", "",
+                  f"=SUM(K2:K{answers_last})"])
+    sheet.append(["Labels: correct, correct-abstain, partial, wrong, wrong-abstain. Scored "
+                  "blind by Claude with the spec 0004 rubric; rounds were hidden as X/Y."])
+    style_sheet(sheet, {"A": 7, "B": 8, "C": 8, "D": 40, "E": 30, "F": 50, "G": 13,
+                        "H": 40, "I": 10, "J": 36, "K": 9})
+    sheet.cell(row=answers_last + 3, column=1).font = NOTE_FONT
+    answers_total_cell = f"Answers!K{answers_last + 2}"
+
+    # Settings verdict ------------------------------------------------------------
+    sheet = workbook.create_sheet("Settings verdict")
+    add_rows(sheet, ["Setting", "Where it shows", "Default", "Tested in", "Measured effect",
+                     "Verdict", "Recommendation"],
+             [[v["setting"], v["where"], v["default"], v["tested"], v["effect"],
+               v["verdict"], v["recommendation"]] for v in verdict])
+    style_sheet(sheet, {"A": 26, "B": 18, "C": 18, "D": 12, "E": 60, "F": 16, "G": 50})
+
+    # Findings ----------------------------------------------------------------------
+    sheet = workbook.create_sheet("Findings")
+    add_rows(sheet, ["ID", "Severity", "Finding", "Evidence", "Impact on users", "Next step"],
+             [[f["id"], f["severity"], f["finding"], f["evidence"], f["impact"], f["next"]]
+              for f in findings])
+    style_sheet(sheet, {"A": 6, "B": 9, "C": 46, "D": 52, "E": 42, "F": 40})
+
+    # Summary (formulas over Retrieval and Structure) ----------------------------------
+    summary.append(["Real-source ingestion test (spec 0006)"])
+    summary.append(["Satisfaction rule (fixed before results): Good = Hit@5 at least 90% and the "
+                    "run published; Acceptable = Hit@5 at least 75%; Poor = otherwise, or the run "
+                    "did not publish."])
+    summary.append([])
+    header_row = 4
+    summary.append(["Round", "What changed", "Source", "Answerable questions", "Hit@1",
+                    "Hit@5", "Hit@1 %", "Hit@5 %", "Run published", "Satisfaction"])
+    rng = lambda col: f"Retrieval!${col}$2:${col}${retrieval_last}"  # noqa: E731
+    row_number = header_row
+    for track in ("web", "files"):
+        track_sources = sources["websites"] if track == "web" else sources["files"]
+        for round_id in TRACK_ROUNDS[track]:
+            for source_id in track_sources:
+                row_number += 1
+                r, s = f"A{row_number}", f"C{row_number}"
+                summary.append([
+                    round_id, ROUNDS[round_id]["label"], source_id,
+                    f'=COUNTIFS({rng("A")},{r},{rng("B")},{s},{rng("I")},"<>n/a")',
+                    f'=COUNTIFS({rng("A")},{r},{rng("B")},{s},{rng("I")},"yes")',
+                    f'=COUNTIFS({rng("A")},{r},{rng("B")},{s},{rng("J")},"yes")',
+                    f"=IF(D{row_number}=0,0,E{row_number}/D{row_number})",
+                    f"=IF(D{row_number}=0,0,F{row_number}/D{row_number})",
+                    f'=IF(COUNTIFS(Structure!$A:$A,{r},Structure!$C:$C,{s},'
+                    f'Structure!$D:$D,"succeeded")>0,"yes","no")',
+                    f'=IF(I{row_number}="no","Poor (not published)",IF(H{row_number}>=0.9,"Good",'
+                    f'IF(H{row_number}>=0.75,"Acceptable","Poor")))',
+                ])
+                for column in ("G", "H"):
+                    summary[f"{column}{row_number}"].number_format = "0%"
+    summary.append([])
+    summary.append(["Total embedding estimate (USD)", "", "", f"={runs_total_cell}"])
+    summary.append(["Total answer cost (USD)", "", "", f"={answers_total_cell}"])
+    summary.append(["Total spend (USD, embedding upper bound + recorded answers)", "", "",
+                    f"=D{row_number + 2}+D{row_number + 3}"])
+    summary.append(["Spending cap (USD)", "", "", 1])
+    summary.append([])
+    summary.append(["Recommendation"])
+    for line in verdict_summary(verdict, findings):
+        summary.append([line])
+    style_sheet(summary, {"A": 12, "B": 40, "C": 8, "D": 12, "E": 7, "F": 7, "G": 8,
+                          "H": 8, "I": 10, "J": 20}, header_row=header_row)
+    summary["A1"].font = Font(name=FONT, size=14, bold=True)
+    summary["A2"].font = NOTE_FONT
+    summary.freeze_panes = f"A{header_row + 1}"
+    workbook.calculation.fullCalcOnLoad = True
+    output.parent.mkdir(parents=True, exist_ok=True)
+    workbook.save(output)
+    print(f"Wrote {output}")
+
+
+def verdict_summary(verdict: list[dict], findings: list[dict]) -> list[str]:
+    lines = []
+    for verdict_name in ("Keep visible", "Keep in Advanced", "Candidate to remove"):
+        names = [v["setting"] for v in verdict if v["verdict"] == verdict_name]
+        if names:
+            lines.append(f"{verdict_name}: {', '.join(names)}.")
+    high = [f["id"] + " " + f["finding"] for f in findings if f["severity"] == "High"]
+    if high:
+        lines.append("Fix first: " + " | ".join(high))
+    return lines
+
+
+if __name__ == "__main__":
+    main(Path(sys.argv[1]), Path(sys.argv[2]))
