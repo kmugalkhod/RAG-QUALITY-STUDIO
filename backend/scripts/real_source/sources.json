@@ -1,0 +1,110 @@
+{
+  "fetched_on": "2026-10-09",
+  "websites": {
+    "W1": {
+      "kind": "website",
+      "selection": {"mode": "crawl", "start_url": "https://docs.python.org/3/tutorial/"},
+      "allowed_origins": ["https://docs.python.org/"],
+      "include_path_prefixes": ["/3/tutorial/"],
+      "exclude_path_prefixes": [],
+      "max_pages": 20,
+      "max_depth": 1,
+      "requests_per_second": 1.0
+    },
+    "W2": {
+      "kind": "website",
+      "selection": {"mode": "url_list", "urls": [
+        "https://en.wikipedia.org/wiki/Solar_System",
+        "https://en.wikipedia.org/wiki/Moon",
+        "https://en.wikipedia.org/wiki/Mount_Everest",
+        "https://en.wikipedia.org/wiki/Great_Barrier_Reef",
+        "https://en.wikipedia.org/wiki/Amazon_River",
+        "https://en.wikipedia.org/wiki/Photosynthesis",
+        "https://en.wikipedia.org/wiki/Periodic_table",
+        "https://en.wikipedia.org/wiki/Olympic_Games",
+        "https://en.wikipedia.org/wiki/Euro",
+        "https://en.wikipedia.org/wiki/Python_(programming_language)"
+      ]},
+      "allowed_origins": ["https://en.wikipedia.org/"],
+      "include_path_prefixes": [],
+      "exclude_path_prefixes": [],
+      "max_pages": 10,
+      "max_depth": 0,
+      "requests_per_second": 1.0
+    },
+    "W3": {
+      "kind": "website",
+      "selection": {"mode": "url_list", "urls": [
+        "https://www.gov.uk/national-minimum-wage-rates",
+        "https://www.gov.uk/holiday-entitlement-rights",
+        "https://www.gov.uk/maternity-pay-leave",
+        "https://www.gov.uk/statutory-sick-pay",
+        "https://www.gov.uk/redundancy-your-rights",
+        "https://www.gov.uk/flexible-working",
+        "https://www.gov.uk/calculate-your-redundancy-pay",
+        "https://www.gov.uk/council-tax-bands",
+        "https://www.gov.uk/vehicle-tax-rate-tables",
+        "https://www.gov.uk/income-tax-rates"
+      ]},
+      "allowed_origins": ["https://www.gov.uk/"],
+      "include_path_prefixes": [],
+      "exclude_path_prefixes": [],
+      "max_pages": 10,
+      "max_depth": 0,
+      "requests_per_second": 1.0
+    },
+    "W4": {
+      "kind": "website",
+      "selection": {"mode": "url_list", "urls": [
+        "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Status",
+        "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Methods",
+        "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Cache-Control",
+        "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array",
+        "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Closures",
+        "https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/display",
+        "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API",
+        "https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/table",
+        "https://developer.mozilla.org/en-US/docs/Web/CSS/Guides/Grid_layout",
+        "https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/CORS"
+      ]},
+      "allowed_origins": ["https://developer.mozilla.org/"],
+      "include_path_prefixes": [],
+      "exclude_path_prefixes": [],
+      "max_pages": 10,
+      "max_depth": 0,
+      "requests_per_second": 1.0
+    }
+  },
+  "website_notes": {
+    "W1": {"name": "Python tutorial", "licence": "PSF documentation licence (PSF License Agreement)"},
+    "W2": {"name": "Wikipedia articles", "licence": "CC BY-SA 4.0"},
+    "W3": {"name": "GOV.UK guidance", "licence": "Open Government Licence v3.0"},
+    "W4": {"name": "MDN Web Docs", "licence": "CC BY-SA 2.5"}
+  },
+  "files": {
+    "F1": {
+      "name": "BERT (NAACL 2019), two-column paper",
+      "filename": "acl-n19-1423-bert.pdf",
+      "url": "https://aclanthology.org/N19-1423.pdf",
+      "licence": "CC BY 4.0 (ACL Anthology, papers from 2016 onward)",
+      "pages": 16,
+      "sha256": "987545ffb087f1ece898142c403a516baeabeb70ce19089397fac6f7db12c3d4"
+    },
+    "F2": {
+      "name": "US Census Bureau P60-279, Income in the United States: 2022",
+      "filename": "census-p60-279.pdf",
+      "url": "https://www.census.gov/content/dam/Census/library/publications/2023/demo/p60-279.pdf",
+      "licence": "Public domain (US federal government work)",
+      "pages": 62,
+      "sha256": "ce921ae1c54b000b3c1defbe52762a5358b9b597a6cd01aee5b84671fab598c5"
+    },
+    "F3": {
+      "name": "Surveyor VI mission report, JPL TR 32-1262 Part III, scanned pages 7-16",
+      "filename": "surveyor-vi-tv-scan.pdf",
+      "url": "https://sic.lpl.arizona.edu/sites/sic.lpl.arizona.edu/files/surveyor/Surveyor_VI_NASA-TechnicalReport32-1262_Part-3.pdf",
+      "licence": "NASA/JPL technical report, US government work; 10-page extract made locally without altering the scan images",
+      "pages": 10,
+      "sha256": "e6b37144235757381364229a5c937246ec68727704564651401fba417a5da745"
+    }
+  }
+}
