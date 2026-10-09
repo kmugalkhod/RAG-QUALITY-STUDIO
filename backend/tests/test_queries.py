@@ -118,7 +118,10 @@ def test_context_and_references():
     with pytest.raises(generation.GenerationError):
         build_context("q", items[:1], config)
     result = validate_citations("A [S2] [S1] [S2, S3]", sources)
-    assert result["valid"] == ["S2"] and result["invalid"] == ["S1", "S2, S3"]
+    assert result["valid"] == ["S2"] and result["invalid"] == ["S1", "S3"]
+    # Spec 0007 X9: a combined citation names each source; other text stays whole.
+    combined = validate_citations("A [S2, S2] and [see S2, p. 3]", sources)
+    assert combined["valid"] == ["S2"] and combined["invalid"] == ["see S2, p. 3"]
     assert validate_citations("Unsupported claim", sources)["missing"]
 
 

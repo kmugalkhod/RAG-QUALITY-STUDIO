@@ -58,6 +58,6 @@ Round A1 repeats the recommended settings after the fixes in [spec 0007](../../s
 - **X5 mostly fixed:** 4 of 5 "married-couple" occurrences keep the hyphen.
 - **X3, X7 fixed and tested:** covered by PostgreSQL tests; the live run had no failed item and reused a snapshot, so it could not show them.
 - **X8 fixed:** the run records provider-reported tokens and cost. The byte-based estimate in the Runs sheet was about 10 times the reported cost.
-- **New, X9:** a combined citation such as `[S1, S2]` is recorded as invalid, so a correct answer can look uncited. It also affected R1 and needs a separate fix.
+- **New, X9, now fixed:** a combined citation such as `[S1, S2]` was recorded as invalid, so a correct answer could look uncited (also in R1). Each source in the bracket is now checked and linked. Answers stored earlier keep their recorded citations.
 
 The first A1 website run used `html-main-v3`, which dropped Python-docs links marked `class="reference"` and split sentences at citation markers. Four website questions fell out of the top 5. The reader was fixed (`html-main-v3.1`) and the website half re-run; the table above is from the re-run. A1 answers were scored with the same rubric against the references but not blind, because only one new round was scored. Total spend for the whole test was about $0.24 of the $1 cap.

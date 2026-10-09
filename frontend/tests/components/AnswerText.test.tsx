@@ -33,3 +33,11 @@ test('keeps HTML, links and invalid source labels inert', () => {
   expect(container.querySelector('code')).toHaveTextContent('**literal**');
   expect(container).toHaveTextContent('[S99]');
 });
+test('links each valid source in a combined citation', async () => {
+  const select = vi.fn();
+  render(<AnswerText text={'Fact [S1, S2, S9].'} citations={['S1', 'S2']} onCitation={select} />);
+  await userEvent.click(screen.getByRole('button', { name: 'S2' }));
+  expect(select).toHaveBeenCalledWith('S2');
+  expect(screen.getByRole('button', { name: 'S1' })).toBeVisible();
+  expect(screen.queryByRole('button', { name: 'S9' })).not.toBeInTheDocument();
+});

@@ -86,7 +86,15 @@ def build_context(question, items, config, template=None):
 
 def validate_citations(answer, sources):
     labels = {s["label"] for s in sources}
-    references = list(dict.fromkeys(re.findall(r"\[([^\[\]\n]+)\]", answer)))
+    references = []
+    for bracket in re.findall(r"\[([^\[\]\n]+)\]", answer):
+        # A combined citation such as [S1, S2] names each source (spec 0007, X9).
+        parts = [part.strip() for part in bracket.split(",")]
+        if len(parts) > 1 and all(re.fullmatch(r"S\d+", part) for part in parts):
+            references.extend(parts)
+        else:
+            references.append(bracket)
+    references = list(dict.fromkeys(references))
     return {
         "valid": [r for r in references if r in labels],
         "invalid": [r for r in references if r not in labels],

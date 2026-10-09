@@ -12,6 +12,20 @@ export function AnswerText({
   citations?: string[];
   onCitation?: (label: string) => void;
 }) {
+  function citationButton(label: string, text: string, key: number) {
+    return (
+      <Button
+        variant="link"
+        type="button"
+        size="sm"
+        className="inline h-auto px-1 align-baseline whitespace-normal underline pointer-coarse:inline-flex pointer-coarse:h-auto pointer-coarse:min-h-row pointer-coarse:min-w-row pointer-coarse:align-middle"
+        key={key}
+        onClick={() => onCitation?.(label)}
+      >
+        {text}
+      </Button>
+    );
+  }
   function inline(value: string, depth = 0): ReactNode {
     if (depth > 3) {
       return value;
@@ -30,20 +44,27 @@ export function AnswerText({
       if (part.startsWith('*') && part.endsWith('*') && part.length > 2) {
         return <em key={i}>{inline(part.slice(1, -1), depth + 1)}</em>;
       }
-      const label = part.slice(1, -1);
-      if (part.startsWith('[') && part.endsWith(']') && citations.includes(label) && onCitation) {
-        return (
-          <Button
-            variant="link"
-            type="button"
-            size="sm"
-            className="inline h-auto px-1 align-baseline whitespace-normal underline pointer-coarse:inline-flex pointer-coarse:h-auto pointer-coarse:min-h-row pointer-coarse:min-w-row pointer-coarse:align-middle"
-            key={i}
-            onClick={() => onCitation(label)}
-          >
-            {part}
-          </Button>
-        );
+      if (part.startsWith('[') && part.endsWith(']') && onCitation) {
+        const label = part.slice(1, -1);
+        if (citations.includes(label)) {
+          return citationButton(label, part, i);
+        }
+        // A combined citation such as [S1, S2] links each valid source.
+        const labels = label.split(',').map((value) => value.trim());
+        if (labels.length > 1 && labels.every((value) => /^S\d+$/.test(value))) {
+          return (
+            <Fragment key={i}>
+              [
+              {labels.map((value, index) => (
+                <Fragment key={value + index}>
+                  {index > 0 && ', '}
+                  {citations.includes(value) ? citationButton(value, value, index) : value}
+                </Fragment>
+              ))}
+              ]
+            </Fragment>
+          );
+        }
       }
       return <Fragment key={i}>{part}</Fragment>;
     });

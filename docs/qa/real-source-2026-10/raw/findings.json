@@ -86,7 +86,7 @@
     "evidence": "A1: w1-q1, f2-q4, f2-q6, f3-q1 cite '[S1, S2]'-style groups and have valid=[]; R1 shows the same (w1-q1, w4-q4). validate_citations() treats the whole bracket as one label.",
     "impact": "Correct, supported answers look uncited in the evidence view.",
     "next": "Split a bracket on commas before checking labels; add a test.",
-    "after_fixes": "New",
-    "after_fixes_evidence": "Found during the spec 0007 re-run; not part of spec 0007."
+    "after_fixes": "Fixed",
+    "after_fixes_evidence": "Found during the spec 0007 re-run. validate_citations() now splits [S1, S2] into S1 and S2, and the answer view links each valid source. Covered by tests; recorded A1 answers keep the citations stored at the time."
   }
 ]
