@@ -98,7 +98,8 @@ def main(results: Path, output: Path) -> None:
               "Max OCR pages", "Table evidence", "If a file can't be read well",
               "Chunk target / max / overlap", "Website pages", "Status", "Error",
               "Items ready", "Items failed", "Items excluded", "Chunks",
-              "Duration (s)", "Embedding cost est. (USD)"]
+              "Duration (s)", "Embedding cost est. (USD)",
+              "Embedding tokens (app-reported)", "Embedding cost (app-reported, USD)"]
     rows = []
     for key, run in state.get("runs", {}).items():
         track, round_id = key.split(":")
@@ -134,6 +135,7 @@ def main(results: Path, output: Path) -> None:
             sum(i.get("status") == "failed" for i in items),
             sum(i.get("status") == "excluded" for i in items),
             run.get("chunk_count"), duration, run.get("embedding_estimate_usd"),
+            *app_usage(run),
         ])
     rows.sort(key=lambda r: (list(ROUNDS).index(r[0]), r[1]))
     add_rows(sheet, header, rows)
@@ -143,9 +145,11 @@ def main(results: Path, output: Path) -> None:
                   "", "", "", "", "", "", "", f"=SUM(S2:S{last})"])
     sheet.append(["Estimate basis: indexed UTF-8 bytes x $0.02 per million (OpenRouter list "
                   "price for openai/text-embedding-3-small, 2026-10-09). Bytes overstate "
-                  "tokens, so this is an upper bound; the app does not record embedding cost."])
+                  "tokens, so this is an upper bound. From A1 (spec 0007) the app records the "
+                  "provider-reported usage; earlier runs show 'not recorded'."])
     style_sheet(sheet, {get_column_letter(i): w for i, w in enumerate(
-        [7, 7, 30, 14, 7, 8, 9, 13, 24, 14, 16, 10, 40, 8, 8, 8, 8, 9, 12], start=1)})
+        [7, 7, 30, 14, 7, 8, 9, 13, 24, 14, 16, 10, 40, 8, 8, 8, 8, 9, 12, 12, 12],
+        start=1)})
     for row in sheet.iter_rows(min_row=last + 2):
         for cell in row:
             cell.font = Font(name=FONT, size=10, bold=cell.row == last + 2)
@@ -232,7 +236,8 @@ def main(results: Path, output: Path) -> None:
     sheet.append(["Total answer cost (USD)", "", "", "", "", "", "", "", "", "",
                   f"=SUM(K2:K{answers_last})"])
     sheet.append(["Labels: correct, correct-abstain, partial, wrong, wrong-abstain. Scored "
-                  "blind by Claude with the spec 0004 rubric; rounds were hidden as X/Y."])
+                  "blind by Claude with the spec 0004 rubric; rounds were hidden as X/Y. A1 (after "
+                  "the fixes) was scored with the same rubric against the references, not blind."])
     style_sheet(sheet, {"A": 7, "B": 8, "C": 8, "D": 40, "E": 30, "F": 50, "G": 13,
                         "H": 40, "I": 10, "J": 36, "K": 9})
     sheet.cell(row=answers_last + 3, column=1).font = NOTE_FONT
@@ -248,13 +253,18 @@ def main(results: Path, output: Path) -> None:
 
     # Findings ----------------------------------------------------------------------
     sheet = workbook.create_sheet("Findings")
-    add_rows(sheet, ["ID", "Severity", "Finding", "Evidence", "Impact on users", "Next step"],
-             [[f["id"], f["severity"], f["finding"], f["evidence"], f["impact"], f["next"]]
+    add_rows(sheet, ["ID", "Severity", "Finding", "Evidence", "Impact on users", "Next step",
+                     "After fixes (spec 0007)", "After-fixes evidence"],
+             [[f["id"], f["severity"], f["finding"], f["evidence"], f["impact"], f["next"],
+               f.get("after_fixes", ""), f.get("after_fixes_evidence", "")]
               for f in findings])
-    style_sheet(sheet, {"A": 6, "B": 9, "C": 46, "D": 52, "E": 42, "F": 40})
+    style_sheet(sheet, {"A": 6, "B": 9, "C": 46, "D": 52, "E": 42, "F": 40, "G": 14, "H": 60})
+
+    # After fixes (spec 0007) ---------------------------------------------------------
+    after_fixes_sheet(workbook.create_sheet("After fixes"), state, questions, scores, findings)
 
     # Summary (formulas over Retrieval and Structure) ----------------------------------
-    summary.append(["Real-source ingestion test (spec 0006)"])
+    summary.append(["Real-source ingestion test (spec 0006), re-run after the spec 0007 fixes (A1)"])
     summary.append(["Satisfaction rule (fixed before results): Good = Hit@5 at least 90% and the "
                     "run published; Acceptable = Hit@5 at least 75%; Poor = otherwise, or the run "
                     "did not publish."])
@@ -303,6 +313,85 @@ def main(results: Path, output: Path) -> None:
     output.parent.mkdir(parents=True, exist_ok=True)
     workbook.save(output)
     print(f"Wrote {output}")
+
+
+def app_usage(run: dict) -> list:
+    usage = run.get("embedding_usage")
+    if usage is None:
+        return ["not recorded", "not recorded"]
+    return [
+        "unknown" if usage.get("tokens") is None else usage["tokens"],
+        "unknown" if usage.get("cost_usd") is None else usage["cost_usd"],
+    ]
+
+
+def after_fixes_sheet(sheet, state, questions, scores, findings) -> None:
+    """Spec 0007: the recommended settings before (R1 websites, R1w files) and after (A1)."""
+
+    retrieval = state.get("retrieval", {})
+    before_round = {"web": "R1", "files": "R1w"}
+    sheet.append(["Before vs after the spec 0007 fixes (same website snapshot, files and "
+                  "questions)"])
+    sheet.append(["Before: websites R1, files R1w (R1 files was blocked). After: A1 = extractor "
+                  "v3, files 'Stop and let me review', websites 'Publish the others'."])
+    sheet.append([])
+    header_row = 4
+    sheet.append(["Track", "Measure", "Before", "After", "Note"])
+    for track in ("web", "files"):
+        ids = [q for q, spec in questions.items()
+               if spec["phrases"] and (spec["source"].startswith("W") == (track == "web"))]
+        before = retrieval.get(before_round[track], {})
+        after = retrieval.get("A1", {})
+        for measure, key in (("Hit@1", "hit_at_1"), ("Hit@5", "hit_at_5")):
+            sheet.append([track, measure,
+                          f"{sum(before.get(q, {}).get(key, False) for q in ids)}/{len(ids)}",
+                          f"{sum(after.get(q, {}).get(key, False) for q in ids)}/{len(ids)}", ""])
+        run_before = state["runs"].get(f"{track}:R1", {})
+        run_after = state["runs"].get(f"{track}:A1", {})
+        sheet.append([track, "Recommended run published", run_before.get("status"),
+                      run_after.get("status"),
+                      "R1 files was blocked by the Census report" if track == "files" else ""])
+        usage = app_usage(run_after)
+        sheet.append([track, "Embedding (app-reported)", "not recorded",
+                      f"{usage[0]} tokens, ${usage[1]}", "Reused vectors add nothing"])
+    labels = {}
+    for (round_id, _), row in scores.items():
+        if round_id in ("R1", "R1w", "A1"):
+            labels.setdefault(round_id, []).append(row["label"])
+    good = ("correct", "correct-abstain")
+    before_labels = [row["label"] for (r, q), row in scores.items()
+                     if (r == "R1" and q.startswith("w")) or (r == "R1w" and q.startswith("f"))]
+    after_labels = labels.get("A1", [])
+    sheet.append(["both", "Answers correct or correctly declined",
+                  f"{sum(label in good for label in before_labels)}/{len(before_labels)}",
+                  f"{sum(label in good for label in after_labels)}/{len(after_labels)}",
+                  "A1 scored against the references, not blind (one new round)"])
+    sheet.append([])
+    sheet.append(["Questions whose retrieval changed"])
+    sheet.append(["Question", "Source", "Question text", "First hit rank before",
+                  "First hit rank after"])
+    for qid, spec in questions.items():
+        if not spec["phrases"]:
+            continue
+        track = "web" if spec["source"].startswith("W") else "files"
+        old = retrieval.get(before_round[track], {}).get(qid, {}).get("first_hit_rank")
+        new = retrieval.get("A1", {}).get(qid, {}).get("first_hit_rank")
+        if old != new:
+            sheet.append([qid, spec["source"], spec["question"], old or "not in top 5",
+                          new or "not in top 5"])
+    sheet.append([])
+    sheet.append(["Findings status"])
+    sheet.append(["ID", "Finding", "After fixes", "Evidence"])
+    for finding in findings:
+        sheet.append([finding["id"], finding["finding"], finding.get("after_fixes", ""),
+                      finding.get("after_fixes_evidence", "")])
+    superseded = state.get("superseded", {}).get("web:A1")
+    if superseded:
+        sheet.append([])
+        sheet.append(["Note", superseded["reason"]])
+    style_sheet(sheet, {"A": 10, "B": 40, "C": 18, "D": 22, "E": 60}, header_row=header_row)
+    sheet["A1"].font = Font(name=FONT, size=14, bold=True)
+    sheet["A2"].font = NOTE_FONT
 
 
 def verdict_summary(verdict: list[dict], findings: list[dict]) -> list[str]:

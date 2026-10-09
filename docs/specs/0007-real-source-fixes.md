@@ -72,6 +72,24 @@ Re-run spec 0006 R1 (recommended settings, now v3 and the per-source defaults) o
 
 **Done when:** the recommended files run publishes; Census table questions f2-q4 and f2-q5 retrieve their row; website table and reference findings are gone from the sampled chunks; no answerable question that passed before fails now; embedding cost is recorded by the app.
 
+## Result (2026-10-10)
+
+All seven slices are done on local `main`. The re-run (round A1: extractor v3, files "Stop and let me review", websites "Publish the others") used the R1 website snapshot, the same three files and the same 54 questions:
+
+| Measure | Before (R1 websites, R1w files) | After (A1) |
+| --- | --- | --- |
+| Recommended files run | Failed (Census report blocked) | Published |
+| Websites Hit@1 / Hit@5 | 15/28, 25/28 | 18/28, 27/28 |
+| Files Hit@1 / Hit@5 | 9/19, 17/19 | 9/19, 19/19 |
+| Answers correct or correctly declined | 19/20 | 20/20 |
+| Embedding usage recorded by the app | No | Websites 137,559 tokens, $0.0028; files 0 tokens, $0 (all vectors reused) |
+
+Every done-when item holds: the files run publishes; f2-q4 and f2-q5 retrieve their Table A-1 row (ranks 2 and 4), and f2-q4's answer went from wrongly declined to correct; the A1 website index has 156 header-repeating table chunks and no References/Notes chunks; no question that passed before fails now; embedding cost is recorded. X5 is mostly fixed (one of five "married-couple" occurrences still merges). X3 and X7 are covered by PostgreSQL tests rather than the live run, because no A1 item failed and A1 reused a snapshot.
+
+The first A1 website run exposed a v3 bug: `.reference` was skipped on every element, which dropped Python-docs links (`<a class="reference internal">`) such as `pass` and `collections.deque`, and each citation marker split its sentence. The web reader is now `html-main-v3.1` (only `<sup class="reference">` is skipped, inside the sentence); `html-main-v3` was never released. The re-run also found X9: a combined citation such as `[S1, S2]` is recorded as invalid. It predates this work and is left for a separate fix.
+
+Workbook: `docs/qa/real-source-2026-10/real-source-test.xlsx` ("After fixes" sheet). Spend for the whole test: about $0.24 of the $1 cap.
+
 ## Verification
 
 Each slice has unit tests (and PostgreSQL integration tests for run handling and the migration), keeps the v1 golden digests and the v2 corpus test unchanged, and passes the full backend suite in the isolated stack (the three failures that predate this work are listed separately) and the frontend suite. Slices 2 and 6 change the UI and are checked in the browser at `http://127.0.0.1:5273` when memory allows. Each slice is committed separately on local `main`; nothing is pushed until the owner asks.

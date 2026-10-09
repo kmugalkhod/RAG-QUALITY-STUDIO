@@ -27,3 +27,23 @@ R1,w3-q6,X,correct,States £455 despite the flattened table.,yes,A cited chunk c
 R1,w4-q1,X,correct,Refuses to brew coffee with a teapot.,yes,A cited chunk contains the expected phrase.
 R1,w4-q4,X,correct,Function plus surrounding lexical environment.,yes,A cited chunk contains the expected phrase.
 R1,w4-q8,X,correct-abstain,Declines and notes 402 Payment Required is different.,n/a,No answer to support.
+A1,w1-q1,,correct,Matches the reference answer.,yes,A source the answer names contains the expected phrase.
+A1,w1-q3,,correct,Matches the reference answer.,yes,A source the answer names contains the expected phrase.
+A1,w1-q8,,correct-abstain,Declined: the tutorial gives no date.,n/a,No answer to support.
+A1,w2-q1,,correct,Matches the reference answer.,yes,A source the answer names contains the expected phrase.
+A1,w2-q3,,correct,Matches the reference answer.,yes,A source the answer names contains the expected phrase.
+A1,w2-q5,,correct,Matches the reference answer.,yes,A source the answer names contains the expected phrase.
+A1,w3-q1,,correct,Matches the reference answer.,yes,A source the answer names contains the expected phrase.
+A1,w3-q2,,correct,Matches the reference answer.,yes,A source the answer names contains the expected phrase.
+A1,w3-q6,,correct,Matches the reference answer.,yes,A source the answer names contains the expected phrase.
+A1,w4-q1,,correct,Matches the reference answer.,yes,A source the answer names contains the expected phrase.
+A1,w4-q4,,correct,Matches the reference answer.,yes,A source the answer names contains the expected phrase.
+A1,w4-q8,,correct-abstain,Declined: no such status code.,n/a,No answer to support.
+A1,f1-q1,,correct,Matches the reference answer.,yes,A source the answer names contains the expected phrase.
+A1,f1-q4,,correct,Matches the reference answer.,yes,A source the answer names contains the expected phrase.
+A1,f2-q1,,correct,Matches the reference answer.,yes,A source the answer names contains the expected phrase.
+A1,f2-q4,,correct,"States $110,800 from Table A-1 (was wrongly declined before the fixes).",yes,A source the answer names contains the expected phrase.
+A1,f2-q6,,correct,Matches the reference answer.,yes,A source the answer names contains the expected phrase.
+A1,f3-q1,,correct,Matches the reference answer.,yes,A source the answer names contains the expected phrase.
+A1,f3-q4,,correct,Matches the reference answer.,yes,A source the answer names contains the expected phrase.
+A1,f3-q8,,correct-abstain,Declined: the report covers Surveyor VI only.,n/a,No answer to support.

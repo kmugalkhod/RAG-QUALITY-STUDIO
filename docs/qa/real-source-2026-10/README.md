@@ -1,6 +1,6 @@
 # Real-source ingestion test, 2026-10-09 (spec 0006)
 
-Workbook: [`real-source-test.xlsx`](real-source-test.xlsx) (8 sheets: Summary, Sources, Runs, Structure, Retrieval, Answers, Settings verdict, Findings). Raw results are in [`raw/`](raw/); the harness is `backend/scripts/real_source/`.
+Workbook: [`real-source-test.xlsx`](real-source-test.xlsx) (9 sheets: Summary, Sources, Runs, Structure, Retrieval, Answers, Settings verdict, Findings, After fixes). Raw results are in [`raw/`](raw/); the harness is `backend/scripts/real_source/`.
 
 ## What was ingested
 
@@ -40,3 +40,24 @@ Also: website tables are flattened to one value per line (X4), line-break de-hyp
 Total about $0.20 of the $1 cap: embeddings about $0.17 as an upper-bound estimate from indexed bytes (the app does not record embedding cost), answers $0.015 as recorded. The workbook's Summary uses formulas set to recalculate when opened; they were cross-checked against the sheet data in Python because LibreOffice is not installed here. Answer labels are Claude's blind judgement and need the owner's spot-check of 10 rows. Sources are English only, and the scan is upright and clean, so OCR language and rotation were not stressed.
 
 During the run, two retrieval passes (R1, R1w) were lost because a parallel stage overwrote the harness state file; both were rerun with identical settings before scoring.
+
+## After fixes (spec 0007, 2026-10-10)
+
+Round A1 repeats the recommended settings after the fixes in [spec 0007](../../specs/0007-real-source-fixes.md): extractor `layout-ocr-v3` (website reader `html-main-v3.1`), files on "Stop and let me review" and websites on "Publish the others". It used the R1 website snapshot, the same files and the same 54 questions.
+
+| Measure | Before | After (A1) |
+| --- | --- | --- |
+| Recommended files run | Failed | Published |
+| Websites Hit@1 / Hit@5 | 15/28, 25/28 | 18/28, 27/28 |
+| Files Hit@1 / Hit@5 | 9/19, 17/19 (R1w) | 9/19, 19/19 |
+| Answers correct or correctly declined | 19/20 | 20/20 |
+| Embedding usage | Not recorded | Recorded by the app: websites 137,559 tokens, $0.0028; files $0 (all vectors reused) |
+
+- **X1, X2 fixed:** the Census report publishes under "Stop", and the married-couple and family rows of Table A-1 are retrieved (f2-q4 rank 2, f2-q5 rank 4); f2-q4 is now answered correctly ($110,800).
+- **X4, X6 fixed:** 156 website table chunks, all with their header row; no chunk from References, Notes or External links.
+- **X5 mostly fixed:** 4 of 5 "married-couple" occurrences keep the hyphen.
+- **X3, X7 fixed and tested:** covered by PostgreSQL tests; the live run had no failed item and reused a snapshot, so it could not show them.
+- **X8 fixed:** the run records provider-reported tokens and cost. The byte-based estimate in the Runs sheet was about 10 times the reported cost.
+- **New, X9:** a combined citation such as `[S1, S2]` is recorded as invalid, so a correct answer can look uncited. It also affected R1 and needs a separate fix.
+
+The first A1 website run used `html-main-v3`, which dropped Python-docs links marked `class="reference"` and split sentences at citation markers. Four website questions fell out of the top 5. The reader was fixed (`html-main-v3.1`) and the website half re-run; the table above is from the re-run. A1 answers were scored with the same rubric against the references but not blind, because only one new round was scored. Total spend for the whole test was about $0.24 of the $1 cap.

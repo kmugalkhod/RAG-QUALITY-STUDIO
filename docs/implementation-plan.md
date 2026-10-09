@@ -1,5 +1,9 @@
 # Implementation plan
 
+## Real-source fixes — spec 0007 (2026-10-10)
+
+**Result:** the eight spec 0006 findings were fixed in seven slices: extractor `layout-ocr-v3` rebuilds merged-column PDF tables and reads website tables as rows without reference lists (`html-main-v3.1`); "Publish the others" skips unreadable files and pages; new pipelines default to "Stop" for files and "Publish the others" for websites; compound-aware de-hyphenation; out-of-scope website links listed once as `skipped` (migration 0046); provider-reported embedding tokens and cost per run (migration 0047). v1 and v2 output is unchanged. The re-run published the recommended files run, raised Hit@5 from 42/47 to 46/47 with no question lost, and answered 20/20. A new finding, X9 (combined `[S1, S2]` citations recorded as invalid), is open. Details: `docs/specs/0007-real-source-fixes.md` and `docs/qa/real-source-2026-10/`.
+
 ## Real-source ingestion test — spec 0006 (2026-10-09)
 
 **Result:** four real websites (Python tutorial, Wikipedia, GOV.UK, MDN) and three real PDFs (BERT paper, US Census report, a 1967 NASA scan) were ingested through the product in eight rounds, with 54 source-written questions, retrieval checks and 20 blind-scored answers. Websites reached 25/28 Hit@5 with the recommended settings; the recommended files run was blocked by the Census report, and with "publish others with warnings" files reached 17/19. Of the Extract settings, only the quality choice, OCR (off breaks scans) and chunk size changed results; DPI, table format, strategy, timeout and rotation did not. Workbook and verdict: `docs/qa/real-source-2026-10/`. About $0.20 spent of a $1 cap.

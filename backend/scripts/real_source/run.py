@@ -63,6 +63,11 @@ ROUNDS = {
     "R6": {"tracks": ["web", "files"], "label": "Chunks 300/400/40",
            "chunk": {"target_tokens": 300, "maximum_tokens": 400, "overlap_tokens": 40},
            "quality": WARN},
+    # Spec 0007 slice 7: the recommended settings after the fixes. Extractor v3 and
+    # the per-source defaults ("Stop" for files, "Publish the others" for websites),
+    # on the same website snapshot, files and questions as R1.
+    "A1": {"tracks": ["web", "files"], "label": "After fixes: recommended (v3)",
+           "extract": {"config_version": "layout-ocr-v3"}, "quality": {"web": "warn-v1"}},
 }
 # The index a track falls back to when a round does not rebuild it.
 BASELINE = {"web": "R1", "files": "R1w"}
@@ -365,10 +370,13 @@ class Run:
                 "discovered_count": done.get("discovered_count"),
                 "started_at": done.get("started_at"),
                 "finished_at": done.get("finished_at"),
+                # Provider-reported by the app (spec 0007, X8); None when unknown.
+                "embedding_usage": done.get("embedding_usage"),
                 "items": [
                     {k: item.get(k) for k in (
                         "filename", "display_name", "source_url", "canonical_location",
-                        "status", "error", "is_optional", "chunk_count")}
+                        "status", "outcome", "reason", "error", "is_optional",
+                        "chunk_count")}
                     for item in items
                 ],
             }
@@ -408,9 +416,16 @@ class Run:
         filename_to_source = {f["filename"]: sid for sid, f in sources["files"].items()}
         table_line = re.compile(r"^\|.*\|\s*$", re.MULTILINE)
         structure = []
+        previous_path = self.work / "structure.json"
+        previous = json.loads(previous_path.read_text()) if previous_path.exists() else []
         for key, run in self.state.get("runs", {}).items():
             track, round_id = key.split(":")
             path = self.work / f"records_{track}_{round_id}.json"
+            kept = [r for r in previous if (r["track"], r["round"]) == (track, round_id)]
+            if not path.exists() and kept:
+                # Records of an earlier session are not kept; reuse its measured rows.
+                structure.extend(kept)
+                continue
             per_source: dict[str, list[dict]] = {}
             if path.exists():
                 for record in json.loads(path.read_text()):
@@ -451,6 +466,7 @@ class Run:
                     "items_ready": sum(i.get("status") in {"ready", "succeeded"} for i in items),
                     "items_failed": sum(i.get("status") == "failed" for i in items),
                     "items_excluded": sum(i.get("status") == "excluded" for i in items),
+                    "items_skipped": sum(i.get("status") == "skipped" for i in items),
                     "pages_or_urls_indexed": len({u for u in units if u is not None}),
                     "chunks": len(records),
                     "chunk_tokens_median": statistics.median(tokens) if tokens else None,
