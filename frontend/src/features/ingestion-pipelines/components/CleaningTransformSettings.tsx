@@ -44,7 +44,7 @@ function newTransform(type: CleaningTransform['type']): CleaningTransform {
     case 'reflow_pdf_lines':
       return { ...base, type, block_types: ['paragraph', 'unknown'] };
     case 'dehyphenate':
-      return { ...base, type, mode: 'conservative' };
+      return { ...base, type, mode: 'conservative-compounds' };
     case 'remove_repeated_headers_footers':
       return {
         ...base,

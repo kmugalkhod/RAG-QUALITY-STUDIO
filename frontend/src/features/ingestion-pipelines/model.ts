@@ -168,7 +168,12 @@ export type CleaningTransform =
       enabled: boolean;
       block_types: ('paragraph' | 'unknown')[];
     }
-  | { id: string; type: 'dehyphenate'; enabled: boolean; mode: 'conservative' }
+  | {
+      id: string;
+      type: 'dehyphenate';
+      enabled: boolean;
+      mode: 'conservative' | 'conservative-compounds';
+    }
   | {
       id: string;
       type: 'remove_repeated_headers_footers';

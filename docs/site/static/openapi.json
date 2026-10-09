@@ -1731,8 +1731,11 @@
             "type": "string"
           },
           "mode": {
-            "const": "conservative",
             "default": "conservative",
+            "enum": [
+              "conservative",
+              "conservative-compounds"
+            ],
             "title": "Mode",
             "type": "string"
           },

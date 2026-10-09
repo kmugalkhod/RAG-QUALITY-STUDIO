@@ -693,7 +693,9 @@ class ReflowPdfLinesTransform(CleaningTransformBase):
 
 class DehyphenateTransform(CleaningTransformBase):
     type: Literal["dehyphenate"]
-    mode: Literal["conservative"] = "conservative"
+    # conservative-compounds (spec 0007, X5) keeps the hyphen of a word that also
+    # appears hyphenated elsewhere in the document.
+    mode: Literal["conservative", "conservative-compounds"] = "conservative"
 
 
 class RemoveRepeatedHeadersFootersTransform(CleaningTransformBase):

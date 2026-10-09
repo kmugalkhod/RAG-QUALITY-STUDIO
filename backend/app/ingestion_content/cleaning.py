@@ -30,6 +30,8 @@ from app.ingestion_content.processing import (
 _SPACE = re.compile(r"\s+")
 _SINGLE_LINE_BREAK = re.compile(r"(?<!\n)\n(?!\n)")
 _DEHYPHENATE = re.compile(r"([^\W\d_])-\s*\n\s*([^\W\d_])", re.UNICODE)
+_DEHYPHENATE_WORDS = re.compile(r"([^\W\d_]+)-\s*\n\s*([^\W\d_]+)", re.UNICODE)
+_HYPHENATED_WORD = re.compile(r"\b([^\W\d_]+)-([^\W\d_]+)\b", re.UNICODE)
 _COOKIE_HINTS = ("cookie", "consent", "privacy-banner", "gdpr")
 _PROTECTED_DEFAULT = {"table", "list_item", "code", "quote", "footnote"}
 
@@ -73,7 +75,7 @@ def default_structure_steps() -> list[dict]:
             "id": "dehyphenate",
             "type": "dehyphenate",
             "enabled": True,
-            "mode": "conservative",
+            "mode": "conservative-compounds",
         },
         {
             "id": "website-main-content",
@@ -262,6 +264,35 @@ def _dehyphenate(block: CanonicalBlock):
         return match.group(0)
 
     return _DEHYPHENATE.sub(replacement, block.text), count
+
+
+def _document_compounds(blocks) -> set[str]:
+    """Hyphenated words written on one line anywhere in the document."""
+
+    return {
+        f"{left}-{right}".casefold()
+        for block in blocks
+        for left, right in _HYPHENATED_WORD.findall(block.text)
+    }
+
+
+def _dehyphenate_compounds(block: CanonicalBlock, compounds: set[str]):
+    """Join a word split by a line-break hyphen, unless it is a known compound."""
+
+    count = 0
+
+    def replacement(match):
+        nonlocal count
+        left, right = match.group(1), match.group(2)
+        if f"{left}-{right}".casefold() in compounds:
+            count += 1
+            return f"{left}-{right}"
+        if left[-1].islower() and right[0].islower():
+            count += 1
+            return left + right
+        return match.group(0)
+
+    return _DEHYPHENATE_WORDS.sub(replacement, block.text), count
 
 
 def _remove_repeated_headers_footers(blocks, step, page_count, protected):
@@ -539,9 +570,19 @@ def clean_structure_document(
                     metrics={"applicable": False},
                 )
         elif step.type == "dehyphenate":
-            blocks, audit = _rewrite(
-                blocks, step.type, _dehyphenate, protected=protected
-            )
+            if step.mode == "conservative-compounds":
+                compounds = _document_compounds(blocks)
+                blocks, audit = _rewrite(
+                    blocks,
+                    step.type,
+                    lambda block: _dehyphenate_compounds(block, compounds),
+                    protected=protected,
+                )
+                audit.metrics["mode"] = step.mode
+            else:
+                blocks, audit = _rewrite(
+                    blocks, step.type, _dehyphenate, protected=protected
+                )
         elif step.type == "remove_repeated_headers_footers":
             blocks, audit = _remove_repeated_headers_footers(
                 blocks, step, extracted.measurements.page_count, protected

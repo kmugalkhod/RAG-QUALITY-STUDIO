@@ -360,7 +360,7 @@ This page is generated from FastAPI/Pydantic; project authorization, provider co
 | `id` | string | yes | minLength=1, maxLength=80, pattern=^[a-zA-Z0-9_-]+$ |
 | `enabled` | boolean | no | default=True |
 | `type` | string | yes | — |
-| `mode` | string | no | default=conservative |
+| `mode` | string: conservative, conservative-compounds | no | default=conservative |
 
 ## DocumentPage
 
