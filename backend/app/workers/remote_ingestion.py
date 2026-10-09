@@ -26,6 +26,9 @@ from app.core.config import settings
 from app.models.ingestion import IngestionRun
 from app.models.document import Chunk, Document, ProcessingRun
 from app.ingestion_content.duplicates import DuplicateCandidate, classify_duplicates
+from app.ingestion_content.processing import IngestionStageError
+from app.ingestion_content.quality import excludes_failed_items
+from app.pipelines.parsing import ProcessingError
 from app.models.source import (
     IndexSourceRevision,
     SourceItem,
@@ -478,6 +481,7 @@ def _process_crawled(run_id, token, db_engine, execution, prior_revisions):
     chunk = next(node for node in execution.nodes if node.type == "chunk")
     clean = next(node for node in execution.nodes if node.type == "clean")
     extract = next(node for node in execution.nodes if node.type == "extract")
+    exclude_failed = excludes_failed_items(getattr(extract, "quality_policy", None))
     worker_engine = db_engine.execution_options(isolation_level="READ COMMITTED")
 
     def prior_body(*locations):
@@ -621,20 +625,38 @@ def _process_crawled(run_id, token, db_engine, execution, prior_revisions):
                 continue
             artifact = website_crawl.page_artifact(row, prior_body)
             prior_entry = prior_revisions.get(artifact.canonical_location)
-            source_item, revision, classification, extracted_hash, _stored = (
-                website_ingestion.persist_artifact(
-                    session,
-                    job.project_id,
-                    artifact,
-                    chunk,
-                    clean,
-                    prior_entry[0] if prior_entry else None,
-                    phase_callback,
-                    extract,
-                    None,
-                    fingerprints_for(row.source_node_id),
-                )
-            )
+            try:
+                # A savepoint keeps a failed page's partial rows out of the run.
+                with session.begin_nested():
+                    source_item, revision, classification, extracted_hash, _stored = (
+                        website_ingestion.persist_artifact(
+                            session,
+                            job.project_id,
+                            artifact,
+                            chunk,
+                            clean,
+                            prior_entry[0] if prior_entry else None,
+                            phase_callback,
+                            extract,
+                            None,
+                            fingerprints_for(row.source_node_id),
+                        )
+                    )
+            except (ProcessingError, IngestionStageError) as exc:
+                # "Publish the others" (spec 0007, X3): the page is reported as
+                # failed and the rest of the site is still published.
+                if not exclude_failed:
+                    raise
+                row.status = "failed"
+                row.reason = (getattr(exc, "message", None) or str(exc))[:500]
+                row.error_code = (getattr(exc, "code", None) or "processing_failed")[
+                    :80
+                ]
+                row.updated_at = job.updated_at = now()
+                released = website_crawl.clear_body(row)
+                session.commit()
+                website_crawl.finish_release(db_engine, row_id, released)
+                continue
             row.source_item_id = source_item.id
             row.source_revision_id = revision.id
             row.classification = classification
@@ -954,6 +976,7 @@ def _advance_credentialed(
     chunk = next(node for node in execution.nodes if node.type == "chunk")
     clean = next(node for node in execution.nodes if node.type == "clean")
     extract = next(node for node in execution.nodes if node.type == "extract")
+    exclude_failed = excludes_failed_items(getattr(extract, "quality_policy", None))
 
     def phase_callback(node_type):
         return ingestion_execution.transition(
@@ -1025,23 +1048,46 @@ def _advance_credentialed(
                     classification = "unchanged"
                     extracted_hash = revision.extracted_hash
                 else:
-                    (
-                        source_item,
-                        revision,
-                        classification,
-                        extracted_hash,
-                        _stored_path,
-                    ) = persistence.persist_artifact(
-                        session,
-                        job.project_id,
-                        connection_id,
-                        artifact,
-                        chunk,
-                        clean,
-                        prior,
-                        phase_callback,
-                        extract,
-                    )
+                    try:
+                        # A savepoint keeps a failed item's partial rows out of the run.
+                        with session.begin_nested():
+                            (
+                                source_item,
+                                revision,
+                                classification,
+                                extracted_hash,
+                                _stored_path,
+                            ) = persistence.persist_artifact(
+                                session,
+                                job.project_id,
+                                connection_id,
+                                artifact,
+                                chunk,
+                                clean,
+                                prior,
+                                phase_callback,
+                                extract,
+                            )
+                    except (ProcessingError, IngestionStageError) as exc:
+                        # "Publish the others" (spec 0007, X3): record and skip it.
+                        if not exclude_failed:
+                            raise
+                        website_ingestion.add_run_item(
+                            session,
+                            run=job,
+                            ordinal=ordinal,
+                            source_node_id=source_node_id,
+                            outcome="failed",
+                            reason=getattr(exc, "message", None) or str(exc),
+                            location=outcome.canonical_location,
+                            display_name=outcome.display_name,
+                            media_type=outcome.media_type,
+                            error=getattr(exc, "code", None) or "processing_failed",
+                        )
+                        failed += 1
+                        failed_keys.add((source_node_id, outcome.canonical_location))
+                        ordinal += 1
+                        continue
                 if (
                     getattr(clean, "duplicate_policy", None) is None
                     and clean.exact_content_deduplication
@@ -1108,11 +1154,16 @@ def _advance_credentialed(
         job.discovered_count = ordinal
         job.failed_count = failed
         job.processed_count = ordinal - failed
-        if failed:
+        if failed and (not exclude_failed or not memberships):
             fail_run(
                 session,
                 job,
-                f"One or more required {label}s failed. The previous ready index remains current.",
+                (
+                    f"No {label} could be included. The previous ready index remains current."
+                    if exclude_failed
+                    else f"One or more required {label}s failed. The previous ready index "
+                    "remains current."
+                ),
                 node_type="source",
             )
             session.commit()
@@ -1358,24 +1409,50 @@ def _advance_website(run_id, token, db_engine, connector_factory):
                 warnings = website_ingestion.page_warnings(artifact)
                 prior_entry = prior_revisions.get(location)
                 prior = prior_entry[0] if prior_entry else None
-                (
-                    source_item,
-                    revision,
-                    classification,
-                    extracted_hash,
-                    _stored_path,
-                ) = website_ingestion.persist_artifact(
-                    session,
-                    job.project_id,
-                    artifact,
-                    chunk,
-                    clean,
-                    prior,
-                    phase_callback,
-                    extract,
-                    extracted_by_location.get((source_node_id, location)),
-                    repeated_site_fingerprints.get(source_node_id, set()),
-                )
+                try:
+                    with session.begin_nested():
+                        (
+                            source_item,
+                            revision,
+                            classification,
+                            extracted_hash,
+                            _stored_path,
+                        ) = website_ingestion.persist_artifact(
+                            session,
+                            job.project_id,
+                            artifact,
+                            chunk,
+                            clean,
+                            prior,
+                            phase_callback,
+                            extract,
+                            extracted_by_location.get((source_node_id, location)),
+                            repeated_site_fingerprints.get(source_node_id, set()),
+                        )
+                except (ProcessingError, IngestionStageError) as exc:
+                    # "Publish the others" (spec 0007, X3).
+                    if not excludes_failed_items(
+                        getattr(extract, "quality_policy", None)
+                    ):
+                        raise
+                    included_by_source[source_node_id] -= 1
+                    website_ingestion.add_run_item(
+                        session,
+                        run=job,
+                        ordinal=ordinal,
+                        source_node_id=source_node_id,
+                        outcome="failed",
+                        reason=getattr(exc, "message", None) or str(exc),
+                        location=location,
+                        display_name=outcome.display_name,
+                        media_type=media_type,
+                        error=getattr(exc, "code", None) or "processing_failed",
+                    )
+                    failed += 1
+                    failed_by_source[source_node_id] += 1
+                    failed_locations.add(location)
+                    ordinal += 1
+                    continue
             kept = kept_items.get(source_item.id)
             if kept is not None:
                 # Another source already reached this exact page. An index holds
@@ -1600,7 +1677,9 @@ def _advance_website(run_id, token, db_engine, connector_factory):
                     skipped_sources,
                 ),
             }
-        elif failed:
+        elif failed and not excludes_failed_items(
+            getattr(extract, "quality_policy", None)
+        ):
             fail_run(
                 session,
                 job,
@@ -1609,7 +1688,7 @@ def _advance_website(run_id, token, db_engine, connector_factory):
             )
             session.commit()
             return
-        if isolate and not memberships:
+        if (isolate or failed) and not memberships:
             fail_run(
                 session,
                 job,

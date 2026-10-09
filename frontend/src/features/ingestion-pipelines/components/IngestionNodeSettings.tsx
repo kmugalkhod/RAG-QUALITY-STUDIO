@@ -80,9 +80,9 @@ function languageName(code: string) {
 }
 
 const qualityChoiceHelp: Record<QualityChoice, string> = {
-  stop: 'A file that fails the quality checks stops the run, so nothing new is published until you review it. The last published index stays in use.',
+  stop: 'A file or page that fails the quality checks stops the run, so nothing new is published until you review it. The last published index stays in use.',
   publish:
-    'Quality problems are shown as warnings and those files are still published. Files that cannot be read at all are left out and listed in the run.',
+    'Quality problems are shown as warnings and are still published. A file or page that cannot be read at all is left out with its reason, and everything else is published.',
   custom:
     'This pipeline uses custom quality rules. Review them under Advanced extraction settings.',
 };
@@ -838,7 +838,7 @@ export function IngestionNodeSettings({
                     variant="outline"
                     onClick={() =>
                       updateExtract({
-                        ...recommendedExtractSettings(extractionCapabilities),
+                        ...recommendedExtractSettings(extractionCapabilities, readsFiles),
                         config_version: currentExtractVersion,
                       })
                     }
@@ -968,7 +968,9 @@ export function IngestionNodeSettings({
                   >
                     <NativeSelectOption value="stop">Stop and let me review</NativeSelectOption>
                     <NativeSelectOption value="publish">
-                      Publish the other files and show warnings
+                      {readsFiles
+                        ? 'Publish the other files and show warnings'
+                        : 'Publish the other pages and show warnings'}
                     </NativeSelectOption>
                     {selectedQualityChoice === 'custom' && (
                       <NativeSelectOption value="custom" disabled>
@@ -1006,7 +1008,9 @@ export function IngestionNodeSettings({
                           type="button"
                           variant="outline"
                           onClick={() =>
-                            updateExtract(resetExtractAdvanced(selected, extractionCapabilities))
+                            updateExtract(
+                              resetExtractAdvanced(selected, extractionCapabilities, readsFiles),
+                            )
                           }
                         >
                           Reset to recommended
@@ -1240,7 +1244,7 @@ export function IngestionNodeSettings({
                       </NativeSelect>
                     </Label>
                     <Label>
-                      Failed optional items
+                      Files or pages that fail
                       <NativeSelect
                         value={selectedQuality.failed_item_action}
                         onChange={(event) =>

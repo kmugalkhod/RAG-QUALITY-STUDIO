@@ -57,6 +57,27 @@ export const isLayoutExtractVersion = (version: string | undefined) =>
   version === 'layout-ocr-v1' || version === 'layout-ocr-v2' || version === currentExtractVersion;
 
 /**
+ * After a source changes kind, a still-default publish choice follows the new
+ * default; a choice the user made stays as it is.
+ */
+export function followDefaultQualityChoice(
+  before: IngestionNode[],
+  after: IngestionNode[],
+  capabilities?: ExtractionCapabilities,
+): IngestionNode[] {
+  const was = defaultQualityChoice(extractReadsFiles(before));
+  const now = defaultQualityChoice(extractReadsFiles(after));
+  if (was === now) {
+    return after;
+  }
+  return after.map((node) =>
+    node.type === 'extract' && qualityChoice(node.quality_policy, capabilities) === was
+      ? { ...node, quality_policy: qualityPolicyForChoice(now, capabilities) }
+      : node,
+  );
+}
+
+/**
  * Extraction strategy, OCR and table settings read uploaded and S3 files only.
  * Website, Notion and Confluence pages use the quality and language policies alone.
  */
@@ -120,8 +141,19 @@ function qualityPolicySettings(
   );
 }
 
+/**
+ * The plain choice a new pipeline starts with (spec 0007): stop for hand-picked
+ * files, publish the others for website, Notion and Confluence pages.
+ */
+export function defaultQualityChoice(readsFiles: boolean): 'stop' | 'publish' {
+  return readsFiles ? 'stop' : 'publish';
+}
+
 /** The extraction values a new pipeline gets; the Extract panel compares against them. */
-export function recommendedExtractSettings(capabilities?: ExtractionCapabilities) {
+export function recommendedExtractSettings(
+  capabilities?: ExtractionCapabilities,
+  readsFiles = true,
+) {
   return {
     strategy: 'auto' as const,
     ocr: {
@@ -134,7 +166,10 @@ export function recommendedExtractSettings(capabilities?: ExtractionCapabilities
       timeout_seconds: 30,
     },
     tables: 'preserve' as const,
-    quality_policy: qualityPolicySettings('default-v1', capabilities),
+    quality_policy: qualityPolicySettings(
+      defaultQualityChoice(readsFiles) === 'stop' ? 'default-v1' : 'warn-v1',
+      capabilities,
+    ),
     language_policy: structuredClone(defaultLanguagePolicy),
   };
 }
@@ -197,7 +232,7 @@ export function extractDifferences(
   capabilities: ExtractionCapabilities | undefined,
   readsFiles: boolean,
 ): string[] {
-  const recommended = recommendedExtractSettings(capabilities);
+  const recommended = recommendedExtractSettings(capabilities, readsFiles);
   const ocr = node.ocr ?? recommended.ocr;
   const differences: string[] = [];
   if (readsFiles) {
@@ -231,8 +266,9 @@ export function extractDifferences(
 export function resetExtractAdvanced(
   node: ExtractNode,
   capabilities?: ExtractionCapabilities,
+  readsFiles = true,
 ): Partial<ExtractNode> {
-  const recommended = recommendedExtractSettings(capabilities);
+  const recommended = recommendedExtractSettings(capabilities, readsFiles);
   const ocr: OcrSettings = {
     ...recommended.ocr,
     mode: node.ocr?.mode === 'off' ? 'off' : recommended.ocr.mode,

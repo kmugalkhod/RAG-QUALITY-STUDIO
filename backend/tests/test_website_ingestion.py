@@ -917,6 +917,142 @@ def test_unfetched_page_fails_the_source_stage_without_a_removal(website_api):
     assert outcomes == ["failed"]
 
 
+def _save_v2_website(client, project_id, config, failed_item_action):
+    """A schema-v2 Website pipeline whose quality policy sets the publish rule."""
+
+    from app.ingestion_content.cleaning import default_structure_steps
+
+    payload = ingestion_draft()
+    payload["execution"]["schema_version"] = 2
+    for node in payload["execution"]["nodes"]:
+        if node["type"] == "embed":
+            node.update(
+                provider=config.provider,
+                model=config.model,
+                dimensions=config.dimensions,
+                config_version=config.revision,
+            )
+        elif node["type"] == "extract":
+            node.update(
+                strategy="native_text",
+                config_version="native-text-v1",
+                quality_policy={
+                    "id": "default-v1",
+                    "warning_action": "publish",
+                    "failed_item_action": failed_item_action,
+                },
+            )
+        elif node["type"] == "clean":
+            node.update(
+                profile="structure-aware-v1",
+                config_version="structure-clean-v1",
+                steps=default_structure_steps(),
+            )
+        elif node["type"] == "chunk":
+            node.update(size=100, overlap=10, config_version="character-window-v1")
+    saved = client.post(f"/api/projects/{project_id}/pipelines", json=payload)
+    assert saved.status_code == 201, saved.text
+    return saved.json()
+
+
+def _timed_out(url):
+    return (
+        PreviewOutcome(
+            external_id=url,
+            display_name=url,
+            canonical_location=url,
+            media_type=None,
+            status="failed",
+            reason="The website request timed out.",
+            error_code="request_timeout",
+        ),
+        None,
+    )
+
+
+def test_publish_others_publishes_a_website_with_a_failed_page(website_api):
+    """Spec 0007 X3: a single Website source publishes the pages that worked."""
+
+    client, engine, project_id, _, config, _ = website_api
+    version = _save_v2_website(client, project_id, config, "exclude")
+    stable = page("https://example.com/", b"<main><p>Stable content stays.</p></main>")
+    run = start_run(client, project_id, version)
+    publish(
+        engine,
+        run["id"],
+        lambda: WebsiteDouble([stable, _timed_out("https://example.com/guide")], []),
+    )
+    result = client.get(f"/api/projects/{project_id}/ingestion-runs/{run['id']}").json()
+    assert result["status"] == "succeeded", result
+    assert result["failed_count"] == 1
+    with Session(engine) as session:
+        outcomes = dict(
+            session.execute(
+                select(WebsiteRunItem.canonical_location, WebsiteRunItem.outcome).where(
+                    WebsiteRunItem.run_id == UUID(run["id"])
+                )
+            ).all()
+        )
+    assert outcomes["https://example.com/guide"] == "failed"
+
+
+def test_publish_others_skips_a_page_whose_text_cannot_be_used(website_api):
+    client, engine, project_id, _, config, _ = website_api
+    version = _save_v2_website(client, project_id, config, "exclude")
+    stable = page("https://example.com/", b"<main><p>Stable content stays.</p></main>")
+    # Mostly replacement characters: fails the default quality thresholds.
+    empty = page(
+        "https://example.com/empty",
+        b"<main><p>" + ("bad � " * 60).encode() + b"</p></main>",
+    )
+    run = start_run(client, project_id, version)
+    publish(engine, run["id"], lambda: WebsiteDouble([stable, empty], []))
+    result = client.get(f"/api/projects/{project_id}/ingestion-runs/{run['id']}").json()
+    assert result["status"] == "succeeded", result
+    with Session(engine) as session:
+        outcomes = dict(
+            session.execute(
+                select(WebsiteRunItem.canonical_location, WebsiteRunItem.outcome).where(
+                    WebsiteRunItem.run_id == UUID(run["id"])
+                )
+            ).all()
+        )
+    assert outcomes["https://example.com/empty"] == "failed"
+
+
+def test_publish_others_still_fails_when_no_page_can_be_included(website_api):
+    client, engine, project_id, _, config, _ = website_api
+    version = _save_v2_website(client, project_id, config, "exclude")
+    run = start_run(client, project_id, version)
+    process_ingestion(
+        UUID(run["id"]),
+        engine,
+        connector_factory=lambda: WebsiteDouble(
+            [_timed_out("https://example.com/")], []
+        ),
+    )
+    result = client.get(f"/api/projects/{project_id}/ingestion-runs/{run['id']}").json()
+    assert result["status"] == "failed"
+    assert "No Website page could be included" in result["error"]
+
+
+def test_stop_policy_fails_a_website_with_a_failed_page(website_api):
+    client, engine, project_id, _, config, _ = website_api
+    version = _save_v2_website(client, project_id, config, "fail")
+    stable = page("https://example.com/", b"<main><p>Stable content stays.</p></main>")
+    run = start_run(client, project_id, version)
+    process_ingestion(
+        UUID(run["id"]),
+        engine,
+        connector_factory=lambda: WebsiteDouble(
+            [stable, _timed_out("https://example.com/guide")], []
+        ),
+    )
+    result = client.get(f"/api/projects/{project_id}/ingestion-runs/{run['id']}").json()
+    assert result["status"] == "failed"
+    assert "required website pages failed" in result["error"]
+
+
 def test_run_items_record_attempts_warnings_and_nested_sitemaps(website_api):
     client, engine, project_id, _, config, _ = website_api
     version = save_website(client, project_id, config)

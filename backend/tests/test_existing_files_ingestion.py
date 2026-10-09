@@ -1237,22 +1237,13 @@ def test_save_rejects_unavailable_ocr_pack_and_reports_only_dpi_error(ingestion_
     )
 
 
-def test_required_quality_failure_cancels_waiting_item(ingestion_api):
-    client, engine, project_id, _, config, _ = ingestion_api
-    good = upload(
-        client, project_id, b"The archive contains seven lanterns. " * 20, "waiting.txt"
-    )
-    bad = upload(
-        client,
-        project_id,
-        ("The archive contains seven lanterns. " * 20 + "\ufffd").encode(),
-        "required-warning.txt",
-    )
+def _quality_set(client, project_id, config, files, failed_item_action):
+    documents = [upload(client, project_id, content, name) for name, content in files]
     payload = robust_extract(
         ingestion_draft(
-            [good["id"], bad["id"]],
+            [document["id"] for document in documents],
             config,
-            name="Required quality set",
+            name=f"Quality set {failed_item_action}",
             schema_version=2,
         ),
         ocr_mode="off",
@@ -1263,14 +1254,31 @@ def test_required_quality_failure_cancels_waiting_item(ingestion_api):
     extract["quality_policy"] = {
         "id": "strict-v1",
         "warning_action": "publish",
-        "failed_item_action": "exclude",
+        "failed_item_action": failed_item_action,
     }
     saved = client.post(f"/api/projects/{project_id}/pipelines", json=payload).json()
     run = client.post(
         f"/api/projects/{project_id}/pipelines/{saved['pipeline_id']}"
         f"/versions/{saved['id']}/ingestion-runs"
     ).json()
-    items_url = f"/api/projects/{project_id}/ingestion-runs/{run['id']}/items"
+    return run, f"/api/projects/{project_id}/ingestion-runs/{run['id']}/items"
+
+
+GOOD_TEXT = b"The archive contains seven lanterns. " * 20
+BAD_TEXT = ("The archive contains seven lanterns. " * 20 + "\ufffd").encode()
+
+
+def test_stop_policy_fails_on_a_required_failure_and_cancels_waiting_item(
+    ingestion_api,
+):
+    client, engine, project_id, _, config, _ = ingestion_api
+    run, items_url = _quality_set(
+        client,
+        project_id,
+        config,
+        [("waiting.txt", GOOD_TEXT), ("required-warning.txt", BAD_TEXT)],
+        "fail",
+    )
     items = client.get(items_url).json()["items"]
     process(
         UUID(
@@ -1290,6 +1298,67 @@ def test_required_quality_failure_cancels_waiting_item(ingestion_api):
         "waiting.txt": "cancelled",
         "required-warning.txt": "failed",
     }
+
+
+def test_publish_others_excludes_a_required_failure_and_publishes_the_rest(
+    ingestion_api,
+):
+    """Spec 0007 X3: "Publish the other files" skips any unreadable file."""
+
+    client, engine, project_id, _, config, _ = ingestion_api
+    run, items_url = _quality_set(
+        client,
+        project_id,
+        config,
+        [("good.txt", GOOD_TEXT), ("required-warning.txt", BAD_TEXT)],
+        "exclude",
+    )
+    for item in client.get(items_url).json()["items"]:
+        process(UUID(item["processing_run_id"]), engine)
+    process_ingestion(UUID(run["id"]), engine)
+    with Session(engine) as session:
+        index_id = session.scalar(
+            select(IndexVersion.id).where(
+                IndexVersion.ingestion_run_id == UUID(run["id"])
+            )
+        )
+    assert index_id is not None
+    process_index(index_id, engine)
+    process_ingestion(UUID(run["id"]), engine)
+    result = client.get(f"/api/projects/{project_id}/ingestion-runs/{run['id']}").json()
+    assert result["status"] == "succeeded", result
+    assert result["failed_count"] == 1
+    items = client.get(items_url).json()["items"]
+    assert {
+        item["filename"]: (item["status"], item["is_optional"]) for item in items
+    } == {
+        "good.txt": ("succeeded", False),
+        "required-warning.txt": ("excluded", False),
+    }
+    excluded = next(i for i in items if i["filename"] == "required-warning.txt")
+    assert excluded["error"]
+
+
+def test_publish_others_fails_when_no_file_can_be_processed(ingestion_api):
+    client, engine, project_id, _, config, _ = ingestion_api
+    run, items_url = _quality_set(
+        client, project_id, config, [("only-bad.txt", BAD_TEXT)], "exclude"
+    )
+    for item in client.get(items_url).json()["items"]:
+        process(UUID(item["processing_run_id"]), engine)
+    process_ingestion(UUID(run["id"]), engine)
+    result = client.get(f"/api/projects/{project_id}/ingestion-runs/{run['id']}").json()
+    assert result["status"] == "failed"
+    assert "No selected file could be processed" in result["error"]
+    with Session(engine) as session:
+        assert (
+            session.scalar(
+                select(IndexVersion.id).where(
+                    IndexVersion.ingestion_run_id == UUID(run["id"])
+                )
+            )
+            is None
+        )
 
 
 def test_v2_existing_files_executes_clean_config_and_reuses_exact_identity(

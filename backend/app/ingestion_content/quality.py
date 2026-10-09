@@ -51,6 +51,18 @@ def quality_policy_settings(policy) -> dict:
     }
 
 
+def excludes_failed_items(policy) -> bool:
+    """True for "Publish the other files and show warnings" (spec 0007, X3).
+
+    Under that choice a file or page that cannot be processed is left out of the
+    index with its reason, and the run publishes the rest.
+    """
+
+    if policy is None:
+        return False
+    return quality_policy_settings(policy)["failed_item_action"] == "exclude"
+
+
 def quality_allows_publication(policy, decision: str) -> bool:
     settings = quality_policy_settings(policy)
     return decision == "pass" or (

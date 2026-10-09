@@ -3,6 +3,7 @@ import {
   branchChain,
   branchIndexName,
   defaultIngestionDraft,
+  followDefaultQualityChoice,
   defaultWebsite,
   derivedIncludePrefixes,
   indexLayout,
@@ -60,9 +61,23 @@ export function newGuidedDraft(
 ): GuidedDraft {
   const base = defaultIngestionDraft(embedding, [], capabilities);
   const source = sourceNodes(base)[0];
-  const draft = withIndexNames(
-    setSourceConfig({ ...base, name: 'Website knowledge' }, source.id, defaultWebsite()),
+  const website = setSourceConfig(
+    { ...base, name: 'Website knowledge' },
+    source.id,
+    defaultWebsite(),
   );
+  // Website pipelines publish the pages that worked by default (spec 0007).
+  const draft = withIndexNames({
+    ...website,
+    execution: {
+      ...website.execution,
+      nodes: followDefaultQualityChoice(
+        base.execution.nodes,
+        website.execution.nodes,
+        capabilities,
+      ),
+    },
+  });
   return { version: 1, step: 1, draft, customized: {} };
 }
 

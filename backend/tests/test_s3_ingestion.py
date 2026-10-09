@@ -429,3 +429,83 @@ def test_s3_cancellation_duplicate_delivery_and_stale_recovery(
     dispatch_ingestion_once(engine, send=lambda value: sent.append(value))
     with Session(engine) as session:
         assert session.get(IngestionRun, stale_id).status == "queued"
+
+
+def test_s3_publish_others_publishes_the_readable_objects(
+    website_api,  # noqa: F811
+    monkeypatch,
+):
+    """Spec 0007 X3: under "Publish the other files", a broken object is skipped."""
+
+    from app.ingestion_content.cleaning import default_structure_steps
+
+    client, engine, project_id, _, embedding, _ = website_api
+    monkeypatch.setattr(settings, "source_connections_enabled", True)
+    monkeypatch.setattr(settings, "source_connection_active_key", "v1")
+    monkeypatch.setattr(settings, "source_connection_keys", {"v1": encoded(KEY_1)})
+    connection = client.post(
+        f"/api/projects/{project_id}/source-connections",
+        json={
+            "name": "Research bucket",
+            "credentials": {
+                "kind": "s3",
+                "access_key_id": "fixture-access",
+                "secret_access_key": "fixture-secret",
+            },
+        },
+    ).json()
+    version = save_s3(client, project_id, embedding, connection["id"])
+    with Session(engine) as session:
+        execution = session.get(PipelineVersion, UUID(version["id"])).execution
+    execution["schema_version"] = 2
+    for node in execution["nodes"]:
+        if node["type"] == "extract":
+            node.update(
+                strategy="native_text",
+                config_version="native-text-v1",
+                quality_policy={
+                    "id": "default-v1",
+                    "warning_action": "publish",
+                    "failed_item_action": "exclude",
+                },
+            )
+        elif node["type"] == "clean":
+            node.update(
+                profile="structure-aware-v1",
+                config_version="structure-clean-v1",
+                steps=default_structure_steps(),
+            )
+        elif node["type"] == "chunk":
+            node["config_version"] = "character-window-v1"
+    response = client.post(
+        f"/api/projects/{project_id}/pipelines/{version['pipeline_id']}/versions",
+        json={
+            "kind": "ingestion",
+            "name": "S3 publish others",
+            "execution": execution,
+            "layout": {
+                "positions": {
+                    node["id"]: {"x": 0, "y": i * 120}
+                    for i, node in enumerate(execution["nodes"])
+                }
+            },
+        },
+    )
+    assert response.status_code == 201, response.text
+    version = response.json()
+    good = b"The orchard grows apples in carefully managed research rows. " * 3
+    bucket = BucketDouble(
+        {
+            "docs/orchard.txt": (good, "orchard-v1", "version-orchard-1"),
+            "docs/broken.pdf": (
+                b"%PDF-1.7\nnot-a-valid-pdf",
+                "broken-v1",
+                "version-broken-1",
+            ),
+        }
+    )
+    run = start_run(client, project_id, version)
+    publish(engine, run["id"], connector_factory(bucket))
+    result = client.get(f"/api/projects/{project_id}/ingestion-runs/{run['id']}").json()
+    assert result["status"] == "succeeded", result
+    assert result["failed_count"] == 1

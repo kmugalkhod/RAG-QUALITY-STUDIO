@@ -41,6 +41,7 @@ import {
   defaultWebsite,
   describeIngestionNode as detail,
   extractReadsFiles,
+  followDefaultQualityChoice,
   editableIngestionVersion as editableVersion,
   requestErrorMessage as message,
   serverFieldErrors as fieldErrorsFrom,
@@ -781,6 +782,7 @@ export function IngestionPipelineEditor({
     nodeId: string,
     kind: 'existing_files' | 'website' | 's3' | 'notion' | 'confluence',
   ) {
+    const before = draft?.execution.nodes ?? [];
     updateNode(nodeId, (node) =>
       node.type === 'source'
         ? {
@@ -802,6 +804,22 @@ export function IngestionPipelineEditor({
                         } satisfies ExistingFilesConfig),
           }
         : node,
+    );
+    // A still-default publish choice follows the new source kind (spec 0007).
+    setDraft((current) =>
+      current
+        ? {
+            ...current,
+            execution: {
+              ...current.execution,
+              nodes: followDefaultQualityChoice(
+                before,
+                current.execution.nodes,
+                extractionCapabilities,
+              ),
+            },
+          }
+        : current,
     );
   }
 

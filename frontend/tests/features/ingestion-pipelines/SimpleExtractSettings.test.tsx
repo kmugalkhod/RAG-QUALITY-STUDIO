@@ -136,7 +136,7 @@ test('the quality choice writes the preset policies', () => {
   fireEvent.change(select, { target: { value: 'publish' } });
   expect(latest.quality_policy).toEqual(fallbackQualityPolicy('warn-v1'));
   expect(screen.getByLabelText('Quality policy')).toHaveValue('warn-v1');
-  expect(screen.getByText(/Files that cannot be read at all are left out/)).toBeInTheDocument();
+  expect(screen.getByText(/cannot be read at all is left out with its reason/)).toBeInTheDocument();
   expect(screen.queryByRole('option', { name: 'Custom (see Advanced)' })).not.toBeInTheDocument();
   fireEvent.change(select, { target: { value: 'stop' } });
   expect(latest.quality_policy).toEqual(fallbackQualityPolicy('default-v1'));

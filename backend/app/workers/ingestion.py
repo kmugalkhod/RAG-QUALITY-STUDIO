@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.db.session import engine
 from app.connectors.base import ConnectorFailure
 from app.ingestion_content import IngestionStageError
+from app.ingestion_content.quality import excludes_failed_items
 from app.models.document import ProcessingRun, Document
 from app.models.derivation import ContentBlock, ContentDerivation, ProcessingDerivation
 from app.models.index import IndexVersion
@@ -249,9 +250,8 @@ def process_ingestion(
             extract_node = next(
                 node for node in execution.nodes if node.type == "extract"
             )
-            quality_policy = getattr(extract_node, "quality_policy", None)
-            exclude_optional = (
-                getattr(quality_policy, "failed_item_action", "fail") == "exclude"
+            exclude_failed = excludes_failed_items(
+                getattr(extract_node, "quality_policy", None)
             )
             failed = []
             waiting = []
@@ -267,7 +267,7 @@ def process_ingestion(
                         if processing.status == "failed"
                         and (
                             processing.error_code == "language_excluded"
-                            or (item.is_optional and exclude_optional)
+                            or exclude_failed
                         )
                         else "failed"
                     )
@@ -292,6 +292,16 @@ def process_ingestion(
                     session,
                     job,
                     "One or more selected files could not be processed. Inspect run items and retry with a new run.",
+                )
+                _cancel_unpublished_work(session, run_id)
+                session.commit()
+                return
+            if not waiting and job.processed_count == 0:
+                fail_run(
+                    session,
+                    job,
+                    "No selected file could be processed, so nothing was published. "
+                    "Inspect run items and retry with a new run.",
                 )
                 _cancel_unpublished_work(session, run_id)
                 session.commit()

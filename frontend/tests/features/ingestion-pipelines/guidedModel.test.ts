@@ -1,4 +1,4 @@
-import { sourceNodes } from '../../../src/features/ingestion-pipelines/editorModel';
+import { qualityChoice, sourceNodes } from '../../../src/features/ingestion-pipelines/editorModel';
 import {
   addSite,
   checkSiteUrl,
@@ -154,4 +154,16 @@ describe('guided ingestion setup model', () => {
     sessionStorage.setItem('ingestion-guided:v1:project-3', '{not json');
     expect(loadGuidedDraft('project-3')).toBeUndefined();
   });
+});
+
+test('guided website pipelines publish the other pages by default (spec 0007)', () => {
+  const guided = newGuidedDraft({
+    provider: 'test',
+    model: 'embedding-v1',
+    dimensions: 3,
+    revision: '1',
+    endpoint_id: 'endpoint-1',
+  });
+  const extract = guided.draft.execution.nodes.find((node) => node.type === 'extract')!;
+  expect(extract.type === 'extract' && qualityChoice(extract.quality_policy)).toBe('publish');
 });

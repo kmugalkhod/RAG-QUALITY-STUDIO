@@ -6,7 +6,11 @@ import {
   defaultSensitiveDataPolicy,
   describeCadence,
   describeIngestionNode,
+  defaultQualityChoice,
   extractReadsFiles,
+  followDefaultQualityChoice,
+  qualityChoice,
+  recommendedExtractSettings,
   upgradeIngestionDraft,
 } from '../../../src/features/ingestion-pipelines/editorModel';
 
@@ -225,5 +229,48 @@ describe('ingestion editor model', () => {
         cadence: { kind: 'daily', local_time: '09:30', timezone: 'Asia/Kolkata' },
       }),
     ).toBe('Daily at 09:30 Asia/Kolkata');
+  });
+});
+
+describe('publish choice defaults (spec 0007)', () => {
+  const embedding = {
+    provider: 'test',
+    model: 'embedding-v1',
+    dimensions: 3,
+    revision: '1',
+    endpoint_id: 'endpoint-1',
+  };
+
+  test('files stop by default and pages publish the others', () => {
+    expect(defaultQualityChoice(true)).toBe('stop');
+    expect(defaultQualityChoice(false)).toBe('publish');
+    expect(qualityChoice(recommendedExtractSettings(undefined, true).quality_policy)).toBe('stop');
+    expect(qualityChoice(recommendedExtractSettings(undefined, false).quality_policy)).toBe(
+      'publish',
+    );
+  });
+
+  test('a still-default choice follows a source kind change; a user choice stays', () => {
+    const draft = defaultIngestionDraft(embedding, ['document-1']);
+    const before = draft.execution.nodes;
+    const toWebsite = before.map((node) =>
+      node.type === 'source' ? ({ ...node, config: { kind: 'website' } } as typeof node) : node,
+    );
+    const followed = followDefaultQualityChoice(before, toWebsite);
+    const extract = followed.find((node) => node.type === 'extract')!;
+    expect(extract.type === 'extract' && qualityChoice(extract.quality_policy)).toBe('publish');
+
+    const chosen = before.map((node) =>
+      node.type === 'extract'
+        ? { ...node, quality_policy: recommendedExtractSettings(undefined, false).quality_policy }
+        : node,
+    );
+    const chosenWebsite = chosen.map((node) =>
+      node.type === 'source' ? ({ ...node, config: { kind: 'website' } } as typeof node) : node,
+    );
+    const back = followDefaultQualityChoice(chosenWebsite, chosen);
+    const kept = back.find((node) => node.type === 'extract')!;
+    // Back to files: "publish" was the website default, so it follows to "stop".
+    expect(kept.type === 'extract' && qualityChoice(kept.quality_policy)).toBe('stop');
   });
 });
