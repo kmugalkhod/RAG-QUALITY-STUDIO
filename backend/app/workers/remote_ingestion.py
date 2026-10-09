@@ -1891,6 +1891,8 @@ def finish_remote(session, job, index):
         if item.outcome == "failed":
             failed += 1
             continue
+        if item.status == "skipped":
+            continue
         item.status = "succeeded"
         item.updated_at = now()
     job.status = "succeeded"

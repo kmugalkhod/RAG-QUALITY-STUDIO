@@ -57,6 +57,10 @@ CLIENT_RENDERED_WARNING = {
 }
 
 
+# Discovered links that are never indexed (spec 0007, X7).
+SKIPPED_OUTCOMES = frozenset({"excluded", "duplicate", "sitemap"})
+
+
 def page_warnings(artifact: WebsiteArtifact) -> list[dict]:
     """Non-blocking findings for one fetched page; scripts are never executed.
 
@@ -365,7 +369,13 @@ def add_run_item(
         display_name=(display_name or location or "Undiscovered website item")[:500],
         media_type=media_type,
         outcome=outcome,
-        status="failed" if outcome == "failed" else "ready",
+        status=(
+            "failed"
+            if outcome == "failed"
+            else "skipped"
+            if outcome in SKIPPED_OUTCOMES
+            else "ready"
+        ),
         reason=reason[:500],
         chunk_count=(
             session.get(ProcessingRun, revision.processing_run_id).chunk_count

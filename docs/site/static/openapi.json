@@ -1192,7 +1192,8 @@
               "ready",
               "succeeded",
               "failed",
-              "cancelled"
+              "cancelled",
+              "skipped"
             ],
             "title": "Status",
             "type": "string"
@@ -4762,7 +4763,8 @@
               "ready",
               "succeeded",
               "failed",
-              "cancelled"
+              "cancelled",
+              "skipped"
             ],
             "title": "Status",
             "type": "string"
@@ -6632,7 +6634,8 @@
               "ready",
               "succeeded",
               "failed",
-              "cancelled"
+              "cancelled",
+              "skipped"
             ],
             "title": "Status",
             "type": "string"
@@ -9038,7 +9041,8 @@
               "ready",
               "succeeded",
               "failed",
-              "cancelled"
+              "cancelled",
+              "skipped"
             ],
             "title": "Status",
             "type": "string"

@@ -1478,7 +1478,7 @@ class WebsiteIngestionRunItemRead(Strict):
         "sitemap",
         "carried_forward",
     ]
-    status: Literal["ready", "succeeded", "failed", "cancelled"]
+    status: Literal["ready", "succeeded", "failed", "cancelled", "skipped"]
     reason: str
     chunk_count: int
     error: str | None
@@ -1509,7 +1509,7 @@ class S3IngestionRunItemRead(Strict):
         "failed",
         "sitemap",
     ]
-    status: Literal["ready", "succeeded", "failed", "cancelled"]
+    status: Literal["ready", "succeeded", "failed", "cancelled", "skipped"]
     reason: str
     chunk_count: int
     error: str | None

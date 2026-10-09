@@ -229,7 +229,7 @@ This page is generated from FastAPI/Pydantic; project authorization, provider co
 | `display_name` | string | yes | — |
 | `media_type` | string or null | yes | — |
 | `outcome` | string: new, changed, unchanged, removed, excluded, duplicate, failed, sitemap | yes | — |
-| `status` | string: ready, succeeded, failed, cancelled | yes | — |
+| `status` | string: ready, succeeded, failed, cancelled, skipped | yes | — |
 | `reason` | string | yes | — |
 | `chunk_count` | integer | yes | — |
 | `error` | string or null | yes | — |
@@ -929,7 +929,7 @@ Type: [`IngestionExecutionV1`](#ingestionexecutionv1) or [`IngestionExecutionV2`
 | `display_name` | string | yes | — |
 | `media_type` | string or null | yes | — |
 | `outcome` | string: new, changed, unchanged, removed, excluded, duplicate, failed, sitemap | yes | — |
-| `status` | string: ready, succeeded, failed, cancelled | yes | — |
+| `status` | string: ready, succeeded, failed, cancelled, skipped | yes | — |
 | `reason` | string | yes | — |
 | `chunk_count` | integer | yes | — |
 | `error` | string or null | yes | — |
@@ -1321,7 +1321,7 @@ Type: [`IngestionExecutionV1`](#ingestionexecutionv1) or [`IngestionExecutionV2`
 | `display_name` | string | yes | — |
 | `media_type` | string or null | yes | — |
 | `outcome` | string: new, changed, unchanged, removed, excluded, duplicate, failed, sitemap | yes | — |
-| `status` | string: ready, succeeded, failed, cancelled | yes | — |
+| `status` | string: ready, succeeded, failed, cancelled, skipped | yes | — |
 | `reason` | string | yes | — |
 | `chunk_count` | integer | yes | — |
 | `error` | string or null | yes | — |
@@ -1798,7 +1798,7 @@ Type: [`IngestionExecutionV1`](#ingestionexecutionv1) or [`IngestionExecutionV2`
 | `display_name` | string | yes | — |
 | `media_type` | string or null | yes | — |
 | `outcome` | string: new, changed, unchanged, removed, excluded, duplicate, failed, sitemap | yes | — |
-| `status` | string: ready, succeeded, failed, cancelled | yes | — |
+| `status` | string: ready, succeeded, failed, cancelled, skipped | yes | — |
 | `reason` | string | yes | — |
 | `chunk_count` | integer | yes | — |
 | `error` | string or null | yes | — |

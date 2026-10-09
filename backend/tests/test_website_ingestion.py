@@ -1630,3 +1630,54 @@ def test_unchanged_page_behind_a_new_redirect_refreshes_without_failing(
     )
     assert moved["outcome"] == "new"
     assert not [item for item in items if item["outcome"] == "failed"]
+
+
+class _ScopedSite(CrawlSite):
+    """The home page links twice to a path the source excludes."""
+
+    def request(self, url, address, timeout, headers, max_bytes):
+        if url == "https://example.com/":
+            self.calls.append(url)
+            body = (
+                "<main><p>Home of the site.</p><a href='/page-0'>Page 0</a>"
+                "<a href='/outside/a'>Out</a><a href='/outside/a'>Out again</a></main>"
+            )
+            return 200, {"content-type": "text/html"}, body.encode()
+        return super().request(url, address, timeout, headers, max_bytes)
+
+
+def test_out_of_scope_links_are_listed_once_as_skipped(website_api):
+    """Spec 0007 X7: no succeeded status and no duplicate row for a skipped link."""
+
+    client, engine, project_id, _, config, _ = website_api
+    payload = ingestion_draft()
+    source = next(
+        node for node in payload["execution"]["nodes"] if node["type"] == "source"
+    )
+    source["config"].update(
+        selection={"mode": "crawl", "start_url": "https://example.com/"},
+        exclude_path_prefixes=["/outside"],
+        max_pages=10,
+        max_depth=1,
+        requests_per_second=5,
+    )
+    for node in payload["execution"]["nodes"]:
+        if node["type"] == "embed":
+            node.update(
+                provider=config.provider,
+                model=config.model,
+                dimensions=config.dimensions,
+                config_version=config.revision,
+            )
+        elif node["type"] == "chunk":
+            node.update(size=100, overlap=10)
+    version = client.post(f"/api/projects/{project_id}/pipelines", json=payload).json()
+    run = start_run(client, project_id, version)
+    publish(engine, run["id"], lambda: crawl_connector(_ScopedSite(1)))
+    items = client.get(
+        f"/api/projects/{project_id}/ingestion-runs/{run['id']}/items"
+    ).json()["items"]
+    outside = [i for i in items if "/outside" in (i["canonical_location"] or "")]
+    assert [(i["outcome"], i["status"]) for i in outside] == [("excluded", "skipped")]
+    indexed = [i for i in items if i["outcome"] == "new"]
+    assert indexed and all(i["status"] == "succeeded" for i in indexed)

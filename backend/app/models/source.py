@@ -273,7 +273,7 @@ class WebsiteRunItem(Base):
             name="ck_website_run_item_outcome",
         ),
         CheckConstraint(
-            "status IN ('ready','succeeded','failed','cancelled')",
+            "status IN ('ready','succeeded','failed','cancelled','skipped')",
             name="ck_website_run_item_status",
         ),
         CheckConstraint("chunk_count >= 0", name="ck_website_run_item_chunks"),

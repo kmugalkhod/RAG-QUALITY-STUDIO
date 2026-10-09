@@ -545,7 +545,7 @@ export type WebsiteIngestionRunItem = {
     | 'failed'
     | 'sitemap'
     | 'carried_forward';
-  status: 'ready' | 'succeeded' | 'failed' | 'cancelled';
+  status: 'ready' | 'succeeded' | 'failed' | 'cancelled' | 'skipped';
   reason: string;
   chunk_count: number;
   error: string | null;

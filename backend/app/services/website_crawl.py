@@ -444,7 +444,8 @@ def outcomes_for(rows) -> list[tuple[PreviewOutcome, WebsiteCrawlFrontier]]:
                 row,
             )
         )
-        if row.seen_again and row.canonical_url:
+        # A repeat is worth reporting only for a page that was actually fetched.
+        if row.seen_again and row.canonical_url and row.status == "fetched":
             results.append(
                 (duplicate_outcome(row.canonical_url, row.duplicate_url), None)
             )
