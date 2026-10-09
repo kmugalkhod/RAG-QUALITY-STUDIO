@@ -105,6 +105,9 @@ export function IngestionRunStrip({
               {carried > 0 && <> · {carried} kept from earlier</>}
             </p>
           )}
+          {run.status === 'succeeded' && run.embedding_usage && (
+            <p className={cn(META, 'tabular-nums')}>{embeddingUsageText(run.embedding_usage)}</p>
+          )}
           {run.status === 'succeeded' &&
             (failedSources.length > 0 || partialSources.length > 0) && (
               <p role="status" className="min-w-0 text-xs text-warning">
@@ -178,4 +181,14 @@ export function IngestionRunStrip({
       )}
     </div>
   );
+}
+
+/** Provider-reported numbers only; a value the provider did not report shows as unknown. */
+export function embeddingUsageText(usage: NonNullable<IngestionRun['embedding_usage']>) {
+  const tokens = usage.tokens === null ? 'unknown' : usage.tokens.toLocaleString();
+  const cost =
+    usage.cost_usd === null
+      ? 'unknown'
+      : `$${usage.cost_usd.toLocaleString(undefined, { maximumFractionDigits: 6 })}`;
+  return `Embedding (provider-reported): ${tokens} tokens · cost ${cost}`;
 }

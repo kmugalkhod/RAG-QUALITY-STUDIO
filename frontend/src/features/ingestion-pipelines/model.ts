@@ -468,6 +468,11 @@ export type IngestionRun = {
   error: string | null;
   published_index_id: string | null;
   published_index_version: number | null;
+  /**
+   * Provider-reported embedding usage of the run's index; null until it has one.
+   * Reused vectors add nothing. A null field was not reported: unknown, not zero.
+   */
+  embedding_usage?: { tokens: number | null; cost_usd: number | null } | null;
   /** Multi-source runs only: how each source ended. */
   source_outcomes?: IngestionSourceOutcome[];
   /** For a succeeded run, `with_warnings` when a source or page failed. */

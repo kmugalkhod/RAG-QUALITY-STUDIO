@@ -429,6 +429,15 @@ This page is generated from FastAPI/Pydantic; project authorization, provider co
 | `endpoint_id` | string | yes | — |
 | `revision` | string | no | default=1 |
 
+## EmbeddingUsageRead
+
+Provider-reported embedding usage of the run's index. Vectors reused from earlier indexes add nothing; null means the provider did not report it.
+
+| Field | Type | Required | Bounds/default |
+| --- | --- | --- | --- |
+| `tokens` | integer or null | yes | — |
+| `cost_usd` | number or null | yes | — |
+
 ## Evidence
 
 | Field | Type | Required | Bounds/default |
@@ -774,6 +783,7 @@ Type: [`IngestionExecutionV1`](#ingestionexecutionv1) or [`IngestionExecutionV2`
 | `error` | string or null | yes | — |
 | `published_index_id` | string (uuid) or null | yes | — |
 | `published_index_version` | integer or null | yes | — |
+| `embedding_usage` | [`EmbeddingUsageRead`](#embeddingusageread) or null | no | — |
 | `created_at` | string (date-time) | yes | — |
 | `updated_at` | string (date-time) | yes | — |
 | `started_at` | string (date-time) or null | yes | — |

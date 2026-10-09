@@ -1,7 +1,7 @@
 """Provider contract. Live operation must never fall back to synthetic vectors."""
 
 import math
-from typing import Protocol
+from typing import NamedTuple, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -27,6 +27,39 @@ class EmbeddingError(Exception):
 
 class EmbeddingProvider(Protocol):
     def embed(self, texts: list[str]) -> list[list[float]]: ...
+
+
+class EmbeddingUsage(NamedTuple):
+    """Provider-reported usage for one request; None means it was not reported."""
+
+    tokens: int | None
+    cost_usd: float | None
+
+
+UNKNOWN_USAGE = EmbeddingUsage(None, None)
+
+
+def embed_with_usage(provider, texts: list[str]):
+    """Vectors plus usage; a provider without usage reporting gives unknown usage."""
+
+    method = getattr(provider, "embed_with_usage", None)
+    if method is None:
+        return provider.embed(texts), UNKNOWN_USAGE
+    return method(texts)
+
+
+def reported_usage(payload) -> EmbeddingUsage:
+    usage = payload.get("usage") if isinstance(payload, dict) else None
+    if not isinstance(usage, dict):
+        return UNKNOWN_USAGE
+    tokens = usage.get("total_tokens", usage.get("prompt_tokens"))
+    cost = usage.get("cost")
+    return EmbeddingUsage(
+        tokens if type(tokens) is int and tokens >= 0 else None,
+        cost
+        if type(cost) in (int, float) and math.isfinite(cost) and cost >= 0
+        else None,
+    )
 
 
 def validate_vectors(vectors, count: int, dimensions: int) -> list[list[float]]:

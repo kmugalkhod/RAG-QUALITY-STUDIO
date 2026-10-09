@@ -1,6 +1,7 @@
 """One bounded embedding batch per Celery delivery; PostgreSQL owns checkpoints."""
 
 from contextlib import ExitStack
+from decimal import Decimal
 from uuid import UUID, uuid4
 from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session, aliased
@@ -128,6 +129,7 @@ def _process_batch(index_id: UUID, db_engine, token, handing_off) -> int | None:
                             )[0]
                         )
             missing = [row for row in batch if (row.run_id, row.ordinal) not in vectors]
+            usage = None
             if missing:
                 with Session(db_engine) as session:
                     if not session.scalar(
@@ -138,10 +140,11 @@ def _process_batch(index_id: UUID, db_engine, token, handing_off) -> int | None:
                         )
                     ):
                         return
+                raw, usage = embeddings.embed_with_usage(
+                    provider, [r.text for r in missing]
+                )
                 values = embeddings.validate_vectors(
-                    provider.embed([r.text for r in missing]),
-                    len(missing),
-                    config.dimensions,
+                    raw, len(missing), config.dimensions
                 )
                 vectors.update(
                     {
@@ -179,6 +182,18 @@ def _process_batch(index_id: UUID, db_engine, token, handing_off) -> int | None:
                 for (run_id, ordinal), vector in vectors.items():
                     member = session.get(IndexChunk, (index_id, run_id, ordinal))
                     member.embedding = vector
+                if usage is not None:
+                    # Unknown stays unknown: one unreported request makes the total NULL.
+                    job.embedding_tokens = (
+                        None
+                        if job.embedding_tokens is None or usage.tokens is None
+                        else job.embedding_tokens + usage.tokens
+                    )
+                    job.embedding_cost_usd = (
+                        None
+                        if job.embedding_cost_usd is None or usage.cost_usd is None
+                        else job.embedding_cost_usd + Decimal(str(usage.cost_usd))
+                    )
                 session.flush()
                 completed = session.scalar(
                     select(func.count())

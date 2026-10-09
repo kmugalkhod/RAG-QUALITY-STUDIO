@@ -5,7 +5,12 @@ import httpx
 from app.core.config import settings
 from app.providers import credentials
 from app.providers.rate_limit import reserve_request
-from app.providers.embeddings import EmbeddingConfig, EmbeddingError, validate_vectors
+from app.providers.embeddings import (
+    EmbeddingConfig,
+    EmbeddingError,
+    reported_usage,
+    validate_vectors,
+)
 
 
 class OpenRouterEmbeddings:
@@ -14,6 +19,9 @@ class OpenRouterEmbeddings:
         self.transport = transport
 
     def embed(self, texts: list[str]) -> list[list[float]]:
+        return self.embed_with_usage(texts)[0]
+
+    def embed_with_usage(self, texts: list[str]):
         # Conservative UTF-8 byte limit bounds tokens without truncating source text.
         if (
             not texts
@@ -101,7 +109,10 @@ class OpenRouterEmbeddings:
                 item["embedding"]
                 for item in sorted(data, key=lambda item: item["index"])
             ]
-            return validate_vectors(vectors, len(texts), self.config.dimensions)
+            return (
+                validate_vectors(vectors, len(texts), self.config.dimensions),
+                reported_usage(payload),
+            )
         except httpx.HTTPError:
             raise EmbeddingError(
                 "OpenRouter connection unavailable or timed out.", transient=True

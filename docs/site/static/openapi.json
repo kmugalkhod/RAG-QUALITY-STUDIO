@@ -2055,6 +2055,40 @@
         "title": "EmbeddingConfig",
         "type": "object"
       },
+      "EmbeddingUsageRead": {
+        "additionalProperties": false,
+        "description": "Provider-reported embedding usage of the run's index. Vectors reused from\nearlier indexes add nothing; None means the provider did not report it.",
+        "properties": {
+          "cost_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Usd"
+          },
+          "tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tokens"
+          }
+        },
+        "required": [
+          "tokens",
+          "cost_usd"
+        ],
+        "title": "EmbeddingUsageRead",
+        "type": "object"
+      },
       "Evidence": {
         "properties": {
           "chunk_role": {
@@ -3980,6 +4014,16 @@
             "format": "date-time",
             "title": "Updated At",
             "type": "string"
+          },
+          "embedding_usage": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EmbeddingUsageRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [

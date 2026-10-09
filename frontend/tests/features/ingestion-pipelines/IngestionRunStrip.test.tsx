@@ -1,7 +1,10 @@
 import { render, screen } from '@testing-library/react';
 import { expect, test, vi } from 'vitest';
 
-import { IngestionRunStrip } from '../../../src/features/ingestion-pipelines/components/IngestionRunStrip';
+import {
+  embeddingUsageText,
+  IngestionRunStrip,
+} from '../../../src/features/ingestion-pipelines/components/IngestionRunStrip';
 import type { IngestionRun } from '../../../src/features/ingestion-pipelines/model';
 
 test('shows live Website crawl progress while discovering', () => {
@@ -90,4 +93,49 @@ test('marks a multi-source run that published with a failed site', () => {
     '1 of 2 sources failed; their earlier pages were kept. Open Run details for the reasons.',
   );
   expect(screen.getByText('Index version 2 is ready to use')).toBeVisible();
+});
+
+test('labels embedding usage as provider-reported and unknown values as unknown', () => {
+  expect(embeddingUsageText({ tokens: 12345, cost_usd: 0.000247 })).toBe(
+    'Embedding (provider-reported): 12,345 tokens · cost $0.000247',
+  );
+  expect(embeddingUsageText({ tokens: 0, cost_usd: 0 })).toBe(
+    'Embedding (provider-reported): 0 tokens · cost $0',
+  );
+  expect(embeddingUsageText({ tokens: 40, cost_usd: null })).toBe(
+    'Embedding (provider-reported): 40 tokens · cost unknown',
+  );
+});
+
+test('shows embedding usage for a published run', () => {
+  render(
+    <IngestionRunStrip
+      projectId="project-1"
+      run={
+        {
+          status: 'succeeded',
+          stage: 'complete',
+          progress: 100,
+          knowledge_set_name: 'Docs',
+          new_count: 1,
+          changed_count: 0,
+          unchanged_count: 0,
+          removed_count: 0,
+          failed_count: 0,
+          published_index_id: 'index-1',
+          published_index_version: 1,
+          embedding_usage: { tokens: 900, cost_usd: null },
+        } as unknown as IngestionRun
+      }
+      displayStatus="succeeded"
+      busy={false}
+      detailsOpen={false}
+      onCancel={vi.fn()}
+      onToggleDetails={vi.fn()}
+      onDismiss={vi.fn()}
+    />,
+  );
+  expect(
+    screen.getByText('Embedding (provider-reported): 900 tokens · cost unknown'),
+  ).toBeVisible();
 });

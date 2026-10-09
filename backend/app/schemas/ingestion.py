@@ -1315,6 +1315,14 @@ class IngestionSourceOutcomeRead(Strict):
     carried_forward_count: int
 
 
+class EmbeddingUsageRead(Strict):
+    """Provider-reported embedding usage of the run's index. Vectors reused from
+    earlier indexes add nothing; None means the provider did not report it."""
+
+    tokens: int | None
+    cost_usd: float | None
+
+
 class IngestionRunRead(Strict):
     id: UUID
     project_id: UUID
@@ -1344,6 +1352,8 @@ class IngestionRunRead(Strict):
     error: str | None
     published_index_id: UUID | None
     published_index_version: int | None
+    # None until the run has an index.
+    embedding_usage: EmbeddingUsageRead | None = None
     # Multi-source runs only; empty for a single source.
     source_outcomes: list[IngestionSourceOutcomeRead] = Field(default_factory=list)
     # For a succeeded run: `with_warnings` when a source or page failed.

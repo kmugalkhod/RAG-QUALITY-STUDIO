@@ -2,14 +2,17 @@
 
 import uuid
 from datetime import datetime
+from decimal import Decimal
 
 from pgvector.sqlalchemy import VECTOR
 from sqlalchemy import (
+    BigInteger,
     CheckConstraint,
     DateTime,
     ForeignKey,
     ForeignKeyConstraint,
     Index,
+    Numeric,
     String,
     Text,
     UniqueConstraint,
@@ -115,6 +118,12 @@ class IndexVersion(Base):
     status: Mapped[str] = mapped_column(String(16), default="queued")
     chunk_count: Mapped[int]
     embedded_count: Mapped[int] = mapped_column(default=0)
+    # Provider-reported embedding usage for this index (spec 0007, X8). Reused
+    # vectors add nothing; NULL means a request did not report it (unknown).
+    embedding_tokens: Mapped[int | None] = mapped_column(BigInteger, default=0)
+    embedding_cost_usd: Mapped[Decimal | None] = mapped_column(
+        Numeric(14, 8), default=0
+    )
     attempts: Mapped[int] = mapped_column(default=0)
     failures: Mapped[int] = mapped_column(default=0)
     execution_token: Mapped[uuid.UUID | None]

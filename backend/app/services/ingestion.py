@@ -636,12 +636,18 @@ def get_run(session: Session, project_id: UUID, run_id: UUID):
 
 def _run_rows(session: Session, statement):
     rows = session.execute(
-        statement.add_columns(KnowledgeSet.name, IndexVersion.id, IndexVersion.version)
+        statement.add_columns(
+            KnowledgeSet.name,
+            IndexVersion.id,
+            IndexVersion.version,
+            IndexVersion.embedding_tokens,
+            IndexVersion.embedding_cost_usd,
+        )
         .join(KnowledgeSet, KnowledgeSet.id == IngestionRun.knowledge_set_id)
         .outerjoin(IndexVersion, IndexVersion.ingestion_run_id == IngestionRun.id)
     ).all()
     results = []
-    for run, set_name, index_id, index_version in rows:
+    for run, set_name, index_id, index_version, tokens, cost in rows:
         node_states = session.scalars(
             select(IngestionRunNode)
             .where(IngestionRunNode.run_id == run.id)
@@ -672,6 +678,12 @@ def _run_rows(session: Session, statement):
                 "fetch_policies": run.snapshot.get("fetch_policies") or {},
                 "published_index_id": index_id,
                 "published_index_version": index_version,
+                "embedding_usage": None
+                if index_id is None
+                else {
+                    "tokens": tokens,
+                    "cost_usd": None if cost is None else float(cost),
+                },
                 "node_states": [
                     {
                         "node_id": state.node_id,
