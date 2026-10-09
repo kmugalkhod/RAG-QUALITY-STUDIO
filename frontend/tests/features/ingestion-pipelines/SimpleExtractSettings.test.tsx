@@ -44,7 +44,7 @@ function recommendedNode(): ExtractNode {
     id: 'extract',
     type: 'extract',
     ...recommendedExtractSettings(capabilities),
-    config_version: 'layout-ocr-v2',
+    config_version: 'layout-ocr-v3',
   };
 }
 

@@ -62,7 +62,7 @@ test('edits algorithm-specific chunk settings without mixing incompatible fields
 
 function PolicyHarness({
   kind,
-  extractVersion = 'layout-ocr-v2',
+  extractVersion = 'layout-ocr-v3',
 }: {
   kind: 'extract' | 'clean';
   extractVersion?: string;
@@ -186,7 +186,7 @@ test('explains that legacy native-text findings are warnings only', () => {
 
 function SourcesHarness({
   kinds,
-  version = 'layout-ocr-v2',
+  version = 'layout-ocr-v3',
 }: {
   kinds: string[];
   version?: string;
@@ -251,9 +251,9 @@ test('shows file extraction settings with their scope for file sources', () => {
   }
 });
 
-test('offers no extractor upgrade when no source reads files', () => {
-  const { unmount } = render(<SourcesHarness kinds={['website']} version="layout-ocr-v1" />);
-  expect(screen.queryByRole('button', { name: 'Upgrade extraction' })).not.toBeInTheDocument();
+test('offers the extractor upgrade for every source kind', () => {
+  const { unmount } = render(<SourcesHarness kinds={['website']} version="layout-ocr-v2" />);
+  expect(screen.getByRole('button', { name: 'Upgrade extraction' })).toBeInTheDocument();
   unmount();
   render(<SourcesHarness kinds={['s3']} version="layout-ocr-v1" />);
   expect(screen.getByRole('button', { name: 'Upgrade extraction' })).toBeInTheDocument();

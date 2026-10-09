@@ -63,6 +63,16 @@ MAX_OCR_OUTPUT_BYTES = 5_000_000
 MAX_LAYOUT_BLOCKS_PER_PAGE = 10_000
 MAX_TABLE_CELLS = 100
 MAX_TABLE_CELL_CHARACTERS = 160
+# layout-ocr-v3 (spec 0007) also rebuilds merged-column tables from word rows.
+LAYOUT_OCR_V3_EXTRACTOR_VERSION = (
+    f"pypdf-{pypdf_version}/pymupdf-{pymupdf.VersionBind}/tesseract-cli-v2/"
+    f"layout-v3/{FORMAT_V2_EXTRACTOR_VERSION}"
+)
+# Versions that share the v2 layout, heading, table and OCR behaviour.
+LAYOUT_V2_FAMILY = frozenset({"layout-ocr-v2", "layout-ocr-v3"})
+# A detected table whose cells each hold this many lines is a merged-column table.
+MERGED_COLUMN_MIN_LINES = 5
+_DOT_LEADER = re.compile(r"(?:\s*\.){3,}")
 # layout-ocr-v2 keeps whole tables as row groups within these safety limits.
 MAX_TABLE_V2_ROWS = 2_000
 MAX_TABLE_V2_COLUMNS = 50
@@ -327,6 +337,7 @@ def extractor_version_for_settings(settings: ExtractSettings) -> str:
     return {
         "native-text-v1": NativeTextExtractor.version,
         "layout-ocr-v2": LAYOUT_OCR_V2_EXTRACTOR_VERSION,
+        "layout-ocr-v3": LAYOUT_OCR_V3_EXTRACTOR_VERSION,
     }.get(settings.config_version, LAYOUT_OCR_EXTRACTOR_VERSION)
 
 
@@ -640,15 +651,21 @@ def _safe_table(rows: list[list[Any]], mode: str) -> tuple[str, dict[str, Any], 
 
 
 def _table_row_groups(
-    rows: list[list[Any]], mode: str, *, table_id: str
+    rows: list[list[Any]],
+    mode: str,
+    *,
+    table_id: str,
+    cell_limit: int | None = MAX_TABLE_V2_CELL_CHARACTERS,
 ) -> tuple[list[tuple[str, dict[str, Any], int, int]], bool]:
+    """v2 cuts cells at 1,000 characters; v3 keeps them whole (spec 0007, X2)."""
+
     return table_row_groups(
         rows,
         mode,
         table_id=table_id,
         max_rows=MAX_TABLE_V2_ROWS,
         max_columns=MAX_TABLE_V2_COLUMNS,
-        max_cell_characters=MAX_TABLE_V2_CELL_CHARACTERS,
+        max_cell_characters=cell_limit,
         base_attributes={"origin": "layout", "engine": "pymupdf"},
     )
 
@@ -721,12 +738,45 @@ def _group_box(
     )
 
 
+def _is_merged_column_table(rows: list[list[Any]]) -> bool:
+    """True when PyMuPDF put whole columns of a borderless table into single cells."""
+
+    line_counts = [str(cell).count("\n") + 1 for row in rows for cell in row if cell]
+    full = [count for count in line_counts if count >= MERGED_COLUMN_MIN_LINES]
+    return len(full) >= 2 and len(rows) < max(full)
+
+
+def _word_rows(page: pymupdf.Page, box: tuple[float, float, float, float]) -> list[str]:
+    """Printed lines inside a table area, rebuilt from word positions."""
+
+    words = page.get_text("words", clip=pymupdf.Rect(*box))
+    if not words:
+        return []
+    heights = sorted(float(word[3]) - float(word[1]) for word in words)
+    tolerance = max(1.0, heights[len(heights) // 2] * 0.5)
+    lines: list[list[tuple[float, float, str]]] = []
+    for word in sorted(words, key=lambda w: ((w[1] + w[3]) / 2, w[0])):
+        centre = (float(word[1]) + float(word[3])) / 2
+        if lines and abs(lines[-1][-1][0] - centre) <= tolerance:
+            lines[-1].append((centre, float(word[0]), str(word[4])))
+        else:
+            lines.append([(centre, float(word[0]), str(word[4]))])
+    result = []
+    for line in lines:
+        text = " ".join(word for _, _, word in sorted(line, key=lambda w: w[1]))
+        text = " ".join(_DOT_LEADER.sub(" ", text).split())
+        if text:
+            result.append(text)
+    return result
+
+
 def _layout_page(
     page: pymupdf.Page,
     *,
     page_number: int,
     table_mode: str,
     layout_v2: bool = False,
+    rebuild_merged_tables: bool = False,
 ) -> tuple[list[CanonicalInputSegment], int, int, bool]:
     width, height = float(page.rect.width), float(page.rect.height)
     dictionary = page.get_text("dict", sort=False)
@@ -807,9 +857,30 @@ def _layout_page(
     if layout_v2:
         placed_tables = []
         for table_index, (rows, box, row_boxes) in enumerate(ordered_tables):
-            groups, limited = _table_row_groups(
-                rows, table_mode, table_id=f"p{page_number}-t{table_index + 1}"
-            )
+            table_id = f"p{page_number}-t{table_index + 1}"
+            if rebuild_merged_tables and _is_merged_column_table(rows):
+                lines = _word_rows(page, box)
+                groups, limited = table_row_groups(
+                    [[line] for line in lines],
+                    "plain_text",
+                    table_id=table_id,
+                    max_rows=MAX_TABLE_V2_ROWS,
+                    max_columns=1,
+                    max_cell_characters=None,
+                    base_attributes={"origin": "layout", "engine": "pymupdf"},
+                    table_fields={"reconstruction": "word-rows"},
+                )
+                # The rebuilt rows have no row bands; each group spans the table.
+                row_boxes = []
+            else:
+                groups, limited = _table_row_groups(
+                    rows,
+                    table_mode,
+                    table_id=table_id,
+                    cell_limit=None
+                    if rebuild_merged_tables
+                    else MAX_TABLE_V2_CELL_CHARACTERS,
+                )
             malformed += int(limited)
             placed_tables.append(
                 [
@@ -1251,7 +1322,7 @@ def extract_document(
             detected,
             title,
             table_mode=settings.tables
-            if settings.config_version == "layout-ocr-v2"
+            if settings.config_version in LAYOUT_V2_FAMILY
             else None,
         )
         document = evaluate_quality(document, settings.quality_policy)
@@ -1321,7 +1392,8 @@ def extract_document(
     malformed_tables = 0
     suspicious_order = 0
     ocr_pages = 0
-    layout_v2 = settings.config_version == "layout-ocr-v2"
+    layout_v2 = settings.config_version in LAYOUT_V2_FAMILY
+    rebuild_merged_tables = settings.config_version == "layout-ocr-v3"
     try:
         for index, native_text in enumerate(native_pages):
             if cancelled and cancelled():
@@ -1377,6 +1449,7 @@ def extract_document(
                         page_number=page_number,
                         table_mode=settings.tables,
                         layout_v2=layout_v2,
+                        rebuild_merged_tables=rebuild_merged_tables,
                     )
                 )
                 layout_characters = sum(len(item.text) for item in layout_segments)

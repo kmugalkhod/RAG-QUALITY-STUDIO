@@ -2612,7 +2612,8 @@
             "enum": [
               "native-text-v1",
               "layout-ocr-v1",
-              "layout-ocr-v2"
+              "layout-ocr-v2",
+              "layout-ocr-v3"
             ],
             "title": "Config Version",
             "type": "string"

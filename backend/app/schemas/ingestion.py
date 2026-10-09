@@ -630,9 +630,11 @@ class ExtractNodeV2(NodeBase):
     language_policy: LanguagePolicyV1 = Field(default_factory=LanguagePolicyV1)
     # layout-ocr-v1 is frozen so saved versions reproduce; layout-ocr-v2 carries the
     # extraction fixes from docs/extract-node-improvement-plan.md.
-    config_version: Literal["native-text-v1", "layout-ocr-v1", "layout-ocr-v2"] = (
-        "native-text-v1"
-    )
+    # layout-ocr-v3 (spec 0007) adds merged-column table rebuilding and v3 website
+    # reading; v1 and v2 stay frozen.
+    config_version: Literal[
+        "native-text-v1", "layout-ocr-v1", "layout-ocr-v2", "layout-ocr-v3"
+    ] = "native-text-v1"
 
     @model_validator(mode="after")
     def versioned_settings(self):

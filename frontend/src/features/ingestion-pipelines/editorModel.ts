@@ -51,10 +51,10 @@ export const defaultSensitiveDataPolicy: SensitiveDataPolicy = {
 };
 
 /** New drafts use the current extractor; saved layout-ocr-v1 versions stay frozen. */
-export const currentExtractVersion = 'layout-ocr-v2';
+export const currentExtractVersion = 'layout-ocr-v3';
 
 export const isLayoutExtractVersion = (version: string | undefined) =>
-  version === 'layout-ocr-v1' || version === currentExtractVersion;
+  version === 'layout-ocr-v1' || version === 'layout-ocr-v2' || version === currentExtractVersion;
 
 /**
  * Extraction strategy, OCR and table settings read uploaded and S3 files only.
@@ -906,7 +906,8 @@ export function describeIngestionNode(
     }
     if (!readsFiles) {
       // Page-based sources use only the quality and language policies.
-      return 'Quality and language policies';
+      const pages = 'Quality and language policies';
+      return node.config_version === currentExtractVersion ? pages : `${pages} · upgrade available`;
     }
     const strategy =
       node.strategy === 'layout_aware'

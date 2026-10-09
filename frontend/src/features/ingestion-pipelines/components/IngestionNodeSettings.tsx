@@ -849,13 +849,14 @@ export function IngestionNodeSettings({
               </>
             ) : (
               <>
-                {readsFiles && selected.config_version !== currentExtractVersion && (
+                {selected.config_version !== currentExtractVersion && (
                   <Callout role="note" title={`Saved with ${selected.config_version}`}>
                     <p>
                       This version keeps its original extractor so earlier runs reproduce. The
-                      current extractor, {currentExtractVersion}, keeps the reading order of
-                      multi-column pages. Saving the upgrade creates a new pipeline version, and its
-                      next run processes documents again.
+                      current extractor, {currentExtractVersion}, keeps tables and their rows
+                      together on websites and in files, keeps the reading order of multi-column
+                      pages and leaves out reference lists. Saving the upgrade creates a new
+                      pipeline version, and its next run processes documents again.
                     </p>
                     <div>
                       <Button

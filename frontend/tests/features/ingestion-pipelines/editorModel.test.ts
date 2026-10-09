@@ -50,7 +50,7 @@ describe('ingestion editor model', () => {
       ocr: { mode: 'off', languages: ['eng'] },
       quality_policy: defaultQualityPolicy,
       language_policy: defaultLanguagePolicy,
-      config_version: 'layout-ocr-v2',
+      config_version: 'layout-ocr-v3',
     });
     expect(draft.execution.edges).toEqual([
       { source: 'source', target: 'extract' },

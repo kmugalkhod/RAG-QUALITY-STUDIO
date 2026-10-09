@@ -145,7 +145,7 @@ def test_v2_auto_keeps_native_text_when_layout_loses_it(tmp_path, monkeypatch):
         )
         document.save(path)
 
-    def losing_layout(page, *, page_number, table_mode, layout_v2=False):
+    def losing_layout(page, *, page_number, table_mode, **_):
         segment = CanonicalInputSegment(
             text="Native", page_number=page_number, block_type="paragraph"
         )
