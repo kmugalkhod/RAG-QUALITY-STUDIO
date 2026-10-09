@@ -31,6 +31,7 @@ from app.pipelines.parsing import MAX_CHUNKS, ProcessingError
 from app.pipelines.web_content import (
     CLEANER_VERSION,
     EXTRACTOR_VERSION,
+    EXTRACTOR_VERSION_V3,
     chunk_sections,
     extract_canonical_sections,
     extract_raw_sections,
@@ -77,12 +78,22 @@ def _display_name(url: str) -> str:
     return tail[:255]
 
 
+def uses_v3_reading(extract) -> bool:
+    """layout-ocr-v3 reads website tables as rows and leaves out references."""
+
+    return getattr(extract, "config_version", None) == "layout-ocr-v3"
+
+
+def web_extractor_version(extract) -> str:
+    return EXTRACTOR_VERSION_V3 if uses_v3_reading(extract) else EXTRACTOR_VERSION
+
+
 def canonical_extracted_document(
-    artifact: WebsiteArtifact, clean
+    artifact: WebsiteArtifact, clean, extract=None
 ) -> ExtractedDocumentV1:
     structured = getattr(clean, "profile", None) == "structure-aware-v1"
     sections = (
-        extract_canonical_sections(artifact.content)
+        extract_canonical_sections(artifact.content, v3=uses_v3_reading(extract))
         if structured
         else extract_raw_sections(
             artifact.content,
@@ -120,7 +131,9 @@ def _canonical_chunks(
     if phase_callback is not None:
         phase_callback("extract")
     extraction_started = time.perf_counter()
-    extracted = extracted or canonical_extracted_document(artifact, clean)
+    extracted = extracted or canonical_extracted_document(
+        artifact, clean, extract_config
+    )
     if extract_config is not None:
         extracted = measured_document(
             extracted,
@@ -141,7 +154,7 @@ def _canonical_chunks(
         extracted,
         clean,
         cleaner,
-        extractor_version=EXTRACTOR_VERSION,
+        extractor_version=web_extractor_version(extract_config),
         configuration_hash=processing_config_hash,
         repeated_site_fingerprints=repeated_site_fingerprints,
     )
@@ -192,7 +205,7 @@ def _canonical_chunks(
         extracted=extracted,
         cleaned=cleaned,
         spans=result.spans,
-        extractor_version=EXTRACTOR_VERSION,
+        extractor_version=web_extractor_version(extract_config),
     )
 
 
@@ -216,7 +229,7 @@ def website_processing_identity(chunk, clean, extract=None):
         )
     processing_config, processing_config_hash = processing_identity(
         schema_version=2,
-        extractor_version=EXTRACTOR_VERSION,
+        extractor_version=web_extractor_version(extract),
         cleaner_version=cleaner.version,
         chunker_version=chunker_version_for_node(chunk),
         extract={
@@ -233,7 +246,7 @@ def website_processing_identity(chunk, clean, extract=None):
     return (
         processing_config,
         processing_config_hash,
-        f"{EXTRACTOR_VERSION}/{cleaner.version}",
+        f"{web_extractor_version(extract)}/{cleaner.version}",
     )
 
 

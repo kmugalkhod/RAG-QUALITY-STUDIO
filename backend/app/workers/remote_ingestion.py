@@ -560,7 +560,7 @@ def _process_crawled(run_id, token, db_engine, execution, prior_revisions):
                     if next(extracted) % 25 == 0 and not heartbeat():
                         raise _Fenced
                     yield website_ingestion.canonical_extracted_document(
-                        website_crawl.page_artifact(row, prior_body), clean
+                        website_crawl.page_artifact(row, prior_body), clean, extract
                     )
 
             with Session(worker_engine) as session:
@@ -1312,7 +1312,7 @@ def _advance_website(run_id, token, db_engine, connector_factory):
             for artifact in artifacts:
                 if artifact.canonical_location in included:
                     document = website_ingestion.canonical_extracted_document(
-                        artifact, clean
+                        artifact, clean, extract
                     )
                     extracted_by_location[
                         (source_node_id, artifact.canonical_location)
@@ -1852,7 +1852,7 @@ def _carry_forward(session, job, carried, kept_items, chunk, clean, extract, sta
             fingerprints = website_text_fingerprints(
                 (
                     website_ingestion.canonical_extracted_document(
-                        _stored_page(session, location, revision), clean
+                        _stored_page(session, location, revision), clean, extract
                     )
                     for location, revision, _ in pages
                 ),

@@ -917,7 +917,9 @@ def test_unfetched_page_fails_the_source_stage_without_a_removal(website_api):
     assert outcomes == ["failed"]
 
 
-def _save_v2_website(client, project_id, config, failed_item_action):
+def _save_v2_website(
+    client, project_id, config, failed_item_action, extract_version="native-text-v1"
+):
     """A schema-v2 Website pipeline whose quality policy sets the publish rule."""
 
     from app.ingestion_content.cleaning import default_structure_steps
@@ -934,8 +936,10 @@ def _save_v2_website(client, project_id, config, failed_item_action):
             )
         elif node["type"] == "extract":
             node.update(
-                strategy="native_text",
-                config_version="native-text-v1",
+                strategy="native_text"
+                if extract_version == "native-text-v1"
+                else "auto",
+                config_version=extract_version,
                 quality_policy={
                     "id": "default-v1",
                     "warning_action": "publish",
@@ -1051,6 +1055,27 @@ def test_stop_policy_fails_a_website_with_a_failed_page(website_api):
     result = client.get(f"/api/projects/{project_id}/ingestion-runs/{run['id']}").json()
     assert result["status"] == "failed"
     assert "required website pages failed" in result["error"]
+
+
+def test_v3_website_run_indexes_tables_as_rows(website_api):
+    """Spec 0007 X4: a v3 Website pipeline keeps a table's rows together."""
+
+    client, engine, project_id, _, config, _ = website_api
+    version = _save_v2_website(client, project_id, config, "fail", "layout-ocr-v3")
+    rates = page(
+        "https://example.com/",
+        b"<main><h1>Rates</h1><p>Hourly minimum wage rates for every age band.</p>"
+        b"<table><tr><th>Year</th><th>21 and over</th></tr>"
+        b"<tr><td>April 2026</td><td>12.71</td></tr></table></main>",
+    )
+    run = start_run(client, project_id, version)
+    index_id = publish(engine, run["id"], lambda: WebsiteDouble([rates], []))
+    records = client.get(
+        f"/api/projects/{project_id}/indexes/{index_id}/records"
+    ).json()["items"]
+    joined = "\n".join(record["text"] for record in records)
+    assert "| Year | 21 and over |" in joined
+    assert "| April 2026 | 12.71 |" in joined
 
 
 def test_run_items_record_attempts_warnings_and_nested_sitemaps(website_api):

@@ -13,6 +13,8 @@ from app.pipelines.parsing import MAX_CHUNKS, ProcessingError
 
 
 EXTRACTOR_VERSION = "html-main-v2"
+# layout-ocr-v3 (spec 0007): HTML tables as rows, reference lists left out.
+EXTRACTOR_VERSION_V3 = "html-main-v3"
 CLEANER_VERSION = "whitespace-boilerplate-v1"
 _SPACE = re.compile(r"\s+")
 _IGNORED = {
@@ -310,10 +312,206 @@ class _StructuredContent(HTMLParser):
             self.buffer.append(data)
 
 
-def extract_canonical_sections(content: bytes) -> list[Section]:
+_VOID = {
+    "area",
+    "base",
+    "br",
+    "col",
+    "embed",
+    "hr",
+    "img",
+    "input",
+    "link",
+    "meta",
+    "source",
+    "track",
+    "wbr",
+}
+# Reference and note lists: citation text, not page content (spec 0007, X6).
+_REFERENCE_CLASSES = {
+    ".reflist",
+    ".references",
+    ".mw-references-wrap",
+    ".navbox",
+    ".reference",
+}
+_REFERENCE_HEADINGS = {
+    "references",
+    "notes",
+    "explanatory notes",
+    "footnotes",
+    "citations",
+    "sources",
+    "bibliography",
+    "further reading",
+    "external links",
+}
+WEB_TABLE_MAX_ROWS = 2_000
+WEB_TABLE_MAX_COLUMNS = 50
+
+
+class _StructuredContentV3(_StructuredContent):
+    """v3 reading: whole HTML tables and no reference lists.
+
+    A table becomes header-repeating table blocks; a nested table's text stays in
+    its parent cell. Reference lists, inline citation markers and sections under
+    a references-style heading are left out.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.skip_stack: list[str] = []
+        self.skip_heading_level: int | None = None
+        self.tables: list[dict] = []
+        self.table_count = 0
+
+    def _skipping(self) -> bool:
+        return bool(self.skip_stack) or self.skip_heading_level is not None
+
+    def handle_starttag(self, tag, attrs):
+        tag = tag.lower()
+        if self.ignored or tag in {"script", "style", "noscript", "template", "svg"}:
+            return super().handle_starttag(tag, attrs)
+        heading = len(tag) == 2 and tag[0] == "h" and tag[1].isdigit()
+        if heading and self.skip_heading_level is not None:
+            if int(tag[1]) <= self.skip_heading_level:
+                self.skip_heading_level = None
+        if self.skip_stack:
+            if tag not in _VOID:
+                self.skip_stack.append(tag)
+            return
+        tokens, _ = self._tokens(tag, attrs)
+        if _REFERENCE_CLASSES.intersection(tokens) and tag not in _VOID:
+            self.flush()
+            self.skip_stack.append(tag)
+            return
+        if self.skip_heading_level is not None:
+            return
+        if tag == "table":
+            if not self.tables:
+                self.flush()
+                selectors, role, main = self._context(tag, attrs)
+                self.tables.append(
+                    {
+                        "rows": [],
+                        "row": None,
+                        "cell": None,
+                        "attributes": {
+                            "html_tag": "table",
+                            "html_role": role,
+                            "html_main": main,
+                            "html_selectors": list(selectors),
+                        },
+                    }
+                )
+            else:
+                self.tables.append({"nested": True})
+            self.stack.append((tag, (), None, False))
+            return
+        if self.tables and not self.tables[-1].get("nested"):
+            table = self.tables[-1]
+            if tag == "tr":
+                table["row"] = []
+                table["rows"].append(table["row"])
+                return
+            if tag in {"td", "th"}:
+                if table["row"] is None:
+                    table["row"] = []
+                    table["rows"].append(table["row"])
+                table["cell"] = []
+                table["row"].append(table["cell"])
+                return
+            if tag == "br" and table["cell"] is not None:
+                table["cell"].append(" ")
+            return
+        if self.tables:
+            return
+        super().handle_starttag(tag, attrs)
+
+    def handle_endtag(self, tag):
+        tag = tag.lower()
+        if self.ignored or tag in {"script", "style", "noscript", "template", "svg"}:
+            return super().handle_endtag(tag)
+        if self.skip_stack:
+            if tag == self.skip_stack[-1]:
+                self.skip_stack.pop()
+            return
+        if self.skip_heading_level is not None:
+            return
+        if tag == "table" and self.tables:
+            finished = self.tables.pop()
+            for index in range(len(self.stack) - 1, -1, -1):
+                if self.stack[index][0] == "table":
+                    del self.stack[index:]
+                    break
+            if not finished.get("nested"):
+                self._emit_table(finished)
+            return
+        if self.tables:
+            table = self.tables[-1]
+            if not table.get("nested") and tag in {"td", "th"}:
+                table["cell"] = None
+            return
+        if (
+            self.heading_level is not None
+            and tag == f"h{self.heading_level}"
+            and _SPACE.sub(" ", " ".join(self.heading_parts)).strip().casefold()
+            in _REFERENCE_HEADINGS
+        ):
+            # A references-style section is left out up to the next heading of the
+            # same or a higher level.
+            self.skip_heading_level = self.heading_level
+            self.heading_level = None
+            self.heading_parts = []
+            self.buffer.clear()
+            return
+        super().handle_endtag(tag)
+
+    def handle_data(self, data):
+        if self.ignored or self._skipping():
+            return
+        if self.tables:
+            table = next(t for t in reversed(self.tables) if not t.get("nested"))
+            if table["cell"] is not None:
+                table["cell"].append(data)
+            return
+        super().handle_data(data)
+
+    def _emit_table(self, table: dict) -> None:
+        from app.ingestion_content.tables import table_row_groups
+
+        rows = [
+            [_SPACE.sub(" ", "".join(cell)).strip() for cell in row]
+            for row in table["rows"]
+        ]
+        rows = [row for row in rows if any(row)]
+        if not rows:
+            return
+        self.table_count += 1
+        groups, _ = table_row_groups(
+            rows,
+            "markdown",
+            table_id=f"t{self.table_count}",
+            max_rows=WEB_TABLE_MAX_ROWS,
+            max_columns=WEB_TABLE_MAX_COLUMNS,
+            max_cell_characters=None,
+            base_attributes=table["attributes"],
+        )
+        for evidence, attributes, _, _ in groups:
+            self.sections.append(
+                Section(
+                    path=tuple(self.headings),
+                    text=evidence,
+                    block_type="table",
+                    attributes=attributes,
+                )
+            )
+
+
+def extract_canonical_sections(content: bytes, *, v3: bool = False) -> list[Section]:
     """Extract structured, selector-aware blocks without executing source content."""
 
-    parser = _StructuredContent()
+    parser = _StructuredContentV3() if v3 else _StructuredContent()
     parser.feed(content.decode("utf-8", errors="replace"))
     parser.flush()
     return parser.sections[:100_000]
