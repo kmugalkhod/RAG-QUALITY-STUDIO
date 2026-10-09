@@ -14,7 +14,9 @@ from app.pipelines.parsing import MAX_CHUNKS, ProcessingError
 
 EXTRACTOR_VERSION = "html-main-v2"
 # layout-ocr-v3 (spec 0007): HTML tables as rows, reference lists left out.
-EXTRACTOR_VERSION_V3 = "html-main-v3"
+# v3.1 keeps inline cross-reference links (class "reference" outside <sup>) and
+# no longer splits a paragraph at a citation marker; html-main-v3 was never released.
+EXTRACTOR_VERSION_V3 = "html-main-v3.1"
 CLEANER_VERSION = "whitespace-boilerplate-v1"
 _SPACE = re.compile(r"\s+")
 _IGNORED = {
@@ -333,8 +335,10 @@ _REFERENCE_CLASSES = {
     ".references",
     ".mw-references-wrap",
     ".navbox",
-    ".reference",
 }
+# Wikipedia's inline citation markers are <sup class="reference">. Other sites use
+# the same class on ordinary links (Python docs: <a class="reference internal">).
+_CITATION_MARKER = ".reference"
 _REFERENCE_HEADINGS = {
     "references",
     "notes",
@@ -381,8 +385,11 @@ class _StructuredContentV3(_StructuredContent):
                 self.skip_stack.append(tag)
             return
         tokens, _ = self._tokens(tag, attrs)
-        if _REFERENCE_CLASSES.intersection(tokens) and tag not in _VOID:
-            self.flush()
+        citation = tag == "sup" and _CITATION_MARKER in tokens
+        if (citation or _REFERENCE_CLASSES.intersection(tokens)) and tag not in _VOID:
+            if not citation:
+                # A citation marker sits inside a sentence; only a list ends the block.
+                self.flush()
             self.skip_stack.append(tag)
             return
         if self.skip_heading_level is not None:

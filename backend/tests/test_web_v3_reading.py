@@ -104,4 +104,26 @@ def test_v3_has_its_own_website_processing_identity():
     )
     assert v2_hash != v3_hash
     assert v2_parser.startswith("html-main-v2/")
-    assert v3_parser.startswith("html-main-v3/")
+    assert v3_parser.startswith("html-main-v3.1/")
+
+
+def test_v3_keeps_inline_reference_links_and_whole_sentences():
+    """Real-source re-run: Python docs mark ordinary links with class "reference",
+    and a citation marker must not split its sentence."""
+
+    page = b"""<html><body><main><h1>Control flow</h1>
+<p>The <a class="reference internal" href="#pass"><code>pass</code></a> statement
+does nothing. Use <a class="reference external" href="#d"><code>collections.deque</code></a>
+for queues.</p>
+<p>Python 3.0, released in 2008,<sup class="reference"><a href="#c">[5]</a></sup>
+was a major revision.</p>
+</main></body></html>"""
+    sections = texts(extract_canonical_sections(page, v3=True))
+    joined = " ".join(" ".join(sections).split())
+    assert "The pass statement does nothing." in joined
+    assert "Use collections.deque for queues." in joined
+    assert "[5]" not in joined
+    # The sentence around the citation marker stays in one block.
+    assert any(
+        "released in 2008," in s and "was a major revision" in s for s in sections
+    )
