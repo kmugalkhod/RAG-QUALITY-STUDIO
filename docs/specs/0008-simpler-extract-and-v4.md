@@ -1,7 +1,7 @@
 # 0008. Simpler Extract settings and extractor v4
 
 **Date**: 2026-10-10
-**Status**: Draft, waiting for the owner's approval of the decisions below. Nothing is implemented.
+**Status**: Approved 2026-10-10. The owner accepted the recommendation for D1-D4. Implementation starts with Slice 0.
 
 ## Summary
 
@@ -14,7 +14,7 @@ This spec removes the settings that do nothing for users, fixes the gaps in a ne
 
 ## Decisions for the owner
 
-| ID | Decision | Recommendation |
+| ID | Decision | Recommendation (approved 2026-10-10) |
 | --- | --- | --- |
 | D1 | What happens to the removed settings | Remove them from the panel only. The schema keeps the fields, new drafts get the recommended values, and saved pipelines run exactly as saved. A saved pipeline whose value differs shows one line: "Uses an older custom setting: OCR resolution 300 DPI. Reset to recommended." |
 | D2 | Maximum OCR pages | Default 100 (from 50) and keep it in Advanced. A longer scan costs only local CPU time, not provider money. |
