@@ -1,7 +1,7 @@
 # 0010. Search that finds table rows and short facts
 
 **Date**: 2026-10-10
-**Status**: Approved 2026-10-10 (D1-D3). Slice 0 done; the revised plan below was approved by the owner on 2026-10-10 and replaces Parts A-C and the slices where they differ. Revised slices 1-2 done; round A4 (slice 3) next.
+**Status**: Approved 2026-10-10 (D1-D3). Slice 0 done; the revised plan below was approved by the owner on 2026-10-10 and replaces Parts A-C and the slices where they differ. Done 2026-10-10: revised slices 1-3 complete (see Outcome).
 
 ## Summary
 
@@ -113,3 +113,12 @@ Unit tests for query reduction (stop words, numbers, French), matching modes and
 - Rerankers or new providers, and changing the embedding model.
 - OCR accuracy for low-quality scans; non-English OCR packs.
 - Website chunking (the website track keeps its A1 index unless a slice shows it is affected).
+
+## Outcome (2026-10-10)
+
+Round A4 (`docs/qa/search-v3-2026-10/README.md`, about $0.13 for the whole spec):
+
+- **Met:** f4-q1 (Eurostat callout) is retrieved at rank 1 and answered with `section-token-v2`; no answer right in A3 is wrong with it (38/44 against 37/44); saved v1 pipelines produce exactly the chunks they did before (all 15 files); spend under $1.
+- **Not met:** f2-q10 (Census 1990 row) is retrieved only with `parent-child-v2`, and the answer model then declined it; f2-q9 (2015 row) is not retrieved in any round. Both are recorded as known limits.
+- **Decision under the approved rule:** `parent-child-v2` lost three answers (g1-q2, f1-q1, g8-q2), so new pipelines keep `section-token-v2`, as Slice 2 set.
+- **Follow-up:** the table rows that remain (Census A-2, USGS Kansas, GAO mandates, DfT word limit) need retrieval that matches exact numbers and labels — the separate rarity-weighted keyword-search spec recorded in Slice 0 — or table-aware answering.

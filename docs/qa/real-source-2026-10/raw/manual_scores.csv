@@ -116,3 +116,91 @@ A3,g8-q2,,correct,Impulse control partly mediates the relationship.,yes,The cite
 A3,g6-q3,,correct-abstain,Declined; only 2012 is in the source.,n/a,No answer to support.
 A3,g8-q3,,correct-abstain,Declined; not in the source.,n/a,No answer to support.
 A3,g2-q3,,correct-abstain,Declined; not in the source.,n/a,No answer to support.
+A4s,f1-q1,,correct,"Matches the reference: 12 layers, hidden size 768, 12 attention heads (110M parameters).",yes,A cited chunk contains the expected phrase.
+A4s,f1-q4,,correct,"Matches the reference: BooksCorpus (800M words) and English Wikipedia (2,500M words).",yes,A cited chunk contains the expected phrase.
+A4s,f2-q1,,correct,"Matches the reference: $74,580",yes,A cited chunk contains the expected phrase.
+A4s,f2-q4,,correct,"Matches the reference: $110,800",yes,A cited chunk contains the expected phrase.
+A4s,f2-q6,,correct,"Matches the reference: $45,440",yes,A cited chunk contains the expected phrase.
+A4s,f3-q1,,correct,Matches the reference: 139 pictures.,yes,A cited chunk contains the expected phrase.
+A4s,f3-q4,,correct,Matches the reference: 7.3 kg.,yes,A cited chunk contains the expected phrase.
+A4s,f3-q8,,correct-abstain,Declined; the source does not state it.,n/a,No answer to support.
+A4s,f2-q9,,wrong-abstain,Declined; the Table A-2 2015 row is not in the top 5 (Table A-1 and summary chunks ranked above it).,n/a,No answer to support.
+A4s,f2-q10,,wrong-abstain,Declined; Table A-2 chunks were supplied but not the one with the 1990 row.,n/a,No answer to support.
+A4s,f4-q1,,correct,"States 381 deaths per 100,000 inhabitants (the callout, now merged with the text before it).",yes,A cited chunk contains the expected phrase.
+A4s,f4-q2,,correct,"Matches the reference: 5,5 fois plus",yes,A cited chunk contains the expected phrase.
+A4s,f4-q3,,correct,Matches the reference: 77 %,yes,A cited chunk contains the expected phrase.
+A4s,f4-q4,,correct,"22,4 % against 1990 (the prose figure; the callout rounds it to 22 %).",yes,"The cited chunk states 22,4 % against 1990; the reference phrase was the rounded callout."
+A4s,f5-q1,,correct,Matches the reference: Kenneth A. MacKichan,yes,A cited chunk contains the expected phrase.
+A4s,f5-q2,,wrong-abstain,Declined; the supplied Table 1 chunk did not include the Illinois row.,n/a,No answer to support.
+A4s,f5-q3,,wrong-abstain,Declined; the Kansas row was in a supplied chunk (rank 2) but the model said Kansas is not listed.,n/a,No answer to support.
+A4s,f6-q1,,wrong-abstain,Declined; the 250-word limit was not in the supplied text for A3.2.,n/a,No answer to support.
+A4s,f6-q2,,correct,"Matches the reference: Carriageways, footways, structures, drainage, street lighting and other assets",yes,A cited chunk contains the expected phrase.
+A4s,f7-q1,,correct,Matches the reference: 7 to 11,yes,A cited chunk contains the expected phrase.
+A4s,f7-q2,,correct,Matches the reference: Major (rating 4),yes,A cited chunk contains the expected phrase.
+A4s,f7-q3,,correct,Matches the reference: A 1-5 scale,yes,A cited chunk contains the expected phrase.
+A4s,f7-q4,,correct-abstain,Declined; the source does not state it.,n/a,No answer to support.
+A4s,f5-q4,,correct-abstain,Declined; the source does not state it.,n/a,No answer to support.
+A4s,f4-q5,,correct-abstain,Declined; the source does not state it.,n/a,No answer to support.
+A4s,g1-q1,,correct,"Matches the reference: $12,500 ($25,000 if married filing jointly)",yes,A cited chunk contains the expected phrase.
+A4s,g1-q2,,correct,"Matches the reference: $24,150",yes,A cited chunk contains the expected phrase.
+A4s,g2-q1,,correct,Matches the reference: At least 8 characters,yes,A cited chunk contains the expected phrase.
+A4s,g2-q2,,correct,Matches the reference: At least 64 characters,yes,A cited chunk contains the expected phrase.
+A4s,g3-q1,,correct,Matches the reference: $55.6 billion (about $74 for every dollar invested),yes,A cited chunk contains the expected phrase.
+A4s,g3-q2,,wrong-abstain,Declined; the GAO mandates table row for the 2023 NDAA was not supplied.,n/a,No answer to support.
+A4s,g4-q1,,correct,The Secretary of War and designated Military Commanders.,yes,The cited OCR text has it as 'SECKSTARY OF WAR ... prescribe military areas'; the scan reads with many character errors.
+A4s,g4-q2,,correct,"Matches the reference: Section 4 of the Act of April 20, 1918 (40 Stat. 533), as amended",yes,A cited chunk contains the expected phrase.
+A4s,g5-q1,,correct,Matches the reference: 73.3%,yes,A cited chunk contains the expected phrase.
+A4s,g5-q2,,correct,Matches the reference: 26.9%,yes,A cited chunk contains the expected phrase.
+A4s,g6-q1,,correct,Matches the reference: Patrick Crawford,yes,A cited chunk contains the expected phrase.
+A4s,g6-q2,,correct,"Matches the reference: £36,300 to £43,690",yes,A cited chunk contains the expected phrase.
+A4s,g7-q1,,correct,Matches the reference: The 5 years before the application,yes,A cited chunk contains the expected phrase.
+A4s,g7-q2,,correct,"Matches the reference: UK GDPR, the Data Protection Act 2018 and, where applicable, the Freedom of Information Act 2000",yes,A cited chunk contains the expected phrase.
+A4s,g8-q1,,correct,Forty-one participants.,yes,The cited chunk says 'Forty-one participants'; the reference phrase was 'N = 41'.
+A4s,g8-q2,,correct,Impulse control partly mediates the relationship.,yes,The cited Figure 3 caption describes mediation by impulse control.
+A4s,g6-q3,,correct-abstain,Declined; the source does not state it.,n/a,No answer to support.
+A4s,g8-q3,,correct-abstain,Declined; the source does not state it.,n/a,No answer to support.
+A4s,g2-q3,,correct-abstain,Declined; the source does not state it.,n/a,No answer to support.
+A4p,f1-q1,,wrong-abstain,"Declined; Table 6 configurations were supplied but not the text naming BERT-base's L=12, H=768, A=12 (A3 and A4s answered).",n/a,No answer to support.
+A4p,f1-q4,,correct,"Matches the reference: BooksCorpus (800M words) and English Wikipedia (2,500M words).",yes,A cited chunk contains the expected phrase.
+A4p,f2-q1,,correct,"Matches the reference: $74,580",yes,A cited chunk contains the expected phrase.
+A4p,f2-q4,,correct,"Matches the reference: $110,800",yes,A cited chunk contains the expected phrase.
+A4p,f2-q6,,correct,"Matches the reference: $45,440",yes,A cited chunk contains the expected phrase.
+A4p,f3-q1,,correct,Matches the reference: 139 pictures.,yes,A cited chunk contains the expected phrase.
+A4p,f3-q4,,correct,Matches the reference: 7.3 kg.,yes,A cited chunk contains the expected phrase.
+A4p,f3-q8,,correct-abstain,Declined; the source does not state it.,n/a,No answer to support.
+A4p,f2-q9,,wrong-abstain,Declined; the Table A-2 2015 row is not in the top 5.,n/a,No answer to support.
+A4p,f2-q10,,wrong-abstain,"Declined although the supplied parent showed the 1990 mean of $76,820; the model doubted it was in 2022 dollars.",n/a,No answer to support.
+A4p,f4-q1,,wrong-abstain,Declined although the supplied evidence held '381 deces pour 100 000 habitants'; the model doubted it referred to the EU-28 in 2015.,n/a,No answer to support.
+A4p,f4-q2,,correct,"Matches the reference: 5,5 fois plus",yes,A cited chunk contains the expected phrase.
+A4p,f4-q3,,correct,Matches the reference: 77 %,yes,A cited chunk contains the expected phrase.
+A4p,f4-q4,,correct,"22,4 % against 1990 (the prose figure; the callout rounds it to 22 %).",yes,"The cited chunk states 22,4 % against 1990; the reference phrase was the rounded callout."
+A4p,f5-q1,,correct,Matches the reference: Kenneth A. MacKichan,yes,A cited chunk contains the expected phrase.
+A4p,f5-q2,,correct,"States 1,070 mgd for Illinois municipal surface water.",yes,A cited chunk contains the expected phrase.
+A4p,f5-q3,,wrong-abstain,Declined; the Kansas row was supplied (rank 2) but the model said Kansas is not listed.,n/a,No answer to support.
+A4p,f6-q1,,wrong-abstain,Declined; the 250-word limit was not in the supplied text for A3.2.,n/a,No answer to support.
+A4p,f6-q2,,correct,"Matches the reference: Carriageways, footways, structures, drainage, street lighting and other assets",yes,A cited chunk contains the expected phrase.
+A4p,f7-q1,,correct,Matches the reference: 7 to 11,yes,A cited chunk contains the expected phrase.
+A4p,f7-q2,,correct,Matches the reference: Major (rating 4),yes,A cited chunk contains the expected phrase.
+A4p,f7-q3,,correct,Matches the reference: A 1-5 scale,yes,A cited chunk contains the expected phrase.
+A4p,f7-q4,,correct-abstain,Declined; the source does not state it.,n/a,No answer to support.
+A4p,f5-q4,,correct-abstain,Declined; the source does not state it.,n/a,No answer to support.
+A4p,f4-q5,,correct-abstain,Declined; the source does not state it.,n/a,No answer to support.
+A4p,g1-q1,,correct,"Matches the reference: $12,500 ($25,000 if married filing jointly)",yes,A cited chunk contains the expected phrase.
+A4p,g1-q2,,wrong-abstain,"Declined; the 208-token child with '$24,150 if you're head of household' ranked 6th (A3 and A4s: rank 1).",n/a,No answer to support.
+A4p,g2-q1,,correct,Matches the reference: At least 8 characters,yes,A cited chunk contains the expected phrase.
+A4p,g2-q2,,correct,Matches the reference: At least 64 characters,yes,A cited chunk contains the expected phrase.
+A4p,g3-q1,,correct,Matches the reference: $55.6 billion (about $74 for every dollar invested),yes,A cited chunk contains the expected phrase.
+A4p,g3-q2,,wrong-abstain,Declined; the GAO mandates table row for the 2023 NDAA was not supplied.,n/a,No answer to support.
+A4p,g4-q1,,correct,The Secretary of War and designated Military Commanders.,yes,The cited OCR text has it as 'SECKSTARY OF WAR ... prescribe military areas'; the scan reads with many character errors.
+A4p,g4-q2,,correct,"Matches the reference: Section 4 of the Act of April 20, 1918 (40 Stat. 533), as amended",yes,A cited chunk contains the expected phrase.
+A4p,g5-q1,,correct,Matches the reference: 73.3%,yes,A cited chunk contains the expected phrase.
+A4p,g5-q2,,correct,Matches the reference: 26.9%,yes,A cited chunk contains the expected phrase.
+A4p,g6-q1,,correct,Matches the reference: Patrick Crawford,yes,A cited chunk contains the expected phrase.
+A4p,g6-q2,,correct,"Matches the reference: £36,300 to £43,690",yes,A cited chunk contains the expected phrase.
+A4p,g7-q1,,correct,Matches the reference: The 5 years before the application,yes,A cited chunk contains the expected phrase.
+A4p,g7-q2,,correct,"Matches the reference: UK GDPR, the Data Protection Act 2018 and, where applicable, the Freedom of Information Act 2000",yes,A cited chunk contains the expected phrase.
+A4p,g8-q1,,correct,Forty-one participants.,yes,The cited chunk says 'Forty-one participants'; the reference phrase was 'N = 41'.
+A4p,g8-q2,,wrong-abstain,Declined; the impulse-control mediation text was not supplied (A3 and A4s answered).,n/a,No answer to support.
+A4p,g6-q3,,correct-abstain,Declined; the source does not state it.,n/a,No answer to support.
+A4p,g8-q3,,correct-abstain,Declined; the source does not state it.,n/a,No answer to support.
+A4p,g2-q3,,correct-abstain,Declined; the source does not state it.,n/a,No answer to support.

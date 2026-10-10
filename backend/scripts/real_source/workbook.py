@@ -284,6 +284,9 @@ def main(results: Path, output: Path) -> None:
     # Extract v5 (spec 0009) ------------------------------------------------------------
     extract_v5_sheet(workbook.create_sheet("Extract v5"), state, questions, scores, sources)
 
+    # Search v3 (spec 0010) -------------------------------------------------------------
+    search_v3_sheet(workbook.create_sheet("Search v3"), state, questions, scores, sources)
+
     # Summary (formulas over Retrieval and Structure) ----------------------------------
     summary.append(["Real-source ingestion test (spec 0006), re-run after the spec 0007 fixes (A1) "
                     "and with extractor v4 (A2, spec 0008)"])
@@ -586,6 +589,88 @@ def extract_v5_sheet(sheet, state, questions, scores, sources) -> None:
                 cell.value = ILLEGAL_CHARACTERS_RE.sub("", cell.value)
     style_sheet(sheet, {"A": 34, "B": 30, "C": 12, "D": 50, "E": 30, "F": 12, "G": 14,
                         "H": 50}, header_row=header_row)
+    sheet["A1"].font = Font(name=FONT, size=14, bold=True)
+    sheet["A2"].font = NOTE_FONT
+
+
+SEARCH_ROUNDS = ("A3", "A4s", "A4p")
+# The questions spec 0010 set out to fix, and the other A3 misses.
+SEARCH_TARGETS = ("f2-q9", "f2-q10", "f4-q1", "f5-q2", "f5-q3", "f6-q1", "g3-q2")
+
+
+def search_v3_sheet(sheet, state, questions, scores, sources) -> None:
+    """Spec 0010: A3 (section-token-v1) against the v2 chunkers, same files and settings."""
+
+    retrieval = state.get("retrieval", {})
+    sheet.append(["Chunking v2 against v1 on real files (spec 0010, round A4)"])
+    sheet.append(["A3 = extractor v5 with section-token-v1 (600/800/80). A4s = the same with "
+                  "section-token-v2, A4p = parent-child-v2 (240/320/40 children, 900/1200 "
+                  "parents), each with the defaults a new pipeline gets. v2 appends a "
+                  "section's first chunk under 40 tokens to the chunk before it on the same "
+                  "page. Same files, questions, embedding model, vector search top 5 and "
+                  "answer model in every round."])
+    sheet.append([])
+    header_row = 4
+    sheet.append(["Measure", *SEARCH_ROUNDS, "Note"])
+    answerable = [q for q, spec in questions.items()
+                  if spec["phrases"] and track_of(spec["source"], sources) != "web"]
+    for measure, key in (("Hit@1, file questions", "hit_at_1"),
+                         ("Hit@5, file questions", "hit_at_5")):
+        sheet.append([measure, *(
+            f"{sum(retrieval.get(r, {}).get(q, {}).get(key, False) for q in answerable)}"
+            f"/{len(answerable)}" for r in SEARCH_ROUNDS), ""])
+    base = retrieval.get("A3", {})
+    for round_id in SEARCH_ROUNDS[1:]:
+        after = retrieval.get(round_id, {})
+        lost = [q for q in answerable
+                if base.get(q, {}).get("hit_at_5") and not after.get(q, {}).get("hit_at_5")]
+        gained = [q for q in answerable
+                  if after.get(q, {}).get("hit_at_5") and not base.get(q, {}).get("hit_at_5")]
+        sheet.append([f"{round_id}: in top 5 in A3 and not now", "", "", "",
+                      f"{len(lost)}: {', '.join(lost) or 'none'}"])
+        sheet.append([f"{round_id}: in top 5 now and not in A3", "", "", "",
+                      f"{len(gained)}: {', '.join(gained) or 'none'}"])
+    for track in ("files", "new", "d2"):
+        cells = []
+        for round_id in SEARCH_ROUNDS:
+            run = state["runs"].get(f"{track}:{round_id}", {})
+            usage = app_usage(run)
+            cells.append(f"{run.get('status', 'not run')}; {run.get('chunk_count')} chunks; "
+                         f"{usage[0]} tokens, ${usage[1]}")
+        sheet.append([f"{track} run (status; chunks; app-reported embedding)", *cells, ""])
+    good = lambda round_id: {  # noqa: E731
+        q for (r, q), row in scores.items() if r == round_id and row["label"] in GOOD_LABELS
+    }
+    asked = lambda round_id: {q for (r, q) in scores if r == round_id}  # noqa: E731
+    sheet.append(["Answers correct or correctly declined",
+                  *(f"{len(good(r))}/{len(asked(r))}" if asked(r) else "not scored"
+                    for r in SEARCH_ROUNDS), ""])
+    for round_id in SEARCH_ROUNDS[1:]:
+        worse = sorted((good("A3") & asked(round_id)) - good(round_id))
+        better = sorted((good(round_id) & asked("A3")) - good("A3"))
+        sheet.append([f"{round_id}: answers right in A3 and not now", "", "", "",
+                      f"{len(worse)}: {', '.join(worse) or 'none'}"])
+        sheet.append([f"{round_id}: answers right now and not in A3", "", "", "",
+                      f"{len(better)}: {', '.join(better) or 'none'}"])
+    sheet.append([])
+    sheet.append(["A3 misses (first hit rank; answer label)"])
+    sheet.append(["Question", *SEARCH_ROUNDS, "Question text"])
+    for qid in SEARCH_TARGETS:
+        cells = []
+        for round_id in SEARCH_ROUNDS:
+            rank = retrieval.get(round_id, {}).get(qid, {}).get("first_hit_rank")
+            label = scores.get((round_id, qid), {}).get("label", "not scored")
+            cells.append(f"{rank or 'not in top 5'}; {label}")
+        sheet.append([qid, *cells, questions[qid]["question"]])
+    sheet.append([])
+    sheet.append(["Questions whose first hit rank changed from A3"])
+    sheet.append(["Question", *SEARCH_ROUNDS, "Question text"])
+    for qid in answerable:
+        ranks = [retrieval.get(r, {}).get(qid, {}).get("first_hit_rank") for r in SEARCH_ROUNDS]
+        if len(set(ranks)) > 1:
+            sheet.append([qid, *(rank or "not in top 5" for rank in ranks),
+                          questions[qid]["question"]])
+    style_sheet(sheet, {"A": 40, "B": 26, "C": 26, "D": 26, "E": 60}, header_row=header_row)
     sheet["A1"].font = Font(name=FONT, size=14, bold=True)
     sheet["A2"].font = NOTE_FONT
 

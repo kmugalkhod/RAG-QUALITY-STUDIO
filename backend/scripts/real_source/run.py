@@ -16,7 +16,7 @@ fetched once, in R1; later website rounds build from the R1 source snapshot.
 
 Spec 0008 adds round A2 and a third track, "new", for the `files_v4` sources
 (`setup` uploads them too); questions marked with a later "round" are skipped in
-earlier rounds.
+earlier rounds. Spec 0010 adds rounds A4s and A4p (A3 with the v2 chunkers).
 
 Run inside the backend container against http://127.0.0.1:8000 (local auth mode).
 """
@@ -87,6 +87,17 @@ ROUNDS = {
     "A3": {"tracks": ["files", "new", "d2"], "label": "Extract v5: recommended",
            "extract": {"config_version": "layout-ocr-v5"}, "ocr": {"max_pages": 100},
            "quality": {"d2": "warn-v1"}, "reuse": {"web": "A1"}},
+    # Spec 0010 slice 3: A3 with the v2 chunkers, which append a section's short
+    # first chunk to the chunk before it on the same page. Each takes the chunking
+    # profile's settings from the server's capabilities, as a new draft does.
+    "A4s": {"tracks": ["files", "new", "d2"], "label": "Search v3: section-token-v2",
+            "extract": {"config_version": "layout-ocr-v5"}, "ocr": {"max_pages": 100},
+            "quality": {"d2": "warn-v1"}, "reuse": {"web": "A1"},
+            "chunk_profile": "section_token"},
+    "A4p": {"tracks": ["files", "new", "d2"], "label": "Search v3: parent-child-v2",
+            "extract": {"config_version": "layout-ocr-v5"}, "ocr": {"max_pages": 100},
+            "quality": {"d2": "warn-v1"}, "reuse": {"web": "A1"},
+            "chunk_profile": "parent_child"},
 }
 # The index a track falls back to when a round does not rebuild it.
 BASELINE = {"web": "R1", "files": "R1w"}
@@ -301,6 +312,17 @@ class Run:
             "add_heading_context": True,
             "config_version": "section-token-v1",
         }
+        if "chunk_profile" in spec:
+            profile = next(
+                p for p in capabilities["chunking_profiles"] if p["id"] == spec["chunk_profile"]
+            )
+            chunk = {
+                "id": "chunk",
+                "type": "chunk",
+                "algorithm": spec["chunk_profile"],
+                "unit": "tokens",
+                **profile["settings"],
+            }
         if track == "web":
             sources = [
                 {"id": "source" if i == 0 else f"source-{i + 1}", "type": "source",

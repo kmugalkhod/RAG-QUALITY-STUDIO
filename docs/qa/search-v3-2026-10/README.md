@@ -57,3 +57,20 @@ Test: the run of chunks under 40 tokens around the callout was appended to the c
 - **The Eurostat callout** "381 décès pour 100 000 habitants" is now in a 207-token chunk with the text before it on p. 21, in both profiles; Slice 0's 201-token merged chunk ranked first for f4-q1.
 
 Whether retrieval improves without losing questions is measured in round A4 (Slice 3).
+
+## Slice 3: round A4 (2026-10-10, about $0.12)
+
+Rounds A4s and A4p repeat round A3 (extractor v5, the same 15 files, 49 answerable file questions and 44 asked questions, vector search top 5, `google/gemini-2.5-flash`) with only the chunking changed: A4s uses `section-token-v2`, A4p `parent-child-v2`, each with the settings a new pipeline gets. All six indexes published. Answers were scored by hand against the reference answers with the spec 0004 rubric (`docs/qa/real-source-2026-10/raw/manual_scores.csv`); the "Search v3" sheet of `docs/qa/real-source-2026-10/real-source-test.xlsx` has every number below. Spend by the harness's upper-bound estimate: $0.116 (index embeddings, query embeddings and 88 answers); the app-reported embedding charge was under $0.005, because unchanged chunks reused their embeddings.
+
+| | A3 (v1) | A4s (section-token-v2) | A4p (parent-child-v2) |
+| --- | --- | --- | --- |
+| Hit@1 / Hit@5, 49 file questions | 26 / 40 | 27 / 41 | 30 / 42 |
+| Answers correct or correctly declined, 44 asked | 37 | **38** | 35 |
+| Answers right in A3 and wrong now | | none | f1-q1, g1-q2, g8-q2 |
+| Answers wrong in A3 and right now | | f4-q1 | f5-q2 |
+
+- **The Eurostat callout (f4-q1) is fixed by `section-token-v2`:** rank 1 and answered "381 décès pour 100 000 habitants". f4-q4 (greenhouse-gas fall) also moved into the top 5 (rank 3).
+- **`section-token-v2` loses nothing.** The harness's one apparent retrieval loss, f1-q3, is its phrase rule: the abstract's wording "GLUE score to 80.5%" moved from rank 5 to 7, while the chunk stating "BERTLARGE obtains a score of 80.5" stays at rank 2 in A3 and A4s (rank 1 in A4p). Every answer right in A3 is right in A4s.
+- **`parent-child-v2` does not meet the rule for becoming the default** (no question lost). It finds the Census 1990 row (f2-q10) and the USGS Illinois row (f5-q2), but loses three answers: g1-q2, because the 208-token child holding "$24,150 if you're head of household" no longer carries the worksheet text that matched the question (rank 1 → 6, distance 0.367 → 0.453); f1-q1 and g8-q2, where the supplied parents did not include the needed text. It also declined two questions whose answers it was given (f2-q10, f4-q1). New pipelines therefore keep `section-token-v2`; parent-child stays a choice in the editor.
+- **Known limits, unchanged by chunking:** the Census Table A-2 rows (f2-q9 not retrieved in any round; f2-q10 retrieved only by parent-child and then declined), the USGS Kansas row (f5-q3, supplied at rank 2 but declined in every round), the DfT word limit (f6-q1) and the GAO mandates row (g3-q2). These need either retrieval that matches exact numbers and labels (the separate keyword-search spec) or table-aware answering, not chunk size.
+- Website questions reuse the A1 index and were unchanged.
