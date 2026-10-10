@@ -1,0 +1,86 @@
+{
+ "f2-q1": {
+  "vector": 1,
+  "keyword": null,
+  "hybrid_v3": 4,
+  "keyword_rare": null,
+  "hybrid_rare": 1
+ },
+ "f2-q2": {
+  "vector": 2,
+  "keyword": null,
+  "hybrid_v3": null,
+  "keyword_rare": null,
+  "hybrid_rare": 1
+ },
+ "f2-q3": {
+  "vector": 2,
+  "keyword": null,
+  "hybrid_v3": null,
+  "keyword_rare": 2,
+  "hybrid_rare": 1
+ },
+ "f2-q4": {
+  "vector": 1,
+  "keyword": null,
+  "hybrid_v3": null,
+  "keyword_rare": 1,
+  "hybrid_rare": 1
+ },
+ "f2-q5": {
+  "vector": 5,
+  "keyword": null,
+  "hybrid_v3": null,
+  "keyword_rare": 3,
+  "hybrid_rare": 3
+ },
+ "f2-q6": {
+  "vector": 1,
+  "keyword": null,
+  "hybrid_v3": 2,
+  "keyword_rare": 1,
+  "hybrid_rare": 1
+ },
+ "f2-q9": {
+  "vector": null,
+  "keyword": null,
+  "hybrid_v3": null,
+  "keyword_rare": null,
+  "hybrid_rare": 5
+ },
+ "f2-q10": {
+  "vector": 4,
+  "keyword": null,
+  "hybrid_v3": null,
+  "keyword_rare": null,
+  "hybrid_rare": null
+ },
+ "f4-q1": {
+  "vector": null,
+  "keyword": null,
+  "hybrid_v3": null,
+  "keyword_rare": null,
+  "hybrid_rare": null
+ },
+ "f4-q2": {
+  "vector": 1,
+  "keyword": 1,
+  "hybrid_v3": 1,
+  "keyword_rare": 1,
+  "hybrid_rare": 1
+ },
+ "f4-q3": {
+  "vector": 2,
+  "keyword": null,
+  "hybrid_v3": null,
+  "keyword_rare": 5,
+  "hybrid_rare": 1
+ },
+ "f4-q4": {
+  "vector": null,
+  "keyword": null,
+  "hybrid_v3": null,
+  "keyword_rare": null,
+  "hybrid_rare": null
+ }
+}

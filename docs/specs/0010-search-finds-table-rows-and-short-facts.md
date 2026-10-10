@@ -1,7 +1,7 @@
 # 0010. Search that finds table rows and short facts
 
 **Date**: 2026-10-10
-**Status**: Approved 2026-10-10. The owner accepted the recommendation for D1-D3.
+**Status**: Approved 2026-10-10 (D1-D3). Slice 0 done; it proposes a revised plan (below) that needs owner approval before Slice 1.
 
 ## Summary
 
@@ -33,6 +33,22 @@ Causes:
 4. **A heading with no body becomes its own chunk.** Eurostat has 360 single-line chunks (median chunk 24 tokens); its callouts and chart titles are among them.
 
 A keyword fix alone (probe rows 4-5) does not reach the Census rows; a chunking fix is needed too. Whether the two together reach them is the first thing this spec measures (Slice 0), before anything ships.
+
+## Slice 0 result and proposed revision (needs owner approval)
+
+Measured 2026-10-10 for $0.013 (`docs/qa/search-v3-2026-10/README.md`):
+
+- **Part A does not earn its place.** With content words OR-ed, hybrid search loses two questions vector finds and gains one; with only rare words it ties vector. No variant finds the target questions, so D2's "no question lost" condition cannot be met. PostgreSQL's ranking has no word-rarity weighting, which a proper fix would need.
+- **Parent-child chunking, which already exists, beats the proposed table chunker.** On Census and Eurostat it loses nothing against today and finds the Census 1990 row (f2-q10) at rank 1.
+- **Merging short same-page chunks finds the Eurostat callout.** The merged chunk would rank first for f4-q1 (distance 0.197 against 0.234 for today's best).
+- **The Census 2015 row (f2-q9) stays out of reach:** the row chunks are near-identical runs of numbers to an embedding.
+
+Proposed revision:
+
+1. Drop Part A from this spec. Record the keyword finding and propose a separate spec for a rarity-weighted (BM25-style) keyword search.
+2. Replace B1 with "new drafts chunk with `parent-child-v1`", decided by round A4 on every file and question (no question lost).
+3. Build B2 as the main change: a new chunking version for section-token and parent-child that appends runs of chunks under 40 tokens to the chunk before them on the same page.
+4. Done-when becomes: f2-q10 and f4-q1 retrieved and answered, f2-q9 recorded as a known limit unless A4 finds it, no question lost, spend under $1.
 
 ## Decisions for the owner
 
