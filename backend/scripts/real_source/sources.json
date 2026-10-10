@@ -106,5 +106,44 @@
       "pages": 10,
       "sha256": "e6b37144235757381364229a5c937246ec68727704564651401fba417a5da745"
     }
+  },
+  "files_v4": {
+    "F4": {
+      "name": "Eurostat, Chiffres clés sur l'Europe, édition 2019 (French)",
+      "filename": "eurostat-chiffres-cles-2019-fr.pdf",
+      "url": "https://ec.europa.eu/eurostat/documents/3217494/10164473/KS-EI-19-001-FR_N.pdf/aef66e0b-f5fe-c4e1-67ac-3c3f01a44384",
+      "licence": "© European Union, 2019; reuse authorised with attribution (Commission Decision 2011/833/EU)",
+      "pages": 76,
+      "sha256": "9457b14c2fb44527eeb718ba7753bc5781d771db2b88447a723a42c65b5776af",
+      "fetched_on": "2026-10-10"
+    },
+    "F5": {
+      "name": "USGS Circular 115, Estimated use of water in the United States, 1950 (1951 scan), image-only copy",
+      "filename": "usgs-circ115-scan.pdf",
+      "url": "https://pubs.usgs.gov/circ/1951/0115/report.pdf",
+      "licence": "Public domain (US federal government work)",
+      "pages": 16,
+      "sha256": "7c1d9fe14a6c7d7d065bfc3d018ef32fefc692ce36524dace01fd0908a181c23",
+      "source_sha256": "730f826e0261421cd5a2b2a555e2a1ab24077a6903d089647ca42fa1e7bc7e66",
+      "derivation": "Each page's single scan image placed unchanged on a new page of the same size with PyMuPDF; the publisher's hidden OCR text layer is dropped so the app's OCR runs. The copy's bytes may differ between PyMuPDF builds; the source hash is the stable check.",
+      "fetched_on": "2026-10-10"
+    },
+    "F6": {
+      "name": "DfT, Local highways maintenance transparency report template (DOCX)",
+      "filename": "dft-highways-maintenance-report-template.docx",
+      "url": "https://assets.publishing.service.gov.uk/media/6a26d314f56856fd11c0b191/highways-maintenance-reports-template.docx",
+      "licence": "Open Government Licence v3.0",
+      "sha256": "eb468aeba7ed8ff0bac3382ddeaa8e56dc859bc9dc3d988d4389a1fe508dfc02",
+      "fetched_on": "2026-10-10"
+    },
+    "F7": {
+      "name": "Home Office/DfE, Designing and building a Prevent risk assessment (PPTX, 14 slides, 3 tables)",
+      "filename": "prevent-risk-assessment-slides.pptx",
+      "url": "https://assets.publishing.service.gov.uk/media/60a3d4a7d3bf7f28855b8ffd/Designing_and_building_a_Prevent_risk_assessment.pptx",
+      "licence": "Open Government Licence v3.0",
+      "pages": 14,
+      "sha256": "71e2e0fe0eacbb94867329cae876e1f119e8d2e7f76145cf289d12cb7873484f",
+      "fetched_on": "2026-10-10"
+    }
   }
 }

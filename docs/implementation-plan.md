@@ -1,5 +1,11 @@
 # Implementation plan
 
+## Simpler Extract settings and extractor v4 — spec 0008 (started 2026-10-10)
+
+**Status:** decisions D1-D4 approved as recommended; Slice 0 (v3 baseline) done. Seven files (the three spec 0006 PDFs plus a French Eurostat report, a 1951 USGS scan, a DfT DOCX and a Prevent PPTX) were extracted locally with `layout-ocr-v3`. The baseline confirms transposed rotated Census tables and missing PPTX table text, finds no "married-" line break in v3 extraction (so the remaining merge is downstream), and adds one new finding: the French Eurostat report fails the default quality policy on three malformed tables. Only the English OCR pack is installed, so non-English OCR is not tested. Details: `docs/qa/extract-v4-2026-10/README.md`.
+
+**Next:** Slice 1, the shorter Extract panel (Part A).
+
 ## Real-source fixes — spec 0007 (2026-10-10)
 
 **Result:** the eight spec 0006 findings were fixed in seven slices: extractor `layout-ocr-v3` rebuilds merged-column PDF tables and reads website tables as rows without reference lists (`html-main-v3.1`); "Publish the others" skips unreadable files and pages; new pipelines default to "Stop" for files and "Publish the others" for websites; compound-aware de-hyphenation; out-of-scope website links listed once as `skipped` (migration 0046); provider-reported embedding tokens and cost per run (migration 0047). v1 and v2 output is unchanged. The re-run published the recommended files run, raised Hit@5 from 42/47 to 46/47 with no question lost, and answered 20/20. A new finding from the re-run, X9 (combined `[S1, S2]` citations recorded as invalid), is fixed too. Details: `docs/specs/0007-real-source-fixes.md` and `docs/qa/real-source-2026-10/`.
