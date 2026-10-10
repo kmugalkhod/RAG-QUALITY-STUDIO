@@ -47,3 +47,28 @@ A1,f2-q6,,correct,Matches the reference answer.,yes,A source the answer names co
 A1,f3-q1,,correct,Matches the reference answer.,yes,A source the answer names contains the expected phrase.
 A1,f3-q4,,correct,Matches the reference answer.,yes,A source the answer names contains the expected phrase.
 A1,f3-q8,,correct-abstain,Declined: the report covers Surveyor VI only.,n/a,No answer to support.
+A2,f1-q1,,correct,"States L=12, H=768, A=12.",yes,A source the answer names contains the expected phrase.
+A2,f1-q4,,correct,"BooksCorpus 800M and English Wikipedia 2,500M words.",yes,A source the answer names contains the expected phrase.
+A2,f2-q1,,correct,Matches the reference answer.,yes,A source the answer names contains the expected phrase.
+A2,f2-q4,,correct,Matches the reference answer.,yes,A source the answer names contains the expected phrase.
+A2,f2-q6,,correct,Matches the reference answer.,yes,A source the answer names contains the expected phrase.
+A2,f3-q1,,correct,"139 pictures, as the reference.",yes,A source the answer names contains the expected phrase.
+A2,f3-q4,,correct,Matches the reference answer.,yes,A source the answer names contains the expected phrase.
+A2,f3-q8,,correct-abstain,Declined; not in the source.,n/a,No answer to support.
+A2,f2-q9,,wrong-abstain,"Declined; the Table A-2 2015 row is in the index (correct, read row by row) but not in the top 5, which held the 2019-2022 rows.",n/a,No answer to support.
+A2,f2-q10,,wrong-abstain,Declined; the 1990 row is in the index but not in the top 5.,n/a,No answer to support.
+A2,f4-q1,,wrong-abstain,Declined; the chart callout '381 deces' is not in the index (chart read as an empty table).,n/a,No answer to support.
+A2,f4-q2,,correct,"5,5 fois, as the reference.",yes,A source the answer names contains the expected phrase.
+A2,f4-q3,,correct,"77 %, as the reference.",yes,A source the answer names contains the expected phrase.
+A2,f4-q4,,correct,"22,4 % against 1990 (the prose figure; the chart callout rounds it to 22 %).",yes,"The cited chunk states 22,4 % against 1990; the reference phrase was the rounded callout."
+A2,f5-q1,,correct,Matches the reference answer.,yes,A source the answer names contains the expected phrase.
+A2,f5-q2,,wrong-abstain,"Declined; the OCR row 'Illinois ... 1,070' is in the index but not in the top 5.",n/a,No answer to support.
+A2,f5-q3,,wrong-abstain,"Declined; the Kansas row is not in the top 5, and OCR reads its 75 as 78.",n/a,No answer to support.
+A2,f6-q1,,wrong-abstain,"Declined; the rank-1 chunk has 'Word limit - 250 words' but the A3.2 heading is in an earlier chunk, so the model could not tie the limit to A3.2.",n/a,No answer to support.
+A2,f6-q2,,correct,All six categories.,yes,A source the answer names contains the expected phrase.
+A2,f7-q1,,correct,"7 to 11, from the slide table.",yes,A source the answer names contains the expected phrase.
+A2,f7-q2,,correct,"Major, rating 4, from the slide table.",yes,A source the answer names contains the expected phrase.
+A2,f7-q3,,correct,"1-5 scale, from the slide table.",yes,A source the answer names contains the expected phrase.
+A2,f7-q4,,correct-abstain,Declined; the matrix has no critical band.,n/a,No answer to support.
+A2,f5-q4,,correct-abstain,Declined; Alaska is not in Table 1.,n/a,No answer to support.
+A2,f4-q5,,correct-abstain,Declined; not in the report.,n/a,No answer to support.

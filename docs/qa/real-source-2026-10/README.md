@@ -61,3 +61,7 @@ Round A1 repeats the recommended settings after the fixes in [spec 0007](../../s
 - **New, X9, now fixed:** a combined citation such as `[S1, S2]` was recorded as invalid, so a correct answer could look uncited (also in R1). Each source in the bracket is now checked and linked. Answers stored earlier keep their recorded citations.
 
 The first A1 website run used `html-main-v3`, which dropped Python-docs links marked `class="reference"` and split sentences at citation markers. Four website questions fell out of the top 5. The reader was fixed (`html-main-v3.1`) and the website half re-run; the table above is from the re-run. A1 answers were scored with the same rubric against the references but not blind, because only one new round was scored. Total spend for the whole test was about $0.24 of the $1 cap.
+
+## Extract v4 (spec 0008, round A2)
+
+Round A2 re-ran the files with extractor `layout-ocr-v4` and added four new files and 17 new questions. Results are in the workbook's **Extract v4** sheet and in `docs/qa/extract-v4-2026-10/README.md` (Slice 6).

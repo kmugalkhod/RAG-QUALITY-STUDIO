@@ -84,3 +84,37 @@ Not measured: a skewed scan (F5 is not skewed; see Slice 0) and a non-English sc
 - **Mixed languages (warning)** was not traced further; it is a warning and does not block the file.
 
 Nothing was changed for F4 in this slice. A possible v4 fix, for the owner to decide: treat a detected table whose cells are almost all empty as not a table, so its text is read as ordinary blocks and it is not counted as malformed.
+
+## Slice 6: real-source round A2 (2026-10-10, paid)
+
+Round A2 ran through the public API with `backend/scripts/real_source/run.py` in the spec 0006 project. Results are in `docs/qa/real-source-2026-10/raw/` (`state.json`, `structure.json`, `answers_A2.jsonl`, A2 rows of `manual_scores.csv`) and the workbook's new **Extract v4** sheet (`docs/qa/real-source-2026-10/real-source-test.xlsx`).
+
+Setup:
+
+- **Spec 0006 files** (BERT, Census, Surveyor VI): extractor `layout-ocr-v4`, Maximum OCR pages 100, other Extract settings recommended, **Stop and let me review**. This is A1 with only the extractor and page limit changed.
+- **New files** (Eurostat, USGS scan, DfT DOCX, Prevent PPTX): a separate track and index with the same settings except **Publish the other files and show warnings**, because the Eurostat report is known to fail "Stop" (Slice 5).
+- **Websites** reuse the A1 index: v4 keeps the website reader (`html-main-v3.1`), so a new website run would only re-embed the same text. Website retrieval in A2 is identical to A1; website questions were not asked again.
+- **17 new questions** (`"round": "A2"` in `questions.jsonl`): 2 on the sideways Census Table A-2, 5 Eurostat (in French), 4 USGS, 2 DfT, 4 Prevent, of which 3 have no answer in the source. They were written from the source pages (rendered pages and the DOCX/PPTX XML), not from the app's output. Their reference phrases were fixed before the run, and they are not blind to the extractor, which had already been inspected in Slices 0-5.
+- Answers use the spec 0006 answer pipeline (`google/gemini-2.5-flash`, top 5, temperature 0). They were scored by Claude with the spec 0004 rubric against the references, not blind, as for A1.
+
+Results:
+
+| Measure | A1 (v3) | A2 (v4) |
+| --- | --- | --- |
+| Spec 0006 files run under "Stop" | published | published (637 chunks) |
+| Hit@1 / Hit@5, spec 0006 file questions | 9/19, 19/19 | 10/19, 19/19 |
+| Answers correct or correctly declined, spec 0006 file questions | 8/8 | 8/8 |
+| New files run ("Publish the others") | not run | published, all 4 files (1,030 chunks) |
+| Answers correct or correctly declined, new questions | n/a | 11/17 |
+| Spend | | $0.020 ($0.017 answers, $0.003 embeddings as the app reports them) |
+
+- **No A1 result got worse.** Every spec 0006 file question is still found in the top 5, and all 8 asked file questions are still answered correctly or correctly declined. The Table A-1 married-couple question improved from rank 2 to rank 1. Website retrieval is identical.
+- **PowerPoint tables work.** All three Prevent table questions are found (ranks 1, 1, 3) and answered correctly from the slide tables. In A1 that text was not in the index at all.
+- **DOCX tables work** (f6-q2, rank 1, correct).
+- **Sideways Census tables are read correctly but not found.** The Table A-2 rows for 2015 and 1990 are in the index exactly as printed, row by row. Neither ranks in the top 5, so the model correctly declines with the evidence it got. The rows are pure numbers, and the chunk's section path is "Endnotes": a heading on p. 20 runs on over the whole appendix, while the caption "Table A-2." is read as a paragraph, not a heading. The multi-line column header is not repeated per row group. All three causes predate v4 (A1's Table A-1 sits under "Endnotes" too). Changing heading or chunk context would change v4's output after A2 saved v4 pipelines, so it is recorded for a later version, not changed here.
+- **Eurostat chart callouts are lost.** "381 décès pour 100 000 habitants" (p. 21) is not in the index: the chart is read as an almost empty 53-column table, and text inside its box is dropped. Prose questions are answered (f4-q2, f4-q3), and f4-q4 is answered correctly from the prose figure "22,4 %". The report is split into 899 chunks with a median of 35 tokens, 327 of them single short lines, so retrieval works on fragments. This supports the chart-as-table fix proposed in Slice 5.
+- **The USGS typewritten table is hard to retrieve.** The Illinois row is in the index but outside the top 5. Kansas's 75 is misread as 78 (the B4 limit); the automatic rank-2 hit for f5-q3 is a false match on "750" in another row. Prose (f5-q1) is found at rank 1 and answered.
+- **DfT word limit (f6-q1) declined.** The rank-1 chunk holds "Word limit – 250 words", but the "A3.2" heading sits in an earlier chunk, so the model could not tie the limit to A3.2. This is a chunking limit, not an extraction one.
+- **All three unanswerable questions were correctly declined.**
+
+Against the spec's done-when: the Extract panel, unchanged saved pipelines, no A1 regression, the scan measurements and the spend all hold. PowerPoint tables answer their questions. The rotated Census tables are extracted correctly but do not yet answer their questions, because of the retrieval context described above.

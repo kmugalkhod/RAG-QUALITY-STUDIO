@@ -1,7 +1,7 @@
 # 0008. Simpler Extract settings and extractor v4
 
 **Date**: 2026-10-10
-**Status**: Approved 2026-10-10. The owner accepted the recommendation for D1-D4. Slices 0-5 done (Part A and Part B complete; new drafts use `layout-ocr-v4`). B3 was a harness cause plus a soft-hyphen fix in v4; B4 needed no OCR change; the Eurostat chart-as-table failure awaits an owner decision.
+**Status**: Approved 2026-10-10. The owner accepted the recommendation for D1-D4. Slices 0-6 done (Part A and Part B complete; new drafts use `layout-ocr-v4`). B3 was a harness cause plus a soft-hyphen fix in v4; B4 needed no OCR change. Round A2 (Slice 6, $0.020): no A1 regression and PowerPoint tables answer their questions; the rotated Census rows are extracted correctly but not retrieved (section and header context, predates v4), and the Eurostat chart-as-table issue loses chart callouts. Both await an owner decision.
 
 ## Summary
 

@@ -11,8 +11,12 @@ without duplicating uploads, pipelines, crawls, indexes or paid answers:
     python run.py fetch    <work> R1                  # answers_R1.jsonl for blind scoring
 
 Rounds R1-R6 are defined in ROUNDS. A round that does not apply to a track reuses
-that track's R1 index. Website sources are fetched once, in R1; later website
-rounds build from the R1 source snapshot.
+that track's R1 index (or the round named in its "reuse"). Website sources are
+fetched once, in R1; later website rounds build from the R1 source snapshot.
+
+Spec 0008 adds round A2 and a third track, "new", for the `files_v4` sources
+(`setup` uploads them too); questions marked with a later "round" are skipped in
+earlier rounds.
 
 Run inside the backend container against http://127.0.0.1:8000 (local auth mode).
 """
@@ -68,9 +72,22 @@ ROUNDS = {
     # on the same website snapshot, files and questions as R1.
     "A1": {"tracks": ["web", "files"], "label": "After fixes: recommended (v3)",
            "extract": {"config_version": "layout-ocr-v3"}, "quality": {"web": "warn-v1"}},
+    # Spec 0008 slice 6: extractor v4 with the simplified defaults (Maximum OCR pages
+    # 100). The spec 0006 files keep "Stop"; the new files use "Publish the other
+    # files and show warnings", because the Eurostat report is known to fail "Stop"
+    # (charts read as oversized tables). v4 does not change the website reader, so
+    # websites reuse the A1 index and are not asked again.
+    "A2": {"tracks": ["files", "new"], "label": "Extract v4: recommended",
+           "extract": {"config_version": "layout-ocr-v4"}, "ocr": {"max_pages": 100},
+           "quality": {"new": "warn-v1"}, "reuse": {"web": "A1"}},
 }
 # The index a track falls back to when a round does not rebuild it.
 BASELINE = {"web": "R1", "files": "R1w"}
+MEDIA_TYPES = {
+    ".pdf": "application/pdf",
+    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+}
 
 
 def normalize(value: str) -> str:
@@ -87,6 +104,20 @@ def load_questions() -> list[dict]:
 
 def load_sources() -> dict:
     return json.loads((HERE / "sources.json").read_text(encoding="utf-8"))
+
+
+def track_of(source_id: str, sources: dict) -> str:
+    if source_id.startswith("W"):
+        return "web"
+    return "new" if source_id in sources.get("files_v4", {}) else "files"
+
+
+def in_round(question: dict, round_id: str) -> bool:
+    """A question written for a later round is not part of earlier rounds."""
+
+    introduced = question.get("round")
+    order = list(ROUNDS)
+    return not introduced or order.index(introduced) <= order.index(round_id)
 
 
 class Run:
@@ -181,22 +212,24 @@ class Run:
             )
             self.state["project_id"] = project["id"]
             self.save()
-        documents = self.state.setdefault("documents", {})
-        for source_id, source in self.sources["files"].items():
-            if source_id in documents:
-                continue
-            path = files / source["filename"]
-            data = path.read_bytes()
-            digest = hashlib.sha256(data).hexdigest()
-            if digest != source["sha256"]:
-                raise SystemExit(f"{path.name}: SHA-256 {digest} differs from sources.json.")
-            uploaded = self.call(
-                "POST",
-                f"{self.project}/documents",
-                files={"file": (source["filename"], data, "application/pdf")},
-            )
-            documents[source_id] = {"id": uploaded["id"], "filename": source["filename"]}
-            self.save()
+        for group, key in (("files", "documents"), ("files_v4", "documents_v4")):
+            documents = self.state.setdefault(key, {})
+            for source_id, source in self.sources.get(group, {}).items():
+                if source_id in documents:
+                    continue
+                path = files / source["filename"]
+                data = path.read_bytes()
+                digest = hashlib.sha256(data).hexdigest()
+                if digest != source["sha256"]:
+                    raise SystemExit(f"{path.name}: SHA-256 {digest} differs from sources.json.")
+                uploaded = self.call(
+                    "POST",
+                    f"{self.project}/documents",
+                    files={"file": (source["filename"], data, MEDIA_TYPES[path.suffix])},
+                )
+                documents[source_id] = {"id": uploaded["id"], "filename": source["filename"]}
+                self.save()
+        documents = {**self.state["documents"], **self.state.get("documents_v4", {})}
         self.state["embedding"] = self.call("GET", f"{self.project}/embedding-settings")[
             "config"
         ]
@@ -254,7 +287,8 @@ class Run:
                 for i, config in enumerate(self.sources["websites"].values())
             ]
         else:
-            ids = [d["id"] for d in self.state["documents"].values()]
+            group = "documents_v4" if track == "new" else "documents"
+            ids = [d["id"] for d in self.state[group].values()]
             sources = [{
                 "id": "source",
                 "type": "source",
@@ -407,7 +441,12 @@ class Run:
     def index_for(self, track: str, round_id: str) -> tuple[str | None, str]:
         """The index a round uses for a track, and the round that built it."""
 
-        built = round_id if track in ROUNDS[round_id]["tracks"] else BASELINE[track]
+        spec = ROUNDS[round_id]
+        built = (
+            round_id
+            if track in spec["tracks"]
+            else spec.get("reuse", {}).get(track, BASELINE.get(track))
+        )
         run = self.state.get("runs", {}).get(f"{track}:{built}", {})
         return run.get("index_id"), built
 
@@ -418,7 +457,16 @@ class Run:
             config["allowed_origins"][0].rstrip("/"): source_id
             for source_id, config in sources["websites"].items()
         }
-        filename_to_source = {f["filename"]: sid for sid, f in sources["files"].items()}
+        filename_to_source = {
+            f["filename"]: sid
+            for group in ("files", "files_v4")
+            for sid, f in sources.get(group, {}).items()
+        }
+        track_sources = {
+            "web": sources["websites"],
+            "files": sources["files"],
+            "new": sources.get("files_v4", {}),
+        }
         table_line = re.compile(r"^\|.*\|\s*$", re.MULTILINE)
         structure = []
         previous_path = self.work / "structure.json"
@@ -441,7 +489,7 @@ class Run:
                     else:
                         source_id = filename_to_source.get(record["filename"], "F?")
                     per_source.setdefault(source_id, []).append(record)
-            for source_id in (sources["websites"] if track == "web" else sources["files"]):
+            for source_id in track_sources[track]:
                 records = per_source.get(source_id, [])
                 tokens = [r.get("token_count") or 0 for r in records]
                 with_section = sum(1 for r in records if r.get("section_path"))
@@ -457,7 +505,7 @@ class Run:
                 }
                 items = [
                     i for i in run.get("items", [])
-                    if (track == "files" and filename_to_source.get(i.get("filename")) == source_id)
+                    if (track != "web" and filename_to_source.get(i.get("filename")) == source_id)
                     or (track == "web" and origin_to_source.get(
                         "/".join(str(i.get("source_url") or i.get("canonical_location") or "").split("/")[:3])
                     ) == source_id)
@@ -489,13 +537,13 @@ class Run:
 
     # retrieve (paid: query embeddings) -----------------------------------
     def retrieve(self, round_id: str) -> None:
-        questions = load_questions()
+        questions = [q for q in load_questions() if in_round(q, round_id)]
         results = self.state.setdefault("retrieval", {}).setdefault(round_id, {})
         query_bytes = 0
         for question in questions:
             if question["id"] in results:
                 continue
-            track = "web" if question["source"].startswith("W") else "files"
+            track = track_of(question["source"], self.sources)
             index_id, built = self.index_for(track, round_id)
             if not index_id:
                 results[question["id"]] = {"index_round": built, "status": "no index"}
@@ -557,9 +605,9 @@ class Run:
         answer_pipelines = self.state.setdefault("answer_pipelines", {})
         answers = self.state.setdefault("answers", {}).setdefault(round_id, {})
         for question in load_questions():
-            if not question["ask"]:
+            if not question["ask"] or not in_round(question, round_id):
                 continue
-            track = "web" if question["source"].startswith("W") else "files"
+            track = track_of(question["source"], self.sources)
             if round_id != "R1" and track not in ROUNDS[round_id]["tracks"]:
                 continue
             index_id, built = self.index_for(track, round_id)
