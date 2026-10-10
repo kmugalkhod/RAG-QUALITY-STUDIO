@@ -162,13 +162,13 @@ test('edits exact and near-duplicate decisions with a visible threshold', () => 
 test('offers a saved layout-ocr-v1 extractor an explicit upgrade', () => {
   render(<PolicyHarness kind="extract" extractVersion="layout-ocr-v1" />);
   expect(screen.getByText('Saved with layout-ocr-v1')).toBeInTheDocument();
-  expect(screen.getByLabelText('Extraction strategy')).toHaveValue('auto');
+  expect(screen.getByLabelText("If a file can't be read well")).toBeInTheDocument();
 
   fireEvent.click(screen.getByRole('button', { name: 'Upgrade extraction' }));
 
   expect(screen.queryByText('Saved with layout-ocr-v1')).not.toBeInTheDocument();
   expect(screen.queryByRole('button', { name: 'Upgrade extraction' })).not.toBeInTheDocument();
-  expect(screen.getByLabelText('Extraction strategy')).toHaveValue('auto');
+  expect(screen.getByLabelText("If a file can't be read well")).toBeInTheDocument();
 });
 
 test('shows no upgrade for the current extractor', () => {
@@ -233,20 +233,20 @@ function SourcesHarness({
 test('shows only quality and language settings for page-based sources', () => {
   render(<SourcesHarness kinds={['website', 'website']} />);
   expect(screen.getByText('Quality and language only')).toBeInTheDocument();
-  expect(screen.queryByLabelText('Extraction strategy')).not.toBeInTheDocument();
-  expect(screen.queryByLabelText('OCR policy')).not.toBeInTheDocument();
-  expect(screen.queryByLabelText('Table evidence')).not.toBeInTheDocument();
+  expect(screen.queryByText(/older custom setting/)).not.toBeInTheDocument();
   expect(screen.getByLabelText('Quality policy')).toBeInTheDocument();
   expect(screen.getByText('Language policy')).toBeInTheDocument();
 });
 
-test('shows file extraction settings with their scope for file sources', () => {
+test('names saved file-only settings for file sources', () => {
   for (const kinds of [['s3'], ['existing_files'], ['notion', 's3']]) {
     const { unmount } = render(<SourcesHarness kinds={kinds} />);
     expect(screen.queryByText('Quality and language only')).not.toBeInTheDocument();
-    expect(screen.getByLabelText('Extraction strategy')).toHaveValue('layout_aware');
-    expect(screen.getByLabelText('Table evidence')).toHaveValue('plain_text');
-    expect(screen.getByText(/Strategy and OCR apply to PDFs/)).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /Uses older custom settings: extraction strategy Layout-aware, table format Plain text\./,
+      ),
+    ).toBeInTheDocument();
     unmount();
   }
 });

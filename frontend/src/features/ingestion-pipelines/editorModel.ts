@@ -223,9 +223,89 @@ export function qualityPolicyForChoice(
 }
 
 /**
+ * Settings the Extract panel no longer shows (spec 0008): the real-source test found
+ * they never changed a result. Saved values are kept and run as saved.
+ */
+export const legacyExtractFields = new Set([
+  'strategy',
+  'tables',
+  'ocr.mode',
+  'ocr.rotate_pages',
+  'ocr.deskew',
+  'ocr.dpi',
+  'ocr.timeout_seconds',
+]);
+
+const strategyNames = { native: 'Native text', layout_aware: 'Layout-aware' };
+const tableNames = { preserve: 'Preserve', markdown: 'Markdown', plain_text: 'Plain text' };
+
+/**
+ * Saved values of the hidden settings that differ from the recommended ones, in words,
+ * for the read-only "older custom setting" line. Page-based sources never use them.
+ */
+export function extractLegacySettings(
+  node: ExtractNode,
+  capabilities: ExtractionCapabilities | undefined,
+  readsFiles: boolean,
+): string[] {
+  if (!readsFiles) {
+    return [];
+  }
+  const recommended = recommendedExtractSettings(capabilities, readsFiles);
+  const ocr = node.ocr ?? recommended.ocr;
+  const strategy = node.strategy ?? 'auto';
+  const tables = node.tables ?? 'preserve';
+  const settings: string[] = [];
+  // native_text and media_type_registry belong to pre-layout versions, which never
+  // show this panel.
+  if (strategy === 'native' || strategy === 'layout_aware') {
+    settings.push(`extraction strategy ${strategyNames[strategy]}`);
+  }
+  if (ocr.mode !== recommended.ocr.mode) {
+    settings.push(
+      ocr.mode === 'off' ? 'OCR off' : ocr.mode === 'always' ? 'OCR on every page' : 'OCR on',
+    );
+  }
+  if (ocr.rotate_pages !== recommended.ocr.rotate_pages) {
+    settings.push(`page rotation ${ocr.rotate_pages ? 'on' : 'off'}`);
+  }
+  if (ocr.deskew !== recommended.ocr.deskew) {
+    settings.push(`deskew ${ocr.deskew ? 'on' : 'off'}`);
+  }
+  if (ocr.dpi !== recommended.ocr.dpi) {
+    settings.push(`OCR resolution ${ocr.dpi} DPI`);
+  }
+  if (ocr.timeout_seconds !== recommended.ocr.timeout_seconds) {
+    settings.push(`per-page timeout ${ocr.timeout_seconds} s`);
+  }
+  if (tables !== recommended.tables) {
+    settings.push(`table format ${tableNames[tables]}`);
+  }
+  return settings;
+}
+
+/** Restores the hidden settings only; every visible choice stays as it is. */
+export function resetExtractLegacy(
+  node: ExtractNode,
+  capabilities?: ExtractionCapabilities,
+  readsFiles = true,
+): Partial<ExtractNode> {
+  const recommended = recommendedExtractSettings(capabilities, readsFiles);
+  return {
+    strategy: recommended.strategy,
+    tables: recommended.tables,
+    ocr: {
+      ...recommended.ocr,
+      languages: node.ocr?.languages ?? recommended.ocr.languages,
+      max_pages: node.ocr?.max_pages ?? recommended.ocr.max_pages,
+    },
+  };
+}
+
+/**
  * Advanced settings that differ from the recommended values, by their panel label.
- * OCR on/off, OCR languages and the two quality presets are simple-panel choices,
- * so they never count here.
+ * OCR languages and the two quality presets are simple-panel choices, and the hidden
+ * settings are listed by extractLegacySettings, so none of them count here.
  */
 export function extractDifferences(
   node: ExtractNode,
@@ -235,18 +315,8 @@ export function extractDifferences(
   const recommended = recommendedExtractSettings(capabilities, readsFiles);
   const ocr = node.ocr ?? recommended.ocr;
   const differences: string[] = [];
-  if (readsFiles) {
-    const fileChecks: [string, boolean][] = [
-      ['Extraction strategy', (node.strategy ?? 'auto') !== recommended.strategy],
-      ['OCR policy', ocr.mode === 'always'],
-      ['Detect page rotation', ocr.rotate_pages !== recommended.ocr.rotate_pages],
-      ['Deskew scans', ocr.deskew !== recommended.ocr.deskew],
-      ['OCR resolution (DPI)', ocr.dpi !== recommended.ocr.dpi],
-      ['Maximum OCR pages', ocr.max_pages !== recommended.ocr.max_pages],
-      ['Per-page timeout (seconds)', ocr.timeout_seconds !== recommended.ocr.timeout_seconds],
-      ['Table evidence', (node.tables ?? 'preserve') !== recommended.tables],
-    ];
-    differences.push(...fileChecks.filter(([, differs]) => differs).map(([label]) => label));
+  if (readsFiles && ocr.max_pages !== recommended.ocr.max_pages) {
+    differences.push('Maximum OCR pages');
   }
   if (qualityChoice(node.quality_policy, capabilities) === 'custom') {
     differences.push('Quality policy');
@@ -260,8 +330,8 @@ export function extractDifferences(
 }
 
 /**
- * Restores every advanced setting. The user's OCR on/off choice, OCR languages and a
- * preset quality choice are kept; "always" OCR becomes automatic.
+ * Restores the visible advanced settings. OCR languages, a preset quality choice and
+ * the hidden settings (see resetExtractLegacy) are kept.
  */
 export function resetExtractAdvanced(
   node: ExtractNode,
@@ -270,15 +340,12 @@ export function resetExtractAdvanced(
 ): Partial<ExtractNode> {
   const recommended = recommendedExtractSettings(capabilities, readsFiles);
   const ocr: OcrSettings = {
-    ...recommended.ocr,
-    mode: node.ocr?.mode === 'off' ? 'off' : recommended.ocr.mode,
-    languages: node.ocr?.languages ?? recommended.ocr.languages,
+    ...(node.ocr ?? recommended.ocr),
+    max_pages: recommended.ocr.max_pages,
   };
   const choice = qualityChoice(node.quality_policy, capabilities);
   return {
-    strategy: recommended.strategy,
     ocr,
-    tables: recommended.tables,
     quality_policy:
       choice === 'custom'
         ? recommended.quality_policy

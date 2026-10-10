@@ -6,6 +6,7 @@ import { IngestionNodeSettings } from '../../../src/features/ingestion-pipelines
 import {
   defaultQualityPolicy,
   extractDifferences,
+  extractLegacySettings,
   fallbackQualityPolicy,
   qualityChoice,
   recommendedExtractSettings,
@@ -97,37 +98,61 @@ const advanced = () =>
 
 test('a new pipeline shows the simple choices and collapsed recommended settings', () => {
   render(<Harness />);
-  expect(screen.getByRole('checkbox', { name: /Read scanned pages \(OCR\)/ })).toBeChecked();
+  expect(screen.queryByRole('checkbox', { name: /Read scanned pages/ })).not.toBeInTheDocument();
   expect(screen.getByText('Languages in scanned pages')).toBeInTheDocument();
   expect(screen.getByText('English (eng)')).toBeInTheDocument();
   expect(screen.getByText('Hindi (hin)')).toBeInTheDocument();
   expect(screen.getByLabelText("If a file can't be read well")).toHaveValue('stop');
   expect(screen.getByText(/stops the run, so nothing new is published/)).toBeInTheDocument();
+  expect(screen.queryByText(/older custom setting/)).not.toBeInTheDocument();
   expect(advanced().open).toBe(false);
   expect(screen.getByText('Using recommended settings.')).toBeInTheDocument();
-  expect(screen.queryByRole('button', { name: 'Reset to recommended' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /Reset/ })).not.toBeInTheDocument();
 });
 
-test('the OCR checkbox writes the same mode as the advanced OCR policy', () => {
+test('settings that never changed a result are not in the panel', () => {
   render(<Harness />);
-  const ocr = screen.getByRole('checkbox', { name: /Read scanned pages \(OCR\)/ });
-  fireEvent.click(ocr);
-  expect(latest.ocr?.mode).toBe('off');
-  expect(screen.getByLabelText('OCR policy')).toHaveValue('off');
-  expect(screen.queryByText('Languages in scanned pages')).not.toBeInTheDocument();
-  fireEvent.click(ocr);
-  expect(latest.ocr?.mode).toBe('auto');
-  expect(screen.getByText('Using recommended settings.')).toBeInTheDocument();
+  for (const label of [
+    'Extraction strategy',
+    'OCR policy',
+    'OCR resolution (DPI)',
+    'Per-page timeout (seconds)',
+    'Table evidence',
+  ]) {
+    expect(screen.queryByLabelText(label)).not.toBeInTheDocument();
+  }
+  expect(screen.queryByText('Detect page rotation')).not.toBeInTheDocument();
+  expect(screen.queryByText('Deskew scans')).not.toBeInTheDocument();
+  expect(screen.getByLabelText(/Maximum OCR pages/)).toHaveValue(recommendedNode().ocr!.max_pages);
+  expect(screen.getByLabelText('Quality policy')).toBeInTheDocument();
 });
 
-test('a saved always OCR mode survives and counts as an advanced difference', () => {
+test('a saved older setting is named, kept on edit and counted once', () => {
   const initial = recommendedNode();
-  initial.ocr = { ...initial.ocr!, mode: 'always' };
+  initial.ocr = { ...initial.ocr!, mode: 'always', dpi: 300 };
+  initial.tables = 'plain_text';
   render(<Harness initial={initial} />);
-  expect(screen.getByRole('checkbox', { name: /Read scanned pages \(OCR\)/ })).toBeChecked();
-  expect(screen.getByText(/1 setting differs from recommended: OCR policy\./)).toBeInTheDocument();
+  expect(
+    screen.getByText(
+      /Uses older custom settings: OCR on every page, OCR resolution 300 DPI, table format Plain text\./,
+    ),
+  ).toBeInTheDocument();
+  expect(screen.getByText('· 1 changed')).toBeInTheDocument();
   fireEvent.click(screen.getByText('English (eng)'));
-  expect(latest.ocr?.mode).toBe('always');
+  fireEvent.change(screen.getByLabelText("If a file can't be read well"), {
+    target: { value: 'publish' },
+  });
+  expect(latest.ocr).toMatchObject({ mode: 'always', dpi: 300 });
+  expect(latest.tables).toBe('plain_text');
+});
+
+test('one older setting reads in the singular', () => {
+  const initial = recommendedNode();
+  initial.ocr = { ...initial.ocr!, dpi: 300 };
+  render(<Harness initial={initial} />);
+  expect(
+    screen.getByText(/^Uses an older custom setting: OCR resolution 300 DPI\. The panel/),
+  ).toBeInTheDocument();
 });
 
 test('the quality choice writes the preset policies', () => {
@@ -154,49 +179,90 @@ test('custom quality rules show as Custom and as an advanced difference', () => 
   expect(screen.getByText(/differs from recommended: Quality policy\./)).toBeInTheDocument();
 });
 
-test('reset restores advanced settings but keeps the simple choices', () => {
+test('the older-settings reset restores hidden values and keeps the visible choices', () => {
   const initial = recommendedNode();
   initial.strategy = 'layout_aware';
   initial.tables = 'plain_text';
-  initial.ocr = { ...initial.ocr!, mode: 'off', languages: ['hin'], dpi: 300 };
+  initial.ocr = { ...initial.ocr!, mode: 'off', languages: ['hin'], dpi: 300, max_pages: 20 };
   initial.quality_policy = fallbackQualityPolicy('warn-v1');
   render(<Harness initial={initial} />);
   expect(
     screen.getByText(
-      '3 settings differ from recommended: Extraction strategy, OCR resolution (DPI), Table evidence.',
+      /Uses older custom settings: extraction strategy Layout-aware, OCR off, OCR resolution 300 DPI, table format Plain text\./,
     ),
   ).toBeInTheDocument();
-  fireEvent.click(screen.getByRole('button', { name: 'Reset to recommended' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Reset older settings to recommended' }));
   expect(latest.strategy).toBe('auto');
   expect(latest.tables).toBe('preserve');
-  expect(latest.ocr).toMatchObject({ mode: 'off', languages: ['hin'], dpi: 200 });
+  expect(latest.ocr).toMatchObject({ mode: 'auto', languages: ['hin'], dpi: 200, max_pages: 20 });
   expect(latest.quality_policy).toEqual(fallbackQualityPolicy('warn-v1'));
-  expect(screen.getByText('Using recommended settings.')).toBeInTheDocument();
+  expect(screen.queryByText(/older custom setting/)).not.toBeInTheDocument();
+  expect(screen.getByText(/differs from recommended: Maximum OCR pages\./)).toBeInTheDocument();
 });
 
-test('a server error on an advanced field opens the section', () => {
-  render(<Harness serverFieldErrors={{ 'extract:ocr.dpi': 'DPI must be 150–300.' }} />);
+test('the advanced reset restores the visible advanced settings only', () => {
+  const initial = recommendedNode();
+  initial.ocr = { ...initial.ocr!, dpi: 300, max_pages: 20 };
+  initial.quality_policy = {
+    ...defaultQualityPolicy,
+    thresholds: { ...defaultQualityPolicy.thresholds, minimum_ocr_confidence: 80 },
+  };
+  render(<Harness initial={initial} />);
+  expect(screen.getByText('· 3 changed')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Reset to recommended' }));
+  expect(latest.ocr).toMatchObject({ dpi: 300, max_pages: recommendedNode().ocr!.max_pages });
+  expect(latest.quality_policy).toEqual(fallbackQualityPolicy('default-v1'));
+  expect(screen.getByText('· 1 changed')).toBeInTheDocument();
+  expect(
+    screen.getByText(
+      'These settings use the recommended values. The older setting is listed above.',
+    ),
+  ).toBeInTheDocument();
+});
+
+test('a server error on a visible advanced field opens the section', () => {
+  render(<Harness serverFieldErrors={{ 'extract:ocr.max_pages': 'At most 100 pages.' }} />);
   expect(advanced().open).toBe(true);
 });
 
+test('a server error on a hidden setting shows on the older-settings line', () => {
+  render(<Harness serverFieldErrors={{ 'extract:ocr.dpi': 'DPI must be 150–300.' }} />);
+  expect(screen.getByRole('alert')).toHaveTextContent('DPI must be 150–300.');
+  expect(advanced().open).toBe(false);
+});
+
 test('page-based sources keep only the quality choice outside Advanced', () => {
-  render(<Harness kinds={['website']} />);
+  const initial = recommendedNode();
+  initial.ocr = { ...initial.ocr!, dpi: 300 };
+  render(<Harness kinds={['website']} initial={initial} />);
   expect(screen.getByText('Quality and language only')).toBeInTheDocument();
-  expect(screen.queryByRole('checkbox', { name: /Read scanned pages/ })).not.toBeInTheDocument();
+  expect(screen.queryByText('Languages in scanned pages')).not.toBeInTheDocument();
+  expect(screen.queryByText(/older custom setting/)).not.toBeInTheDocument();
+  expect(screen.queryByLabelText(/Maximum OCR pages/)).not.toBeInTheDocument();
   expect(screen.getByLabelText("If a file can't be read well")).toHaveValue('stop');
 });
 
-test('without OCR the checkbox is disabled and explains why', () => {
-  const initial = recommendedNode();
-  initial.ocr = { ...initial.ocr!, mode: 'off' };
+test('without OCR the panel explains why and OCR off is not an older setting', () => {
+  const initial: ExtractNode = {
+    id: 'extract',
+    type: 'extract',
+    ...recommendedExtractSettings({
+      ...capabilities,
+      ocr: { ...capabilities.ocr, available: false },
+    }),
+    config_version: 'layout-ocr-v3',
+  };
+  expect(initial.ocr?.mode).toBe('off');
   render(<Harness initial={initial} available={false} />);
-  expect(screen.getByRole('checkbox', { name: /Read scanned pages \(OCR\)/ })).toBeDisabled();
   expect(screen.getByText('No OCR.')).toBeInTheDocument();
+  expect(screen.queryByText(/older custom setting/)).not.toBeInTheDocument();
 });
 
 test('the model helpers agree with each other', () => {
   const node = recommendedNode();
   expect(extractDifferences(node, capabilities, true)).toEqual([]);
+  expect(extractLegacySettings(node, capabilities, true)).toEqual([]);
+  expect(extractLegacySettings({ ...node, strategy: 'native' }, capabilities, false)).toEqual([]);
   expect(qualityChoice('warn-v1', capabilities)).toBe('publish');
   expect(qualityChoice('strict-v1', capabilities)).toBe('custom');
   // Saved JSONB may reorder keys; that is not a difference.

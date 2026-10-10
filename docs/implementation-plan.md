@@ -2,9 +2,11 @@
 
 ## Simpler Extract settings and extractor v4 — spec 0008 (started 2026-10-10)
 
-**Status:** decisions D1-D4 approved as recommended; Slice 0 (v3 baseline) done. Seven files (the three spec 0006 PDFs plus a French Eurostat report, a 1951 USGS scan, a DfT DOCX and a Prevent PPTX) were extracted locally with `layout-ocr-v3`. The baseline confirms transposed rotated Census tables and missing PPTX table text, finds no "married-" line break in v3 extraction (so the remaining merge is downstream), and adds one new finding: the French Eurostat report fails the default quality policy on three malformed tables. Only the English OCR pack is installed, so non-English OCR is not tested. Details: `docs/qa/extract-v4-2026-10/README.md`.
+**Status:** decisions D1-D4 approved as recommended; Slices 0 (v3 baseline) and 1 (shorter Extract panel) done. Seven files (the three spec 0006 PDFs plus a French Eurostat report, a 1951 USGS scan, a DfT DOCX and a Prevent PPTX) were extracted locally with `layout-ocr-v3`. The baseline confirms transposed rotated Census tables and missing PPTX table text, finds no "married-" line break in v3 extraction (so the remaining merge is downstream), and adds one new finding: the French Eurostat report fails the default quality policy on three malformed tables. Only the English OCR pack is installed, so non-English OCR is not tested. Details: `docs/qa/extract-v4-2026-10/README.md`.
 
-**Next:** Slice 1, the shorter Extract panel (Part A).
+**Slice 1 (Part A UI):** the Extract panel no longer shows OCR on/off, OCR policy, OCR resolution, per-page timeout, page rotation, deskew, extraction strategy or table format. Visible: OCR languages, "If a file can't be read well" and the upgrade notice; Advanced keeps Maximum OCR pages, the quality policy and thresholds, and the language policy. A saved node whose hidden value differs gets one read-only line ("Uses an older custom setting: OCR resolution 300 DPI.") with its own reset, keeps the value on every other edit, and counts once in the "N changed" summary; server errors on hidden fields show on that line. Website-only pipelines show no OCR settings and no such line. No schema or backend change. Verification: 13 Extract panel tests (8 new or rewritten) and 2 updated node-settings tests, the full Vitest suite (384), lint and typecheck; in the browser at :5273 the saved spec 0006 pipeline R3a shows "OCR resolution 300 DPI" and "2 changed", A1 shows "recommended", with no console errors on desktop or phone.
+
+**Next:** Slice 2, docs and screenshots for the shorter panel and Maximum OCR pages default 100.
 
 ## Real-source fixes — spec 0007 (2026-10-10)
 
