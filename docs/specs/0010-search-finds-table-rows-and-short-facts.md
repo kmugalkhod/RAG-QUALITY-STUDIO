@@ -1,7 +1,7 @@
 # 0010. Search that finds table rows and short facts
 
 **Date**: 2026-10-10
-**Status**: Approved 2026-10-10 (D1-D3). Slice 0 done; it proposes a revised plan (below) that needs owner approval before Slice 1.
+**Status**: Approved 2026-10-10 (D1-D3). Slice 0 done; the revised plan below was approved by the owner on 2026-10-10 and replaces Parts A-C and the slices where they differ.
 
 ## Summary
 
@@ -34,7 +34,7 @@ Causes:
 
 A keyword fix alone (probe rows 4-5) does not reach the Census rows; a chunking fix is needed too. Whether the two together reach them is the first thing this spec measures (Slice 0), before anything ships.
 
-## Slice 0 result and proposed revision (needs owner approval)
+## Slice 0 result and approved revision (2026-10-10)
 
 Measured 2026-10-10 for $0.013 (`docs/qa/search-v3-2026-10/README.md`):
 
@@ -43,12 +43,22 @@ Measured 2026-10-10 for $0.013 (`docs/qa/search-v3-2026-10/README.md`):
 - **Merging short same-page chunks finds the Eurostat callout.** The merged chunk would rank first for f4-q1 (distance 0.197 against 0.234 for today's best).
 - **The Census 2015 row (f2-q9) stays out of reach:** the row chunks are near-identical runs of numbers to an embedding.
 
-Proposed revision:
+Revision, approved by the owner 2026-10-10:
 
 1. Drop Part A from this spec. Record the keyword finding and propose a separate spec for a rarity-weighted (BM25-style) keyword search.
 2. Replace B1 with "new drafts chunk with `parent-child-v1`", decided by round A4 on every file and question (no question lost).
 3. Build B2 as the main change: a new chunking version for section-token and parent-child that appends runs of chunks under 40 tokens to the chunk before them on the same page.
 4. Done-when becomes: f2-q10 and f4-q1 retrieved and answered, f2-q9 recorded as a known limit unless A4 finds it, no question lost, spend under $1.
+
+D1 and D2 fall away with Part A; D3 (the $1 cap) stands.
+
+### Revised slices
+
+| Slice | Content | Risk |
+| --- | --- | --- |
+| 1 | `section-token-v2` and `parent-child-v2`: a section whose first chunk is under 40 tokens appends it to the chunk before it when both are on the same page (or both pageless) and the result fits the hard maximum; in parent-child the same rule applies to parents and, within each parent, to children. The merged chunk keeps the receiving chunk's section path. v1 output is unchanged. | Low |
+| 2 | Editor and capabilities offer v2; new drafts use `section-token-v2`; saved v1 pipelines keep v1 and the editor offers the upgrade; docs | Low |
+| 3 | Round A4 (paid, under $1): rebuild the files indexes with `section-token-v2` and `parent-child-v2`, ask every file question, "Search v3" sheet. If parent-child-v2 loses no question against A3, new drafts switch to it. | Low |
 
 ## Decisions for the owner
 

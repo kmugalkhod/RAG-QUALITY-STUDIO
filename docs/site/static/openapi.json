@@ -5016,8 +5016,11 @@
             "type": "integer"
           },
           "config_version": {
-            "const": "parent-child-v1",
             "default": "parent-child-v1",
+            "enum": [
+              "parent-child-v1",
+              "parent-child-v2"
+            ],
             "title": "Config Version",
             "type": "string"
           },
@@ -7002,8 +7005,11 @@
             "type": "string"
           },
           "config_version": {
-            "const": "section-token-v1",
             "default": "section-token-v1",
+            "enum": [
+              "section-token-v1",
+              "section-token-v2"
+            ],
             "title": "Config Version",
             "type": "string"
           },

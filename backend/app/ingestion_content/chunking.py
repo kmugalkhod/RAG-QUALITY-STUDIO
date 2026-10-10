@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, Iterable
 
 from app.ingestion_content.contracts import (
@@ -18,6 +18,11 @@ from app.ingestion_content.tokenizers import Utf8ByteTokenizer, tokenizer_for
 _BOUNDARY = re.compile(r"(?:\n{2,}|(?<=[.!?])\s+|\n)")
 _MARKDOWN_DIVIDER = re.compile(r"^\s*\|?\s*:?-{3,}")
 _PROTECTED = {"list_item", "table", "code"}
+# Versions that append a section's short first chunk to the chunk before it on the
+# same page (spec 0010). A chart callout or label read as a heading otherwise stands
+# alone as a chunk of a few words that no question ranks first.
+SHORT_CHUNK_MERGE_VERSIONS = {"section-token-v2", "parent-child-v2"}
+SHORT_CHUNK_TOKENS = 40
 
 
 @dataclass(frozen=True)
@@ -277,6 +282,55 @@ def _pack(
     return groups
 
 
+def _group_page(group: list[_Piece]) -> tuple[bool, int | None]:
+    pages = {piece.page_number for piece in group}
+    return (len(pages) == 1, next(iter(pages)) if len(pages) == 1 else None)
+
+
+def _packed_sections(
+    sections: list[list[_Piece]],
+    *,
+    target_tokens: int,
+    maximum_tokens: int,
+    overlap_tokens: int,
+    tokenizer: Utf8ByteTokenizer,
+    merge_short: bool,
+) -> list[tuple[list[_Piece], list[list[_Piece]]]]:
+    """Pack each section, optionally merging short section starts backwards.
+
+    Returns each group with the section segments it holds, so parent groups can pack
+    their children segment by segment. Without merging every group is one segment
+    and the result equals packing each section on its own.
+    """
+
+    result: list[tuple[list[_Piece], list[list[_Piece]]]] = []
+    for section in sections:
+        groups = _pack(
+            section,
+            target_tokens=target_tokens,
+            maximum_tokens=maximum_tokens,
+            overlap_tokens=overlap_tokens,
+            tokenizer=tokenizer,
+        )
+        if merge_short and result and groups:
+            previous, segments = result[-1]
+            first = groups[0]
+            if (
+                _joined_tokens(first, tokenizer) < SHORT_CHUNK_TOKENS
+                and _group_page(previous) == _group_page(first)
+                and _group_page(first)[0]
+                and _joined_tokens([*previous, *first], tokenizer) <= maximum_tokens
+            ):
+                # The merged chunk keeps the receiving chunk's section path; the
+                # short text itself, heading included, stays in the evidence.
+                path = _common_path(previous)
+                moved = [replace(piece, section_path=path) for piece in first]
+                result[-1] = ([*previous, *moved], [*segments, moved])
+                groups = groups[1:]
+        result.extend((group, [group]) for group in groups)
+    return result
+
+
 def _common_path(pieces: list[_Piece]) -> tuple[str, ...]:
     if not pieces:
         return ()
@@ -358,72 +412,75 @@ def chunk_structured_document(
 ) -> tuple[list[PreparedChunk], dict[int, list[ChunkBlockSpanV1]]]:
     tokenizer = tokenizer_for(settings.tokenizer_version)
     provenance = provenance or {}
+    merge_short = settings.config_version in SHORT_CHUNK_MERGE_VERSIONS
     chunks: list[PreparedChunk] = []
     spans: dict[int, list[ChunkBlockSpanV1]] = {}
 
     if settings.algorithm == "section_token":
         sections = _sections(document, settings.maximum_tokens, tokenizer)
-        for section in sections:
-            for group in _pack(
-                section,
-                target_tokens=settings.target_tokens,
-                maximum_tokens=settings.maximum_tokens,
-                overlap_tokens=settings.overlap_tokens,
-                tokenizer=tokenizer,
-            ):
-                chunk, mapped = _prepared(
-                    group,
-                    ordinal=len(chunks),
-                    role="leaf",
-                    parent_ordinal=None,
-                    algorithm=settings.algorithm,
-                    tokenizer=tokenizer,
-                    heading_prefix=settings.add_heading_context,
-                    provenance=provenance,
-                )
-                chunks.append(chunk)
-                spans[chunk.ordinal] = mapped
-        return chunks, spans
-
-    sections = _sections(document, settings.child_maximum_tokens, tokenizer)
-    for section in sections:
-        parent_groups = _pack(
-            section,
-            target_tokens=settings.parent_target_tokens,
-            maximum_tokens=settings.parent_maximum_tokens,
-            overlap_tokens=0,
+        for group, _segments in _packed_sections(
+            sections,
+            target_tokens=settings.target_tokens,
+            maximum_tokens=settings.maximum_tokens,
+            overlap_tokens=settings.overlap_tokens,
             tokenizer=tokenizer,
-        )
-        for parent_group in parent_groups:
-            parent, parent_spans = _prepared(
-                parent_group,
+            merge_short=merge_short,
+        ):
+            chunk, mapped = _prepared(
+                group,
                 ordinal=len(chunks),
-                role="parent",
+                role="leaf",
                 parent_ordinal=None,
                 algorithm=settings.algorithm,
                 tokenizer=tokenizer,
-                heading_prefix=False,
+                heading_prefix=settings.add_heading_context,
                 provenance=provenance,
             )
-            chunks.append(parent)
-            spans[parent.ordinal] = parent_spans
-            for child_group in _pack(
-                parent_group,
-                target_tokens=settings.child_target_tokens,
-                maximum_tokens=settings.child_maximum_tokens,
-                overlap_tokens=settings.child_overlap_tokens,
+            chunks.append(chunk)
+            spans[chunk.ordinal] = mapped
+        return chunks, spans
+
+    sections = _sections(document, settings.child_maximum_tokens, tokenizer)
+    for parent_group, segments in _packed_sections(
+        sections,
+        target_tokens=settings.parent_target_tokens,
+        maximum_tokens=settings.parent_maximum_tokens,
+        overlap_tokens=0,
+        tokenizer=tokenizer,
+        merge_short=merge_short,
+    ):
+        parent, parent_spans = _prepared(
+            parent_group,
+            ordinal=len(chunks),
+            role="parent",
+            parent_ordinal=None,
+            algorithm=settings.algorithm,
+            tokenizer=tokenizer,
+            heading_prefix=False,
+            provenance=provenance,
+        )
+        chunks.append(parent)
+        spans[parent.ordinal] = parent_spans
+        # Children pack within each section segment of the parent, so a merged
+        # short segment joins the child before it rather than its overlap.
+        for child_group, _child_segments in _packed_sections(
+            segments,
+            target_tokens=settings.child_target_tokens,
+            maximum_tokens=settings.child_maximum_tokens,
+            overlap_tokens=settings.child_overlap_tokens,
+            tokenizer=tokenizer,
+            merge_short=merge_short,
+        ):
+            child, child_spans = _prepared(
+                child_group,
+                ordinal=len(chunks),
+                role="child",
+                parent_ordinal=parent.ordinal,
+                algorithm=settings.algorithm,
                 tokenizer=tokenizer,
-            ):
-                child, child_spans = _prepared(
-                    child_group,
-                    ordinal=len(chunks),
-                    role="child",
-                    parent_ordinal=parent.ordinal,
-                    algorithm=settings.algorithm,
-                    tokenizer=tokenizer,
-                    heading_prefix=settings.add_heading_context,
-                    provenance=provenance,
-                )
-                chunks.append(child)
-                spans[child.ordinal] = child_spans
+                heading_prefix=settings.add_heading_context,
+                provenance=provenance,
+            )
+            chunks.append(child)
+            spans[child.ordinal] = child_spans
     return chunks, spans

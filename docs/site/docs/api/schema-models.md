@@ -999,7 +999,7 @@ Type: [`IngestionExecutionV1`](#ingestionexecutionv1) or [`IngestionExecutionV2`
 | `parent_target_tokens` | integer | no | minimum=128.0, maximum=16384.0, default=900 |
 | `parent_maximum_tokens` | integer | no | minimum=128.0, maximum=32768.0, default=1200 |
 | `add_heading_context` | boolean | no | default=True |
-| `config_version` | string | no | default=parent-child-v1 |
+| `config_version` | string: parent-child-v1, parent-child-v2 | no | default=parent-child-v1 |
 
 ## PipelinePage
 
@@ -1401,7 +1401,7 @@ Type: [`IngestionExecutionV1`](#ingestionexecutionv1) or [`IngestionExecutionV2`
 | `maximum_tokens` | integer | no | minimum=64.0, maximum=16384.0, default=800 |
 | `overlap_tokens` | integer | no | minimum=0.0, maximum=4096.0, default=80 |
 | `add_heading_context` | boolean | no | default=True |
-| `config_version` | string | no | default=section-token-v1 |
+| `config_version` | string: section-token-v1, section-token-v2 | no | default=section-token-v1 |
 
 ## SensitiveDataPolicyV1
 

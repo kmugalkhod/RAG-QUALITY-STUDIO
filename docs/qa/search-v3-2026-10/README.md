@@ -47,3 +47,13 @@ Test: the run of chunks under 40 tokens around the callout was appended to the c
 2. **Part B1 becomes "use parent-child", not a new table chunker.** Parent-child already keeps small searchable children and supplies the larger parent. Round A4 checks it on every file and question before it becomes the default for new drafts.
 3. **Part B2 stays and is the main build:** merge runs of chunks under 40 tokens on the same page into the chunk before them, as a new chunking version for both section-token and parent-child.
 4. **f2-q9 (Census 2015 row) is likely out of reach** of embedding search on this table. It is recorded as a known limit unless round A4 shows otherwise.
+
+## Slice 1: short-chunk merge (2026-10-10, free)
+
+`section-token-v2` and `parent-child-v2` (see the spec). Every test file was extracted with `layout-ocr-v5`, cleaned with the structure-aware profile and chunked with the default settings of both profiles, v1 and v2, without provider calls (`raw/v1_equiv.py`).
+
+- **v1 is unchanged.** On all 15 files, v1 chunks and spans equal those of the code before this slice, for both profiles.
+- **v2 removes most short chunks where they cluster.** Searchable chunks under 40 tokens, v1 to v2, section-token: Eurostat 525 to 17 (894 chunks to 394), NIST 57 to 23, BERT 26 to 2, GAO 23 to 4, Census 16 to 3, W-4 4 to 2, DfT 1 to 0. Parent-child children: Eurostat 532 to 29, NIST 86 to 56, BERT 31 to 7, GAO 25 to 5, Census 24 to 12. The scans, the spreadsheet, the PowerPoints (each short chunk starts a new slide), the DfE template and PLOS ONE are unchanged.
+- **The Eurostat callout** "381 décès pour 100 000 habitants" is now in a 207-token chunk with the text before it on p. 21, in both profiles; Slice 0's 201-token merged chunk ranked first for f4-q1.
+
+Whether retrieval improves without losing questions is measured in round A4 (Slice 3).

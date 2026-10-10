@@ -1,0 +1,242 @@
+{
+ "F1": {
+  "section": {
+   "v1_chunks": 156,
+   "v2_chunks": 133,
+   "v1_under_40": 26,
+   "v2_under_40": 2,
+   "callout_chunk_tokens": null
+  },
+  "parent": {
+   "v1_chunks": 334,
+   "v2_chunks": 312,
+   "v1_under_40": 31,
+   "v2_under_40": 7,
+   "callout_chunk_tokens": null
+  }
+ },
+ "F2": {
+  "section": {
+   "v1_chunks": 528,
+   "v2_chunks": 517,
+   "v1_under_40": 16,
+   "v2_under_40": 3,
+   "callout_chunk_tokens": null
+  },
+  "parent": {
+   "v1_chunks": 1553,
+   "v2_chunks": 1543,
+   "v1_under_40": 24,
+   "v2_under_40": 12,
+   "callout_chunk_tokens": null
+  }
+ },
+ "F3": {
+  "section": {
+   "v1_chunks": 23,
+   "v2_chunks": 23,
+   "v1_under_40": 1,
+   "v2_under_40": 1,
+   "callout_chunk_tokens": null
+  },
+  "parent": {
+   "v1_chunks": 50,
+   "v2_chunks": 50,
+   "v1_under_40": 2,
+   "v2_under_40": 2,
+   "callout_chunk_tokens": null
+  }
+ },
+ "F4": {
+  "section": {
+   "v1_chunks": 894,
+   "v2_chunks": 394,
+   "v1_under_40": 525,
+   "v2_under_40": 17,
+   "callout_chunk_tokens": 207
+  },
+  "parent": {
+   "v1_chunks": 1112,
+   "v2_chunks": 626,
+   "v1_under_40": 532,
+   "v2_under_40": 29,
+   "callout_chunk_tokens": 207
+  }
+ },
+ "F5": {
+  "section": {
+   "v1_chunks": 55,
+   "v2_chunks": 55,
+   "v1_under_40": 0,
+   "v2_under_40": 0,
+   "callout_chunk_tokens": null
+  },
+  "parent": {
+   "v1_chunks": 125,
+   "v2_chunks": 125,
+   "v1_under_40": 0,
+   "v2_under_40": 0,
+   "callout_chunk_tokens": null
+  }
+ },
+ "F6": {
+  "section": {
+   "v1_chunks": 61,
+   "v2_chunks": 60,
+   "v1_under_40": 1,
+   "v2_under_40": 0,
+   "callout_chunk_tokens": null
+  },
+  "parent": {
+   "v1_chunks": 156,
+   "v2_chunks": 156,
+   "v1_under_40": 2,
+   "v2_under_40": 2,
+   "callout_chunk_tokens": null
+  }
+ },
+ "F7": {
+  "section": {
+   "v1_chunks": 15,
+   "v2_chunks": 15,
+   "v1_under_40": 3,
+   "v2_under_40": 3,
+   "callout_chunk_tokens": null
+  },
+  "parent": {
+   "v1_chunks": 30,
+   "v2_chunks": 30,
+   "v1_under_40": 3,
+   "v2_under_40": 3,
+   "callout_chunk_tokens": null
+  }
+ },
+ "G1": {
+  "section": {
+   "v1_chunks": 57,
+   "v2_chunks": 55,
+   "v1_under_40": 4,
+   "v2_under_40": 2,
+   "callout_chunk_tokens": null
+  },
+  "parent": {
+   "v1_chunks": 164,
+   "v2_chunks": 162,
+   "v1_under_40": 7,
+   "v2_under_40": 5,
+   "callout_chunk_tokens": null
+  }
+ },
+ "G2": {
+  "section": {
+   "v1_chunks": 466,
+   "v2_chunks": 433,
+   "v1_under_40": 57,
+   "v2_under_40": 23,
+   "callout_chunk_tokens": null
+  },
+  "parent": {
+   "v1_chunks": 953,
+   "v2_chunks": 924,
+   "v1_under_40": 86,
+   "v2_under_40": 56,
+   "callout_chunk_tokens": null
+  }
+ },
+ "G3": {
+  "section": {
+   "v1_chunks": 94,
+   "v2_chunks": 75,
+   "v1_under_40": 23,
+   "v2_under_40": 4,
+   "callout_chunk_tokens": null
+  },
+  "parent": {
+   "v1_chunks": 174,
+   "v2_chunks": 154,
+   "v1_under_40": 25,
+   "v2_under_40": 5,
+   "callout_chunk_tokens": null
+  }
+ },
+ "G4": {
+  "section": {
+   "v1_chunks": 3,
+   "v2_chunks": 3,
+   "v1_under_40": 0,
+   "v2_under_40": 0,
+   "callout_chunk_tokens": null
+  },
+  "parent": {
+   "v1_chunks": 6,
+   "v2_chunks": 6,
+   "v1_under_40": 0,
+   "v2_under_40": 0,
+   "callout_chunk_tokens": null
+  }
+ },
+ "G5": {
+  "section": {
+   "v1_chunks": 94,
+   "v2_chunks": 94,
+   "v1_under_40": 0,
+   "v2_under_40": 0,
+   "callout_chunk_tokens": null
+  },
+  "parent": {
+   "v1_chunks": 360,
+   "v2_chunks": 360,
+   "v1_under_40": 0,
+   "v2_under_40": 0,
+   "callout_chunk_tokens": null
+  }
+ },
+ "G6": {
+  "section": {
+   "v1_chunks": 8,
+   "v2_chunks": 8,
+   "v1_under_40": 0,
+   "v2_under_40": 0,
+   "callout_chunk_tokens": null
+  },
+  "parent": {
+   "v1_chunks": 20,
+   "v2_chunks": 20,
+   "v1_under_40": 0,
+   "v2_under_40": 0,
+   "callout_chunk_tokens": null
+  }
+ },
+ "G7": {
+  "section": {
+   "v1_chunks": 22,
+   "v2_chunks": 22,
+   "v1_under_40": 0,
+   "v2_under_40": 0,
+   "callout_chunk_tokens": null
+  },
+  "parent": {
+   "v1_chunks": 49,
+   "v2_chunks": 49,
+   "v1_under_40": 2,
+   "v2_under_40": 2,
+   "callout_chunk_tokens": null
+  }
+ },
+ "G8": {
+  "section": {
+   "v1_chunks": 100,
+   "v2_chunks": 100,
+   "v1_under_40": 1,
+   "v2_under_40": 1,
+   "callout_chunk_tokens": null
+  },
+  "parent": {
+   "v1_chunks": 239,
+   "v2_chunks": 239,
+   "v1_under_40": 2,
+   "v2_under_40": 2,
+   "callout_chunk_tokens": null
+  }
+ }
+}

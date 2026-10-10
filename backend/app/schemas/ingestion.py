@@ -912,7 +912,9 @@ class SectionTokenChunkNodeV2(NodeBase):
     maximum_tokens: int = Field(default=800, strict=True, ge=64, le=16384)
     overlap_tokens: int = Field(default=80, strict=True, ge=0, le=4096)
     add_heading_context: bool = True
-    config_version: Literal["section-token-v1"] = "section-token-v1"
+    # v2 appends a section's short first chunk to the chunk before it on the
+    # same page (spec 0010); v1 stays as saved.
+    config_version: Literal["section-token-v1", "section-token-v2"] = "section-token-v1"
 
     @property
     def size(self):
@@ -942,7 +944,7 @@ class ParentChildChunkNodeV2(NodeBase):
     parent_target_tokens: int = Field(default=900, strict=True, ge=128, le=16384)
     parent_maximum_tokens: int = Field(default=1200, strict=True, ge=128, le=32768)
     add_heading_context: bool = True
-    config_version: Literal["parent-child-v1"] = "parent-child-v1"
+    config_version: Literal["parent-child-v1", "parent-child-v2"] = "parent-child-v1"
 
     @property
     def size(self):

@@ -1,5 +1,11 @@
 # Implementation plan
 
+## Search that finds table rows and short facts — spec 0010 (started 2026-10-10)
+
+**Status:** Slice 0 measured the options ($0.013, `docs/qa/search-v3-2026-10/README.md`); the owner approved the revised plan on 2026-10-10: no keyword change in this spec, short chunks merged in new chunking versions, parent-child for new drafts if round A4 loses no question.
+
+**Slice 1:** `section-token-v2` and `parent-child-v2` append a section's first chunk under 40 tokens to the chunk before it when both are on the same page (or both pageless) and the result fits the hard maximum; parent-child applies the rule to parents and, inside each parent, to children. The merged chunk keeps the receiving chunk's section path. v1 is unchanged and stays the default; the editor does not offer v2 yet. On the 15 test files v1 output equals the previous code's; v2 cuts Eurostat's chunks under 40 tokens from 525 to 17 and puts its chart callout in a 207-token chunk (`docs/qa/search-v3-2026-10/README.md`). Verification: 11 new tests, the chunking tests, ruff; the full backend suite in the isolated stack (674 passed, 5 skipped; the 3 known failures).
+
 ## Extractor v5: charts and table captions — spec 0009 (started 2026-10-10)
 
 **Status:** changes A (charts are not tables) and B (table captions and header context) approved; D1 (language pack) and D2 (files for round A3) open. Slices 1-4 done. Details: `docs/qa/extract-v5-2026-10/README.md`.
