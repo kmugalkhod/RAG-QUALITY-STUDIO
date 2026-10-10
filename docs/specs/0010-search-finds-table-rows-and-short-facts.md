@@ -1,7 +1,7 @@
 # 0010. Search that finds table rows and short facts
 
 **Date**: 2026-10-10
-**Status**: Approved 2026-10-10 (D1-D3). Slice 0 done; the revised plan below was approved by the owner on 2026-10-10 and replaces Parts A-C and the slices where they differ.
+**Status**: Approved 2026-10-10 (D1-D3). Slice 0 done; the revised plan below was approved by the owner on 2026-10-10 and replaces Parts A-C and the slices where they differ. Revised slices 1-2 done; round A4 (slice 3) next.
 
 ## Summary
 

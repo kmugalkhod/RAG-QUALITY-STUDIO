@@ -862,6 +862,15 @@ def test_layout_capabilities_and_thumbnail_are_project_scoped(ingestion_api):
         "native",
         "layout_aware",
     }
+    # New drafts take these versions; saved v1 chunkers stay as saved.
+    assert {
+        profile["id"]: profile["settings"]["config_version"]
+        for profile in capabilities.json()["chunking_profiles"]
+    } == {
+        "section_token": "section-token-v2",
+        "parent_child": "parent-child-v2",
+        "character_window": "character-window-v1",
+    }
     assert (
         client.get(
             f"/api/projects/{other_project_id}/ingestion-capabilities"
@@ -1590,7 +1599,16 @@ def test_v2_structure_cleaning_persists_audits_and_reconstructs_scoped_diff(
     )
 
 
-def test_chunk_only_variant_reuses_derivations_and_parent_retrieval(ingestion_api):
+@pytest.mark.parametrize(
+    ("section_version", "parent_version"),
+    [
+        ("section-token-v1", "parent-child-v1"),
+        ("section-token-v2", "parent-child-v2"),
+    ],
+)
+def test_chunk_only_variant_reuses_derivations_and_parent_retrieval(
+    ingestion_api, section_version, parent_version
+):
     from app.ingestion_content.cleaning import default_structure_steps
 
     client, engine, project_id, _, config, provider = ingestion_api
@@ -1614,12 +1632,18 @@ def test_chunk_only_variant_reuses_derivations_and_parent_retrieval(ingestion_ap
             "maximum_tokens": 96,
             "overlap_tokens": 0,
             "add_heading_context": True,
-            "config_version": "section-token-v1",
+            "config_version": section_version,
         },
     )
+    saved_chunk_version = section_version
     section_version = client.post(
         f"/api/projects/{project_id}/pipelines", json=section_payload
     ).json()
+    assert {
+        node["config_version"]
+        for node in section_version["execution"]["nodes"]
+        if node["type"] == "chunk"
+    } == {saved_chunk_version}
     section_ingestion = client.post(
         f"/api/projects/{project_id}/pipelines/{section_version['pipeline_id']}"
         f"/versions/{section_version['id']}/ingestion-runs"
@@ -1650,7 +1674,7 @@ def test_chunk_only_variant_reuses_derivations_and_parent_retrieval(ingestion_ap
             "parent_target_tokens": 192,
             "parent_maximum_tokens": 256,
             "add_heading_context": True,
-            "config_version": "parent-child-v1",
+            "config_version": parent_version,
         },
     )
     parent_version = client.post(

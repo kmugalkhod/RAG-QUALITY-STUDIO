@@ -11,6 +11,8 @@ import { cn } from '../../../lib/utils';
 import type { ConnectionSettings, SourceConnection } from '../../connections/model';
 import type { Document, KnowledgeSet } from '../../documents/model';
 import {
+  chunkUpgradeAvailable,
+  currentChunkVersions,
   currentExtractVersion,
   defaultDuplicatePolicy,
   defaultLanguagePolicy,
@@ -253,7 +255,7 @@ export function IngestionNodeSettings({
           maximum_tokens: 800,
           overlap_tokens: 80,
           add_heading_context: true,
-          config_version: 'section-token-v1',
+          config_version: currentChunkVersions.section_token,
         };
       }
       if (algorithm === 'parent_child') {
@@ -269,7 +271,7 @@ export function IngestionNodeSettings({
           parent_target_tokens: 900,
           parent_maximum_tokens: 1200,
           add_heading_context: true,
-          config_version: 'parent-child-v1',
+          config_version: currentChunkVersions.parent_child,
         };
       }
       return {
@@ -605,6 +607,43 @@ export function IngestionNodeSettings({
                 </NativeSelectOption>
               </NativeSelect>
             </Label>
+            {(selected.algorithm === 'section_token' || selected.algorithm === 'parent_child') &&
+              chunkUpgradeAvailable(selected) && (
+                <Callout
+                  role="note"
+                  title={`Saved with ${
+                    selected.config_version ??
+                    (selected.algorithm === 'section_token'
+                      ? 'section-token-v1'
+                      : 'parent-child-v1')
+                  }`}
+                >
+                  <p>
+                    This version keeps its original chunking so earlier runs reproduce. The current
+                    chunking, {currentChunkVersions[selected.algorithm]}, joins a short piece on a
+                    page, such as a chart label or callout read as a heading, to the passage before
+                    it, so it is no longer a passage of a few words that search rarely finds. Saving
+                    the upgrade creates a new pipeline version, and its next run chunks and embeds
+                    documents again.
+                  </p>
+                  <div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() =>
+                        updateNode(selected.id, (node) =>
+                          node.type === 'chunk' &&
+                          (node.algorithm === 'section_token' || node.algorithm === 'parent_child')
+                            ? { ...node, config_version: currentChunkVersions[node.algorithm] }
+                            : node,
+                        )
+                      }
+                    >
+                      Upgrade chunking
+                    </Button>
+                  </div>
+                </Callout>
+              )}
             {selected.algorithm === 'section_token' ? (
               <>
                 <Label>

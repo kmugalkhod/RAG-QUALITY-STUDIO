@@ -350,7 +350,7 @@ def extraction_capabilities() -> dict[str, Any]:
                     "maximum_tokens": 800,
                     "overlap_tokens": 80,
                     "add_heading_context": True,
-                    "config_version": "section-token-v1",
+                    "config_version": "section-token-v2",
                 },
             },
             {
@@ -366,7 +366,7 @@ def extraction_capabilities() -> dict[str, Any]:
                     "parent_target_tokens": 900,
                     "parent_maximum_tokens": 1200,
                     "add_heading_context": True,
-                    "config_version": "parent-child-v1",
+                    "config_version": "parent-child-v2",
                 },
             },
             {

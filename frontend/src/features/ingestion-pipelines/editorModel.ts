@@ -53,6 +53,23 @@ export const defaultSensitiveDataPolicy: SensitiveDataPolicy = {
 /** New drafts use the current extractor; saved layout-ocr-v1 versions stay frozen. */
 export const currentExtractVersion = 'layout-ocr-v5';
 
+/**
+ * New drafts chunk with the current token versions, which join short pieces such as
+ * chart labels to the text before them; saved v1 versions stay as saved.
+ */
+export const currentChunkVersions = {
+  section_token: 'section-token-v2',
+  parent_child: 'parent-child-v2',
+} as const;
+
+/** A saved token chunker without a version runs v1, as the server reads it. */
+export function chunkUpgradeAvailable(node: ChunkNode) {
+  return (
+    (node.algorithm === 'section_token' || node.algorithm === 'parent_child') &&
+    node.config_version !== currentChunkVersions[node.algorithm]
+  );
+}
+
 export const isLayoutExtractVersion = (version: string | undefined) =>
   version === 'layout-ocr-v1' ||
   version === 'layout-ocr-v2' ||
@@ -890,7 +907,7 @@ function defaultChunk(capabilities?: ExtractionCapabilities): ChunkNode {
     overlap_tokens: numberSetting(settings, 'overlap_tokens', 80),
     add_heading_context:
       typeof settings?.add_heading_context === 'boolean' ? settings.add_heading_context : true,
-    config_version: 'section-token-v1',
+    config_version: currentChunkVersions.section_token,
   };
 }
 
@@ -994,11 +1011,12 @@ export function describeIngestionNode(
     return `Confluence · ${scope}`;
   }
   if (node.type === 'chunk') {
+    const upgrade = chunkUpgradeAvailable(node) ? ' · upgrade available' : '';
     if (node.algorithm === 'section_token') {
-      return `Section-aware · ${node.target_tokens} target · ${node.maximum_tokens} max tokens`;
+      return `Section-aware · ${node.target_tokens} target · ${node.maximum_tokens} max tokens${upgrade}`;
     }
     if (node.algorithm === 'parent_child') {
-      return `Parent/child · ${node.child_target_tokens} child · ${node.parent_target_tokens} parent`;
+      return `Parent/child · ${node.child_target_tokens} child · ${node.parent_target_tokens} parent${upgrade}`;
     }
     return `${node.size} characters · ${node.overlap} overlap`;
   }

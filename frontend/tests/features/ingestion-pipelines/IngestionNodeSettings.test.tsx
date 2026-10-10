@@ -5,7 +5,9 @@ import { expect, test } from 'vitest';
 import { IngestionNodeSettings } from '../../../src/features/ingestion-pipelines/components/IngestionNodeSettings';
 import type { IngestionNode } from '../../../src/features/ingestion-pipelines/model';
 
-function Harness() {
+let lastChunk: IngestionNode | undefined;
+
+function Harness({ chunkVersion = 'section-token-v2' }: { chunkVersion?: string }) {
   const [node, setNode] = useState<IngestionNode>({
     id: 'chunk',
     type: 'chunk',
@@ -16,8 +18,9 @@ function Harness() {
     maximum_tokens: 800,
     overlap_tokens: 80,
     add_heading_context: true,
-    config_version: 'section-token-v1',
+    config_version: chunkVersion,
   });
+  lastChunk = node;
   return (
     <IngestionNodeSettings
       projectId="project"
@@ -58,6 +61,34 @@ test('edits algorithm-specific chunk settings without mixing incompatible fields
   expect(screen.getByLabelText('Chunk size (characters)')).toHaveValue(1000);
   expect(screen.getByLabelText('Overlap (characters)')).toHaveValue(100);
   expect(screen.queryByLabelText('Target tokens')).not.toBeInTheDocument();
+});
+
+test('a new token chunker uses the current version and shows no upgrade', () => {
+  render(<Harness />);
+  expect(screen.queryByRole('button', { name: 'Upgrade chunking' })).not.toBeInTheDocument();
+
+  fireEvent.change(screen.getByLabelText('Chunking algorithm'), {
+    target: { value: 'parent_child' },
+  });
+  expect(lastChunk).toMatchObject({ config_version: 'parent-child-v2' });
+  expect(screen.queryByRole('button', { name: 'Upgrade chunking' })).not.toBeInTheDocument();
+
+  fireEvent.change(screen.getByLabelText('Chunking algorithm'), {
+    target: { value: 'section_token' },
+  });
+  expect(lastChunk).toMatchObject({ config_version: 'section-token-v2' });
+});
+
+test('offers a saved section-token-v1 chunker an explicit upgrade that keeps its settings', () => {
+  render(<Harness chunkVersion="section-token-v1" />);
+  expect(screen.getByText('Saved with section-token-v1')).toBeInTheDocument();
+  expect(screen.getByText(/The current\s+chunking, section-token-v2,/)).toBeInTheDocument();
+  fireEvent.change(screen.getByLabelText('Target tokens'), { target: { value: '500' } });
+
+  fireEvent.click(screen.getByRole('button', { name: 'Upgrade chunking' }));
+
+  expect(screen.queryByText('Saved with section-token-v1')).not.toBeInTheDocument();
+  expect(lastChunk).toMatchObject({ config_version: 'section-token-v2', target_tokens: 500 });
 });
 
 function PolicyHarness({
