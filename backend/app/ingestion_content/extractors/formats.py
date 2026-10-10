@@ -31,6 +31,8 @@ STRUCTURED_MEDIA_TYPES = {DOCX, PPTX, XLSX, MARKDOWN, HTML, CSV, TSV}
 FORMAT_EXTRACTOR_VERSION = "formats-v1"
 # formats-v2 (layout-ocr-v2 only) keeps whole tables in header-repeating groups.
 FORMAT_V2_EXTRACTOR_VERSION = "formats-v2"
+# formats-v3 (layout-ocr-v4, spec 0008) also reads PowerPoint table frames.
+FORMAT_V3_EXTRACTOR_VERSION = "formats-v3"
 
 MAX_ARCHIVE_MEMBERS = 5_000
 MAX_ARCHIVE_UNCOMPRESSED_BYTES = 100 * 1024 * 1024
@@ -499,7 +501,37 @@ def _docx_segments(
     return result
 
 
-def _pptx_segments(archive: zipfile.ZipFile) -> list[CanonicalInputSegment]:
+def _pptx_table_rows(table) -> list[list[str]]:
+    """Rows of a slide table; a merged cell's continuation stays an empty cell."""
+
+    rows = []
+    for row in table.findall("./{*}tr"):
+        cells = []
+        for cell in row.findall("./{*}tc"):
+            if cell.attrib.get("hMerge") == "1" or cell.attrib.get("vMerge") == "1":
+                cells.append("")
+                continue
+            paragraphs = [
+                "".join(_texts(paragraph)).strip()
+                for paragraph in cell.findall(".//{*}p")
+            ]
+            cells.append(" ".join(value for value in paragraphs if value))
+        if cells:
+            rows.append(cells)
+    if len(rows) > MAX_TABULAR_ROWS or any(
+        len(row) > MAX_TABULAR_COLUMNS for row in rows
+    ):
+        raise IngestionStageError(
+            "extract", "table_limit", "A slide table exceeds row or column limits."
+        )
+    return rows
+
+
+def _pptx_segments(
+    archive: zipfile.ZipFile, table_mode: str | None = None
+) -> list[CanonicalInputSegment]:
+    """Slide text shapes; with `table_mode` (formats-v3) table frames too, in order."""
+
     names = sorted(
         (
             name
@@ -511,7 +543,33 @@ def _pptx_segments(archive: zipfile.ZipFile) -> list[CanonicalInputSegment]:
     result = []
     for page_number, name in enumerate(names, 1):
         root = _xml(archive, name)
-        for shape_index, shape in enumerate(root.findall(".//{*}sp")):
+        shapes = [
+            element
+            for element in root.iter()
+            if element.tag.endswith("}sp")
+            or (table_mode is not None and element.tag.endswith("}graphicFrame"))
+        ]
+        shape_index = 0
+        tables = 0
+        for shape in shapes:
+            if shape.tag.endswith("}graphicFrame"):
+                for table in shape.findall(".//{*}tbl"):
+                    rows = _pptx_table_rows(table)
+                    if not any(any(cell for cell in row) for row in rows):
+                        continue
+                    tables += 1
+                    result.extend(
+                        _table_segments(
+                            rows,
+                            table_mode,
+                            table_id=f"s{page_number}-t{tables}",
+                            page_number=page_number,
+                            table_fields={"slide": page_number},
+                        )
+                    )
+                continue
+            # Text shapes keep the formats-v2 numbering, so their blocks are unchanged.
+            shape_index += 1
             paragraphs = []
             for paragraph in shape.findall(".//{*}p"):
                 value = "".join(_texts(paragraph)).strip()
@@ -523,7 +581,7 @@ def _pptx_segments(archive: zipfile.ZipFile) -> list[CanonicalInputSegment]:
                         "\n".join(paragraphs),
                         page_number=page_number,
                         block_type="paragraph",
-                        attributes={"slide": page_number, "shape": shape_index + 1},
+                        attributes={"slide": page_number, "shape": shape_index},
                     )
                 )
     return result
@@ -615,8 +673,14 @@ def extract_structured_document(
     title: str | None,
     *,
     table_mode: str | None = None,
+    slide_tables: bool = False,
 ):
-    """Extract a structured file; `table_mode` selects formats-v2 table groups."""
+    """Extract a structured file; `table_mode` selects formats-v2 table groups.
+
+    `slide_tables` (formats-v3, with a table mode) also reads PowerPoint tables.
+    """
+
+    slide_tables = slide_tables and table_mode is not None
 
     if media_type in {MARKDOWN, HTML, CSV, TSV}:
         text = _bounded_text(path.read_text("utf-8"))
@@ -636,7 +700,7 @@ def extract_structured_document(
             if media_type == DOCX:
                 segments = _docx_segments(archive, table_mode)
             elif media_type == PPTX:
-                segments = _pptx_segments(archive)
+                segments = _pptx_segments(archive, table_mode if slide_tables else None)
             elif media_type == XLSX:
                 segments = _xlsx_segments(archive, table_mode)
             else:
@@ -682,7 +746,13 @@ def extract_structured_document(
                 if segment.block_type == "table"
             }
         )
+    if table_mode is None:
+        version = FORMAT_EXTRACTOR_VERSION
+    elif slide_tables:
+        version = FORMAT_V3_EXTRACTOR_VERSION
+    else:
+        version = FORMAT_V2_EXTRACTOR_VERSION
     return (
         measured_document(document, duration_ms=0, table_count=table_count),
-        FORMAT_EXTRACTOR_VERSION if table_mode is None else FORMAT_V2_EXTRACTOR_VERSION,
+        version,
     )

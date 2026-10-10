@@ -42,3 +42,13 @@ Census P60-279 prints its appendix tables (Tables A-2 to A-5, pp. 22-36 and 42-4
 - Footnote markers stay attached to the year as in v3 (`20202` is 2020 with note 2).
 
 Not covered: a sideways table region on an otherwise upright page (none of the test files has one), and pages that set a PDF page rotation as well as sideways text; both keep the v3 reading.
+
+## Slice 4: PowerPoint tables in `layout-ocr-v4` (2026-10-10)
+
+v3 reads only a slide's text shapes (`p:sp`), so tables in table frames (`p:graphicFrame` holding `a:tbl`) were dropped. v4 (format reader `formats-v3`) walks each slide in document order and reads every table frame as header-repeating table blocks through the same row-group code as DOCX tables, with the slide number, table ID (`s13-t2`) and header row. A merged cell's continuation stays an empty cell so columns stay aligned. Text shapes keep their v3 blocks and shape numbers.
+
+`raw/slice4-v4.json`, all seven files with `layout-ocr-v4`:
+
+- F7 (Prevent slides) goes from 22 to 25 blocks: its 22 text blocks are unchanged and its three tables are added (table count 0 to 3, quality pass). Every phrase that was missing in the baseline is now present: "Almost certain", "Very likely", "Catastrophic", "7 to 11", "Medium risk", "Severity x Likelihood".
+- The other six files are block for block identical to Slice 3.
+- A table without a header row, such as slide 13's "Low risk | 1 to 6", has its first row treated as the header, as for DOCX tables.

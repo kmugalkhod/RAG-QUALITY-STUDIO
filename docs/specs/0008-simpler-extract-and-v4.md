@@ -1,7 +1,7 @@
 # 0008. Simpler Extract settings and extractor v4
 
 **Date**: 2026-10-10
-**Status**: Approved 2026-10-10. The owner accepted the recommendation for D1-D4. Slices 0-3 done (Part A complete; B1 sideways tables in `layout-ocr-v4`).
+**Status**: Approved 2026-10-10. The owner accepted the recommendation for D1-D4. Slices 0-4 done (Part A complete; B1 sideways tables and B2 PowerPoint tables in `layout-ocr-v4`).
 
 ## Summary
 

@@ -37,6 +37,7 @@ from app.ingestion_content.tables import table_row_groups
 from app.ingestion_content.extractors.formats import (
     FORMAT_EXTRACTOR_VERSION,
     FORMAT_V2_EXTRACTOR_VERSION,
+    FORMAT_V3_EXTRACTOR_VERSION,
     STRUCTURED_MEDIA_TYPES,
     detect_structured_media_type,
     extract_structured_document,
@@ -68,10 +69,10 @@ LAYOUT_OCR_V3_EXTRACTOR_VERSION = (
     f"pypdf-{pypdf_version}/pymupdf-{pymupdf.VersionBind}/tesseract-cli-v2/"
     f"layout-v3/{FORMAT_V2_EXTRACTOR_VERSION}"
 )
-# layout-ocr-v4 (spec 0008) also reads pages whose text runs sideways.
+# layout-ocr-v4 (spec 0008) also reads sideways pages and PowerPoint tables.
 LAYOUT_OCR_V4_EXTRACTOR_VERSION = (
     f"pypdf-{pypdf_version}/pymupdf-{pymupdf.VersionBind}/tesseract-cli-v2/"
-    f"layout-v4/{FORMAT_V2_EXTRACTOR_VERSION}"
+    f"layout-v4/{FORMAT_V3_EXTRACTOR_VERSION}"
 )
 # Versions that share the v2 layout, heading, table and OCR behaviour.
 LAYOUT_V2_FAMILY = frozenset({"layout-ocr-v2", "layout-ocr-v3", "layout-ocr-v4"})
@@ -1389,6 +1390,7 @@ def extract_document(
             table_mode=settings.tables
             if settings.config_version in LAYOUT_V2_FAMILY
             else None,
+            slide_tables=settings.config_version == "layout-ocr-v4",
         )
         document = evaluate_quality(document, settings.quality_policy)
         if getattr(settings, "language_policy", None) is not None:
