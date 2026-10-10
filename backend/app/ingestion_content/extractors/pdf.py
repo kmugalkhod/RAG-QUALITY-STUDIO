@@ -93,6 +93,28 @@ CHART_REGION_VERSIONS = frozenset({"layout-ocr-v5"})
 # A detected table with fewer filled cells than this share is a chart, not a table:
 # real tables in the spec 0009 corpus are 45% filled or more, charts under 30%.
 CHART_TABLE_MAX_FILL = 0.3
+# Versions that attach a table's caption to its blocks and repeat all header lines
+# of a rebuilt table (v5 onward).
+TABLE_CONTEXT_VERSIONS = frozenset({"layout-ocr-v5"})
+# "Table 1", "Table A-2.", "Table A-4a.", "Table 3.1:", "Tableau II" at the start
+# of a block.
+_TABLE_CAPTION = re.compile(
+    r"^(?:Table|TABLE|Tableau|TABLEAU)\s+"
+    r"(?:[A-Z]{1,3}-?\d+[a-z]?(?:[.-]\d+)*|\d+[a-z]?(?:[.-]\d+)*|[IVXLC]+)"
+    r"(?:[.:—–-]|\s|$)"
+)
+MAX_CAPTION_CHARACTERS = 300
+# Back-matter headings that run on over later tables without containing them.
+_BACK_MATTER_HEADING = re.compile(
+    r"^(?:end\s?notes|notes|foot\s?notes|references|bibliography|sources|"
+    r"notes et sources|notes de fin|bibliographie|références)\.?$",
+    re.IGNORECASE,
+)
+# A rebuilt table repeats at most this many header lines in each row group.
+MAX_HEADER_LINES = 8
+# A data value; currency amounts are left out because headers print column ranges
+# such as "$15,000 to $24,999" while the rows below hold plain figures.
+_NUMBER_TOKEN = re.compile(r"^[-+−(]?\d[\d.,]*[%)]?\d*[¹²³⁴⁵⁶⁷⁸⁹*]*$")
 # A detected table whose cells each hold this many lines is a merged-column table.
 MERGED_COLUMN_MIN_LINES = 5
 # v4 reads a page straightened when most of its text runs at 90 or 270 degrees.
@@ -798,6 +820,88 @@ def _group_box(
     )
 
 
+def _is_data_line(line: str) -> bool:
+    words = line.split()
+    numbers = sum(1 for word in words if _NUMBER_TOKEN.match(word))
+    return bool(words) and numbers * 2 >= len(words) and numbers >= 2
+
+
+def _header_line_count(lines: list[str]) -> int:
+    """How many printed lines above the first data line form the header (v5).
+
+    Section labels in capitals ("ALL RACES") just above the data stay body rows.
+    Returns 0 when no header can be told apart, so the v4 grouping is kept.
+    """
+
+    first_data = next(
+        (index for index, line in enumerate(lines) if _is_data_line(line)), None
+    )
+    if not first_data:
+        return 0
+    count = first_data
+    while count > 1 and lines[count - 1].isupper() and len(lines[count - 1]) <= 60:
+        count -= 1
+    return count if count <= MAX_HEADER_LINES else 0
+
+
+def _table_captions(
+    segments: list[CanonicalInputSegment],
+) -> list[CanonicalInputSegment]:
+    """Attach a table caption directly above a table to the table's blocks (v5).
+
+    The caption ("Table A-2. Households by ...") becomes the last element of the
+    heading path of the caption and of every block of the table that follows it on
+    the same page. A notes or references heading that started on an earlier page is
+    replaced, so an appendix table is not filed under "Endnotes"; any other heading
+    stays, because a section's table can sit pages after its heading.
+    """
+
+    heading_pages: dict[str, int] = {}
+    result = list(segments)
+    for index, segment in enumerate(segments):
+        if segment.block_type == "heading":
+            heading_pages[" ".join(segment.text.split())[:500]] = segment.page_number
+            continue
+        if segment.block_type == "table" or not _TABLE_CAPTION.match(segment.text):
+            continue
+        following = index + 1
+        table_id = None
+        while following < len(segments):
+            candidate = segments[following]
+            if (
+                candidate.block_type != "table"
+                or candidate.page_number != segment.page_number
+            ):
+                break
+            candidate_id = (candidate.attributes or {}).get("table", {}).get("table_id")
+            if table_id is not None and candidate_id != table_id:
+                break
+            table_id = candidate_id
+            following += 1
+        if following == index + 1:
+            continue
+        # The title before any parenthesised note ("(Income in 2022 dollars ...").
+        caption = " ".join(segment.text.split()).split(" (", 1)[0]
+        caption = caption[:MAX_CAPTION_CHARACTERS]
+        path = tuple(segment.heading_path)
+        if (
+            path
+            and _BACK_MATTER_HEADING.match(path[-1])
+            and heading_pages.get(path[-1], segment.page_number) < segment.page_number
+        ):
+            path = path[:-1]
+        path = (*path, caption)
+        result[index] = replace(segment, heading_path=path)
+        for table_index in range(index + 1, following):
+            table_segment = segments[table_index]
+            attributes = dict(table_segment.attributes or {})
+            attributes["table"] = {**attributes.get("table", {}), "caption": caption}
+            result[table_index] = replace(
+                table_segment, heading_path=path, attributes=attributes
+            )
+    return result
+
+
 def _is_merged_column_table(rows: list[list[Any]]) -> bool:
     """True when PyMuPDF put whole columns of a borderless table into single cells."""
 
@@ -892,6 +996,7 @@ def _layout_page(
     layout_v2: bool = False,
     rebuild_merged_tables: bool = False,
     chart_regions: bool = False,
+    table_context: bool = False,
 ) -> tuple[list[CanonicalInputSegment], int, int, bool]:
     width, height = float(page.rect.width), float(page.rect.height)
     dictionary = page.get_text("dict", sort=False)
@@ -993,6 +1098,10 @@ def _layout_page(
             table_id = f"p{page_number}-t{table_index + 1}"
             if rebuild_merged_tables and _is_merged_column_table(rows):
                 lines = _word_rows(page, box)
+                header_count = _header_line_count(lines) if table_context else 0
+                if header_count > 1:
+                    # v5: every row group repeats all printed header lines.
+                    lines = ["\n".join(lines[:header_count]), *lines[header_count:]]
                 groups, limited = table_row_groups(
                     [[line] for line in lines],
                     "plain_text",
@@ -1531,6 +1640,7 @@ def extract_document(
     straighten_sideways = settings.config_version in V4_READING_VERSIONS
     join_soft_hyphens = settings.config_version in V4_READING_VERSIONS
     chart_regions = settings.config_version in CHART_REGION_VERSIONS
+    table_context = settings.config_version in TABLE_CONTEXT_VERSIONS
     try:
         for index, native_text in enumerate(native_pages):
             if cancelled and cancelled():
@@ -1602,6 +1712,7 @@ def extract_document(
                             layout_v2=layout_v2,
                             rebuild_merged_tables=rebuild_merged_tables,
                             chart_regions=chart_regions,
+                            table_context=table_context,
                         )
                     )
                 finally:
@@ -1722,6 +1833,8 @@ def extract_document(
         pdf.close()
     if layout_v2:
         segments = _heading_structure(segments)
+    if table_context:
+        segments = _table_captions(segments)
     document = build_extracted_document(
         segments,
         media_type=detected,

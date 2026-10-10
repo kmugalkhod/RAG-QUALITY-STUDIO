@@ -1,7 +1,7 @@
 # 0009. Extractor v5: charts are not tables, and tables keep their caption
 
 **Date**: 2026-10-10
-**Status**: Approved 2026-10-10: the owner approved changes A and B (decisions 1 and 2 after spec 0008). D1 and D2 are open; neither blocks Slices 0-3. Slices 0 and 1 done.
+**Status**: Approved 2026-10-10: the owner approved changes A and B (decisions 1 and 2 after spec 0008). D1 and D2 are open; neither blocks Slices 0-3. Slices 0-2 done (Part A and Part B built).
 
 ## Summary
 
@@ -42,10 +42,10 @@ Code: `_layout_page` in `backend/app/ingestion_content/extractors/pdf.py` (the `
 
 ## Part B: tables keep their caption and header
 
-- B1. **Caption.** A block that starts with a table caption, `Table` or `Tableau` followed by an identifier such as `1`, `A-2`, `3.1` or `II`, and is directly followed by a table block on the same page, is the table's caption. All blocks of that table carry the caption (its first line and title, at most 300 characters) as the last element of their heading path and in `table.caption`.
-- B2. **Run-on headings.** For the blocks of a captioned table, the caption takes the place of the deepest heading in the path when that heading started on an earlier page. A heading on the same page stays.
+- B1. **Caption.** A block that starts with a table caption, `Table` or `Tableau` followed by an identifier such as `1`, `A-2`, `3.1` or `II`, and is directly followed by a table block on the same page, is the table's caption. The caption block and all blocks of that table carry the caption (its title up to any parenthesised note, at most 300 characters) as the last element of their heading path, and the table blocks also in `table.caption`.
+- B2. **Run-on headings.** For the blocks of a captioned table, the caption takes the place of the deepest heading in the path when that heading is a notes or references heading (Endnotes, Notes, Footnotes, References, Bibliography, Sources and their French forms) that started on an earlier page. Any other heading stays and the caption follows it: a section's table can sit pages after its heading. (Built first as "any heading from an earlier page"; a test showed that drops the right section, such as "Results", from a table on the section's second page.)
 - B3. **Continuation pages.** A caption ending in "—Con." or "(continued)" names the same table on a later page and follows B1 and B2.
-- B4. **Header rows for rebuilt tables.** A table rebuilt as word rows (v3 merged columns, v4 sideways pages) repeats its header lines at the top of each row group. Header lines are the lines above the first data line, where a data line is one whose words are mostly numbers. Groups stay within the 2,000-row and 50-column limits.
+- B4. **Header rows for rebuilt tables.** A table rebuilt as word rows (v3 merged columns, v4 sideways pages) repeats its header lines at the top of each row group. Header lines are the lines above the first data line, where a data line has at least two numbers and numbers make up at least half its words; currency amounts do not count, because headers print column ranges such as "$15,000 to $24,999". Section labels in capitals just above the data ("ALL RACES") stay body rows; with no clear header, or more than 8 header lines, the v4 grouping is kept. Groups stay within the 2,000-row and 50-column limits.
 - B5. Other blocks keep their v4 heading path. A caption with no table after it stays a paragraph or image caption, as in v4.
 
 Code: `_classify_block_v2`, `_heading_structure`, `_word_rows`/`table_row_groups` use in `_layout_page` (all in `pdf.py`).

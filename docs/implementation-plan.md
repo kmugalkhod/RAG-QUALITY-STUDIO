@@ -2,11 +2,13 @@
 
 ## Extractor v5: charts and table captions — spec 0009 (started 2026-10-10)
 
-**Status:** changes A (charts are not tables) and B (table captions and header context) approved; D1 (language pack) and D2 (files for round A3) open. Slice 1 done. Details: `docs/qa/extract-v5-2026-10/README.md`.
+**Status:** changes A (charts are not tables) and B (table captions and header context) approved; D1 (language pack) and D2 (files for round A3) open. Slices 1 and 2 done. Details: `docs/qa/extract-v5-2026-10/README.md`.
 
 **Slice 1 (Part A):** `layout-ocr-v5` treats a detected table with under 30% of its cells filled, or a table lying mostly inside one, as a chart region: its text is read as layout blocks marked `chart_region`, with no table block and no malformed-table count. On the seven test files the French Eurostat report loses its three malformed-table errors (it now passes the default policy) and its chart callouts are in the text; every one of the 55 skipped regions was checked as a chart or figure; no page captures less of its text layer than in v4 (Eurostat misses 215 characters instead of 1,655). The DOCX, PPTX and both scans are unchanged. v1-v4 are unchanged; the schema accepts `layout-ocr-v5`, websites keep the `html-main-v3.1` reader, and the editor still creates v4. Verification: 16 new tests, 122 extractor, cleaning and format tests, ruff.
 
-**Next:** Slice 2, table captions, run-on headings and header rows (Part B).
+**Slice 2 (Part B):** `layout-ocr-v5` attaches a "Table …" caption to the table directly after it (heading path and `table.caption`), replaces a notes or references heading that ran on from an earlier page with that caption, and repeats all printed header lines in each group of a rebuilt table. On Census 30 of 33 tables carry their caption and no table block sits under "Endnotes" (19 before); the Table A-2 rows read under their caption after the full header. The other six test files are unchanged. B2 was narrowed while building: replacing any earlier-page heading dropped the right section from a table on a section's second page. Verification: 31 new tests, 153 extractor, cleaning and format tests, ruff.
+
+**Next:** Slice 3, the editor creates v5, upgrade notice and docs.
 
 ## Simpler Extract settings and extractor v4 — spec 0008 (started 2026-10-10)
 
