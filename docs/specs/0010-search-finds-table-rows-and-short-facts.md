@@ -1,7 +1,7 @@
 # 0010. Search that finds table rows and short facts
 
 **Date**: 2026-10-10
-**Status**: Draft 2026-10-10, for owner review. D1-D3 open.
+**Status**: Approved 2026-10-10. The owner accepted the recommendation for D1-D3.
 
 ## Summary
 
@@ -36,7 +36,7 @@ A keyword fix alone (probe rows 4-5) does not reach the Census rows; a chunking 
 
 ## Decisions for the owner
 
-| ID | Decision | Recommendation |
+| ID | Decision | Recommendation (approved 2026-10-10) |
 | --- | --- | --- |
 | D1 | Saved answer pipelines and experiments that use `keyword` or `hybrid` | Keep their recorded behaviour. The fixed keyword matching is a new retrieval algorithm version (`retrieval-v3`); a saved configuration without the new setting runs `retrieval-v2` as recorded. New drafts get v3. |
 | D2 | Default search for new answer pipelines | Switch from `vector` to `hybrid` (v3) only if round A4 shows Hit@5 at least as high as vector and no question that vector found is lost. Otherwise keep vector and offer hybrid. |
