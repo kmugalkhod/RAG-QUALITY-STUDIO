@@ -2651,7 +2651,8 @@
               "native-text-v1",
               "layout-ocr-v1",
               "layout-ocr-v2",
-              "layout-ocr-v3"
+              "layout-ocr-v3",
+              "layout-ocr-v4"
             ],
             "title": "Config Version",
             "type": "string"

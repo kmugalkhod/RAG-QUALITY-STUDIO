@@ -1,7 +1,7 @@
 # 0008. Simpler Extract settings and extractor v4
 
 **Date**: 2026-10-10
-**Status**: Approved 2026-10-10. The owner accepted the recommendation for D1-D4. Slices 0-4 done (Part A complete; B1 sideways tables and B2 PowerPoint tables in `layout-ocr-v4`).
+**Status**: Approved 2026-10-10. The owner accepted the recommendation for D1-D4. Slices 0-5 done (Part A and Part B complete; new drafts use `layout-ocr-v4`). B3 was a harness cause plus a soft-hyphen fix in v4; B4 needed no OCR change; the Eurostat chart-as-table failure awaits an owner decision.
 
 ## Summary
 

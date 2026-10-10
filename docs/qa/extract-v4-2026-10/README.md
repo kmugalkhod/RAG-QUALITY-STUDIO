@@ -52,3 +52,35 @@ v3 reads only a slide's text shapes (`p:sp`), so tables in table frames (`p:grap
 - F7 (Prevent slides) goes from 22 to 25 blocks: its 22 text blocks are unchanged and its three tables are added (table count 0 to 3, quality pass). Every phrase that was missing in the baseline is now present: "Almost certain", "Very likely", "Catastrophic", "7 to 11", "Medium risk", "Severity x Likelihood".
 - The other six files are block for block identical to Slice 3.
 - A table without a header row, such as slide 13's "Low risk | 1 to 6", has its first row treated as the header, as for DOCX tables.
+
+## Slice 5: hyphens, scans and the Eurostat failure (2026-10-10)
+
+### B3: the remaining "married-couple" merge
+
+The merge was not in the cleaner. Spec 0007's A1 files pipeline (version `6fe0c1ad`) was saved with dehyphenate mode `conservative`, because the harness (`run.py`) built pipelines from a copy of `ingestion-capabilities` saved at setup, before spec 0007 made `conservative-compounds` the default. A1 never ran the compound-aware mode. Running today's default cleaning steps on the Census extraction keeps the hyphen in all five "married-couple" forms, including the one broken across lines on p. 8. The harness now reads the capabilities again before it creates each pipeline, so round A2 uses the server's current defaults.
+
+Tracing p. 8 step by step found a larger defect. Census marks its line-break hyphens with a soft hyphen (U+00AD): `house­\nholds`. `remove_control_characters` deletes U+00AD, then `reflow_pdf_lines` turns the line break into a space, so every such word is split in two after cleaning ("house holds", "dedi cation", "household ers"). The cause is in extraction: the text layer passes the typesetter's hyphen through unchanged. `layout-ocr-v4` now rejoins a word at a soft hyphen followed by a line break, outside tables; a soft hyphen inside a line is left for cleaning, which removes it. v1 to v3 and every cleaning mode are unchanged.
+
+`raw/slice5-v4.json`, all seven files with `layout-ocr-v4`: Census changes only in 63 paragraph and footnote blocks, where 118 words are rejoined and nothing else differs; the other six files are identical to Slice 4. No soft-hyphen line break remains outside tables. The 17 soft hyphens inside Census table cells stay as extracted (for example `(thou­ sands)` in a header, where the two halves are separate cell lines); cleaning removes the character and leaves a space, as in v3.
+
+### B4: scan accuracy
+
+Character error rate (CER) against hand-checked text in `ocr-truth/`, measured with `backend/scripts/real_source/ocr_cer.py`: each checked passage or row is aligned to the best-matching stretch of the page's OCR text, whitespace is collapsed and every other difference counts.
+
+| Page | Checked text | CER at 200 DPI (recommended) | CER at 300 DPI |
+| --- | --- | --- | --- |
+| F5 USGS Circular 115 p. 5 (1951 typescript, prose) | 3 paragraphs, 1,009 characters | 0.20% | 0.40% |
+| F3 Surveyor VI p. 5 (1968 print, prose) | whole page, 1,593 characters | 0.31% | 0.31% |
+| F5 USGS Circular 115 p. 8 (typescript table) | 26 state rows, 1,203 characters | 3.33%; 224 of 234 values exact | 4.57%; 219 of 234 |
+
+Prose scans read almost exactly; no fix is needed. The typescript table is where OCR misreads: single digits (65 read as 66, 75 as 78, 70 as 79), footnote markers (`4/` read as `ss` or `V`), column rules read as `|`, and the District of Columbia row's three zeros lost to specks. A higher resolution makes it worse, so the recommended 200 DPI stays. Improving it would need a different OCR engine or image clean-up, which is out of scope for spec 0008; the result is recorded as a known limit. A question that needs an exact number from an old typewritten table can get a wrong digit.
+
+Not measured: a skewed scan (F5 is not skewed; see Slice 0) and a non-English scan (only the English OCR pack is installed).
+
+### F4: why the Eurostat report fails the default policy
+
+- **Malformed tables (error).** The three are charts, not tables. On pp. 21, 58 and 66 the table finder takes a chart's gridlines (one per country) as a table of 52 to 57 columns, of which 1 to 10 hold any text, so the table goes over the 50-column limit and is reported as malformed. Under **Stop and let me review** this blocks the whole file.
+- **Six empty pages (warning).** Pages 12, 32, 54, 72, 74 and 75 have no text, no images and at most one drawing; they are blank pages, and OCR correctly finds nothing.
+- **Mixed languages (warning)** was not traced further; it is a warning and does not block the file.
+
+Nothing was changed for F4 in this slice. A possible v4 fix, for the owner to decide: treat a detected table whose cells are almost all empty as not a table, so its text is read as ordinary blocks and it is not counted as malformed.

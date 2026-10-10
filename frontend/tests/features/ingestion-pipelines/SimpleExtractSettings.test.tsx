@@ -45,7 +45,7 @@ function recommendedNode(): ExtractNode {
     id: 'extract',
     type: 'extract',
     ...recommendedExtractSettings(capabilities),
-    config_version: 'layout-ocr-v3',
+    config_version: 'layout-ocr-v4',
   };
 }
 
@@ -250,7 +250,7 @@ test('without OCR the panel explains why and OCR off is not an older setting', (
       ...capabilities,
       ocr: { ...capabilities.ocr, available: false },
     }),
-    config_version: 'layout-ocr-v3',
+    config_version: 'layout-ocr-v4',
   };
   expect(initial.ocr?.mode).toBe('off');
   render(<Harness initial={initial} available={false} />);

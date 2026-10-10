@@ -326,6 +326,11 @@ class Run:
                 continue
             self.check_cap(0.15)
             if key not in pipelines:
+                # Read the server's current defaults: a copy saved at setup ran A1
+                # with the pre-spec-0007 cleaning steps (spec 0008, B3).
+                self.state["capabilities"] = self.call(
+                    "GET", f"{self.project}/ingestion-capabilities"
+                )
                 execution = self.execution(track, round_id)
                 saved = self.call(
                     "POST",

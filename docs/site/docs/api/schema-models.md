@@ -546,7 +546,7 @@ Provider-reported embedding usage of the run's index. Vectors reused from earlie
 | `tables` | string: preserve, markdown, plain_text | no | default=preserve |
 | `quality_policy` | [`DefaultQualityPolicyV1`](#defaultqualitypolicyv1) or [`StrictQualityPolicyV1`](#strictqualitypolicyv1) or [`WarnQualityPolicyV1`](#warnqualitypolicyv1) or string: default-v1, strict-v1, warn-v1 | no | default=default-v1 |
 | `language_policy` | [`LanguagePolicyV1`](#languagepolicyv1) | no | — |
-| `config_version` | string: native-text-v1, layout-ocr-v1, layout-ocr-v2, layout-ocr-v3 | no | default=native-text-v1 |
+| `config_version` | string: native-text-v1, layout-ocr-v1, layout-ocr-v2, layout-ocr-v3, layout-ocr-v4 | no | default=native-text-v1 |
 
 ## ExtractionCapabilities
 

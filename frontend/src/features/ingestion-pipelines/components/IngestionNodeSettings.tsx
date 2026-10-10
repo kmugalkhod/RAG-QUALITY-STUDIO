@@ -866,8 +866,10 @@ export function IngestionNodeSettings({
                       This version keeps its original extractor so earlier runs reproduce. The
                       current extractor, {currentExtractVersion}, keeps tables and their rows
                       together on websites and in files, keeps the reading order of multi-column
-                      pages and leaves out reference lists. Saving the upgrade creates a new
-                      pipeline version, and its next run processes documents again.
+                      pages and leaves out reference lists. It also reads tables printed sideways
+                      and tables in PowerPoint slides, and keeps words broken at the end of a line
+                      whole. Saving the upgrade creates a new pipeline version, and its next run
+                      processes documents again.
                     </p>
                     <div>
                       <Button

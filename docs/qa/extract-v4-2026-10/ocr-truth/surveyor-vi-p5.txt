@@ -1,0 +1,40 @@
+I. Introduction
+Thomas H. Bird
+
+This volume, Part III of the Mission Report, contains
+a selection of 139 pictures relating to the Surveyor VI
+mission. Approximately 30,000 individual frames were
+obtained during the television (TV) activities. These in-
+cluded over 13,850 frames before the spacecraft was
+translated, and over 16,500 frames at the second landing
+location.
+
+In addition to the individual frames, copies of 46
+selected mosaics of the information collected by the TV
+camera are presented. Some of these mosaics are copies
+of preliminary data constructed during the actual mission
+operational time. Spatial relationships among various
+features on the lunar surface are best evaluated by ref-
+erence to the mosaic of the area of interest. The most
+direct means of locating individual items of interest is
+by reference to camera azimuth and evaluation and the
+
+associated mosaic areas. Also included are several special
+mosaics showing areas of particular interest.
+
+Individual frames are best identified by the Greenwich
+Mean Time (GMT) of the record. Differences in record-
+ing time between various ground stations may cause
+variations of ±1 s in the time related on the frame. This
+should cause no ambiguity between any two frames as the
+minimum interval between successive frames was 3.6 s.
+
+The National Space Science Data Center at
+Goddard Space Flight Center, Greenbelt, Maryland,
+is responsible for dissemination of Surveyor VI
+pictures and other scientific data. An index and
+copies of the pictures in various forms can be
+obtained from that Data Center.
+
+JPL TECHNICAL REPORT 32-1262
+1

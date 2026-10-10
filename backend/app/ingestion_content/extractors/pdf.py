@@ -83,6 +83,9 @@ MERGED_COLUMN_MIN_LINES = 5
 # v4 reads a page straightened when most of its text runs at 90 or 270 degrees.
 SIDEWAYS_TEXT_MIN_SHARE = 0.6
 SIDEWAYS_TEXT_MIN_CHARACTERS = 100
+# A soft hyphen (U+00AD) before a line break marks a word the typesetter broke;
+# v4 rejoins it. Cleaning would otherwise drop the hyphen and leave "house holds".
+_SOFT_HYPHEN_BREAK = re.compile(r"(?<=[^\W\d_])­[ \t]*\n[ \t]*(?=[^\W\d_])")
 _DOT_LEADER = re.compile(r"(?:\s*\.){3,}")
 # layout-ocr-v2 keeps whole tables as row groups within these safety limits.
 MAX_TABLE_V2_ROWS = 2_000
@@ -1462,6 +1465,7 @@ def extract_document(
     layout_v2 = settings.config_version in LAYOUT_V2_FAMILY
     rebuild_merged_tables = settings.config_version in MERGED_TABLE_VERSIONS
     straighten_sideways = settings.config_version == "layout-ocr-v4"
+    join_soft_hyphens = settings.config_version == "layout-ocr-v4"
     try:
         for index, native_text in enumerate(native_pages):
             if cancelled and cancelled():
@@ -1630,6 +1634,13 @@ def extract_document(
                         remediation="Select Automatic fallback or Always OCR.",
                     )
                 )
+            if join_soft_hyphens:
+                page_segments = [
+                    replace(item, text=_SOFT_HYPHEN_BREAK.sub("", item.text))
+                    if item.block_type != "table"
+                    else item
+                    for item in page_segments
+                ]
             metadata[page_number] = {
                 "origin": origin,
                 "character_count": sum(len(item.text) for item in page_segments),
