@@ -263,6 +263,13 @@ test('the model helpers agree with each other', () => {
   expect(extractDifferences(node, capabilities, true)).toEqual([]);
   expect(extractLegacySettings(node, capabilities, true)).toEqual([]);
   expect(extractLegacySettings({ ...node, strategy: 'native' }, capabilities, false)).toEqual([]);
+  // Spec 0008 D2: 100 scanned pages unless the server allows fewer.
+  expect(recommendedExtractSettings(capabilities).ocr.max_pages).toBe(100);
+  expect(
+    recommendedExtractSettings({ ...capabilities, ocr: { ...capabilities.ocr, max_pages: 40 } }).ocr
+      .max_pages,
+  ).toBe(40);
+  expect(recommendedExtractSettings().ocr.max_pages).toBe(100);
   expect(qualityChoice('warn-v1', capabilities)).toBe('publish');
   expect(qualityChoice('strict-v1', capabilities)).toBe('custom');
   // Saved JSONB may reorder keys; that is not a difference.

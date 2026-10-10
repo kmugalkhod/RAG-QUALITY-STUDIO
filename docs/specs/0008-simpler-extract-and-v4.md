@@ -1,7 +1,7 @@
 # 0008. Simpler Extract settings and extractor v4
 
 **Date**: 2026-10-10
-**Status**: Approved 2026-10-10. The owner accepted the recommendation for D1-D4. Implementation starts with Slice 0.
+**Status**: Approved 2026-10-10. The owner accepted the recommendation for D1-D4. Slices 0-2 done (Part A complete); Part B starts with Slice 3.
 
 ## Summary
 

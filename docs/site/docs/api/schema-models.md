@@ -981,7 +981,7 @@ Type: [`IngestionExecutionV1`](#ingestionexecutionv1) or [`IngestionExecutionV2`
 | `rotate_pages` | boolean | no | default=True |
 | `deskew` | boolean | no | default=True |
 | `dpi` | integer | no | minimum=150.0, maximum=300.0, default=200 |
-| `max_pages` | integer | no | minimum=1.0, maximum=100.0, default=50 |
+| `max_pages` | integer | no | minimum=1.0, maximum=100.0, default=100 |
 | `timeout_seconds` | integer | no | minimum=5.0, maximum=60.0, default=30 |
 
 ## ParentChildChunkNodeV2

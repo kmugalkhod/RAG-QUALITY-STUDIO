@@ -162,7 +162,8 @@ export function recommendedExtractSettings(
       rotate_pages: true,
       deskew: true,
       dpi: 200,
-      max_pages: Math.min(capabilities?.ocr.max_pages ?? 50, 50),
+      // Spec 0008 D2: a longer scan costs local CPU time only, not provider money.
+      max_pages: Math.min(capabilities?.ocr.max_pages ?? 100, 100),
       timeout_seconds: 30,
     },
     tables: 'preserve' as const,

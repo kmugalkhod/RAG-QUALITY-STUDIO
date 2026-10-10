@@ -4947,7 +4947,7 @@
             "type": "array"
           },
           "max_pages": {
-            "default": 50,
+            "default": 100,
             "maximum": 100.0,
             "minimum": 1.0,
             "title": "Max Pages",

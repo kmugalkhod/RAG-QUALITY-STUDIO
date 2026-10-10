@@ -436,7 +436,9 @@ class OcrSettingsV1(Strict):
     rotate_pages: bool = True
     deskew: bool = True
     dpi: int = Field(default=200, strict=True, ge=150, le=300)
-    max_pages: int = Field(default=50, strict=True, ge=1, le=100)
+    # Saved versions store every field, so this default (spec 0008 D2, from 50)
+    # applies only to new requests that leave it out.
+    max_pages: int = Field(default=100, strict=True, ge=1, le=100)
     timeout_seconds: int = Field(default=30, strict=True, ge=5, le=60)
 
     @model_validator(mode="after")

@@ -172,7 +172,7 @@ export function IngestionNodeSettings({
           rotate_pages: true,
           deskew: true,
           dpi: 200,
-          max_pages: 50,
+          max_pages: 100,
           timeout_seconds: 30,
         })
       : null;
