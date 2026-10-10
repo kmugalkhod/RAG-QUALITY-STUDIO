@@ -51,12 +51,13 @@ export const defaultSensitiveDataPolicy: SensitiveDataPolicy = {
 };
 
 /** New drafts use the current extractor; saved layout-ocr-v1 versions stay frozen. */
-export const currentExtractVersion = 'layout-ocr-v4';
+export const currentExtractVersion = 'layout-ocr-v5';
 
 export const isLayoutExtractVersion = (version: string | undefined) =>
   version === 'layout-ocr-v1' ||
   version === 'layout-ocr-v2' ||
   version === 'layout-ocr-v3' ||
+  version === 'layout-ocr-v4' ||
   version === currentExtractVersion;
 
 /**

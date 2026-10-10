@@ -1,7 +1,7 @@
 # 0009. Extractor v5: charts are not tables, and tables keep their caption
 
 **Date**: 2026-10-10
-**Status**: Approved 2026-10-10: the owner approved changes A and B (decisions 1 and 2 after spec 0008). D1 and D2 are open; neither blocks Slices 0-3. Slices 0-2 done (Part A and Part B built).
+**Status**: Approved 2026-10-10: the owner approved changes A and B (decisions 1 and 2 after spec 0008). D1 and D2 are open; neither blocks Slices 0-3. Slices 0-3 done (Part A and Part B built; new drafts use `layout-ocr-v5`).
 
 ## Summary
 

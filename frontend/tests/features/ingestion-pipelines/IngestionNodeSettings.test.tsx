@@ -62,7 +62,7 @@ test('edits algorithm-specific chunk settings without mixing incompatible fields
 
 function PolicyHarness({
   kind,
-  extractVersion = 'layout-ocr-v4',
+  extractVersion = 'layout-ocr-v5',
 }: {
   kind: 'extract' | 'clean';
   extractVersion?: string;
@@ -171,17 +171,21 @@ test('offers a saved layout-ocr-v1 extractor an explicit upgrade', () => {
   expect(screen.getByLabelText("If a file can't be read well")).toBeInTheDocument();
 });
 
-test('offers a saved layout-ocr-v3 extractor the v4 upgrade', () => {
-  render(<PolicyHarness kind="extract" extractVersion="layout-ocr-v3" />);
-  expect(screen.getByText('Saved with layout-ocr-v3')).toBeInTheDocument();
-  expect(screen.getByText(/The current extractor, layout-ocr-v4,/)).toBeInTheDocument();
-  expect(screen.getByText(/tables printed sideways and tables in PowerPoint/)).toBeInTheDocument();
-  expect(screen.getByLabelText("If a file can't be read well")).toBeInTheDocument();
+test.each(['layout-ocr-v3', 'layout-ocr-v4'])(
+  'offers a saved %s extractor the v5 upgrade',
+  (version) => {
+    render(<PolicyHarness kind="extract" extractVersion={version} />);
+    expect(screen.getByText(`Saved with ${version}`)).toBeInTheDocument();
+    expect(screen.getByText(/The current extractor, layout-ocr-v5,/)).toBeInTheDocument();
+    expect(screen.getByText(/reads charts as text/)).toBeInTheDocument();
+    expect(screen.getByText(/files each table under its caption/)).toBeInTheDocument();
+    expect(screen.getByLabelText("If a file can't be read well")).toBeInTheDocument();
 
-  fireEvent.click(screen.getByRole('button', { name: 'Upgrade extraction' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Upgrade extraction' }));
 
-  expect(screen.queryByText('Saved with layout-ocr-v3')).not.toBeInTheDocument();
-});
+    expect(screen.queryByText(`Saved with ${version}`)).not.toBeInTheDocument();
+  },
+);
 
 test('shows no upgrade for the current extractor', () => {
   render(<PolicyHarness kind="extract" />);
@@ -198,7 +202,7 @@ test('explains that legacy native-text findings are warnings only', () => {
 
 function SourcesHarness({
   kinds,
-  version = 'layout-ocr-v4',
+  version = 'layout-ocr-v5',
 }: {
   kinds: string[];
   version?: string;

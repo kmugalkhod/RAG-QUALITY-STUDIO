@@ -867,9 +867,10 @@ export function IngestionNodeSettings({
                       current extractor, {currentExtractVersion}, keeps tables and their rows
                       together on websites and in files, keeps the reading order of multi-column
                       pages and leaves out reference lists. It also reads tables printed sideways
-                      and tables in PowerPoint slides, and keeps words broken at the end of a line
-                      whole. Saving the upgrade creates a new pipeline version, and its next run
-                      processes documents again.
+                      and tables in PowerPoint slides, keeps words broken at the end of a line
+                      whole, reads charts as text instead of as broken tables, and files each table
+                      under its caption. Saving the upgrade creates a new pipeline version, and its
+                      next run processes documents again.
                     </p>
                     <div>
                       <Button

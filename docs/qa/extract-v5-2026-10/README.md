@@ -47,3 +47,11 @@ Tests: `backend/tests/test_extract_v5_charts.py` (a 55-column synthetic chart be
 Whether this makes the Table A-2 rows retrievable is measured in round A3 (Slice 4).
 
 Tests: `backend/tests/test_extract_v5_table_context.py` (header lines on Census-like rows and edge cases, the caption pattern including `A-4a` and `TABLE 1`, notes headings, caption and run-on replacement, a section heading from an earlier page kept, a caption without a table left alone, only the first table takes a caption, and an end-to-end appendix PDF where v4 files the table under "Endnotes" and v5 under its caption with identical text).
+
+## Slice 3: new drafts use v5 (2026-10-10)
+
+The editor now creates `layout-ocr-v5`. Saved v1-v4 pipelines keep their extractor, show "upgrade available" on the Extract card and the **Saved with …** notice, which now also says v5 reads charts as text and files each table under its caption. The backend services were rebuilt so the API and workers accept v5.
+
+Checked in the browser at `http://127.0.0.1:5273` on desktop and phone: a new draft shows no upgrade notice; the saved spec 0007 A1 pipeline (v3) and spec 0008 A2 pipeline (v4) show the notice and "upgrade available", and **Upgrade extraction** turns each into an unsaved v5 draft; no console errors.
+
+Verification: the full backend suite in the isolated stack (662 passed, 5 skipped; the 3 known failures, unchanged); 386 Vitest tests, lint and typecheck; the docs site build and public check.
