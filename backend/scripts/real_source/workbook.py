@@ -32,6 +32,7 @@ TRACK_ROUNDS = {
     "web": [r for r, spec in ROUNDS.items() if "web" in spec["tracks"]],
     "files": [r for r, spec in ROUNDS.items() if "files" in spec["tracks"]],
     "new": [r for r, spec in ROUNDS.items() if "new" in spec["tracks"]],
+    "d2": [r for r, spec in ROUNDS.items() if "d2" in spec["tracks"]],
 }
 GOOD_LABELS = ("correct", "correct-abstain")
 
@@ -92,7 +93,11 @@ def main(results: Path, output: Path) -> None:
         rows.append([source_id, "Website", note["name"],
                      selection.get("start_url") or "\n".join(selection.get("urls", [])),
                      note["licence"], scope, sources["fetched_on"], ""])
-    for source_id, file in {**sources["files"], **sources.get("files_v4", {})}.items():
+    for source_id, file in {
+        **sources["files"],
+        **sources.get("files_v4", {}),
+        **sources.get("files_v5", {}),
+    }.items():
         kind = file["filename"].rsplit(".", 1)[-1].upper()
         scope = f"{file['pages']} pages" if file.get("pages") else ""
         rows.append([source_id, f"File ({kind})", file["name"], file["url"], file["licence"],
@@ -276,6 +281,9 @@ def main(results: Path, output: Path) -> None:
     # Extract v4 (spec 0008) ------------------------------------------------------------
     extract_v4_sheet(workbook.create_sheet("Extract v4"), state, questions, scores, sources)
 
+    # Extract v5 (spec 0009) ------------------------------------------------------------
+    extract_v5_sheet(workbook.create_sheet("Extract v5"), state, questions, scores, sources)
+
     # Summary (formulas over Retrieval and Structure) ----------------------------------
     summary.append(["Real-source ingestion test (spec 0006), re-run after the spec 0007 fixes (A1) "
                     "and with extractor v4 (A2, spec 0008)"])
@@ -288,11 +296,12 @@ def main(results: Path, output: Path) -> None:
                     "Hit@5", "Hit@1 %", "Hit@5 %", "Run published", "Satisfaction"])
     rng = lambda col: f"Retrieval!${col}$2:${col}${retrieval_last}"  # noqa: E731
     row_number = header_row
-    for track in ("web", "files", "new"):
+    for track in ("web", "files", "new", "d2"):
         track_sources = {
             "web": sources["websites"],
             "files": sources["files"],
             "new": sources.get("files_v4", {}),
+            "d2": sources.get("files_v5", {}),
         }[track]
         for round_id in TRACK_ROUNDS[track]:
             for source_id in track_sources:
@@ -484,6 +493,98 @@ def extract_v4_sheet(sheet, state, questions, scores, sources) -> None:
             sheet.append([qid, questions[qid]["source"], questions[qid]["question"],
                           old or "not in top 5", new or "not in top 5"])
     style_sheet(sheet, {"A": 34, "B": 10, "C": 12, "D": 50, "E": 30, "F": 12, "G": 14,
+                        "H": 50}, header_row=header_row)
+    sheet["A1"].font = Font(name=FONT, size=14, bold=True)
+    sheet["A2"].font = NOTE_FONT
+
+
+def extract_v5_sheet(sheet, state, questions, scores, sources) -> None:
+    """Spec 0009: A2 (extractor v4) against A3 (v5), plus the spec 0009 files."""
+
+    retrieval = state.get("retrieval", {})
+    before, after = retrieval.get("A2", {}), retrieval.get("A3", {})
+    sheet.append(["Extractor v5 against v4 on real files (spec 0009, round A3)"])
+    sheet.append(["Before: A2 = extractor v4; the spec 0008 files used 'Publish the other files'. "
+                  "After: A3 = extractor v5 with the same settings, the spec 0008 files under "
+                  "'Stop and let me review'. The spec 0009 files (G1-G8) use 'Publish the other "
+                  "files and show warnings' so each file's outcome shows. Websites reuse the A1 "
+                  "index."])
+    sheet.append([])
+    header_row = 4
+    sheet.append(["Measure", "A2 (v4)", "A3 (v5)", "Note"])
+    earlier = [q for q, spec in questions.items()
+               if spec["phrases"] and track_of(spec["source"], sources) in ("files", "new")
+               and spec.get("round") in (None, "A2")]
+    for measure, key in (("Hit@1, spec 0006 and 0008 file questions", "hit_at_1"),
+                         ("Hit@5, spec 0006 and 0008 file questions", "hit_at_5")):
+        sheet.append([measure,
+                      f"{sum(before.get(q, {}).get(key, False) for q in earlier)}/{len(earlier)}",
+                      f"{sum(after.get(q, {}).get(key, False) for q in earlier)}/{len(earlier)}",
+                      ""])
+    lost = [q for q in earlier
+            if before.get(q, {}).get("hit_at_5") and not after.get(q, {}).get("hit_at_5")]
+    sheet.append(["Found in A2 and missed in A3", "", len(lost), ", ".join(lost) or "none"])
+    for track in ("files", "new", "d2"):
+        run_before = state["runs"].get(f"{track}:A2", {})
+        run_after = state["runs"].get(f"{track}:A3", {})
+        usage = app_usage(run_after)
+        sheet.append([f"{track} run", run_before.get("status", "not run"),
+                      run_after.get("status", "not run"),
+                      f"{run_after.get('chunk_count')} chunks; embedding {usage[0]} tokens, "
+                      f"${usage[1]} (app-reported)"])
+    good = lambda round_id: {  # noqa: E731
+        q for (r, q), row in scores.items() if r == round_id and row["label"] in GOOD_LABELS
+    }
+    asked = lambda round_id: {q for (r, q) in scores if r == round_id}  # noqa: E731
+    a2_files = {q for q in asked("A2") if q[0] == "f"}
+    a3_files = {q for q in asked("A3") if q in a2_files}
+    sheet.append(["Answers correct or correctly declined, spec 0006 and 0008 file questions",
+                  f"{len(good('A2') & a2_files)}/{len(a2_files)}",
+                  f"{len(good('A3') & a3_files)}/{len(a3_files)}", ""])
+    worse = sorted((good("A2") & a2_files) - good("A3"))
+    better = sorted((good("A3") & a3_files) - good("A2"))
+    sheet.append(["File answers correct in A2 and not in A3", "", len(worse),
+                  ", ".join(worse) or "none"])
+    sheet.append(["File answers correct in A3 and not in A2", "", len(better),
+                  ", ".join(better) or "none"])
+    new_ids = [q for q, spec in questions.items() if spec.get("round") == "A3"]
+    new_answered = [q for q in new_ids if ("A3", q) in scores]
+    sheet.append(["Answers correct or correctly declined, spec 0009 questions", "",
+                  f"{len(good('A3') & set(new_answered))}/{len(new_answered)}", ""])
+    sheet.append([])
+    sheet.append(["Spec 0009 files (track d2)"])
+    sheet.append(["Source", "File", "Item status", "Outcome or reason", "Chunks"])
+    items = {i.get("filename"): i for i in state["runs"].get("d2:A3", {}).get("items", [])}
+    for source_id, file in sources.get("files_v5", {}).items():
+        item = items.get(file["filename"], {})
+        sheet.append([source_id, file["name"], item.get("status", "not run"),
+                      item.get("reason") or item.get("outcome") or item.get("error") or "",
+                      item.get("chunk_count")])
+    sheet.append([])
+    sheet.append(["Spec 0009 questions (written from the source files before the run)"])
+    sheet.append(["Question", "Source", "Kind", "Question text", "Reference answer",
+                  "First hit rank (A3)", "Answer label (A3)", "Reason"])
+    for qid in new_ids:
+        spec = questions[qid]
+        rank = after.get(qid, {}).get("first_hit_rank") if spec["phrases"] else "n/a"
+        score = scores.get(("A3", qid), {})
+        sheet.append([qid, spec["source"], spec["kind"], spec["question"], spec["answer"],
+                      rank or "not in top 5", score.get("label", ""), score.get("reason", "")])
+    sheet.append([])
+    sheet.append(["Questions whose retrieval changed from A2 to A3"])
+    sheet.append(["Question", "Source", "Question text", "First hit rank A2",
+                  "First hit rank A3"])
+    for qid in earlier:
+        old = before.get(qid, {}).get("first_hit_rank")
+        new = after.get(qid, {}).get("first_hit_rank")
+        if old != new:
+            sheet.append([qid, questions[qid]["source"], questions[qid]["question"],
+                          old or "not in top 5", new or "not in top 5"])
+    for row in sheet.iter_rows():
+        for cell in row:
+            if isinstance(cell.value, str):
+                cell.value = ILLEGAL_CHARACTERS_RE.sub("", cell.value)
+    style_sheet(sheet, {"A": 34, "B": 30, "C": 12, "D": 50, "E": 30, "F": 12, "G": 14,
                         "H": 50}, header_row=header_row)
     sheet["A1"].font = Font(name=FONT, size=14, bold=True)
     sheet["A2"].font = NOTE_FONT

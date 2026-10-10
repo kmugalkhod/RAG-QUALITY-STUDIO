@@ -2,7 +2,7 @@
 
 ## Extractor v5: charts and table captions — spec 0009 (started 2026-10-10)
 
-**Status:** changes A (charts are not tables) and B (table captions and header context) approved; D1 (language pack) and D2 (files for round A3) open. Slices 1-3 done. Details: `docs/qa/extract-v5-2026-10/README.md`.
+**Status:** changes A (charts are not tables) and B (table captions and header context) approved; D1 (language pack) and D2 (files for round A3) open. Slices 1-4 done. Details: `docs/qa/extract-v5-2026-10/README.md`.
 
 **Slice 1 (Part A):** `layout-ocr-v5` treats a detected table with under 30% of its cells filled, or a table lying mostly inside one, as a chart region: its text is read as layout blocks marked `chart_region`, with no table block and no malformed-table count. On the seven test files the French Eurostat report loses its three malformed-table errors (it now passes the default policy) and its chart callouts are in the text; every one of the 55 skipped regions was checked as a chart or figure; no page captures less of its text layer than in v4 (Eurostat misses 215 characters instead of 1,655). The DOCX, PPTX and both scans are unchanged. v1-v4 are unchanged; the schema accepts `layout-ocr-v5`, websites keep the `html-main-v3.1` reader, and the editor still creates v4. Verification: 16 new tests, 122 extractor, cleaning and format tests, ruff.
 
@@ -10,7 +10,9 @@
 
 **Slice 3:** new drafts use `layout-ocr-v5`; saved v1-v4 pipelines show the upgrade notice, which names the v5 changes; `docs/site/docs/ingestion/extraction.md` describes v5; the backend services were rebuilt. Verification: the full backend suite in the isolated stack (662 passed, 5 skipped; the 3 known failures); 386 Vitest tests, lint, typecheck; docs build and public check; in the browser a new draft has no notice and the saved v3 and v4 pipelines upgrade to an unsaved v5 draft, on desktop and phone with no console errors.
 
-**Next:** Slice 4, real-source round A3 with v5 (paid, under $1); needs D2 (document types) or uses public files across common types.
+**Slice 4 (Part C):** round A3 through the API, $0.033. With v5 the spec 0008 files publish under "Stop" (Eurostat failed it in A2); the spec 0006 and 0008 file questions keep Hit@5 27/33 and 19/25 answers correct or correctly declined, with no answer better or worse. Eight new public files (form, technical standard, testimony with charts, typed scan, XLSX, PPTX org chart, DOCX agreement, CC BY paper; owner did not name types, so the D2 default was used) all publish and 18 of 19 new questions are answered correctly or correctly declined. Not met: the Census Table A-2 questions and the Eurostat callout question are still not retrieved; v5 now provides their caption, header and text, but the row chunk (about 780 tokens of numbers) and the callout (a 36-token heading chunk) rank outside the top 5, a chunking and retrieval question outside this spec. The harness gained a third file track and XLSX uploads; the workbook gained an **Extract v5** sheet. Details: `docs/qa/extract-v5-2026-10/README.md`.
+
+**Next:** owner review. Candidates: numeric table rows and short heading chunks in chunking or retrieval (hybrid keyword search would match "2015" and "68,410"), and D1 (non-English OCR pack).
 
 ## Simpler Extract settings and extractor v4 — spec 0008 (started 2026-10-10)
 

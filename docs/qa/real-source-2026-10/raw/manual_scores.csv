@@ -72,3 +72,47 @@ A2,f7-q3,,correct,"1-5 scale, from the slide table.",yes,A source the answer nam
 A2,f7-q4,,correct-abstain,Declined; the matrix has no critical band.,n/a,No answer to support.
 A2,f5-q4,,correct-abstain,Declined; Alaska is not in Table 1.,n/a,No answer to support.
 A2,f4-q5,,correct-abstain,Declined; not in the report.,n/a,No answer to support.
+A3,f1-q1,,correct,"States L=12, H=768, A=12.",yes,A source the answer names contains the expected phrase.
+A3,f1-q4,,correct,"BooksCorpus 800M and English Wikipedia 2,500M words.",yes,A source the answer names contains the expected phrase.
+A3,f2-q1,,correct,Matches the reference answer.,yes,A source the answer names contains the expected phrase.
+A3,f2-q4,,correct,Matches the reference answer.,yes,A source the answer names contains the expected phrase.
+A3,f2-q6,,correct,Matches the reference answer.,yes,A source the answer names contains the expected phrase.
+A3,f3-q1,,correct,"139 pictures, as the reference.",yes,A source the answer names contains the expected phrase.
+A3,f3-q4,,correct,Matches the reference answer.,yes,A source the answer names contains the expected phrase.
+A3,f3-q8,,correct-abstain,Declined; not in the source.,n/a,No answer to support.
+A3,f2-q9,,wrong-abstain,"Declined; the Table A-2 2015 row is in the index under its caption (v5) but not in the top 5, which held Table A-1, Figure 2 and the page 8 summary.",n/a,No answer to support.
+A3,f2-q10,,wrong-abstain,Declined; Table A-2 chunks were retrieved (now with their caption) but not the one with the 1990 row.,n/a,No answer to support.
+A3,f4-q1,,wrong-abstain,Declined; the callout '381 deces pour 100 000 habitants' is now in the index (v5) but as a 36-token heading chunk outside the top 5.,n/a,No answer to support.
+A3,f4-q2,,correct,"5,5 fois, as the reference.",yes,A source the answer names contains the expected phrase.
+A3,f4-q3,,correct,"76,7 % by road (the prose figure; the chart callout rounds it to 77 %).",yes,"The cited chunk states 76,7 %; the reference phrase was the rounded callout."
+A3,f4-q4,,correct,"22,4 % against 1990 (the prose figure; the callout rounds it to 22 %).",yes,"The cited chunk states 22,4 % against 1990; the reference phrase was the rounded callout."
+A3,f5-q1,,correct,Matches the reference answer.,yes,A source the answer names contains the expected phrase.
+A3,f5-q2,,wrong-abstain,Declined; the Illinois OCR row is not in the top 5.,n/a,No answer to support.
+A3,f5-q3,,wrong-abstain,"Declined; the Kansas row is not in the evidence, and OCR reads its 75 as 78.",n/a,No answer to support.
+A3,f6-q1,,wrong-abstain,Declined; 'Word limit - 250 words' is in the evidence but the A3.2 heading is in an earlier chunk.,n/a,No answer to support.
+A3,f6-q2,,correct,All six categories.,yes,A source the answer names contains the expected phrase.
+A3,f7-q1,,correct,"7 to 11, from the slide table.",yes,A source the answer names contains the expected phrase.
+A3,f7-q2,,correct,"Major, rating 4, from the slide table.",yes,A source the answer names contains the expected phrase.
+A3,f7-q3,,correct,"1-5 scale, from the slide table.",yes,A source the answer names contains the expected phrase.
+A3,f7-q4,,correct-abstain,Declined; the matrix has no critical band.,n/a,No answer to support.
+A3,f5-q4,,correct-abstain,Declined; Alaska is not in Table 1.,n/a,No answer to support.
+A3,f4-q5,,correct-abstain,Declined; not in the report.,n/a,No answer to support.
+A3,g1-q1,,correct,"$12,500 with the income condition.",yes,A source the answer names contains the expected phrase.
+A3,g1-q2,,correct,Matches the reference answer.,yes,A source the answer names contains the expected phrase.
+A3,g2-q1,,correct,Matches the reference answer.,yes,A source the answer names contains the expected phrase.
+A3,g2-q2,,correct,Matches the reference answer.,yes,A source the answer names contains the expected phrase.
+A3,g3-q1,,correct,"$55.6 billion, as the reference.",yes,A source the answer names contains the expected phrase.
+A3,g3-q2,,wrong-abstain,Declined; the mandates table on the Highlights page is split so the Inhofe row and its count are not in one retrieved chunk.,n/a,No answer to support.
+A3,g4-q1,,correct,The Secretary of War and designated Military Commanders.,yes,The cited OCR text has it as 'Secretary of Wer ... Military Comendors'; the 500x776 scan reads with many character errors.
+A3,g4-q2,,correct,"Act of April 20, 1918, 40 Stat. 533.",yes,A source the answer names contains the expected phrase.
+A3,g5-q1,,correct,"73.3%, from the spreadsheet table.",yes,A source the answer names contains the expected phrase.
+A3,g5-q2,,correct,"26.9%, from the spreadsheet table.",yes,A source the answer names contains the expected phrase.
+A3,g6-q1,,correct,"Patrick Crawford, from the slide.",yes,A source the answer names contains the expected phrase.
+A3,g6-q2,,correct,"£36,300 to £43,690, from the slide.",yes,A source the answer names contains the expected phrase.
+A3,g7-q1,,correct,The 5 years before the application.,yes,A source the answer names contains the expected phrase.
+A3,g7-q2,,correct,"UK GDPR, DPA 2018 and FOI Act 2000.",yes,A source the answer names contains the expected phrase.
+A3,g8-q1,,correct,Forty-one participants.,yes,The cited chunk says 'Forty-one participants'; the reference phrase was 'N = 41'.
+A3,g8-q2,,correct,Impulse control partly mediates the relationship.,yes,The cited Figure 3 caption describes mediation by impulse control.
+A3,g6-q3,,correct-abstain,Declined; only 2012 is in the source.,n/a,No answer to support.
+A3,g8-q3,,correct-abstain,Declined; not in the source.,n/a,No answer to support.
+A3,g2-q3,,correct-abstain,Declined; not in the source.,n/a,No answer to support.

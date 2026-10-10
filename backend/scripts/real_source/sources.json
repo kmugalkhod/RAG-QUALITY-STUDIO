@@ -145,5 +145,79 @@
       "sha256": "71e2e0fe0eacbb94867329cae876e1f119e8d2e7f76145cf289d12cb7873484f",
       "fetched_on": "2026-10-10"
     }
+  },
+  "files_v5": {
+    "G1": {
+      "name": "IRS Form W-4 (2026), Employee's Withholding Certificate (form with worksheets and tables)",
+      "filename": "irs-form-w4-2026.pdf",
+      "url": "https://www.irs.gov/pub/irs-pdf/fw4.pdf",
+      "licence": "Public domain (US federal government work)",
+      "pages": 5,
+      "sha256": "92444d8856ce55d9e25dca8b6d1420634fc68b11e1ab1f760916ea29ddd312b2",
+      "fetched_on": "2026-10-10"
+    },
+    "G2": {
+      "name": "NIST SP 800-63B, Digital Identity Guidelines: Authentication and Lifecycle Management (2017, updated 2020; withdrawn 2025 and kept for history)",
+      "filename": "nist-sp-800-63b.pdf",
+      "url": "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-63b.pdf",
+      "licence": "Public domain (US federal government work)",
+      "pages": 80,
+      "sha256": "ccfce7510a1267933f912d023306c6e7d485f21be63d271108b61aad6139127e",
+      "fetched_on": "2026-10-10"
+    },
+    "G3": {
+      "name": "GAO-23-900494, Fiscal Year 2024 Budget Request (testimony with charts and tables)",
+      "filename": "gao-23-900494.pdf",
+      "url": "https://www.gao.gov/assets/gao-23-900494.pdf",
+      "licence": "Public domain (US federal government work; GAO notes third-party images may be copyrighted)",
+      "pages": 20,
+      "sha256": "7ae5716dd9fb8792c59eb1c4d623d33c13f505b914229b62b0932c151f6f8f88",
+      "fetched_on": "2026-10-10"
+    },
+    "G4": {
+      "name": "Executive Order 9066 (1942), first page, typed scan, image-only copy",
+      "filename": "eo9066-scan.pdf",
+      "url": "https://www.archives.gov/files/milestone-documents/images/doc-074-big.jpg",
+      "licence": "Public domain (US federal government record, National Archives)",
+      "pages": 1,
+      "sha256": "2c7e202d431a762814ccdde34ff7c04b1d1a154d6bb1e02f2ad67a1a687f9096",
+      "source_sha256": "3710c6490e4e33d6d2bc995f06b613844e205f7d8ec25467c4939a879899cd46",
+      "derivation": "The National Archives' 500x776 JPEG of page 1 placed on one PDF page with PyMuPDF (no text layer), so the app's OCR runs. The copy's bytes may differ between PyMuPDF builds; the source hash is the stable check.",
+      "fetched_on": "2026-10-10"
+    },
+    "G5": {
+      "name": "NISRA, Labour Force Survey quarterly tables, October to December 2023 (XLSX, 27 sheets)",
+      "filename": "nisra-lfs-quarterly-od2023.xlsx",
+      "url": "https://www.nisra.gov.uk/system/files/statistics/lmr-labour-force-survey-quarterly-tables-october-december-2023.xlsx",
+      "licence": "Open Government Licence v3.0 (NISRA)",
+      "sha256": "29a67242b51a9efcd349da8d7d03bf05d3ca479b462374954db44d4e55b907de",
+      "fetched_on": "2026-10-10"
+    },
+    "G6": {
+      "name": "ECGD, organisation chart and pay data, September 2012 (PPTX, 3 slides)",
+      "filename": "ecgd-structure-chart-2012.pptx",
+      "url": "https://www.gov.uk/government/uploads/system/uploads/attachment_data/file/190924/ecgd-structure-chart-september-2012.pptx",
+      "licence": "Open Government Licence (data.gov.uk record)",
+      "pages": 3,
+      "sha256": "1f1192e07415540cdd422d8cb1c0e4fd851af43cb5c63341e867cb7188dda596",
+      "fetched_on": "2026-10-10"
+    },
+    "G7": {
+      "name": "DfE, Information sharing agreement template for childminder agencies and local authorities (DOCX)",
+      "filename": "dfe-information-sharing-agreement-template.docx",
+      "url": "https://assets.publishing.service.gov.uk/media/69a988838fd807b03bbe92d0/Information_sharing_agreement_template_for_childminder_agencies_and_local_authorities.docx",
+      "licence": "Open Government Licence v3.0",
+      "sha256": "6bc63fd49da37883f35c007ab6ad9a5fdf6b5daf3bd0b0155b35e1c3d04b0a65",
+      "fetched_on": "2026-10-10"
+    },
+    "G8": {
+      "name": "Pan et al. (2023), Sex difference in driving speed management, PLOS ONE 18(7): e0288653",
+      "filename": "plos-one-0288653.pdf",
+      "url": "https://journals.plos.org/plosone/article/file?id=10.1371/journal.pone.0288653&type=printable",
+      "licence": "CC BY 4.0",
+      "pages": 14,
+      "sha256": "0fe1665514be2c545374fd80ffac056d85dca33076960650515d52f68c4df886",
+      "fetched_on": "2026-10-10"
+    }
   }
 }

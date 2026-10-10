@@ -80,6 +80,13 @@ ROUNDS = {
     "A2": {"tracks": ["files", "new"], "label": "Extract v4: recommended",
            "extract": {"config_version": "layout-ocr-v4"}, "ocr": {"max_pages": 100},
            "quality": {"new": "warn-v1"}, "reuse": {"web": "A1"}},
+    # Spec 0009 slice 4: extractor v5. The spec 0008 files now use "Stop" as well
+    # (v5 reads Eurostat's charts as text). The spec 0009 files (`files_v5`, track
+    # "d2") use "Publish the other files and show warnings" so each file's own
+    # outcome is visible. Websites again reuse the A1 index.
+    "A3": {"tracks": ["files", "new", "d2"], "label": "Extract v5: recommended",
+           "extract": {"config_version": "layout-ocr-v5"}, "ocr": {"max_pages": 100},
+           "quality": {"d2": "warn-v1"}, "reuse": {"web": "A1"}},
 }
 # The index a track falls back to when a round does not rebuild it.
 BASELINE = {"web": "R1", "files": "R1w"}
@@ -87,7 +94,14 @@ MEDIA_TYPES = {
     ".pdf": "application/pdf",
     ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 }
+# Source group, state key and track for each set of files.
+FILE_GROUPS = (
+    ("files", "documents", "files"),
+    ("files_v4", "documents_v4", "new"),
+    ("files_v5", "documents_v5", "d2"),
+)
 
 
 def normalize(value: str) -> str:
@@ -109,7 +123,10 @@ def load_sources() -> dict:
 def track_of(source_id: str, sources: dict) -> str:
     if source_id.startswith("W"):
         return "web"
-    return "new" if source_id in sources.get("files_v4", {}) else "files"
+    for group, _, track in FILE_GROUPS:
+        if source_id in sources.get(group, {}):
+            return track
+    return "files"
 
 
 def in_round(question: dict, round_id: str) -> bool:
@@ -212,7 +229,7 @@ class Run:
             )
             self.state["project_id"] = project["id"]
             self.save()
-        for group, key in (("files", "documents"), ("files_v4", "documents_v4")):
+        for group, key, _ in FILE_GROUPS:
             documents = self.state.setdefault(key, {})
             for source_id, source in self.sources.get(group, {}).items():
                 if source_id in documents:
@@ -229,7 +246,11 @@ class Run:
                 )
                 documents[source_id] = {"id": uploaded["id"], "filename": source["filename"]}
                 self.save()
-        documents = {**self.state["documents"], **self.state.get("documents_v4", {})}
+        documents = {
+            source_id: document
+            for _, key, _ in FILE_GROUPS
+            for source_id, document in self.state.get(key, {}).items()
+        }
         self.state["embedding"] = self.call("GET", f"{self.project}/embedding-settings")[
             "config"
         ]
@@ -287,7 +308,7 @@ class Run:
                 for i, config in enumerate(self.sources["websites"].values())
             ]
         else:
-            group = "documents_v4" if track == "new" else "documents"
+            group = next(key for _, key, name in FILE_GROUPS if name == track)
             ids = [d["id"] for d in self.state[group].values()]
             sources = [{
                 "id": "source",
@@ -459,13 +480,12 @@ class Run:
         }
         filename_to_source = {
             f["filename"]: sid
-            for group in ("files", "files_v4")
+            for group, _, _ in FILE_GROUPS
             for sid, f in sources.get(group, {}).items()
         }
         track_sources = {
             "web": sources["websites"],
-            "files": sources["files"],
-            "new": sources.get("files_v4", {}),
+            **{track: sources.get(group, {}) for group, _, track in FILE_GROUPS},
         }
         table_line = re.compile(r"^\|.*\|\s*$", re.MULTILINE)
         structure = []

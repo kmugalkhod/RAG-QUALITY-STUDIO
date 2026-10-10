@@ -55,3 +55,37 @@ The editor now creates `layout-ocr-v5`. Saved v1-v4 pipelines keep their extract
 Checked in the browser at `http://127.0.0.1:5273` on desktop and phone: a new draft shows no upgrade notice; the saved spec 0007 A1 pipeline (v3) and spec 0008 A2 pipeline (v4) show the notice and "upgrade available", and **Upgrade extraction** turns each into an unsaved v5 draft; no console errors.
 
 Verification: the full backend suite in the isolated stack (662 passed, 5 skipped; the 3 known failures, unchanged); 386 Vitest tests, lint and typecheck; the docs site build and public check.
+
+## Slice 4: real-source round A3 (2026-10-10, paid)
+
+Round A3 ran through the public API with `backend/scripts/real_source/run.py`, in the spec 0006 project, with `layout-ocr-v5` and the recommended settings. Results are in `docs/qa/real-source-2026-10/raw/` (`state.json`, `structure.json`, `answers_A3.jsonl`, the A3 rows of `manual_scores.csv`) and the workbook's new **Extract v5** sheet.
+
+Setup:
+
+- **Spec 0006 files** (BERT, Census, Surveyor VI) under **Stop and let me review**, as in A1 and A2.
+- **Spec 0008 files** (Eurostat, USGS scan, DfT DOCX, Prevent PPTX) now also under **Stop**; in A2 they needed "Publish the others" because Eurostat failed.
+- **Spec 0009 files** (`files_v5` in `sources.json`, track "d2"): eight public files picked by the default in D2, because the owner did not name document types. They are a 2026 IRS Form W-4 (form with worksheet tables), NIST SP 800-63B (80-page technical standard, withdrawn in 2025 and kept for history), GAO-23-900494 (testimony with charts and a table), Executive Order 9066 page 1 (a typed 1942 scan at 500x776 pixels, turned into an image-only PDF), NISRA Labour Force Survey tables (XLSX, 27 sheets), an ECGD organisation chart with pay tables (PPTX), a DfE information-sharing agreement template (DOCX) and a CC BY PLOS ONE paper with figures. They use "Publish the other files and show warnings" so each file's outcome is visible.
+- **Websites** reuse the A1 index; v5 keeps the website reader.
+- **19 new questions** (`"round": "A3"`), written from the source files before the run: two per file and three with no answer in the source. All A2 file questions were asked again.
+- Answers use the same pipeline (`google/gemini-2.5-flash`, top 5, temperature 0), scored by Claude with the spec 0004 rubric against the references, not blind.
+
+Results:
+
+| Measure | A2 (v4) | A3 (v5) |
+| --- | --- | --- |
+| Spec 0008 files under "Stop" | failed (Eurostat) | **published** |
+| Hit@5 / Hit@1, spec 0006 and 0008 file questions | 27/33, 16/33 | 27/33, 16/33 |
+| Answers correct or correctly declined, spec 0006 and 0008 file questions | 19/25 | 19/25 (no answer better or worse) |
+| Spec 0009 files published | | 8 of 8 (844 chunks) |
+| Answers correct or correctly declined, spec 0009 questions | | 18/19 |
+| Spend | $0.020 | $0.033 ($0.028 answers, $0.004 embeddings as the app reports them) |
+
+- **Part A works.** The Eurostat report publishes under the default "Stop" policy.
+- **No regression.** Every earlier file question keeps its retrieval and its answer label. Census Table A-1 family households moved from rank 4 to 1; Eurostat road freight from rank 1 to 2.
+- **The wider set of document types works.** All eight new files publish. 18 of 19 questions are answered correctly or correctly declined: the form's worksheet amounts, the standard's password rules, the testimony's headline figure, both scan questions, both spreadsheet values (sheets read as tables), the slide deck's name and pay-band table, both DOCX clauses, the paper's facts and all three unanswerable questions. The one miss (g3-q2) is GAO's mandates table: its row label and count land in different chunks.
+- **The two retrieval targets are still not met.** The Census Table A-2 rows now carry their caption and full header (Part B), and the Eurostat "381 décès pour 100 000 habitants" callout is now in the index (Part A). Neither reaches the top 5, so both questions are still declined. The Table A-2 chunk is about 780 tokens of nearly pure numbers and ranks below Table A-1 and Figure 2. The callout is classified as a heading and becomes its own 36-token chunk, which ranks below the chart's title and axis chunks. Both are now chunking and retrieval questions; spec 0009 left chunking out of scope.
+- **Eurostat chunks are smaller.** The median chunk is now 24 tokens (35 in A2), with 360 single short lines (327), because chart labels are now text.
+- **The low-resolution scan reads poorly but answers.** EO 9066's OCR has many character errors ("Secretary of Wer", "Comendors"); the model still answered both questions correctly from it.
+- The automatic phrase check under-counts some hits: g8-q1's rank-1 chunk says "Forty-one participants" (the reference phrase was "N = 41"), and Eurostat prose gives "76,7 %" and "22,4 %" where the chart callouts round to 77 % and 22 %.
+
+Against the spec's done-when: Eurostat publishes under "Stop", no A2 result got worse, the D2 files publish, and spend is under $1. Not met: the Eurostat callout question (f4-q1) and the two Census Table A-2 questions (f2-q9, f2-q10) are still not retrieved and answered, although extraction now provides what they need.

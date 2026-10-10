@@ -1,7 +1,7 @@
 # 0009. Extractor v5: charts are not tables, and tables keep their caption
 
 **Date**: 2026-10-10
-**Status**: Approved 2026-10-10: the owner approved changes A and B (decisions 1 and 2 after spec 0008). D1 and D2 are open; neither blocks Slices 0-3. Slices 0-3 done (Part A and Part B built; new drafts use `layout-ocr-v5`).
+**Status**: Approved 2026-10-10: the owner approved changes A and B (decisions 1 and 2 after spec 0008). D1 and D2 are open; neither blocks Slices 0-3. Slices 0-4 done (new drafts use `layout-ocr-v5`). Round A3 ($0.033): Eurostat publishes under "Stop", no earlier answer got worse, 8 new file types publish with 18/19 questions answered; the Census Table A-2 and Eurostat callout questions are still not retrieved (chunking and retrieval, outside this spec).
 
 ## Summary
 
