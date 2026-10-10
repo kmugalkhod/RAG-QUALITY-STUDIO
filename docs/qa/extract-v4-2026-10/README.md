@@ -29,3 +29,16 @@ Limits:
 - The backend image has only the English OCR pack (`eng`, `osd`). F4 is native French text, so it tests non-English extraction and language detection, not non-English OCR. A non-English scan needs a Tesseract language pack, which changes the image and is out of scope for spec 0008 unless the owner approves it.
 - F5 was not visibly skewed: the app's deskew angle is 0 on 14 of 16 pages and −0.5° on one (−3° on the two cover pages is the edge of the search range). It is a low-quality scan, not a skewed one; D4 allows either.
 - F5 is an image-only copy made locally: each page's scan image placed unchanged on a new page, without the publisher's hidden OCR text layer. Its bytes may differ between PyMuPDF builds; `source_sha256` checks the original download.
+
+## Slice 3: sideways pages in `layout-ocr-v4` (2026-10-10)
+
+Census P60-279 prints its appendix tables (Tables A-2 to A-5, pp. 22-36 and 42-44) on portrait pages with the text turned 90 degrees: every line reads bottom to top, and the PDF's page rotation is 0. v4 measures the direction of each page's text; when at least 60% of at least 100 characters run sideways, it reads a straightened one-page copy with the v3 layout and table code, then maps every block box back onto the original page and records the turn in the page's `rotation_degrees`. Upright pages take the unchanged v3 path.
+
+`raw/slice3-v4.json` is the same seven files extracted with `layout-ocr-v4`:
+
+- Six files are block for block identical to v3. Census changes only on pp. 22-36 and 42-44 (910 to 811 blocks).
+- Every sideways table is rebuilt as one line per printed row, header first, for example `2022 131,400 100 8.3 7.4 7.6 10.6 16.2 12.3 16.4 9.2 11.9 74,580 968 106,400 1,034` (Table A-2) and `2022 3.5 9.1 14.6 22.1 50.7 10.37 2.71 3.82 0.467 ...` (Table A-5). Pages 22-35 have 10 to 35 year rows each; p. 36 is the footnotes page and is now read in order.
+- The set of headings is the same as v3. The running footer ("36 Income in the United States: 2022") is classified as a heading in both versions; that predates v4 and is recorded here as a separate finding, not fixed in this slice.
+- Footnote markers stay attached to the year as in v3 (`20202` is 2020 with note 2).
+
+Not covered: a sideways table region on an otherwise upright page (none of the test files has one), and pages that set a PDF page rotation as well as sideways text; both keep the v3 reading.

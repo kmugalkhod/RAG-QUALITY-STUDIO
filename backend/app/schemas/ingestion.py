@@ -634,8 +634,13 @@ class ExtractNodeV2(NodeBase):
     # extraction fixes from docs/extract-node-improvement-plan.md.
     # layout-ocr-v3 (spec 0007) adds merged-column table rebuilding and v3 website
     # reading; v1 and v2 stay frozen.
+    # layout-ocr-v4 (spec 0008) reads sideways pages; v3 stays frozen.
     config_version: Literal[
-        "native-text-v1", "layout-ocr-v1", "layout-ocr-v2", "layout-ocr-v3"
+        "native-text-v1",
+        "layout-ocr-v1",
+        "layout-ocr-v2",
+        "layout-ocr-v3",
+        "layout-ocr-v4",
     ] = "native-text-v1"
 
     @model_validator(mode="after")

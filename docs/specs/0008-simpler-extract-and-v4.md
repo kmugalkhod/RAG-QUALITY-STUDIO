@@ -1,7 +1,7 @@
 # 0008. Simpler Extract settings and extractor v4
 
 **Date**: 2026-10-10
-**Status**: Approved 2026-10-10. The owner accepted the recommendation for D1-D4. Slices 0-2 done (Part A complete); Part B starts with Slice 3.
+**Status**: Approved 2026-10-10. The owner accepted the recommendation for D1-D4. Slices 0-3 done (Part A complete; B1 sideways tables in `layout-ocr-v4`).
 
 ## Summary
 
@@ -49,7 +49,7 @@ Files: `components/IngestionNodeSettings.tsx` (Advanced section around line 983 
 - B3. **Remaining hyphen merge.** Trace why one Census "married-\ncouple" still becomes "marriedcouple" under `conservative-compounds` (the line break may be removed during extraction, or the hyphen may be a soft hyphen) and fix it at the cause. If the fix is in cleaning rather than extraction, it ships as a new cleaning mode, so existing cleaning output does not change.
 - B4. **Scans.** Measure, without changing them, how skewed and non-English scans come out (character error rate against a hand-checked page). Fix only what the measurement shows; record a result that needs no fix as such.
 
-Rules: v1, v2 and v3 output stays byte-identical (v1 golden digests, the v2 corpus test and the v3 table tests unchanged). New drafts use v4. The website reader keeps `html-main-v3.1` unless a v4 change needs it.
+Rules: v1, v2 and v3 output stays byte-identical (v1 golden digests, the v2 corpus test and the v3 table tests unchanged). New drafts use v4 once Part B is complete (end of Slice 5); until then the backend accepts `layout-ocr-v4` but the editor keeps creating v3, so no saved pipeline has a v4 whose output changes in a later slice. The website reader keeps `html-main-v3.1` unless a v4 change needs it.
 
 ## Part C: proof
 

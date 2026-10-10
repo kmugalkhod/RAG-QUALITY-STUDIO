@@ -68,10 +68,20 @@ LAYOUT_OCR_V3_EXTRACTOR_VERSION = (
     f"pypdf-{pypdf_version}/pymupdf-{pymupdf.VersionBind}/tesseract-cli-v2/"
     f"layout-v3/{FORMAT_V2_EXTRACTOR_VERSION}"
 )
+# layout-ocr-v4 (spec 0008) also reads pages whose text runs sideways.
+LAYOUT_OCR_V4_EXTRACTOR_VERSION = (
+    f"pypdf-{pypdf_version}/pymupdf-{pymupdf.VersionBind}/tesseract-cli-v2/"
+    f"layout-v4/{FORMAT_V2_EXTRACTOR_VERSION}"
+)
 # Versions that share the v2 layout, heading, table and OCR behaviour.
-LAYOUT_V2_FAMILY = frozenset({"layout-ocr-v2", "layout-ocr-v3"})
+LAYOUT_V2_FAMILY = frozenset({"layout-ocr-v2", "layout-ocr-v3", "layout-ocr-v4"})
+# Versions that rebuild merged-column tables from word rows (v3 onward).
+MERGED_TABLE_VERSIONS = frozenset({"layout-ocr-v3", "layout-ocr-v4"})
 # A detected table whose cells each hold this many lines is a merged-column table.
 MERGED_COLUMN_MIN_LINES = 5
+# v4 reads a page straightened when most of its text runs at 90 or 270 degrees.
+SIDEWAYS_TEXT_MIN_SHARE = 0.6
+SIDEWAYS_TEXT_MIN_CHARACTERS = 100
 _DOT_LEADER = re.compile(r"(?:\s*\.){3,}")
 # layout-ocr-v2 keeps whole tables as row groups within these safety limits.
 MAX_TABLE_V2_ROWS = 2_000
@@ -338,6 +348,7 @@ def extractor_version_for_settings(settings: ExtractSettings) -> str:
         "native-text-v1": NativeTextExtractor.version,
         "layout-ocr-v2": LAYOUT_OCR_V2_EXTRACTOR_VERSION,
         "layout-ocr-v3": LAYOUT_OCR_V3_EXTRACTOR_VERSION,
+        "layout-ocr-v4": LAYOUT_OCR_V4_EXTRACTOR_VERSION,
     }.get(settings.config_version, LAYOUT_OCR_EXTRACTOR_VERSION)
 
 
@@ -768,6 +779,60 @@ def _word_rows(page: pymupdf.Page, box: tuple[float, float, float, float]) -> li
         if text:
             result.append(text)
     return result
+
+
+def _sideways_rotation(page: pymupdf.Page) -> int:
+    """270 when most text reads bottom to top, 90 when top to bottom, else 0.
+
+    The angle is the clockwise turn that makes the text horizontal. Landscape tables
+    printed on portrait pages, such as Census P60-279 pp. 22-36, read bottom to top.
+    """
+
+    characters = {0: 0, 90: 0, 270: 0}
+    for block in page.get_text("dict", sort=False).get("blocks", []):
+        for line in block.get("lines", []):
+            count = sum(
+                len(span.get("text", "").strip()) for span in line.get("spans", [])
+            )
+            dx, dy = line.get("dir", (1.0, 0.0))
+            if abs(dx) < 0.1 and abs(dy) > 0.9:
+                characters[270 if dy < 0 else 90] += count
+            else:
+                characters[0] += count
+    total = sum(characters.values())
+    rotation = max((90, 270), key=lambda angle: characters[angle])
+    if total >= SIDEWAYS_TEXT_MIN_CHARACTERS and (
+        characters[rotation] >= total * SIDEWAYS_TEXT_MIN_SHARE
+    ):
+        return rotation
+    return 0
+
+
+def _straightened_page(
+    page: pymupdf.Page, rotation: int
+) -> tuple[pymupdf.Document, pymupdf.Page]:
+    """A one-page copy turned so sideways text reads left to right."""
+
+    document = pymupdf.open()
+    straight = document.new_page(
+        width=float(page.rect.height), height=float(page.rect.width)
+    )
+    straight.show_pdf_page(straight.rect, page.parent, page.number, rotate=rotation)
+    return document, straight
+
+
+def _unrotated_box(box: BoundingBox | None, rotation: int) -> BoundingBox | None:
+    """Map a normalized box on a straightened page back onto the original page."""
+
+    if box is None:
+        return None
+    if rotation == 270:
+        return BoundingBox(
+            left=box.top, top=1 - box.right, right=box.bottom, bottom=1 - box.left
+        )
+    return BoundingBox(
+        left=1 - box.bottom, top=box.left, right=1 - box.top, bottom=box.right
+    )
 
 
 def _layout_page(
@@ -1393,7 +1458,8 @@ def extract_document(
     suspicious_order = 0
     ocr_pages = 0
     layout_v2 = settings.config_version in LAYOUT_V2_FAMILY
-    rebuild_merged_tables = settings.config_version == "layout-ocr-v3"
+    rebuild_merged_tables = settings.config_version in MERGED_TABLE_VERSIONS
+    straighten_sideways = settings.config_version == "layout-ocr-v4"
     try:
         for index, native_text in enumerate(native_pages):
             if cancelled and cancelled():
@@ -1443,15 +1509,32 @@ def extract_document(
                     else []
                 )
             else:
-                layout_segments, page_tables, page_malformed, page_suspicious = (
-                    _layout_page(
-                        page,
-                        page_number=page_number,
-                        table_mode=settings.tables,
-                        layout_v2=layout_v2,
-                        rebuild_merged_tables=rebuild_merged_tables,
-                    )
+                # v4 reads a sideways page from a straightened copy; its boxes are
+                # mapped back to the original page once the layout result is kept.
+                text_rotation = (
+                    _sideways_rotation(page)
+                    if straighten_sideways and rotation == 0
+                    else 0
                 )
+                straight_document = None
+                layout_source = page
+                if text_rotation:
+                    straight_document, layout_source = _straightened_page(
+                        page, text_rotation
+                    )
+                try:
+                    layout_segments, page_tables, page_malformed, page_suspicious = (
+                        _layout_page(
+                            layout_source,
+                            page_number=page_number,
+                            table_mode=settings.tables,
+                            layout_v2=layout_v2,
+                            rebuild_merged_tables=rebuild_merged_tables,
+                        )
+                    )
+                finally:
+                    if straight_document is not None:
+                        straight_document.close()
                 layout_characters = sum(len(item.text) for item in layout_segments)
                 multi_column = (
                     len(
@@ -1507,6 +1590,17 @@ def extract_document(
                         use_layout = False
                 if use_layout:
                     page_segments = layout_segments
+                    if text_rotation:
+                        page_segments = [
+                            replace(
+                                item,
+                                bounding_box=_unrotated_box(
+                                    item.bounding_box, text_rotation
+                                ),
+                            )
+                            for item in layout_segments
+                        ]
+                        rotation = text_rotation
                     origin = "layout"
                     fallback_reason = reason
                     table_count += page_tables
