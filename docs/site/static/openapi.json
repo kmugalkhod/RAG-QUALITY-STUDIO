@@ -2652,7 +2652,8 @@
               "layout-ocr-v1",
               "layout-ocr-v2",
               "layout-ocr-v3",
-              "layout-ocr-v4"
+              "layout-ocr-v4",
+              "layout-ocr-v5"
             ],
             "title": "Config Version",
             "type": "string"

@@ -1,5 +1,13 @@
 # Implementation plan
 
+## Extractor v5: charts and table captions — spec 0009 (started 2026-10-10)
+
+**Status:** changes A (charts are not tables) and B (table captions and header context) approved; D1 (language pack) and D2 (files for round A3) open. Slice 1 done. Details: `docs/qa/extract-v5-2026-10/README.md`.
+
+**Slice 1 (Part A):** `layout-ocr-v5` treats a detected table with under 30% of its cells filled, or a table lying mostly inside one, as a chart region: its text is read as layout blocks marked `chart_region`, with no table block and no malformed-table count. On the seven test files the French Eurostat report loses its three malformed-table errors (it now passes the default policy) and its chart callouts are in the text; every one of the 55 skipped regions was checked as a chart or figure; no page captures less of its text layer than in v4 (Eurostat misses 215 characters instead of 1,655). The DOCX, PPTX and both scans are unchanged. v1-v4 are unchanged; the schema accepts `layout-ocr-v5`, websites keep the `html-main-v3.1` reader, and the editor still creates v4. Verification: 16 new tests, 122 extractor, cleaning and format tests, ruff.
+
+**Next:** Slice 2, table captions, run-on headings and header rows (Part B).
+
 ## Simpler Extract settings and extractor v4 — spec 0008 (started 2026-10-10)
 
 **Status:** decisions D1-D4 approved as recommended; Slices 0 (v3 baseline), 1 (shorter Extract panel), 2 (docs, Maximum OCR pages 100) 3 (v4 sideways pages), 4 (v4 PowerPoint tables), 5 (soft hyphens, scan measurements, new drafts on v4) and 6 (real-source round A2) done. Seven files (the three spec 0006 PDFs plus a French Eurostat report, a 1951 USGS scan, a DfT DOCX and a Prevent PPTX) were extracted locally with `layout-ocr-v3`. The baseline confirms transposed rotated Census tables and missing PPTX table text, finds no "married-" line break in v3 extraction (so the remaining merge is downstream), and adds one new finding: the French Eurostat report fails the default quality policy on three malformed tables. Only the English OCR pack is installed, so non-English OCR is not tested. Details: `docs/qa/extract-v4-2026-10/README.md`.

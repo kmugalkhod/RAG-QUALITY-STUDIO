@@ -74,10 +74,25 @@ LAYOUT_OCR_V4_EXTRACTOR_VERSION = (
     f"pypdf-{pypdf_version}/pymupdf-{pymupdf.VersionBind}/tesseract-cli-v2/"
     f"layout-v4/{FORMAT_V3_EXTRACTOR_VERSION}"
 )
+# layout-ocr-v5 (spec 0009) also reads charts as text instead of as tables.
+LAYOUT_OCR_V5_EXTRACTOR_VERSION = (
+    f"pypdf-{pypdf_version}/pymupdf-{pymupdf.VersionBind}/tesseract-cli-v2/"
+    f"layout-v5/{FORMAT_V3_EXTRACTOR_VERSION}"
+)
 # Versions that share the v2 layout, heading, table and OCR behaviour.
-LAYOUT_V2_FAMILY = frozenset({"layout-ocr-v2", "layout-ocr-v3", "layout-ocr-v4"})
+LAYOUT_V2_FAMILY = frozenset(
+    {"layout-ocr-v2", "layout-ocr-v3", "layout-ocr-v4", "layout-ocr-v5"}
+)
 # Versions that rebuild merged-column tables from word rows (v3 onward).
-MERGED_TABLE_VERSIONS = frozenset({"layout-ocr-v3", "layout-ocr-v4"})
+MERGED_TABLE_VERSIONS = frozenset({"layout-ocr-v3", "layout-ocr-v4", "layout-ocr-v5"})
+# Versions that straighten sideways pages, rejoin soft hyphens and read slide
+# tables (v4 onward).
+V4_READING_VERSIONS = frozenset({"layout-ocr-v4", "layout-ocr-v5"})
+# Versions that read a mostly empty detected table as a chart region (v5 onward).
+CHART_REGION_VERSIONS = frozenset({"layout-ocr-v5"})
+# A detected table with fewer filled cells than this share is a chart, not a table:
+# real tables in the spec 0009 corpus are 45% filled or more, charts under 30%.
+CHART_TABLE_MAX_FILL = 0.3
 # A detected table whose cells each hold this many lines is a merged-column table.
 MERGED_COLUMN_MIN_LINES = 5
 # v4 reads a page straightened when most of its text runs at 90 or 270 degrees.
@@ -85,7 +100,7 @@ SIDEWAYS_TEXT_MIN_SHARE = 0.6
 SIDEWAYS_TEXT_MIN_CHARACTERS = 100
 # A soft hyphen (U+00AD) before a line break marks a word the typesetter broke;
 # v4 rejoins it. Cleaning would otherwise drop the hyphen and leave "house holds".
-_SOFT_HYPHEN_BREAK = re.compile(r"(?<=[^\W\d_])­[ \t]*\n[ \t]*(?=[^\W\d_])")
+_SOFT_HYPHEN_BREAK = re.compile(r"(?<=[^\W\d_])\u00ad[ \t]*\n[ \t]*(?=[^\W\d_])")
 _DOT_LEADER = re.compile(r"(?:\s*\.){3,}")
 # layout-ocr-v2 keeps whole tables as row groups within these safety limits.
 MAX_TABLE_V2_ROWS = 2_000
@@ -353,6 +368,7 @@ def extractor_version_for_settings(settings: ExtractSettings) -> str:
         "layout-ocr-v2": LAYOUT_OCR_V2_EXTRACTOR_VERSION,
         "layout-ocr-v3": LAYOUT_OCR_V3_EXTRACTOR_VERSION,
         "layout-ocr-v4": LAYOUT_OCR_V4_EXTRACTOR_VERSION,
+        "layout-ocr-v5": LAYOUT_OCR_V5_EXTRACTOR_VERSION,
     }.get(settings.config_version, LAYOUT_OCR_EXTRACTOR_VERSION)
 
 
@@ -372,6 +388,35 @@ def _normalized_box(
     if right - left <= 1e-7 or bottom - top <= 1e-7:
         return None
     return BoundingBox(left=left, top=top, right=right, bottom=bottom)
+
+
+def _is_chart_region(rows: list[list[Any]]) -> bool:
+    """A detected table with almost no filled cells is a chart's gridlines (v5)."""
+
+    cells = sum(len(row) for row in rows)
+    filled = sum(1 for row in rows for cell in row if cell and str(cell).strip())
+    return cells == 0 or filled / cells < CHART_TABLE_MAX_FILL
+
+
+def _overlap_share(
+    box: tuple[float, float, float, float],
+    region: tuple[float, float, float, float],
+) -> float:
+    """The share of box's area that lies inside region."""
+
+    width = min(box[2], region[2]) - max(box[0], region[0])
+    height = min(box[3], region[3]) - max(box[1], region[1])
+    area = (box[2] - box[0]) * (box[3] - box[1])
+    if width <= 0 or height <= 0 or area <= 0:
+        return 0.0
+    return width * height / area
+
+
+def _in_any(
+    box: tuple[float, float, float, float],
+    regions: list[tuple[float, float, float, float]],
+) -> bool:
+    return any(_intersects(box, region) for region in regions)
 
 
 def _intersects(
@@ -846,6 +891,7 @@ def _layout_page(
     table_mode: str,
     layout_v2: bool = False,
     rebuild_merged_tables: bool = False,
+    chart_regions: bool = False,
 ) -> tuple[list[CanonicalInputSegment], int, int, bool]:
     width, height = float(page.rect.width), float(page.rect.height)
     dictionary = page.get_text("dict", sort=False)
@@ -867,6 +913,7 @@ def _layout_page(
     ]
     body_size = statistics.median(span_sizes) if span_sizes else 11.0
     table_boxes: list[tuple[float, float, float, float]] = []
+    chart_boxes: list[tuple[float, float, float, float]] = []
     tables: list[tuple[list[list[Any]], tuple[float, float, float, float], list]] = []
     malformed = 0
     try:
@@ -874,6 +921,10 @@ def _layout_page(
         for table in finder.tables:
             rows = table.extract()
             box = tuple(float(value) for value in table.bbox)
+            if chart_regions and _is_chart_region(rows):
+                # v5: chart gridlines are not a table; its text is read as layout blocks.
+                chart_boxes.append(box)
+                continue
             # Row bands give each v2 row group its own inspector geometry.
             row_boxes = (
                 [getattr(row, "bbox", None) for row in table.rows] if layout_v2 else []
@@ -882,6 +933,17 @@ def _layout_page(
             table_boxes.append(box)
     except Exception:
         malformed += 1
+    if chart_boxes:
+        # A small table drawn inside a chart (a legend box, a figure label) is part
+        # of the chart, so the chart's text is not cut where it overlaps.
+        inside = [
+            index
+            for index, (_, box, _) in enumerate(tables)
+            if any(_overlap_share(box, chart) >= 0.5 for chart in chart_boxes)
+        ]
+        chart_boxes.extend(tables[index][1] for index in inside)
+        tables = [table for index, table in enumerate(tables) if index not in inside]
+        table_boxes = [box for _, box, _ in tables]
     text_blocks = [
         block
         for block in raw_blocks
@@ -897,6 +959,8 @@ def _layout_page(
             continue
         box = tuple(float(value) for value in block["bbox"])
         attributes: dict[str, Any] = {"origin": "layout", "engine": "pymupdf"}
+        if _in_any(box, chart_boxes):
+            attributes["chart_region"] = True
         if layout_v2:
             block_type, size = _classify_block_v2(
                 text, spans, body_size=body_size, top=box[1], page_height=height
@@ -1393,7 +1457,7 @@ def extract_document(
             table_mode=settings.tables
             if settings.config_version in LAYOUT_V2_FAMILY
             else None,
-            slide_tables=settings.config_version == "layout-ocr-v4",
+            slide_tables=settings.config_version in V4_READING_VERSIONS,
         )
         document = evaluate_quality(document, settings.quality_policy)
         if getattr(settings, "language_policy", None) is not None:
@@ -1464,8 +1528,9 @@ def extract_document(
     ocr_pages = 0
     layout_v2 = settings.config_version in LAYOUT_V2_FAMILY
     rebuild_merged_tables = settings.config_version in MERGED_TABLE_VERSIONS
-    straighten_sideways = settings.config_version == "layout-ocr-v4"
-    join_soft_hyphens = settings.config_version == "layout-ocr-v4"
+    straighten_sideways = settings.config_version in V4_READING_VERSIONS
+    join_soft_hyphens = settings.config_version in V4_READING_VERSIONS
+    chart_regions = settings.config_version in CHART_REGION_VERSIONS
     try:
         for index, native_text in enumerate(native_pages):
             if cancelled and cancelled():
@@ -1536,6 +1601,7 @@ def extract_document(
                             table_mode=settings.tables,
                             layout_v2=layout_v2,
                             rebuild_merged_tables=rebuild_merged_tables,
+                            chart_regions=chart_regions,
                         )
                     )
                 finally:

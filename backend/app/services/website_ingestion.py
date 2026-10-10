@@ -85,13 +85,14 @@ def _display_name(url: str) -> str:
 def uses_v3_reading(extract) -> bool:
     """layout-ocr-v3 and later read website tables as rows and leave out references.
 
-    layout-ocr-v4 (spec 0008) changes PDF and Office reading only; websites keep the
-    html-main-v3.1 reader.
+    layout-ocr-v4 (spec 0008) and layout-ocr-v5 (spec 0009) change PDF and Office
+    reading only; websites keep the html-main-v3.1 reader.
     """
 
     return getattr(extract, "config_version", None) in {
         "layout-ocr-v3",
         "layout-ocr-v4",
+        "layout-ocr-v5",
     }
 
 

@@ -1,7 +1,7 @@
 # 0009. Extractor v5: charts are not tables, and tables keep their caption
 
 **Date**: 2026-10-10
-**Status**: Draft 2026-10-10. The owner approved changes A and B (decisions 1 and 2 after spec 0008). D1 and D2 are open; neither blocks Slices 0-3.
+**Status**: Approved 2026-10-10: the owner approved changes A and B (decisions 1 and 2 after spec 0008). D1 and D2 are open; neither blocks Slices 0-3. Slices 0 and 1 done.
 
 ## Summary
 
@@ -34,9 +34,9 @@ BERT's results tables are borderless and are not detected as tables at all; they
 ## Part A: charts are not tables
 
 - A1. In v5, a detected table with fewer than 30% of its cells filled is not a table. It is not counted in the table count or as malformed, and it creates no table block.
-- A2. Text inside such a chart region is read as ordinary layout blocks in reading order, except blocks made only of numbers, signs and short codes (axis ticks such as `1 500`, country codes such as `BG`), which are left out as v4 leaves them out today. Blocks with words (titles, callouts, legends with words) are kept.
-- A3. Tables at 30% filled or more are unchanged from v4.
-- A4. The page records how many chart regions it skipped (`chart_regions` in the page's layout attributes) so the inspector and tests can see the decision.
+- A2. All text inside such a chart region is read as ordinary layout blocks in reading order, numbers included. (A first version left out blocks without a word, but chart data labels such as Census Figure 3's "-6.7" are plain numbers, and v4 kept them inside its table block.)
+- A3. Tables at 30% filled or more are unchanged from v4, except a table that lies at least half inside a chart region (a legend box or figure label drawn inside the chart), which is part of the chart.
+- A4. Every block read from a chart region carries `chart_region: true` in its attributes, so the inspector and tests can see the decision. (The page model is strict and has no field for it; adding one would change the API contract.)
 
 Code: `_layout_page` in `backend/app/ingestion_content/extractors/pdf.py` (the `find_tables` loop and the text-block exclusion by table box).
 
