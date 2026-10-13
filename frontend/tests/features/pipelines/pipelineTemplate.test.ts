@@ -44,3 +44,12 @@ test('each draft owns independent editable node settings, edges, and positions',
   expect(second.execution.edges[0].target).toBe('retriever');
   expect(second.layout.positions.question.x).toBe(80);
 });
+
+test('new prompt nodes use complete answers; saved nodes without a policy stay strict', async () => {
+  const { getAnswerPolicy } = await import('../../../src/features/pipelines/model');
+  const draft = createPipelineDraft(options, 'Support', 'ready-index');
+  expect(draft.execution.nodes.find((node) => node.type === 'prompt')?.answer_policy).toBe(
+    'complete-v2',
+  );
+  expect(getAnswerPolicy(undefined)).toBe('strict-v1');
+});

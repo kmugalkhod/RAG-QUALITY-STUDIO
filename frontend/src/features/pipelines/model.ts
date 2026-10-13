@@ -5,6 +5,10 @@ import {
 } from '../../lib/retrieval';
 export const pipelineNodeOrder = ['question', 'retriever', 'prompt', 'llm', 'answer'] as const;
 export type PipelineNodeKind = (typeof pipelineNodeOrder)[number];
+export type AnswerPolicy = 'strict-v1' | 'complete-v2';
+// A prompt node saved without a policy runs with the original strict prompt.
+export const getAnswerPolicy = (policy: AnswerPolicy | undefined): AnswerPolicy =>
+  policy ?? 'strict-v1';
 export type PipelineNodeConfig = {
   id: string;
   type: PipelineNodeKind;
@@ -12,6 +16,7 @@ export type PipelineNodeConfig = {
   top_k?: number;
   retrieval?: RetrievalSettings;
   template?: string;
+  answer_policy?: AnswerPolicy;
   model?: string;
   max_tokens?: number;
   temperature?: number;

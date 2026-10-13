@@ -8,12 +8,25 @@ from sqlalchemy import select, update
 from app.models.query import QueryRun
 from app.providers import generation
 from app.providers.embeddings import EmbeddingError
-from app.pipelines.generation import PROMPT_VERSION
+from app.pipelines.generation import COMPLETE_POLICY, PROMPT_VERSION, STRICT_POLICY
 from app.pipelines.langchain_rag import compile_answer_chain, runtime_snapshot
 from app.schemas.index import RetrievalRequest
 from app.schemas.pipeline import Execution
 from app.services import indexes
 from app.services.documents import project, paginate
+
+
+def _policy(execution):
+    if not execution:
+        return STRICT_POLICY
+    nodes = Execution.model_validate(execution).nodes
+    return next(node.policy for node in nodes if node.type == "prompt")
+
+
+def _prompt_version(template, policy):
+    if policy == COMPLETE_POLICY:
+        return "grounded-pipeline-template-v2" if template else "grounded-complete-v2"
+    return "grounded-pipeline-template-v1" if template else PROMPT_VERSION
 
 
 def recover(session, project_id):
@@ -79,11 +92,13 @@ def execute(
         if pipeline_execution
         else None
     )
+    policy = _policy(pipeline_execution)
     snapshot = dict(
         top_k=request.top_k,
         retrieval=request.retrieval.model_dump(),
         retrieval_algorithm=algorithm_snapshot(),
-        prompt_version="grounded-pipeline-template-v1" if template else PROMPT_VERSION,
+        prompt_version=_prompt_version(template, policy),
+        answer_policy=policy,
         evidence=[],
         messages=[],
         retrieval_ms=None,
@@ -161,6 +176,7 @@ def _finish(session, run, *, before_provider=None):
                 )
             retrieval = retriever_node.settings
             prompt_template = nodes["prompt"].template
+            answer_policy = nodes["prompt"].policy
             llm_node = nodes["llm"]
             node_ids = {kind: node.id for kind, node in nodes.items()}
         else:
@@ -169,6 +185,7 @@ def _finish(session, run, *, before_provider=None):
                 "top_k": snapshot["top_k"],
             }
             prompt_template = snapshot.get("prompt_template")
+            answer_policy = snapshot.get("answer_policy") or STRICT_POLICY
             node_ids = None
         request = QueryRequest(
             index_id=run.index_id,
@@ -202,6 +219,7 @@ def _finish(session, run, *, before_provider=None):
             ),
             generation_config=config,
             prompt_template=prompt_template,
+            answer_policy=answer_policy,
             node_ids=node_ids,
             checkpoint=checkpoint,
             before_provider=before_provider,

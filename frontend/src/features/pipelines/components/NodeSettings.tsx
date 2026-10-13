@@ -11,6 +11,7 @@ import { formatIndexOption, type IndexVersion } from '../../documents/model';
 import type { PipelineNodeConfig, PipelineOptions } from '../model';
 import type { FlowNode } from './WorkflowNode';
 import { ModelField } from './ModelField';
+import { AnswerPolicyField } from './AnswerPolicyField';
 import { getNodeLabel } from '../model';
 interface Props {
   open: boolean;
@@ -158,6 +159,10 @@ export function NodeSettings({
             expressions or code. Context is labeled evidence. Source labels, citation rules and
             grounding instructions are controlled by the application.
           </p>
+          <AnswerPolicyField
+            value={config.answer_policy}
+            onChange={(answer_policy) => onUpdate({ answer_policy })}
+          />
         </>
       )}
       {config?.type === 'llm' && (

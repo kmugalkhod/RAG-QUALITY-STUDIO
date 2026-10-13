@@ -27,8 +27,11 @@ from langchain_core.runnables import (
 from pydantic import ConfigDict, Field
 
 from app.pipelines.generation import (
+    COMPLETE_POLICY,
+    STRICT_POLICY,
     build_context,
     context_format,
+    distinct_items,
     validate_citations,
 )
 from app.providers import embeddings, generation
@@ -185,6 +188,7 @@ def compile_answer_chain(
     request: RetrievalRequest,
     generation_config: dict[str, Any],
     prompt_template: str | None,
+    answer_policy: str = STRICT_POLICY,
     node_ids: dict[str, str] | None = None,
     checkpoint: Callable[[dict[str, Any]], None] | None = None,
     before_provider: Callable[[], None] | None = None,
@@ -236,16 +240,22 @@ def compile_answer_chain(
 
     def context_stage(state: dict[str, Any]) -> dict[str, Any]:
         items = [document.metadata["evidence"] for document in state["documents"]]
+        retrieved_count = len(items)
+        duplicates = []
+        if answer_policy == COMPLETE_POLICY:
+            items, duplicates = distinct_items(items)
         sources, messages = build_context(
-            state["question"], items, generation_config, prompt_template
+            state["question"], items, generation_config, prompt_template, answer_policy
         )
         updates = {
             "evidence": sources,
             "messages": messages,
             "context_format": context_format(sources),
-            "retrieved_count": len(items),
+            "retrieved_count": retrieved_count,
             "omitted_count": len(items) - len(sources),
         }
+        if answer_policy == COMPLETE_POLICY:
+            updates["duplicate_ranks"] = duplicates
         trace.updates.update(updates)
         return {
             **state,

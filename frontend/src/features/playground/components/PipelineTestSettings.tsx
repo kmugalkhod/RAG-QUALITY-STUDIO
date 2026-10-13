@@ -19,6 +19,7 @@ import type {
   Pipeline,
   PipelineVersion,
 } from '../../pipelines/model';
+import { AnswerPolicyField } from '../../pipelines/components/AnswerPolicyField';
 const SUBHEADING = 'border-t border-border pt-4 text-sm font-semibold text-foreground';
 const HINT = 'text-xs text-foreground-muted';
 
@@ -179,6 +180,10 @@ export function PipelineTestSettings(props: Props) {
                 Include {'{question}'} and {'{context}'} where the question and retrieved passages
                 belong.
               </p>
+              <AnswerPolicyField
+                value={prompt?.answer_policy}
+                onChange={(answer_policy) => update('prompt', { answer_policy })}
+              />
               <Label>
                 Model
                 <NativeSelect

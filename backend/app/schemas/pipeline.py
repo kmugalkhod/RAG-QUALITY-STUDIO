@@ -45,6 +45,16 @@ class Retriever(NodeBase):
 class Prompt(NodeBase):
     type: Literal["prompt"]
     template: str = Field(min_length=1, max_length=8000)
+    # Absent on versions saved before complete-v2; they keep the strict-v1 prompt.
+    answer_policy: Literal["strict-v1", "complete-v2"] | None = None
+
+    @property
+    def policy(self):
+        return self.answer_policy or "strict-v1"
+
+    @model_serializer(mode="wrap")
+    def serialize(self, handler):
+        return {k: v for k, v in handler(self).items() if v is not None}
 
     @model_validator(mode="after")
     def safe_template(self):

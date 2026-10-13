@@ -17,7 +17,8 @@ export function createNode(kind: PipelineNodeKind, options?: PipelineOptions): P
         ...node,
         template:
           options?.template ??
-          'Answer concisely.\nQuestion: {question}\nRetrieved context: {context}',
+          'Answer the question completely.\nQuestion: {question}\nRetrieved context: {context}',
+        answer_policy: 'complete-v2',
       };
     case 'llm':
       return {

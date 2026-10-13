@@ -309,6 +309,7 @@ def process_deployed(run_id, db_engine=engine):
                     ),
                     generation_config=config,
                     prompt_template=nodes["prompt"].template,
+                    answer_policy=nodes["prompt"].policy,
                     node_ids={kind: node.id for kind, node in nodes.items()},
                     checkpoint=lambda updates: _checkpoint(
                         session, run_id, token, updates
