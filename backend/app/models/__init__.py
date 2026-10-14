@@ -46,3 +46,4 @@ from app.models.provider_credential import (  # noqa: F401
     ProviderCredentialRecord,
 )
 from app.models.chat_model import ChatModelApproval  # noqa: F401
+from app.models.setting_recommendation import SettingRecommendation  # noqa: F401

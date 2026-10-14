@@ -51,6 +51,10 @@ class PipelineVersion(Base):
     name: Mapped[str]
     execution: Mapped[dict] = mapped_column(JSONB)
     layout: Mapped[dict] = mapped_column(JSONB)
+    # Where each recommended source setting came from (spec 0011). Written only
+    # on insert and kept outside `execution`, so processing identities do not
+    # change. NULL for answer pipelines and for versions saved without one.
+    settings_provenance: Mapped[dict | None] = mapped_column(JSONB)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

@@ -11,6 +11,7 @@ from app.api.deployment_metrics import router as deployment_metrics_router
 from app.api.schedules import router as schedule_router
 from app.api.provider_credentials import router as provider_credential_router
 from app.api.chat_models import router as chat_model_router
+from app.api.setting_recommendations import router as setting_recommendation_router
 from app.providers.embeddings import EmbeddingError
 from app.api.documents import router as document_router
 from app.core.upload_limit import UploadLimitMiddleware
@@ -52,6 +53,7 @@ app.include_router(widget_router)
 app.include_router(deployment_metrics_router)
 app.include_router(provider_credential_router)
 app.include_router(chat_model_router)
+app.include_router(setting_recommendation_router)
 app.add_middleware(UploadLimitMiddleware)
 
 

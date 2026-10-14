@@ -40,7 +40,13 @@ import type {
   QualityPolicy,
   QualityPolicyId,
 } from '../model';
-import { ConfluenceSettings, NotionSettings, S3Settings, WebsiteSettings } from './SourceSettings';
+import {
+  ConfluenceSettings,
+  NotionSettings,
+  S3Settings,
+  WebsiteSettings,
+  type WebsiteRecommendationContext,
+} from './SourceSettings';
 import { CleaningTransformSettings } from './CleaningTransformSettings';
 import {
   CHECK_ROW,
@@ -121,6 +127,7 @@ export function IngestionNodeSettings({
   stageMeta,
   stageOptions,
   scopeControl,
+  websiteRecommendations,
   onSelectNode,
 }: {
   projectId: string;
@@ -154,6 +161,8 @@ export function IngestionNodeSettings({
   stageOptions?: { value: string; label: string }[];
   /** Shown above the stage's fields: which sources an edit applies to. */
   scopeControl?: ReactNode;
+  /** Recommended settings for a Website source; undefined while the server has them off. */
+  websiteRecommendations?: (nodeId: string) => WebsiteRecommendationContext | undefined;
   onSelectNode: (nodeId: string) => void;
 }) {
   const nameOf = (node: IngestionNode) =>
@@ -533,6 +542,7 @@ export function IngestionNodeSettings({
                 key={selected.id}
                 config={selected.config}
                 fieldErrors={nodeErrors}
+                recommendations={websiteRecommendations?.(selected.id)}
                 update={(config) =>
                   updateNode(selected.id, (node) =>
                     node.type === 'source' ? { ...node, config } : node,

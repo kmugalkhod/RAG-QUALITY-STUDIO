@@ -38,6 +38,7 @@ from app.schemas.source_snapshot import (
     SourceSnapshotRead,
 )
 from app.services import derivations, ingestion, previews, source_snapshots
+from app.services import setting_recommendations
 from app.services import documents
 from app.ingestion_content.extractors import extraction_capabilities
 from app.services import pipelines as pipeline_service
@@ -52,7 +53,10 @@ router = APIRouter(
 @router.get("/ingestion-capabilities", response_model=ExtractionCapabilities)
 def capabilities(project_id: UUID, session: Database):
     documents.project(session, project_id)
-    return extraction_capabilities()
+    return {
+        **extraction_capabilities(),
+        "setting_recommendations": setting_recommendations.capability(),
+    }
 
 
 def _protect_credentialed_source(request: Request, execution: IngestionExecution):

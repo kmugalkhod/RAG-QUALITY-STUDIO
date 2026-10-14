@@ -66,6 +66,13 @@ class Settings(BaseSettings):
     # and the dispatcher's stale windows, which assume discovery ends by 3600 s.
     website_deadline_min_seconds: float = Field(default=60, ge=10, le=3600)
     website_deadline_max_seconds: float = Field(default=3600, ge=10, le=3600)
+    # Spec 0011: recommended Website settings computed from a small, bounded probe
+    # of the site. Off until the owner reviews the evaluation.
+    setting_recommendations_enabled: bool = False
+    # The largest maximum-pages value a recommendation proposes for one source.
+    setting_recommendations_page_ceiling: int = Field(default=200, ge=10, le=1000)
+    # New probes per project per hour; cached results do not count.
+    setting_recommendations_per_project_hour: int = Field(default=30, ge=1, le=500)
     source_connections_enabled: bool = False
     source_connection_active_key: str = ""
     source_connection_keys: dict[str, SecretStr] = Field(default_factory=dict)

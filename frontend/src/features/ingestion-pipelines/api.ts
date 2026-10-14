@@ -12,6 +12,8 @@ import type {
   CleaningDiff,
   ChunkInspectionPage,
   ExtractionCapabilities,
+  SettingRecommendation,
+  SettingRecommendationRequest,
   SourcePreview,
   SourcePreviewItem,
   SourcePreviewRepresentation,
@@ -35,21 +37,65 @@ function pipelinesPath(projectId: string): string {
   return `/projects/${encodeURIComponent(projectId)}/pipelines`;
 }
 
+/**
+ * The save body. Recommendations applied to the draft travel beside it, never inside
+ * `execution`; without any the body is the draft exactly.
+ */
+function saveBody(draft: IngestionPipelineDraft, recommendationIds: string[]) {
+  return recommendationIds.length ? { ...draft, recommendation_ids: recommendationIds } : draft;
+}
+
 export function createIngestionPipeline(
   projectId: string,
   draft: IngestionPipelineDraft,
+  recommendationIds: string[] = [],
 ): Promise<IngestionPipelineVersion> {
-  return postJson<IngestionPipelineVersion>(pipelinesPath(projectId), draft);
+  return postJson<IngestionPipelineVersion>(
+    pipelinesPath(projectId),
+    saveBody(draft, recommendationIds),
+  );
 }
 
 export function createIngestionPipelineVersion(
   projectId: string,
   pipelineId: string,
   draft: IngestionPipelineDraft,
+  recommendationIds: string[] = [],
 ): Promise<IngestionPipelineVersion> {
   return postJson<IngestionPipelineVersion>(
     `${pipelinesPath(projectId)}/${encodeURIComponent(pipelineId)}/versions`,
-    draft,
+    saveBody(draft, recommendationIds),
+  );
+}
+
+function recommendationsPath(projectId: string): string {
+  return `/projects/${encodeURIComponent(projectId)}/setting-recommendations`;
+}
+
+/** Starts (or returns a cached) analysis of one Website source's site. */
+export function startSettingRecommendation(
+  projectId: string,
+  body: SettingRecommendationRequest,
+): Promise<SettingRecommendation> {
+  return postJson<SettingRecommendation>(recommendationsPath(projectId), body);
+}
+
+export function getSettingRecommendation(
+  projectId: string,
+  recommendationId: string,
+): Promise<SettingRecommendation> {
+  return request<SettingRecommendation>(
+    `${recommendationsPath(projectId)}/${encodeURIComponent(recommendationId)}`,
+  );
+}
+
+export function cancelSettingRecommendation(
+  projectId: string,
+  recommendationId: string,
+): Promise<SettingRecommendation> {
+  return postJson<SettingRecommendation>(
+    `${recommendationsPath(projectId)}/${encodeURIComponent(recommendationId)}/cancel`,
+    {},
   );
 }
 

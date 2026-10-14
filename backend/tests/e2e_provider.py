@@ -7,6 +7,7 @@ import httpx
 from app.connectors.base import ConnectorFailure, ConnectorIssue
 from app.connectors.safe_http import SafeHttpClient
 from app.connectors.website import WebsiteConnector
+from app.connectors import website_probe
 from app.connectors.s3 import S3ConnectionResult, S3Connector
 from app.connectors import s3 as s3_module
 from app.connectors.connections import ConnectionCheck as StoredConnectionCheck
@@ -122,6 +123,28 @@ class WebsiteTransport:
             {"content-type": "text/html", "etag": '"guide-v1"'},
             b"<main><h1>Controlled guide</h1><p>The controlled guide documents solar orchards.</p></main>",
         ),
+        # Spec 0011: an address without its trailing slash redirects to the
+        # folder, so recommendations scope the crawl to /docs/.
+        "https://controlled.example/docs": (
+            301,
+            {"content-type": "text/html", "location": "/docs/"},
+            b"",
+        ),
+        "https://controlled.example/docs/": (
+            200,
+            {"content-type": "text/html", "etag": '"docs-v1"'},
+            b"<main><h1>Controlled docs</h1><p>The controlled docs explain orchard tools.</p><a href='/docs/start'>Start</a><a href='/docs/tools'>Tools</a><a href='/'>Home</a></main>",
+        ),
+        "https://controlled.example/docs/start": (
+            200,
+            {"content-type": "text/html", "etag": '"docs-start-v1"'},
+            b"<main><h1>Start</h1><p>Begin with the orchard tool checklist.</p></main>",
+        ),
+        "https://controlled.example/docs/tools": (
+            200,
+            {"content-type": "text/html", "etag": '"docs-tools-v1"'},
+            b"<main><h1>Tools</h1><p>Pruning shears are sharpened weekly.</p></main>",
+        ),
         # A second site for multi-source journeys. Any other host, such as
         # https://down.example/sitemap.xml, has no response and fails as a whole.
         "https://second.example/robots.txt": (
@@ -163,6 +186,7 @@ def website_connector():
 
 previews.WebsiteConnector = website_connector
 remote_ingestion_worker.WebsiteConnector = website_connector
+website_probe.WebsiteConnector = website_connector
 
 
 S3_STATE = Path("/data/documents/.s3-fixture-state")

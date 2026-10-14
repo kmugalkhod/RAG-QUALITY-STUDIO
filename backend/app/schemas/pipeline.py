@@ -10,6 +10,7 @@ from app.schemas.ingestion import (
     IngestionLayout,
     IngestionPipelineSave,
 )
+from app.schemas.setting_recommendations import SettingsProvenanceV1
 
 DEFAULT_TEMPLATE = "Answer the question concisely using the retrieved context.\nQuestion: {question}\nRetrieved context: {context}"
 ORDER = ["question", "retriever", "prompt", "llm", "answer"]
@@ -153,6 +154,8 @@ class VersionRead(BaseModel):
     name: str
     execution: Execution | IngestionExecution
     layout: Layout | IngestionLayout
+    # Recommended-settings provenance (spec 0011); None when none was recorded.
+    settings_provenance: SettingsProvenanceV1 | None = None
     created_at: datetime
 
 

@@ -1,4 +1,4 @@
-import { useId, useRef, useState, type ComponentProps } from 'react';
+import { useEffect, useId, useRef, useState, type ComponentProps, type ReactNode } from 'react';
 
 import { Callout, SUMMARY } from '../../../components/parts';
 import { Button } from '../../../components/ui/button';
@@ -8,8 +8,17 @@ import { Label } from '../../../components/ui/label';
 import { NativeSelect, NativeSelectOption } from '../../../components/ui/native-select';
 import { Textarea } from '../../../components/ui/textarea';
 import type { SourceConnection } from '../../connections/model';
-import type { ConfluenceConfig, NotionConfig, S3Config, WebsiteConfig } from '../model';
+import type {
+  ConfluenceConfig,
+  NotionConfig,
+  S3Config,
+  SettingRecommendation,
+  WebsiteConfig,
+} from '../model';
 import { derivedIncludePrefixes, folderStartUrl } from '../editorModel';
+import { applyRecommendation, recommendationMatches } from '../recommendationsModel';
+import { useWebsiteRecommendation } from '../useWebsiteRecommendation';
+import { WebsiteRecommendations } from './WebsiteRecommendations';
 import {
   CHECK_ROW,
   DETAILS,
@@ -97,16 +106,49 @@ const derivedPrefixes = (selection: WebsiteConfig['selection']) =>
     ? derivedIncludePrefixes(websiteUrls(selection)[0] ?? '')
     : [];
 
+/**
+ * Recommended settings for one Website source (spec 0011). Passed only while the server
+ * enables them; without it the form is exactly the manual one.
+ */
+export type WebsiteRecommendationContext = {
+  projectId: string;
+  nodeId: string;
+  /** Maximum pages of the draft's other Website sources. */
+  otherSourcesMaxPages: number;
+  /** The recommendation already applied to this source in the draft. */
+  applied?: SettingRecommendation;
+  onApplied: (recommendation: SettingRecommendation) => void;
+};
+
+const analysableUrl = (value: string) => {
+  try {
+    const url = new URL(value.trim());
+    return url.protocol === 'http:' || url.protocol === 'https:' ? url.href : null;
+  } catch {
+    return null;
+  }
+};
+
 export function WebsiteSettings({
   config,
   update,
   fieldErrors = {},
+  recommendations,
 }: {
   config: WebsiteConfig;
   update: (config: WebsiteConfig) => void;
   fieldErrors?: Record<string, string>;
+  recommendations?: WebsiteRecommendationContext;
 }) {
   const fieldId = useId();
+  const formId = `${fieldId}-settings`;
+  const formRef = useRef<HTMLDivElement>(null);
+  const [editing, setEditing] = useState(false);
+  const analysis = useWebsiteRecommendation(
+    recommendations?.projectId ?? '',
+    recommendations?.nodeId ?? '',
+  );
+  const lastAnalysed = useRef<string | null>(null);
   const mode = config.selection.mode;
   const showPageLimit = mode !== 'single_url';
   const showPathFilters = mode === 'crawl' || mode === 'sitemap';
@@ -146,6 +188,72 @@ export function WebsiteSettings({
     emitted.current = next;
     update(next);
   };
+  // Pre-fill once per succeeded recommendation for the address now in the form.
+  const appliedId = useRef(recommendations?.applied?.id ?? null);
+  const latest = analysis.recommendation;
+  useEffect(() => {
+    if (
+      !recommendations ||
+      !latest ||
+      latest.status !== 'succeeded' ||
+      appliedId.current === latest.id ||
+      !recommendationMatches(config, latest)
+    ) {
+      return;
+    }
+    appliedId.current = latest.id;
+    emit(applyRecommendation(config, latest, recommendations.applied));
+    recommendations.onApplied(latest);
+    // Runs when a new recommendation arrives; config is read at that moment.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [latest]);
+  const shown =
+    recommendations && mode === 'crawl'
+      ? [latest, recommendations.applied].find(
+          (value) => value !== undefined && recommendationMatches(config, value),
+        )
+      : undefined;
+  const cardShown = !!shown && (shown.status === 'succeeded' || shown.status === 'expired');
+  const formHidden = cardShown && !editing;
+  const analyse = (value: string) => {
+    const url = analysableUrl(value);
+    if (!recommendations || mode !== 'crawl' || !url || url === lastAnalysed.current) {
+      return;
+    }
+    lastAnalysed.current = url;
+    void analysis.start({ mode: 'crawl', start_url: url }, recommendations.otherSourcesMaxPages);
+  };
+  // Analysis starts when a valid address is committed: blur, Enter or paste.
+  const urlHandlers: Partial<ComponentProps<typeof Input>> = recommendations
+    ? {
+        onBlur: (event) => analyse(event.target.value),
+        onKeyDown: (event) => {
+          if (event.key === 'Enter') {
+            analyse(event.currentTarget.value);
+          }
+        },
+        onPaste: (event) => analyse(event.clipboardData.getData('text')),
+      }
+    : {};
+  const toggleEdit = () => {
+    const opening = !editing;
+    setEditing(opening);
+    if (opening) {
+      window.requestAnimationFrame(() =>
+        formRef.current?.querySelector<HTMLElement>('input, textarea, select')?.focus(),
+      );
+    }
+  };
+  // With recommendations on, the fields below the address form one region that the
+  // card's Edit button opens; otherwise they render exactly as before.
+  const settingsRegion = (children: ReactNode) =>
+    recommendations ? (
+      <div id={formId} ref={formRef} hidden={formHidden} className="flex flex-col gap-6">
+        {children}
+      </div>
+    ) : (
+      children
+    );
   const setSelection = (selection: WebsiteConfig['selection']) => {
     const inferredOrigins = originsOf(websiteUrls(selection));
     const originsDerived =
@@ -259,6 +367,7 @@ export function WebsiteSettings({
             value={websiteUrls(config.selection)[0]}
             aria-describedby={widerScope !== null ? `${fieldId}-slash` : undefined}
             onChange={(event) => setUrlValue(event.target.value)}
+            {...urlHandlers}
           />
         )}
       </Label>
@@ -280,64 +389,79 @@ export function WebsiteSettings({
           </Button>
         </div>
       )}
-      {showPageLimit && (
-        <div className={FIELD_GRID}>
-          {numberField('max_pages', 'Maximum pages', { min: 1, max: 1000 })}
-          {mode === 'crawl' &&
-            numberField(
-              'max_depth',
-              'Maximum crawl depth',
-              { min: 0, max: 10 },
-              'Link hops from the start URL; 0 fetches only that page.',
-            )}
-        </div>
+      {recommendations && mode === 'crawl' && (
+        <WebsiteRecommendations
+          config={config}
+          recommendation={analysis.analysing ? latest : shown}
+          error={analysis.error}
+          analysing={analysis.analysing}
+          editing={editing}
+          formId={formId}
+          onToggleEdit={toggleEdit}
+        />
       )}
-      {showPathFilters && (
-        <details className={DETAILS}>
-          <summary className={SUMMARY}>Filter pages</summary>
-          <div className={STACK}>
-            <Label>
-              Include path prefixes (one per line)
-              <LinesTextarea
-                value={config.include_path_prefixes ?? []}
-                rows={3}
-                onLines={(value) => emit({ ...config, include_path_prefixes: value })}
-              />
-            </Label>
-            <small className="text-xs text-foreground-muted">
-              Leave include empty to fetch every path on the allowed origins.
-            </small>
-            <Label>
-              Exclude path prefixes (one per line)
-              <LinesTextarea
-                value={config.exclude_path_prefixes ?? []}
-                rows={3}
-                onLines={(value) => emit({ ...config, exclude_path_prefixes: value })}
-              />
-            </Label>
-          </div>
-        </details>
+      {settingsRegion(
+        <>
+          {showPageLimit && (
+            <div className={FIELD_GRID}>
+              {numberField('max_pages', 'Maximum pages', { min: 1, max: 1000 })}
+              {mode === 'crawl' &&
+                numberField(
+                  'max_depth',
+                  'Maximum crawl depth',
+                  { min: 0, max: 10 },
+                  'Link hops from the start URL; 0 fetches only that page.',
+                )}
+            </div>
+          )}
+          {showPathFilters && (
+            <details className={DETAILS}>
+              <summary className={SUMMARY}>Filter pages</summary>
+              <div className={STACK}>
+                <Label>
+                  Include path prefixes (one per line)
+                  <LinesTextarea
+                    value={config.include_path_prefixes ?? []}
+                    rows={3}
+                    onLines={(value) => emit({ ...config, include_path_prefixes: value })}
+                  />
+                </Label>
+                <small className="text-xs text-foreground-muted">
+                  Leave include empty to fetch every path on the allowed origins.
+                </small>
+                <Label>
+                  Exclude path prefixes (one per line)
+                  <LinesTextarea
+                    value={config.exclude_path_prefixes ?? []}
+                    rows={3}
+                    onLines={(value) => emit({ ...config, exclude_path_prefixes: value })}
+                  />
+                </Label>
+              </div>
+            </details>
+          )}
+          <details className={DETAILS}>
+            <summary className={SUMMARY}>Advanced</summary>
+            <div className={STACK}>
+              <Label>
+                Allowed origins (one per line)
+                <LinesTextarea
+                  value={config.allowed_origins}
+                  rows={3}
+                  onLines={(value) => emit({ ...config, allowed_origins: value })}
+                />
+              </Label>
+              {showPageLimit &&
+                numberField(
+                  'requests_per_second',
+                  'Crawl speed (requests per second)',
+                  { min: 0.1, max: 5, step: 0.1 },
+                  'Requests to the site never exceed this rate.',
+                )}
+            </div>
+          </details>
+        </>,
       )}
-      <details className={DETAILS}>
-        <summary className={SUMMARY}>Advanced</summary>
-        <div className={STACK}>
-          <Label>
-            Allowed origins (one per line)
-            <LinesTextarea
-              value={config.allowed_origins}
-              rows={3}
-              onLines={(value) => emit({ ...config, allowed_origins: value })}
-            />
-          </Label>
-          {showPageLimit &&
-            numberField(
-              'requests_per_second',
-              'Crawl speed (requests per second)',
-              { min: 0.1, max: 5, step: 0.1 },
-              'Requests to the site never exceed this rate.',
-            )}
-        </div>
-      </details>
       <details className={DETAILS}>
         <summary className={SUMMARY}>How website ingestion works</summary>
         <p className={HINT}>

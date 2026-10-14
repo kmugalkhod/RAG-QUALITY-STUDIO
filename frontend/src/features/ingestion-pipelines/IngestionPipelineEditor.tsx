@@ -94,6 +94,7 @@ import {
   type IngestionRunGroup,
   type IngestionRunItem,
   type IngestionSchedule,
+  type SettingRecommendation,
   type SourcePreview,
   type SourcePreviewItem,
 } from './model';
@@ -142,6 +143,11 @@ export function IngestionPipelineEditor({
   const [connectionSettings, setConnectionSettings] = useState<ConnectionSettings>();
   const [connections, setConnections] = useState<SourceConnection[]>([]);
   const [extractionCapabilities, setExtractionCapabilities] = useState<ExtractionCapabilities>();
+  // Recommendations applied to the draft's Website sources (spec 0011). Kept beside the
+  // draft, never in `execution`; their IDs go with the next save.
+  const [appliedRecommendations, setAppliedRecommendations] = useState<
+    Record<string, SettingRecommendation>
+  >({});
   const [selectedNode, setSelectedNode] = useState('source');
   // Sources panel editor: which sources a stage edit applies to, and the sources marked
   // customized in this session before their settings differ from the shared ones.
@@ -184,6 +190,7 @@ export function IngestionPipelineEditor({
       setDraft(editable);
       setScope('all');
       setCustomized({});
+      setAppliedRecommendations({});
       setSaved(version);
       setBaseline(canonicalIngestion(editable));
       setPreview(undefined);
@@ -943,6 +950,7 @@ export function IngestionPipelineEditor({
     setBaseline(canonicalIngestion(editable));
     setScope('all');
     setCustomized({});
+    setAppliedRecommendations({});
     setServerFieldErrors({});
     setPreview(undefined);
   }
@@ -968,10 +976,24 @@ export function IngestionPipelineEditor({
     if (!draft) {
       return;
     }
+    const websiteIds = new Set(
+      draft.execution.nodes
+        .filter((node) => node.type === 'source' && node.config.kind === 'website')
+        .map((node) => node.id),
+    );
+    const recommendationIds = Object.entries(appliedRecommendations)
+      .filter(([nodeId]) => websiteIds.has(nodeId))
+      .map(([, recommendation]) => recommendation.id)
+      .slice(0, 5);
     void perform(async () => {
       const version = saved
-        ? await api.createIngestionPipelineVersion(projectId, saved.pipeline_id, draft)
-        : await api.createIngestionPipeline(projectId, draft);
+        ? await api.createIngestionPipelineVersion(
+            projectId,
+            saved.pipeline_id,
+            draft,
+            recommendationIds,
+          )
+        : await api.createIngestionPipeline(projectId, draft, recommendationIds);
       open(version);
       setVersions(
         await allPages((offset) =>
@@ -1154,6 +1176,27 @@ export function IngestionPipelineEditor({
       : selectedNode;
   const viewStage = view ? viewStageOf(viewSelection) : undefined;
   const scopedSource = draftSources.some((node) => node.id === scope) ? scope : 'all';
+  // Recommended settings for one Website source, while the server enables them.
+  const websiteRecommendations = (nodeId: string) => {
+    if (!extractionCapabilities?.setting_recommendations?.enabled) {
+      return undefined;
+    }
+    const otherSourcesMaxPages = draft.execution.nodes.reduce(
+      (total, node) =>
+        node.type === 'source' && node.config.kind === 'website' && node.id !== nodeId
+          ? total + node.config.max_pages
+          : total,
+      0,
+    );
+    return {
+      projectId,
+      nodeId,
+      otherSourcesMaxPages,
+      applied: appliedRecommendations[nodeId],
+      onApplied: (recommendation: SettingRecommendation) =>
+        setAppliedRecommendations((current) => ({ ...current, [nodeId]: recommendation })),
+    };
+  };
   let panelNode = view ? realSelection : selected;
   let panelUpdate = updateNode;
   let panelHeading: string | undefined;
@@ -1583,6 +1626,7 @@ export function IngestionPipelineEditor({
             stageMeta={panelMeta}
             stageOptions={stageOptions}
             scopeControl={scopeControl}
+            websiteRecommendations={websiteRecommendations}
             onSelectNode={selectFromCanvas}
           />
         </div>

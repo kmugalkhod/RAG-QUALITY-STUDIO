@@ -5,6 +5,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict
 
 from app.schemas.ingestion import CleaningTransform, QualityPolicyV1
+from app.schemas.setting_recommendations import SettingRecommendationCapability
 
 
 class Strict(BaseModel):
@@ -63,3 +64,5 @@ class ExtractionCapabilities(Strict):
     cleaning_profiles: list[CleaningProfileCapability]
     tokenizers: list[TokenizerCapability]
     chunking_profiles: list[ChunkingProfileCapability]
+    # Recommended Website settings (spec 0011); off unless the server enables it.
+    setting_recommendations: SettingRecommendationCapability

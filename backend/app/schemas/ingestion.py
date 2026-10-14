@@ -1190,6 +1190,9 @@ class IngestionPipelineSave(Strict):
     name: str = Field(min_length=1, max_length=120)
     execution: IngestionExecution
     layout: IngestionLayout
+    # Recommendations applied to this draft (spec 0011). Only their provenance
+    # is recorded with the version; `execution` is stored exactly as sent.
+    recommendation_ids: list[UUID] = Field(default_factory=list, max_length=5)
 
     @model_validator(mode="after")
     def layout_ids(self):
@@ -1198,6 +1201,8 @@ class IngestionPipelineSave(Strict):
             raise ValueError("Pipeline name is required.")
         if set(self.layout.positions) != {node.id for node in self.execution.nodes}:
             raise ValueError("Layout must contain exactly the execution node IDs.")
+        if len(set(self.recommendation_ids)) != len(self.recommendation_ids):
+            raise ValueError("Recommendation IDs must be unique.")
         return self
 
 

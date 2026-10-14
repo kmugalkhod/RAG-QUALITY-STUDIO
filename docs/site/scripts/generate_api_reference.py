@@ -131,7 +131,7 @@ def group_for(path: str) -> str:
         return "evaluation"
     if any(part in tail for part in ("/documents", "/processing-runs", "/content-derivations", "/upload-settings")):
         return "documents"
-    if any(part in tail for part in ("/ingestion-", "/source-previews", "/source-snapshots", "/ingestion-schedules")):
+    if any(part in tail for part in ("/ingestion-", "/source-previews", "/source-snapshots", "/ingestion-schedules", "/setting-recommendations")):
         return "ingestion"
     if "/pipelines" in tail:
         return "pipelines"

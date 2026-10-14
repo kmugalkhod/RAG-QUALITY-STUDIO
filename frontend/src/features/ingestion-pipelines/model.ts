@@ -352,6 +352,8 @@ export type IngestionPipelineVersion = IngestionPipelineDraft & {
   project_id: string;
   version: number;
   created_at: string;
+  /** Recommended-settings provenance (spec 0011); null when none was recorded. */
+  settings_provenance?: SettingsProvenance | null;
 };
 
 export type SourcePreviewItem = {
@@ -711,6 +713,109 @@ export type ExtractionCapabilities = {
     recommended: boolean;
     settings: Record<string, string | number | boolean>;
   }[];
+  /** Spec 0011; absent from servers that predate recommended Website settings. */
+  setting_recommendations?: SettingRecommendationCapability;
+};
+
+/** Mirrors `SettingRecommendationCapability` in backend/app/schemas/setting_recommendations.py. */
+export type SettingRecommendationCapability = {
+  enabled: boolean;
+  page_ceiling: number;
+};
+
+/** Website settings a recommendation manages; mirrors `MANAGED_PATHS` on the server. */
+export type RecommendationPath =
+  | 'selection'
+  | 'allowed_origins'
+  | 'include_path_prefixes'
+  | 'exclude_path_prefixes'
+  | 'max_pages'
+  | 'max_depth'
+  | 'requests_per_second';
+
+export type RecommendationBasis = 'computed' | 'default' | 'user';
+
+/** Mirrors `RecommendationField`. */
+export type RecommendationField = {
+  path: RecommendationPath;
+  label: string;
+  value: unknown;
+  basis: RecommendationBasis;
+  risk: 'low' | 'medium' | 'high';
+  rationale_code: string;
+  rationale: string;
+  check: boolean;
+};
+
+/** Mirrors `SettingRecommendationRead`. */
+export type SettingRecommendation = {
+  id: string;
+  source_node_id: string;
+  target: 'website';
+  status: 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled' | 'expired';
+  progress: number;
+  progress_step: 'robots' | 'start_page' | 'sitemaps' | 'sample_pages' | 'validating' | null;
+  error: string | null;
+  inputs: {
+    selection: WebsiteSelection;
+    entered_url: string | null;
+    other_sources_max_pages: number;
+    page_ceiling: number;
+  };
+  probe_version: string;
+  rules_version: string;
+  recommended: WebsiteConfig | null;
+  fields: RecommendationField[];
+  warnings: { code: string; message: string }[];
+  evidence: {
+    requests?: {
+      purpose: string;
+      url: string;
+      status: number | null;
+      outcome: string;
+      elapsed_ms: number;
+    }[];
+    [key: string]: unknown;
+  };
+  created_at: string;
+  finished_at: string | null;
+  expires_at: string;
+};
+
+/** Mirrors `SettingRecommendationRequest`. */
+export type SettingRecommendationRequest = {
+  target: 'website';
+  source_node_id: string;
+  selection: WebsiteSelection;
+  other_sources_max_pages: number;
+  refresh?: boolean;
+};
+
+/** Mirrors `ProvenanceField`. */
+export type ProvenanceField = {
+  basis: RecommendationBasis;
+  recommended: unknown;
+  saved: unknown;
+  rationale_code: string;
+  rationale: string;
+};
+
+/** Mirrors `SettingsProvenanceV1`: where a saved version's recommended settings came from. */
+export type SettingsProvenance = {
+  schema_version: 1;
+  nodes: Record<
+    string,
+    {
+      status: 'applied' | 'recommendation_unavailable';
+      target: 'website' | null;
+      recommendation_id: string | null;
+      entered_url: string | null;
+      analysed_at: string | null;
+      probe_version: string | null;
+      rules_version: string | null;
+      fields: Partial<Record<RecommendationPath, ProvenanceField>>;
+    }
+  >;
 };
 
 export type ChunkBlockSpan = {

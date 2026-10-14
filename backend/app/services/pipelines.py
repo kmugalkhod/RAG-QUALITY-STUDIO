@@ -14,6 +14,7 @@ from app.schemas.ingestion import IngestionExecution
 from app.schemas.pipeline import DEFAULT_TEMPLATE, Execution
 from app.schemas.query import QueryRequest
 from app.services import indexes, provider_credentials, queries
+from app.services import setting_recommendations
 from app.services.documents import project, paginate
 
 
@@ -361,6 +362,11 @@ def save(session, project_id, request, pipeline_id=None):
         )
         or 0
     ) + 1
+    provenance = None
+    if request.kind == "ingestion":
+        provenance = setting_recommendations.provenance_for_save(
+            session, project_id, request.execution, request.recommendation_ids
+        )
     version = PipelineVersion(
         pipeline_id=row.id,
         project_id=project_id,
@@ -368,6 +374,7 @@ def save(session, project_id, request, pipeline_id=None):
         name=request.name,
         execution=request.execution.model_dump(mode="json"),
         layout=request.layout.model_dump(mode="json"),
+        settings_provenance=provenance,
     )
     session.add(version)
     session.commit()

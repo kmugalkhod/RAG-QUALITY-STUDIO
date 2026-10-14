@@ -19,6 +19,7 @@ celery = Celery(
         "app.workers.previews",
         "app.workers.experiments",
         "app.workers.deployed_answers",
+        "app.workers.setting_recommendations",
     ],
 )
 celery.conf.update(

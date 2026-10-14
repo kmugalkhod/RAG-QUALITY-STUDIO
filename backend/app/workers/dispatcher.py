@@ -296,6 +296,54 @@ def dispatch_previews_once(db_engine=engine, send=None):
         session.commit()
 
 
+# Longer than the `recommendations.website` hard time limit (160 s); every
+# probe step refreshes `updated_at`.
+RECOMMENDATION_STALE_SECONDS = 300
+
+
+def dispatch_setting_recommendations_once(db_engine=engine, send=None):
+    from app.models.setting_recommendation import SettingRecommendation
+    from app.workers.setting_recommendations import MAX_FAILURES, recommend_website
+
+    send = send or (
+        lambda recommendation_id: recommend_website.apply_async(
+            args=[str(recommendation_id)]
+        )
+    )
+    current = now()
+    with Session(
+        db_engine.execution_options(isolation_level="READ COMMITTED")
+    ) as session:
+        stale = session.scalars(
+            select(SettingRecommendation)
+            .where(
+                SettingRecommendation.status == "running",
+                SettingRecommendation.updated_at
+                < current - timedelta(seconds=RECOMMENDATION_STALE_SECONDS),
+            )
+            .with_for_update(skip_locked=True)
+        ).all()
+        for row in stale:
+            # Back to the queue once; failed the second time.
+            row.failures += 1
+            row.execution_token = None
+            row.status = "failed" if row.failures >= MAX_FAILURES else "queued"
+            row.error = "The site check was interrupted or exceeded its time limit."
+            row.updated_at = current
+            row.dispatched_at = None
+            if row.status == "failed":
+                row.finished_at = current
+        session.commit()
+    with Session(
+        db_engine.execution_options(isolation_level="READ COMMITTED")
+    ) as session:
+        queued = claim_fair(session, SettingRecommendation, current, 10)
+        for row in queued:
+            send(row.id)
+            row.dispatched_at = current
+        session.commit()
+
+
 def dispatch_schedules_once(db_engine=engine, current=None):
     """Claim due schedules durably and coalesce each to one new run."""
     from app.models.ingestion import IngestionRun, IngestionSchedule
@@ -603,6 +651,7 @@ def main():
             dispatch_schedules_once()
             dispatch_ingestion_once()
             dispatch_previews_once()
+            dispatch_setting_recommendations_once()
             from app.services.artifact_storage import cleanup_expired_raw_artifacts
 
             cleanup_expired_raw_artifacts(engine)
