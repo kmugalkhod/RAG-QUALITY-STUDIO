@@ -1,5 +1,9 @@
 # Implementation plan
 
+## Recommended Website settings — spec 0011 (started 2026-10-14)
+
+**Status:** trimmed to Website only with code-computed settings and no decision model; the owner accepted the recommended defaults and asked for Slices 0-3 to be built and pushed. [Spec 0011](specs/0011-recommended-website-settings.md).
+
 ## Search that finds table rows and short facts — spec 0010 (started 2026-10-10)
 
 **Status:** done 2026-10-10. Slice 0 measured the options ($0.013, `docs/qa/search-v3-2026-10/README.md`); the owner approved the revised plan on 2026-10-10: no keyword change in this spec, short chunks merged in new chunking versions, parent-child for new drafts if round A4 loses no question.
