@@ -1,0 +1,268 @@
+{
+  "entered_origin": "https://docs.example",
+  "entered_url": "https://docs.example/manual",
+  "extra_robots": [],
+  "links": {
+    "frontier": "open",
+    "l1": 6,
+    "l2": 2,
+    "linked_total": 8,
+    "sample_failed": 0,
+    "sampled": 6
+  },
+  "probe_mode": "crawl",
+  "requests": [
+    {
+      "elapsed_ms": 0,
+      "outcome": "response",
+      "purpose": "robots",
+      "status": 200,
+      "url": "https://docs.example/robots.txt"
+    },
+    {
+      "elapsed_ms": 0,
+      "outcome": "response",
+      "purpose": "start_page",
+      "status": 301,
+      "url": "https://docs.example/manual"
+    },
+    {
+      "elapsed_ms": 0,
+      "outcome": "response",
+      "purpose": "start_page",
+      "status": 200,
+      "url": "https://docs.example/manual/"
+    },
+    {
+      "elapsed_ms": 0,
+      "outcome": "response",
+      "purpose": "sitemaps",
+      "status": 404,
+      "url": "https://docs.example/sitemap.xml"
+    },
+    {
+      "elapsed_ms": 0,
+      "outcome": "response",
+      "purpose": "sitemaps",
+      "status": 404,
+      "url": "https://docs.example/sitemap_index.xml"
+    },
+    {
+      "elapsed_ms": 0,
+      "outcome": "response",
+      "purpose": "sample_pages",
+      "status": 200,
+      "url": "https://docs.example/manual/a"
+    },
+    {
+      "elapsed_ms": 0,
+      "outcome": "response",
+      "purpose": "sample_pages",
+      "status": 200,
+      "url": "https://docs.example/manual/b"
+    },
+    {
+      "elapsed_ms": 0,
+      "outcome": "response",
+      "purpose": "sample_pages",
+      "status": 200,
+      "url": "https://docs.example/manual/c"
+    },
+    {
+      "elapsed_ms": 0,
+      "outcome": "response",
+      "purpose": "sample_pages",
+      "status": 200,
+      "url": "https://docs.example/manual/d"
+    },
+    {
+      "elapsed_ms": 0,
+      "outcome": "response",
+      "purpose": "sample_pages",
+      "status": 200,
+      "url": "https://docs.example/manual/print/a"
+    },
+    {
+      "elapsed_ms": 0,
+      "outcome": "response",
+      "purpose": "sample_pages",
+      "status": 200,
+      "url": "https://docs.example/manual/print/b"
+    }
+  ],
+  "robots": {
+    "crawl_delay": null,
+    "found": true,
+    "origin": "https://docs.example",
+    "sitemaps": [],
+    "start_allowed": true,
+    "status": 200
+  },
+  "sample_pages": [
+    {
+      "new_links": 1,
+      "outcome": "included",
+      "response_ms": 0,
+      "section": "a",
+      "status": 200,
+      "text_length": 360,
+      "url": "https://docs.example/manual/a"
+    },
+    {
+      "new_links": 1,
+      "outcome": "included",
+      "response_ms": 0,
+      "section": "b",
+      "status": 200,
+      "text_length": 360,
+      "url": "https://docs.example/manual/b"
+    },
+    {
+      "new_links": 0,
+      "outcome": "included",
+      "response_ms": 0,
+      "section": "c",
+      "status": 200,
+      "text_length": 346,
+      "url": "https://docs.example/manual/c"
+    },
+    {
+      "new_links": 0,
+      "outcome": "included",
+      "response_ms": 0,
+      "section": "d",
+      "status": 200,
+      "text_length": 346,
+      "url": "https://docs.example/manual/d"
+    },
+    {
+      "new_links": 0,
+      "outcome": "included",
+      "response_ms": 0,
+      "section": "print",
+      "status": 200,
+      "text_length": 352,
+      "url": "https://docs.example/manual/print/a"
+    },
+    {
+      "new_links": 0,
+      "outcome": "included",
+      "response_ms": 0,
+      "section": "print",
+      "status": 200,
+      "text_length": 352,
+      "url": "https://docs.example/manual/print/b"
+    }
+  ],
+  "scope_prefixes": [
+    "/manual/"
+  ],
+  "sections": [
+    {
+      "count": 2,
+      "exact": true,
+      "links": 2,
+      "numbered": false,
+      "samples": [
+        "/manual/a",
+        "/manual/a/one"
+      ],
+      "segment": "a",
+      "sitemap": 0
+    },
+    {
+      "count": 2,
+      "exact": true,
+      "links": 2,
+      "numbered": false,
+      "samples": [
+        "/manual/b",
+        "/manual/b/two"
+      ],
+      "segment": "b",
+      "sitemap": 0
+    },
+    {
+      "count": 2,
+      "exact": false,
+      "links": 2,
+      "numbered": false,
+      "samples": [
+        "/manual/print/a",
+        "/manual/print/b"
+      ],
+      "segment": "print",
+      "sitemap": 0
+    },
+    {
+      "count": 1,
+      "exact": true,
+      "links": 1,
+      "numbered": false,
+      "samples": [
+        "/manual/c"
+      ],
+      "segment": "c",
+      "sitemap": 0
+    },
+    {
+      "count": 1,
+      "exact": true,
+      "links": 1,
+      "numbered": false,
+      "samples": [
+        "/manual/d"
+      ],
+      "segment": "d",
+      "sitemap": 0
+    }
+  ],
+  "sitemap": {
+    "errors": [
+      {
+        "code": "sitemap_request_failed",
+        "url": "https://docs.example/sitemap.xml"
+      },
+      {
+        "code": "sitemap_request_failed",
+        "url": "https://docs.example/sitemap_index.xml"
+      }
+    ],
+    "files_read": 0,
+    "found": false,
+    "in_scope": 0,
+    "linked_in_sitemap": 0,
+    "lower_bound": false,
+    "nested_listed": 0,
+    "nested_read": 0,
+    "nested_skipped": 0,
+    "out_of_scope": 0,
+    "source": null,
+    "url": null
+  },
+  "start_page": {
+    "final_url": "https://docs.example/manual/",
+    "hreflang": [],
+    "html_lang": "en",
+    "links_below_path": 6,
+    "links_same_origin": 7,
+    "links_total": 7,
+    "media_type": "text/html",
+    "median_response_ms": 0,
+    "outcome": "included",
+    "response_ms": [
+      0,
+      0
+    ],
+    "status": 200,
+    "text_length": 418,
+    "throttled": 0
+  },
+  "start_section": null,
+  "timing": {
+    "median_response_ms": 0,
+    "throttled": 0
+  },
+  "url_list": {},
+  "warnings": []
+}

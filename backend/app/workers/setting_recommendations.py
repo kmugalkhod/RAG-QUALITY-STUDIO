@@ -11,7 +11,11 @@ from app.connectors import website_probe
 from app.core.config import settings
 from app.db.session import engine
 from app.models.setting_recommendation import SettingRecommendation
-from app.services.website_recommendation import RecommendationFailed, recommend
+from app.services.website_recommendation import (
+    RecommendationFailed,
+    recommend,
+    warning_items,
+)
 from app.workers.celery_app import celery
 from app.workers.processing import now
 
@@ -79,6 +83,7 @@ def process_recommendation(
             row.updated_at = row.finished_at = now()
             session.commit()
 
+    signals = None
     try:
         if probe is None:
             signals = website_probe.probe_website(
@@ -93,10 +98,21 @@ def process_recommendation(
     except website_probe.ProbeStopped:
         return
     except ConnectorFailure as exc:
-        finish(status="failed", error=exc.issue.message[:500])
+        # A probe failure that is also a warning (robots.txt blocks the start
+        # URL, a missing or non-HTML start page) records its code.
+        finish(
+            status="failed",
+            error=exc.issue.message[:500],
+            warnings=warning_items([exc.issue.code]),
+        )
         return
     except RecommendationFailed as exc:
-        finish(status="failed", error=str(exc))
+        finish(
+            status="failed",
+            error=str(exc)[:500],
+            signals=signals.as_json() if signals is not None else {},
+            warnings=warning_items(exc.warnings),
+        )
         return
     except Exception:
         logging.warning(

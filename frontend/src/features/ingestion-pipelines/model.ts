@@ -775,11 +775,22 @@ export type SettingRecommendation = {
       outcome: string;
       elapsed_ms: number;
     }[];
+    /** robots.txt facts of the entered origin and of other origins read. */
+    robots?: RecommendationRobotsFacts;
+    extra_robots?: RecommendationRobotsFacts[];
     [key: string]: unknown;
   };
   created_at: string;
   finished_at: string | null;
   expires_at: string;
+};
+
+/** robots.txt facts in a recommendation's evidence (`website-probe-v1`). */
+export type RecommendationRobotsFacts = {
+  origin?: string;
+  found: boolean | null;
+  crawl_delay: number | null;
+  start_allowed: boolean;
 };
 
 /** Mirrors `SettingRecommendationRequest`. */

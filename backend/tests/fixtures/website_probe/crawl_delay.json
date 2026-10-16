@@ -1,0 +1,160 @@
+{
+  "entered_origin": "https://slow.example",
+  "entered_url": "https://slow.example/docs/",
+  "extra_robots": [],
+  "links": {
+    "frontier": "closed",
+    "l1": 2,
+    "l2": 0,
+    "linked_total": 2,
+    "sample_failed": 0,
+    "sampled": 2
+  },
+  "probe_mode": "crawl",
+  "requests": [
+    {
+      "elapsed_ms": 0,
+      "outcome": "response",
+      "purpose": "robots",
+      "status": 200,
+      "url": "https://slow.example/robots.txt"
+    },
+    {
+      "elapsed_ms": 0,
+      "outcome": "response",
+      "purpose": "start_page",
+      "status": 200,
+      "url": "https://slow.example/docs/"
+    },
+    {
+      "elapsed_ms": 0,
+      "outcome": "response",
+      "purpose": "sitemaps",
+      "status": 404,
+      "url": "https://slow.example/sitemap.xml"
+    },
+    {
+      "elapsed_ms": 0,
+      "outcome": "response",
+      "purpose": "sitemaps",
+      "status": 404,
+      "url": "https://slow.example/sitemap_index.xml"
+    },
+    {
+      "elapsed_ms": 0,
+      "outcome": "response",
+      "purpose": "sample_pages",
+      "status": 200,
+      "url": "https://slow.example/docs/a"
+    },
+    {
+      "elapsed_ms": 0,
+      "outcome": "response",
+      "purpose": "sample_pages",
+      "status": 200,
+      "url": "https://slow.example/docs/b"
+    }
+  ],
+  "robots": {
+    "crawl_delay": 10.0,
+    "found": true,
+    "origin": "https://slow.example",
+    "sitemaps": [],
+    "start_allowed": true,
+    "status": 200
+  },
+  "sample_pages": [
+    {
+      "new_links": 0,
+      "outcome": "included",
+      "response_ms": 0,
+      "section": "a",
+      "status": 200,
+      "text_length": 344,
+      "url": "https://slow.example/docs/a"
+    },
+    {
+      "new_links": 0,
+      "outcome": "included",
+      "response_ms": 0,
+      "section": "b",
+      "status": 200,
+      "text_length": 344,
+      "url": "https://slow.example/docs/b"
+    }
+  ],
+  "scope_prefixes": [
+    "/docs/"
+  ],
+  "sections": [
+    {
+      "count": 1,
+      "exact": true,
+      "links": 1,
+      "numbered": false,
+      "samples": [
+        "/docs/a"
+      ],
+      "segment": "a",
+      "sitemap": 0
+    },
+    {
+      "count": 1,
+      "exact": true,
+      "links": 1,
+      "numbered": false,
+      "samples": [
+        "/docs/b"
+      ],
+      "segment": "b",
+      "sitemap": 0
+    }
+  ],
+  "sitemap": {
+    "errors": [
+      {
+        "code": "sitemap_request_failed",
+        "url": "https://slow.example/sitemap.xml"
+      },
+      {
+        "code": "sitemap_request_failed",
+        "url": "https://slow.example/sitemap_index.xml"
+      }
+    ],
+    "files_read": 0,
+    "found": false,
+    "in_scope": 0,
+    "linked_in_sitemap": 0,
+    "lower_bound": false,
+    "nested_listed": 0,
+    "nested_read": 0,
+    "nested_skipped": 0,
+    "out_of_scope": 0,
+    "source": null,
+    "url": null
+  },
+  "start_page": {
+    "final_url": "https://slow.example/docs/",
+    "hreflang": [],
+    "html_lang": null,
+    "links_below_path": 2,
+    "links_same_origin": 2,
+    "links_total": 2,
+    "media_type": "text/html",
+    "median_response_ms": 0,
+    "outcome": "included",
+    "response_ms": [
+      0
+    ],
+    "status": 200,
+    "text_length": 351,
+    "throttled": 0
+  },
+  "start_section": null,
+  "timing": {
+    "median_response_ms": 0,
+    "throttled": 0
+  },
+  "url_list": {},
+  "warnings": []
+}

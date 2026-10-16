@@ -1,0 +1,61 @@
+{
+  "entered_origin": "https://app.example",
+  "entered_url": "https://app.example/",
+  "extra_robots": [],
+  "links": {},
+  "probe_mode": "single_url",
+  "requests": [
+    {
+      "elapsed_ms": 0,
+      "outcome": "response",
+      "purpose": "robots",
+      "status": 404,
+      "url": "https://app.example/robots.txt"
+    },
+    {
+      "elapsed_ms": 0,
+      "outcome": "response",
+      "purpose": "start_page",
+      "status": 200,
+      "url": "https://app.example/"
+    }
+  ],
+  "robots": {
+    "crawl_delay": null,
+    "found": false,
+    "origin": "https://app.example",
+    "sitemaps": [],
+    "start_allowed": true,
+    "status": 404
+  },
+  "sample_pages": [],
+  "scope_prefixes": [],
+  "sections": [],
+  "sitemap": {},
+  "start_page": {
+    "final_url": "https://app.example/",
+    "hreflang": [],
+    "html_lang": null,
+    "links_below_path": 0,
+    "links_same_origin": 0,
+    "links_total": 0,
+    "media_type": "text/html",
+    "median_response_ms": 0,
+    "outcome": "included",
+    "response_ms": [
+      0
+    ],
+    "status": 200,
+    "text_length": 0,
+    "throttled": 0
+  },
+  "start_section": null,
+  "timing": {
+    "median_response_ms": 0,
+    "throttled": 0
+  },
+  "url_list": {},
+  "warnings": [
+    "client_rendered"
+  ]
+}

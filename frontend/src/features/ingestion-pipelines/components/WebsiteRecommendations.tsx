@@ -2,8 +2,14 @@ import { useId } from 'react';
 
 import { Callout } from '../../../components/parts';
 import { Button } from '../../../components/ui/button';
-import type { SettingRecommendation, WebsiteConfig } from '../model';
-import { formatRecommendedValue, recommendationDifferences } from '../recommendationsModel';
+import type { RecommendationField, SettingRecommendation, WebsiteConfig } from '../model';
+import {
+  estimatedMinutes,
+  evidenceCrawlDelay,
+  formatRecommendedValue,
+  notUsed,
+  recommendationDifferences,
+} from '../recommendationsModel';
 import { FACTS, FIELD_ERROR } from './settingsStyles';
 
 const STEP_LABEL: Record<NonNullable<SettingRecommendation['progress_step']>, string> = {
@@ -31,9 +37,23 @@ function analysedAgo(value: string | null): string {
   return `Analysed ${Math.round(minutes / 60)} h ago`;
 }
 
+/** The row value: "Not used" when the setting does not apply, and the page limit's time. */
+function rowValue(field: RecommendationField, recommendation: SettingRecommendation): string {
+  if (notUsed(field.rationale_code)) {
+    return 'Not used';
+  }
+  const value = formatRecommendedValue(field.path, field.value);
+  const rps = recommendation.recommended?.requests_per_second;
+  if (field.path !== 'max_pages' || typeof field.value !== 'number' || !rps) {
+    return value;
+  }
+  const minutes = estimatedMinutes(field.value, rps, evidenceCrawlDelay(recommendation));
+  return `${value} · about ${minutes} min at ${rps}/s`;
+}
+
 /**
- * The "Recommended settings" card (spec 0011, Slice 1): each recommended Website setting
- * with its one-line reason, read-only until Edit opens the existing form.
+ * The "Recommended settings" card (spec 0011): each recommended Website setting with its
+ * one-line reason, read-only until Edit opens the existing form. Warnings appear above it.
  */
 export function WebsiteRecommendations({
   config,
@@ -114,12 +134,16 @@ export function WebsiteRecommendations({
               <div key={field.path} className="flex min-w-0 flex-col gap-1">
                 <dt>{field.label}</dt>
                 <dd className="flex flex-col gap-1">
-                  <span className={mono ? 'font-mono tabular-nums' : undefined}>
-                    {formatRecommendedValue(field.path, field.value)}
+                  <span
+                    className={
+                      mono && !notUsed(field.rationale_code) ? 'font-mono tabular-nums' : undefined
+                    }
+                  >
+                    {rowValue(field, recommendation)}
                   </span>
                   <span className="text-xs text-foreground-muted">Why: {field.rationale}</span>
                   {field.check && <span className="text-xs text-warning">Check this</span>}
-                  {changed.has(field.path) && (
+                  {changed.has(field.path) && !notUsed(field.rationale_code) && (
                     <span className="text-xs text-foreground-muted">
                       Changed from recommended (was{' '}
                       {formatRecommendedValue(field.path, field.value)})

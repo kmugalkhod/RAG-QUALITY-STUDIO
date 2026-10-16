@@ -1,0 +1,82 @@
+{
+  "entered_origin": "https://maps.example",
+  "entered_url": "https://maps.example/sitemap.xml",
+  "extra_robots": [],
+  "links": {},
+  "probe_mode": "sitemap",
+  "requests": [
+    {
+      "elapsed_ms": 0,
+      "outcome": "response",
+      "purpose": "robots",
+      "status": 200,
+      "url": "https://maps.example/robots.txt"
+    },
+    {
+      "elapsed_ms": 0,
+      "outcome": "response",
+      "purpose": "sitemaps",
+      "status": 200,
+      "url": "https://maps.example/sitemap.xml"
+    }
+  ],
+  "robots": {
+    "crawl_delay": 2.0,
+    "found": true,
+    "origin": "https://maps.example",
+    "sitemaps": [],
+    "start_allowed": true,
+    "status": 200
+  },
+  "sample_pages": [],
+  "scope_prefixes": [],
+  "sections": [
+    {
+      "count": 24,
+      "exact": false,
+      "links": 0,
+      "numbered": true,
+      "samples": [
+        "/docs/1",
+        "/docs/10",
+        "/docs/11"
+      ],
+      "segment": "docs",
+      "sitemap": 24
+    },
+    {
+      "count": 2,
+      "exact": false,
+      "links": 0,
+      "numbered": false,
+      "samples": [
+        "/search/a",
+        "/search/b"
+      ],
+      "segment": "search",
+      "sitemap": 2
+    }
+  ],
+  "sitemap": {
+    "errors": [],
+    "files_read": 1,
+    "found": true,
+    "in_scope": 26,
+    "linked_in_sitemap": 0,
+    "lower_bound": false,
+    "nested_listed": 0,
+    "nested_read": 0,
+    "nested_skipped": 0,
+    "out_of_scope": 1,
+    "source": "input",
+    "url": "https://maps.example/sitemap.xml"
+  },
+  "start_page": {},
+  "start_section": null,
+  "timing": {
+    "median_response_ms": 0,
+    "throttled": 0
+  },
+  "url_list": {},
+  "warnings": []
+}

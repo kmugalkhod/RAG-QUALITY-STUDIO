@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { useState } from 'react';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 
@@ -338,4 +338,126 @@ test('the save payload carries recommendation IDs beside the draft only when pre
     expect.objectContaining({ body: JSON.stringify(draft) }),
   );
   fetchSpy.mockRestore();
+});
+
+const SITEMAP_URL = 'https://docs.example/sitemap.xml';
+
+function fullRecommendation(): SettingRecommendation {
+  const base = recommendation();
+  const field = (
+    path: SettingRecommendation['fields'][number]['path'],
+    label: string,
+    value: unknown,
+    rationale_code: string,
+    rationale: string,
+  ) => ({
+    path,
+    label,
+    value,
+    basis: 'computed' as const,
+    risk: 'medium' as const,
+    rationale_code,
+    rationale,
+    check: false,
+  });
+  return {
+    ...base,
+    recommended: {
+      ...base.recommended!,
+      selection: { mode: 'sitemap', sitemap_url: SITEMAP_URL },
+      exclude_path_prefixes: ['/docs/search/'],
+      max_pages: 60,
+      requests_per_second: 0.5,
+    },
+    fields: [
+      field(
+        'selection',
+        'Discovery',
+        { mode: 'sitemap', sitemap_url: SITEMAP_URL },
+        'mode_sitemap',
+        "The site's sitemap lists 51 pages in scope, and the sample found 51 of the 51 linked pages in it, so the sitemap is read.",
+      ),
+      ...base.fields,
+      field(
+        'exclude_path_prefixes',
+        'Excluded',
+        ['/docs/search/'],
+        'exclude_utility_pattern',
+        '/docs/search/ hold search, feed or other utility pages, so they are skipped.',
+      ),
+      field(
+        'max_pages',
+        'Maximum pages',
+        60,
+        'pages_sitemap',
+        'The sitemap lists 51 pages in scope, so up to 60 are fetched.',
+      ),
+      field(
+        'max_depth',
+        'Crawl depth',
+        3,
+        'depth_not_used',
+        'Crawl depth applies only when links are followed.',
+      ),
+    ],
+    warnings: [
+      {
+        code: 'all_links_off_origin',
+        message: 'Every link on the start page leads to another site.',
+      },
+    ],
+    evidence: {
+      ...base.evidence,
+      robots: { found: true, crawl_delay: 2, start_allowed: true },
+    },
+  };
+}
+
+test('Slice 2 rows: discovery, exclusions, page time, an unused depth and warnings', async () => {
+  vi.mocked(api.startSettingRecommendation).mockResolvedValue(fullRecommendation());
+  render(<Harness initial={initialConfig()} />);
+  fireEvent.blur(startUrlInput());
+  await screen.findByRole('heading', { name: 'Recommended settings' });
+
+  // The crawl input becomes the recommended sitemap, and the card stays for it.
+  expect(latest.selection).toEqual({ mode: 'sitemap', sitemap_url: SITEMAP_URL });
+  expect(latest.exclude_path_prefixes).toEqual(['/docs/search/']);
+  expect(latest.max_pages).toBe(60);
+  const card = within(screen.getByRole('region', { name: 'Recommended settings' }));
+  expect(card.getByText('Discovery')).toBeInTheDocument();
+  expect(card.getByText('Sitemap')).toBeInTheDocument();
+  expect(card.getByText('/docs/search/')).toBeInTheDocument();
+  // 60 pages, one every 2 seconds.
+  expect(card.getByText('60 · about 2 min at 0.5/s')).toBeInTheDocument();
+  expect(card.getByText('Not used')).toBeInTheDocument();
+  expect(screen.getByRole('note')).toHaveTextContent(
+    'Every link on the start page leads to another site.',
+  );
+  expect(screen.queryByText(/Changed from recommended/)).not.toBeInTheDocument();
+});
+
+test('the page time follows a crawl delay longer than the speed allows', async () => {
+  const value = fullRecommendation();
+  vi.mocked(api.startSettingRecommendation).mockResolvedValue({
+    ...value,
+    recommended: { ...value.recommended!, requests_per_second: 0.1 },
+    evidence: { ...value.evidence, robots: { found: true, crawl_delay: 11, start_allowed: true } },
+  });
+  render(<Harness initial={initialConfig()} />);
+  fireEvent.blur(startUrlInput());
+  // 60 pages at one per 11 seconds is 11 minutes, not the 10 that 0.1/s suggests.
+  expect(await screen.findByText('60 · about 11 min at 0.1/s')).toBeInTheDocument();
+});
+
+test('a discovery the user changed is kept and reported', () => {
+  const value = fullRecommendation();
+  const listed = initialConfig({
+    selection: { mode: 'url_list', urls: ['https://docs.example/a'] },
+  });
+  expect(applyRecommendation(listed, value).selection).toEqual(listed.selection);
+  const crawl = initialConfig();
+  expect(recommendationDifferences(crawl, value).has('selection')).toBe(true);
+  expect(recommendationDifferences(applyRecommendation(crawl, value), value).has('selection')).toBe(
+    false,
+  );
 });

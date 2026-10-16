@@ -207,12 +207,11 @@ export function WebsiteSettings({
     // Runs when a new recommendation arrives; config is read at that moment.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [latest]);
-  const shown =
-    recommendations && mode === 'crawl'
-      ? [latest, recommendations.applied].find(
-          (value) => value !== undefined && recommendationMatches(config, value),
-        )
-      : undefined;
+  const shown = recommendations
+    ? [latest, recommendations.applied].find(
+        (value) => value !== undefined && recommendationMatches(config, value),
+      )
+    : undefined;
   const cardShown = !!shown && (shown.status === 'succeeded' || shown.status === 'expired');
   const formHidden = cardShown && !editing;
   const analyse = (value: string) => {
@@ -389,7 +388,7 @@ export function WebsiteSettings({
           </Button>
         </div>
       )}
-      {recommendations && mode === 'crawl' && (
+      {recommendations && (mode === 'crawl' || shown) && (
         <WebsiteRecommendations
           config={config}
           recommendation={analysis.analysing ? latest : shown}

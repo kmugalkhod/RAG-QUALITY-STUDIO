@@ -1,0 +1,89 @@
+{
+  "entered_origin": "https://a.example",
+  "entered_url": "https://a.example/1",
+  "extra_robots": [
+    {
+      "crawl_delay": 4.0,
+      "found": true,
+      "origin": "https://b.example",
+      "start_allowed": true,
+      "status": 200
+    }
+  ],
+  "links": {},
+  "probe_mode": "url_list",
+  "requests": [
+    {
+      "elapsed_ms": 0,
+      "outcome": "response",
+      "purpose": "robots",
+      "status": 200,
+      "url": "https://a.example/robots.txt"
+    },
+    {
+      "elapsed_ms": 0,
+      "outcome": "response",
+      "purpose": "robots",
+      "status": 200,
+      "url": "https://b.example/robots.txt"
+    },
+    {
+      "elapsed_ms": 0,
+      "outcome": "response",
+      "purpose": "start_page",
+      "status": 200,
+      "url": "https://a.example/1"
+    },
+    {
+      "elapsed_ms": 0,
+      "outcome": "response",
+      "purpose": "start_page",
+      "status": 200,
+      "url": "https://b.example/x"
+    }
+  ],
+  "robots": {
+    "crawl_delay": null,
+    "found": true,
+    "origin": "https://a.example",
+    "start_allowed": true,
+    "status": 200
+  },
+  "sample_pages": [],
+  "scope_prefixes": [],
+  "sections": [],
+  "sitemap": {},
+  "start_page": {},
+  "start_section": null,
+  "timing": {
+    "median_response_ms": 0,
+    "throttled": 0
+  },
+  "url_list": {
+    "count": 4,
+    "origin_count": 2,
+    "origins": [
+      "https://a.example",
+      "https://b.example"
+    ],
+    "pages": [
+      {
+        "media_type": "text/html",
+        "outcome": "included",
+        "text_length": 339,
+        "url": "https://a.example/1"
+      },
+      {
+        "media_type": "text/html",
+        "outcome": "included",
+        "text_length": 337,
+        "url": "https://b.example/x"
+      }
+    ],
+    "robots_blocked": 1,
+    "robots_checked": 2
+  },
+  "warnings": [
+    "robots_blocks_urls"
+  ]
+}

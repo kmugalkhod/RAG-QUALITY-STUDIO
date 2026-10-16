@@ -1,0 +1,379 @@
+{
+  "entered_origin": "https://www.lang.example",
+  "entered_url": "https://www.lang.example/",
+  "extra_robots": [
+    {
+      "crawl_delay": null,
+      "found": false,
+      "origin": "https://lang.example",
+      "sitemaps": [],
+      "start_allowed": true,
+      "status": 404
+    }
+  ],
+  "links": {
+    "frontier": "closed",
+    "l1": 12,
+    "l2": 0,
+    "linked_total": 12,
+    "sample_failed": 0,
+    "sampled": 9
+  },
+  "probe_mode": "crawl",
+  "requests": [
+    {
+      "elapsed_ms": 0,
+      "outcome": "response",
+      "purpose": "robots",
+      "status": 404,
+      "url": "https://www.lang.example/robots.txt"
+    },
+    {
+      "elapsed_ms": 0,
+      "outcome": "response",
+      "purpose": "start_page",
+      "status": 301,
+      "url": "https://www.lang.example/"
+    },
+    {
+      "elapsed_ms": 0,
+      "outcome": "response",
+      "purpose": "start_page",
+      "status": 404,
+      "url": "https://lang.example/robots.txt"
+    },
+    {
+      "elapsed_ms": 0,
+      "outcome": "response",
+      "purpose": "start_page",
+      "status": 200,
+      "url": "https://lang.example/"
+    },
+    {
+      "elapsed_ms": 0,
+      "outcome": "response",
+      "purpose": "sitemaps",
+      "status": 404,
+      "url": "https://lang.example/sitemap.xml"
+    },
+    {
+      "elapsed_ms": 0,
+      "outcome": "response",
+      "purpose": "sitemaps",
+      "status": 404,
+      "url": "https://lang.example/sitemap_index.xml"
+    },
+    {
+      "elapsed_ms": 0,
+      "outcome": "response",
+      "purpose": "sample_pages",
+      "status": 200,
+      "url": "https://lang.example/es"
+    },
+    {
+      "elapsed_ms": 0,
+      "outcome": "response",
+      "purpose": "sample_pages",
+      "status": 200,
+      "url": "https://lang.example/fr"
+    },
+    {
+      "elapsed_ms": 0,
+      "outcome": "response",
+      "purpose": "sample_pages",
+      "status": 200,
+      "url": "https://lang.example/pt-BR"
+    },
+    {
+      "elapsed_ms": 0,
+      "outcome": "response",
+      "purpose": "sample_pages",
+      "status": 200,
+      "url": "https://lang.example/zh-CN"
+    },
+    {
+      "elapsed_ms": 0,
+      "outcome": "response",
+      "purpose": "sample_pages",
+      "status": 200,
+      "url": "https://lang.example/en-US"
+    },
+    {
+      "elapsed_ms": 0,
+      "outcome": "response",
+      "purpose": "sample_pages",
+      "status": 200,
+      "url": "https://lang.example/learn"
+    },
+    {
+      "elapsed_ms": 0,
+      "outcome": "response",
+      "purpose": "sample_pages",
+      "status": 200,
+      "url": "https://lang.example/tools"
+    },
+    {
+      "elapsed_ms": 0,
+      "outcome": "response",
+      "purpose": "sample_pages",
+      "status": 200,
+      "url": "https://lang.example/es/learn"
+    },
+    {
+      "elapsed_ms": 0,
+      "outcome": "response",
+      "purpose": "sample_pages",
+      "status": 200,
+      "url": "https://lang.example/fr/learn"
+    }
+  ],
+  "robots": {
+    "crawl_delay": null,
+    "found": false,
+    "origin": "https://www.lang.example",
+    "sitemaps": [],
+    "start_allowed": true,
+    "status": 404
+  },
+  "sample_pages": [
+    {
+      "new_links": 0,
+      "outcome": "included",
+      "response_ms": 0,
+      "section": "es",
+      "status": 200,
+      "text_length": 341,
+      "url": "https://lang.example/es"
+    },
+    {
+      "new_links": 0,
+      "outcome": "included",
+      "response_ms": 0,
+      "section": "fr",
+      "status": 200,
+      "text_length": 341,
+      "url": "https://lang.example/fr"
+    },
+    {
+      "new_links": 0,
+      "outcome": "included",
+      "response_ms": 0,
+      "section": "pt-BR",
+      "status": 200,
+      "text_length": 344,
+      "url": "https://lang.example/pt-BR"
+    },
+    {
+      "new_links": 0,
+      "outcome": "included",
+      "response_ms": 0,
+      "section": "zh-CN",
+      "status": 200,
+      "text_length": 344,
+      "url": "https://lang.example/zh-CN"
+    },
+    {
+      "new_links": 0,
+      "outcome": "included",
+      "response_ms": 0,
+      "section": "en-US",
+      "status": 200,
+      "text_length": 344,
+      "url": "https://lang.example/en-US"
+    },
+    {
+      "new_links": 0,
+      "outcome": "included",
+      "response_ms": 0,
+      "section": "learn",
+      "status": 200,
+      "text_length": 344,
+      "url": "https://lang.example/learn"
+    },
+    {
+      "new_links": 0,
+      "outcome": "included",
+      "response_ms": 0,
+      "section": "tools",
+      "status": 200,
+      "text_length": 344,
+      "url": "https://lang.example/tools"
+    },
+    {
+      "new_links": 0,
+      "outcome": "included",
+      "response_ms": 0,
+      "section": "es",
+      "status": 200,
+      "text_length": 347,
+      "url": "https://lang.example/es/learn"
+    },
+    {
+      "new_links": 0,
+      "outcome": "included",
+      "response_ms": 0,
+      "section": "fr",
+      "status": 200,
+      "text_length": 347,
+      "url": "https://lang.example/fr/learn"
+    }
+  ],
+  "scope_prefixes": [],
+  "sections": [
+    {
+      "count": 2,
+      "exact": true,
+      "links": 2,
+      "numbered": false,
+      "samples": [
+        "/es",
+        "/es/learn"
+      ],
+      "segment": "es",
+      "sitemap": 0
+    },
+    {
+      "count": 2,
+      "exact": true,
+      "links": 2,
+      "numbered": false,
+      "samples": [
+        "/fr",
+        "/fr/learn"
+      ],
+      "segment": "fr",
+      "sitemap": 0
+    },
+    {
+      "count": 2,
+      "exact": true,
+      "links": 2,
+      "numbered": false,
+      "samples": [
+        "/learn",
+        "/learn/basics"
+      ],
+      "segment": "learn",
+      "sitemap": 0
+    },
+    {
+      "count": 2,
+      "exact": true,
+      "links": 2,
+      "numbered": false,
+      "samples": [
+        "/pt-BR",
+        "/pt-BR/learn"
+      ],
+      "segment": "pt-BR",
+      "sitemap": 0
+    },
+    {
+      "count": 2,
+      "exact": true,
+      "links": 2,
+      "numbered": false,
+      "samples": [
+        "/zh-CN",
+        "/zh-CN/learn"
+      ],
+      "segment": "zh-CN",
+      "sitemap": 0
+    },
+    {
+      "count": 1,
+      "exact": true,
+      "links": 1,
+      "numbered": false,
+      "samples": [
+        "/en-US"
+      ],
+      "segment": "en-US",
+      "sitemap": 0
+    },
+    {
+      "count": 1,
+      "exact": true,
+      "links": 1,
+      "numbered": false,
+      "samples": [
+        "/tools"
+      ],
+      "segment": "tools",
+      "sitemap": 0
+    }
+  ],
+  "sitemap": {
+    "errors": [
+      {
+        "code": "sitemap_request_failed",
+        "url": "https://lang.example/sitemap.xml"
+      },
+      {
+        "code": "sitemap_request_failed",
+        "url": "https://lang.example/sitemap_index.xml"
+      }
+    ],
+    "files_read": 0,
+    "found": false,
+    "in_scope": 0,
+    "linked_in_sitemap": 0,
+    "lower_bound": false,
+    "nested_listed": 0,
+    "nested_read": 0,
+    "nested_skipped": 0,
+    "out_of_scope": 0,
+    "source": null,
+    "url": null
+  },
+  "start_page": {
+    "final_url": "https://lang.example/",
+    "hreflang": [
+      {
+        "lang": "es",
+        "url": "https://www.lang.example/es"
+      },
+      {
+        "lang": "fr",
+        "url": "https://www.lang.example/fr"
+      },
+      {
+        "lang": "pt-BR",
+        "url": "https://www.lang.example/pt-BR"
+      },
+      {
+        "lang": "zh-CN",
+        "url": "https://www.lang.example/zh-CN"
+      },
+      {
+        "lang": "en-US",
+        "url": "https://www.lang.example/en-US"
+      },
+      {
+        "lang": "x-default",
+        "url": "https://www.lang.example/"
+      }
+    ],
+    "html_lang": "en-US",
+    "links_below_path": 0,
+    "links_same_origin": 12,
+    "links_total": 12,
+    "media_type": "text/html",
+    "median_response_ms": 0,
+    "outcome": "included",
+    "response_ms": [
+      0,
+      0
+    ],
+    "status": 200,
+    "text_length": 438,
+    "throttled": 0
+  },
+  "start_section": null,
+  "timing": {
+    "median_response_ms": 0,
+    "throttled": 0
+  },
+  "url_list": {},
+  "warnings": []
+}

@@ -36,6 +36,8 @@ from app.workers.processing import now
 from app.workers.setting_recommendations import process_recommendation
 from test_documents import documents_api  # noqa: F401
 from test_ingestion_contracts import ingestion_draft
+from website_probe_sites import SITES
+from website_probe_sites import run as run_site
 
 PUBLIC_IP = "93.184.216.34"
 UA = "RecommendationTest/1.0"
@@ -144,8 +146,11 @@ def test_redirect_to_the_folder_scopes_the_crawl_to_it():
     assert origins["rationale_code"] == "origins_start"
     assert field(result, "requests_per_second")["value"] == 2
     assert field(result, "requests_per_second")["rationale_code"] == "rps_default"
-    for path in ("selection", "exclude_path_prefixes", "max_pages", "max_depth"):
-        assert field(result, path)["basis"] == "default"
+    # No sitemap and no readable linked page: crawl, an open frontier and the
+    # default depth (Slice 2 rules).
+    assert field(result, "selection")["rationale_code"] == "mode_crawl_no_sitemap"
+    assert field(result, "max_pages")["rationale_code"] == "pages_crawl_open"
+    assert field(result, "max_depth")["basis"] == "default"
     assert result.recommended["include_path_prefixes"] == ["/docs/"]
     assert result.recommended["max_pages"] == 50
     # Measurements only: no page text in the stored signals (D7).
@@ -454,15 +459,6 @@ def test_recommendation_job_is_project_scoped_and_computed(recommendation_api):
     assert include["rationale_code"] == "include_redirect_folder"
     assert result["evidence"]["requests"]
     assert "Secret page words" not in json.dumps(result)
-    # A non-crawl input is not analysed in this slice.
-    response = client.post(
-        f"/api/projects/{project_id}/setting-recommendations",
-        json={
-            **request_body(),
-            "selection": {"mode": "single_url", "url": "https://docs.example/a"},
-        },
-    )
-    assert response.status_code == 422
 
 
 def test_viewer_cannot_start_an_analysis(recommendation_api):
@@ -683,7 +679,10 @@ def test_provenance_records_basis_without_changing_execution(recommendation_api)
     assert node["entered_url"] == "https://docs.example/docs"
     include = node["fields"]["include_path_prefixes"]
     assert include["basis"] == "computed" and include["recommended"] == ["/docs/"]
-    assert node["fields"]["max_pages"]["basis"] == "default"
+    # Slice 2 computes the page limit; with no readable linked page the depth
+    # keeps its default.
+    assert node["fields"]["max_pages"]["basis"] == "computed"
+    assert node["fields"]["max_depth"]["basis"] == "default"
 
     edited = client.post(
         f"{base}/{version['pipeline_id']}/versions",
@@ -727,3 +726,74 @@ def test_provenance_records_basis_without_changing_execution(recommendation_api)
     duplicate = deepcopy(save_payload())
     duplicate["recommendation_ids"] = [result["id"], result["id"]]
     assert client.post(base, json=duplicate).status_code == 422
+
+
+@pytest.mark.parametrize(
+    ("site", "mode", "code"),
+    [
+        ("docs_sitemap", "sitemap", "mode_sitemap"),
+        ("docs_crawl", "crawl", "mode_crawl_no_sitemap"),
+        ("sitemap_input", "sitemap", "mode_sitemap_input"),
+        ("url_list", "url_list", "mode_url_list"),
+        ("single_url", "single_url", "mode_single_url"),
+    ],
+)
+def test_each_input_mode_runs_through_the_api(recommendation_api, site, mode, code):
+    client, engine, project_id, _ = recommendation_api
+    selection, responses = SITES[site]()
+    response = client.post(
+        f"/api/projects/{project_id}/setting-recommendations",
+        json={
+            "target": "website",
+            "source_node_id": f"source-{site}",
+            "selection": selection,
+            "other_sources_max_pages": 100,
+        },
+    )
+    assert response.status_code == 202, response.text
+    row = response.json()
+    steps = []
+
+    def probe(selection, on_step):
+        steps.append(selection["mode"])
+        return run_site(selection, responses)[0]
+
+    process_recommendation(UUID(row["id"]), engine, probe=probe)
+    result = client.get(
+        f"/api/projects/{project_id}/setting-recommendations/{row['id']}"
+    ).json()
+    assert steps == [selection["mode"]]
+    assert result["status"] == "succeeded", result
+    assert result["recommended"]["selection"]["mode"] == mode
+    by_path = {item["path"]: item for item in result["fields"]}
+    assert by_path["selection"]["rationale_code"] == code
+    assert result["recommended"]["max_pages"] + 100 <= 2500
+    assert set(result["evidence"]) >= {"requests", "robots", "timing"}
+    with Session(engine) as session:
+        stored = session.get(SettingRecommendation, UUID(row["id"]))
+        assert len(json.dumps(stored.signals).encode()) <= 64 * 1024
+
+
+def test_a_failed_probe_records_its_warning(recommendation_api):
+    client, engine, project_id, _ = recommendation_api
+    row = started(client, project_id, url="https://docs.example/blocked/")
+
+    def blocked(selection, on_step):
+        return run_site(
+            selection,
+            {
+                "https://docs.example/robots.txt": (
+                    200,
+                    {"content-type": "text/plain"},
+                    b"User-agent: *\nAllow: /docs\n\nDisallow: /blocked\n",
+                )
+            },
+        )[0]
+
+    process_recommendation(UUID(row["id"]), engine, probe=blocked)
+    result = client.get(
+        f"/api/projects/{project_id}/setting-recommendations/{row['id']}"
+    ).json()
+    assert result["status"] == "failed" and result["recommended"] is None
+    assert [item["code"] for item in result["warnings"]] == ["robots_blocks_start"]
+    assert "robots.txt" in result["error"]

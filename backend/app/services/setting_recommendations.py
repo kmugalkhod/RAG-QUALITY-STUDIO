@@ -75,12 +75,23 @@ def _expired(row: SettingRecommendation) -> bool:
     return row.status in TERMINAL and row.expires_at <= now()
 
 
+EVIDENCE_KEYS = (
+    "requests",
+    "robots",
+    "extra_robots",
+    "start_page",
+    "sitemap",
+    "links",
+    "sections",
+    "sample_pages",
+    "url_list",
+    "timing",
+    "warnings",
+)
+
+
 def _evidence(signals: dict) -> dict:
-    return {
-        key: signals[key]
-        for key in ("requests", "robots", "start_page", "warnings")
-        if key in signals
-    }
+    return {key: signals[key] for key in EVIDENCE_KEYS if key in signals}
 
 
 def _read(row: SettingRecommendation) -> dict:
@@ -111,10 +122,6 @@ def start(session: Session, project_id: UUID, request: SettingRecommendationRequ
             503, "Setting recommendations are turned off on this server."
         )
     project(session, project_id)
-    if request.selection.mode != "crawl":
-        raise HTTPException(
-            422, "Recommendations currently analyse crawl start pages only."
-        )
     inputs, digest = inputs_for(request)
     current = now()
     if not request.refresh:

@@ -1,0 +1,264 @@
+{
+  "entered_origin": "https://docs.example",
+  "entered_url": "https://docs.example/guide/",
+  "extra_robots": [],
+  "links": {
+    "frontier": "closed",
+    "l1": 5,
+    "l2": 0,
+    "linked_total": 5,
+    "sample_failed": 0,
+    "sampled": 5
+  },
+  "probe_mode": "crawl",
+  "requests": [
+    {
+      "elapsed_ms": 0,
+      "outcome": "response",
+      "purpose": "robots",
+      "status": 200,
+      "url": "https://docs.example/robots.txt"
+    },
+    {
+      "elapsed_ms": 0,
+      "outcome": "response",
+      "purpose": "start_page",
+      "status": 200,
+      "url": "https://docs.example/guide/"
+    },
+    {
+      "elapsed_ms": 0,
+      "outcome": "response",
+      "purpose": "sitemaps",
+      "status": 200,
+      "url": "https://docs.example/sitemap_index.xml"
+    },
+    {
+      "elapsed_ms": 0,
+      "outcome": "response",
+      "purpose": "sitemaps",
+      "status": 200,
+      "url": "https://docs.example/sitemap-guide.xml"
+    },
+    {
+      "elapsed_ms": 0,
+      "outcome": "response",
+      "purpose": "sitemaps",
+      "status": 200,
+      "url": "https://docs.example/sitemap-more.xml.gz"
+    },
+    {
+      "elapsed_ms": 0,
+      "outcome": "response",
+      "purpose": "sample_pages",
+      "status": 200,
+      "url": "https://docs.example/guide/a"
+    },
+    {
+      "elapsed_ms": 0,
+      "outcome": "response",
+      "purpose": "sample_pages",
+      "status": 200,
+      "url": "https://docs.example/guide/b"
+    },
+    {
+      "elapsed_ms": 0,
+      "outcome": "response",
+      "purpose": "sample_pages",
+      "status": 200,
+      "url": "https://docs.example/guide/c"
+    },
+    {
+      "elapsed_ms": 0,
+      "outcome": "response",
+      "purpose": "sample_pages",
+      "status": 200,
+      "url": "https://docs.example/guide/d"
+    },
+    {
+      "elapsed_ms": 0,
+      "outcome": "response",
+      "purpose": "sample_pages",
+      "status": 200,
+      "url": "https://docs.example/guide/e"
+    }
+  ],
+  "robots": {
+    "crawl_delay": null,
+    "found": true,
+    "origin": "https://docs.example",
+    "sitemaps": [
+      "https://docs.example/sitemap_index.xml"
+    ],
+    "start_allowed": true,
+    "status": 200
+  },
+  "sample_pages": [
+    {
+      "new_links": 0,
+      "outcome": "included",
+      "response_ms": 0,
+      "section": "a",
+      "status": 200,
+      "text_length": 537,
+      "url": "https://docs.example/guide/a"
+    },
+    {
+      "new_links": 0,
+      "outcome": "included",
+      "response_ms": 0,
+      "section": "b",
+      "status": 200,
+      "text_length": 537,
+      "url": "https://docs.example/guide/b"
+    },
+    {
+      "new_links": 0,
+      "outcome": "included",
+      "response_ms": 0,
+      "section": "c",
+      "status": 200,
+      "text_length": 537,
+      "url": "https://docs.example/guide/c"
+    },
+    {
+      "new_links": 0,
+      "outcome": "included",
+      "response_ms": 0,
+      "section": "d",
+      "status": 200,
+      "text_length": 537,
+      "url": "https://docs.example/guide/d"
+    },
+    {
+      "new_links": 0,
+      "outcome": "included",
+      "response_ms": 0,
+      "section": "e",
+      "status": 200,
+      "text_length": 537,
+      "url": "https://docs.example/guide/e"
+    }
+  ],
+  "scope_prefixes": [
+    "/guide/"
+  ],
+  "sections": [
+    {
+      "count": 2,
+      "exact": false,
+      "links": 0,
+      "numbered": false,
+      "samples": [
+        "/guide/feed/",
+        "/guide/feed/atom"
+      ],
+      "segment": "feed",
+      "sitemap": 2
+    },
+    {
+      "count": 1,
+      "exact": true,
+      "links": 1,
+      "numbered": false,
+      "samples": [
+        "/guide/a"
+      ],
+      "segment": "a",
+      "sitemap": 1
+    },
+    {
+      "count": 1,
+      "exact": true,
+      "links": 1,
+      "numbered": false,
+      "samples": [
+        "/guide/b"
+      ],
+      "segment": "b",
+      "sitemap": 1
+    },
+    {
+      "count": 1,
+      "exact": true,
+      "links": 1,
+      "numbered": false,
+      "samples": [
+        "/guide/c"
+      ],
+      "segment": "c",
+      "sitemap": 1
+    },
+    {
+      "count": 1,
+      "exact": true,
+      "links": 1,
+      "numbered": false,
+      "samples": [
+        "/guide/d"
+      ],
+      "segment": "d",
+      "sitemap": 1
+    },
+    {
+      "count": 1,
+      "exact": true,
+      "links": 1,
+      "numbered": false,
+      "samples": [
+        "/guide/e"
+      ],
+      "segment": "e",
+      "sitemap": 1
+    },
+    {
+      "count": 1,
+      "exact": true,
+      "links": 0,
+      "numbered": false,
+      "samples": [
+        "/guide/f"
+      ],
+      "segment": "f",
+      "sitemap": 1
+    }
+  ],
+  "sitemap": {
+    "errors": [],
+    "files_read": 3,
+    "found": true,
+    "in_scope": 9,
+    "linked_in_sitemap": 5,
+    "lower_bound": false,
+    "nested_listed": 2,
+    "nested_read": 2,
+    "nested_skipped": 0,
+    "out_of_scope": 2,
+    "source": "robots",
+    "url": "https://docs.example/sitemap_index.xml"
+  },
+  "start_page": {
+    "final_url": "https://docs.example/guide/",
+    "hreflang": [],
+    "html_lang": "en",
+    "links_below_path": 5,
+    "links_same_origin": 6,
+    "links_total": 7,
+    "media_type": "text/html",
+    "median_response_ms": 0,
+    "outcome": "included",
+    "response_ms": [
+      0
+    ],
+    "status": 200,
+    "text_length": 510,
+    "throttled": 0
+  },
+  "start_section": null,
+  "timing": {
+    "median_response_ms": 0,
+    "throttled": 0
+  },
+  "url_list": {},
+  "warnings": []
+}

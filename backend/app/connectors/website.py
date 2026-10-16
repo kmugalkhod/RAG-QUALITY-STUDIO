@@ -523,6 +523,107 @@ def _retry_after_seconds(headers: dict[str, str], now: datetime) -> float | None
     return max(0.0, (moment - now).total_seconds())
 
 
+def _preamble_crawl_delay(lines: list[str]) -> int | None:
+    """A Crawl-delay placed before the first User-agent line, if any."""
+    delays = []
+    for raw in lines:
+        key, _, value = raw.split("#", 1)[0].partition(":")
+        key = key.strip().lower()
+        if key == "user-agent":
+            break
+        if key == "crawl-delay" and value.strip().isdigit():
+            delays.append(int(value.strip()))
+    return max(delays) if delays else None
+
+
+class RobotRules:
+    """robots.txt rules, read at least as strictly as `urllib.robotparser`.
+
+    Python's parser ends a group at a blank line, so rules after a blank line
+    inside a group are ignored, and it ignores a Crawl-delay placed before the
+    first User-agent line. RFC 9309 groups end only at the next User-agent
+    line. A URL may be fetched only when both readings allow it, and the
+    longest delay of both readings and the preamble applies, so this reading
+    can only make a crawl narrower or slower than Python's parser alone.
+    """
+
+    def __init__(self, url: str, text: str):
+        lines = text.splitlines()
+        self._python = RobotFileParser(url)
+        self._python.parse(lines)
+        # Blank and comment-only lines dropped: groups run to the next User-agent.
+        self._grouped = RobotFileParser(url)
+        self._grouped.parse([line for line in lines if line.split("#", 1)[0].strip()])
+        self._preamble_delay = _preamble_crawl_delay(lines)
+
+    def can_fetch(self, user_agent: str, url: str) -> bool:
+        return self._python.can_fetch(user_agent, url) and self._grouped.can_fetch(
+            user_agent, url
+        )
+
+    def crawl_delay(self, user_agent: str) -> float | None:
+        delays = [
+            float(value)
+            for value in (
+                self._python.crawl_delay(user_agent),
+                self._grouped.crawl_delay(user_agent),
+                self._preamble_delay,
+            )
+            if value
+        ]
+        return max(delays) if delays else None
+
+    def site_maps(self) -> list[str]:
+        return list(self._python.site_maps() or [])
+
+
+def parse_robots(response) -> RobotRules | None:
+    """The rules of a robots.txt response; None when the file does not exist.
+
+    Any status other than 2xx or 404 means robots.txt could not be checked
+    safely, so no page of that origin may be fetched.
+    """
+    if response.status == 404:
+        return None
+    if not 200 <= response.status < 300:
+        raise failure("robots_unavailable", "robots.txt could not be checked safely.")
+    return RobotRules(response.url, response.content.decode("utf-8", errors="replace"))
+
+
+def parse_sitemap_response(response, max_bytes: int):
+    """The parsed XML root of a sitemap response.
+
+    gzip is decompressed within `max_bytes`; document types and entities are
+    refused before parsing.
+    """
+    if not 200 <= response.status < 300:
+        raise failure(
+            "sitemap_request_failed",
+            f"The sitemap could not be fetched (HTTP {response.status}).",
+        )
+    media = _media_type(response.headers)
+    content = response.content
+    compressed = (
+        urlsplit(response.url).path.lower().endswith(".gz")
+        or media in GZIP_MEDIA
+        or response.headers.get("content-encoding", "").lower() == "gzip"
+    )
+    if compressed:
+        content = _gunzip(content, max_bytes)
+    elif media not in SITEMAP_MEDIA:
+        raise failure("unsupported_sitemap", "The sitemap response must be XML.")
+    upper = content.upper()
+    if b"<!DOCTYPE" in upper or b"<!ENTITY" in upper:
+        raise failure(
+            "unsafe_sitemap",
+            "Sitemaps with document types or entities are not accepted.",
+        )
+    try:
+        return ET.fromstring(content)
+    except ET.ParseError as exc:
+        raise failure("invalid_sitemap", "The sitemap XML is malformed.") from exc
+
+
 def _gunzip(content: bytes, limit: int) -> bytes:
     decompressor = zlib.decompressobj(16 + zlib.MAX_WBITS)
     try:
@@ -622,7 +723,7 @@ class WebsiteConnector:
         deadline = started + max(0.0, policy.deadline_seconds - resume.elapsed_seconds)
         budget = _ByteBudget(policy.max_total_bytes, resume.transferred)
         limiter = _OriginRateLimiter(self.clock, self.sleeper)
-        robots: dict[str, RobotFileParser | ConnectorIssue | None] = {}
+        robots: dict[str, RobotRules | ConnectorIssue | None] = {}
         # One lock per origin, so a slow robots.txt only delays its own origin.
         robots_locks: dict[str, threading.Lock] = {}
         robots_guard = threading.Lock()
@@ -632,7 +733,7 @@ class WebsiteConnector:
         def interval_for(url: str) -> float:
             interval = 1 / policy.requests_per_second
             rules = robots.get(url_origin(url))
-            if isinstance(rules, RobotFileParser):
+            if isinstance(rules, RobotRules):
                 crawl_delay = rules.crawl_delay(policy.user_agent)
                 if crawl_delay:
                     # robots.txt may only slow the crawl down, never speed it up.
@@ -744,25 +845,12 @@ class WebsiteConnector:
                     except ConnectorFailure as exc:
                         robots[origin] = exc.issue
                         raise
-                    if response.status == 404:
-                        robots[origin] = None
-                    elif 200 <= response.status < 300:
-                        parser = RobotFileParser()
-                        parser.set_url(response.url)
-                        parser.parse(
-                            response.content.decode(
-                                "utf-8", errors="replace"
-                            ).splitlines()
-                        )
-                        robots[origin] = parser
-                    else:
+                    try:
+                        robots[origin] = parse_robots(response)
+                    except ConnectorFailure as exc:
                         # Retried already; record once so the origin's other pages
                         # fail without more requests. Not retryable by the worker.
-                        robots[origin] = ConnectorIssue(
-                            code="robots_unavailable",
-                            message="robots.txt could not be checked safely.",
-                            retryable=False,
-                        )
+                        robots[origin] = exc.issue
             rules = robots[origin]
             if isinstance(rules, ConnectorIssue):
                 raise ConnectorFailure(rules)
@@ -869,36 +957,7 @@ class WebsiteConnector:
         def fetch_sitemap(url: str, tally: list[int]):
             """The parsed XML root of a sitemap; gzip is decompressed within limits."""
             response = request(url, tally, page_scope=False, gzip=True)
-            if not 200 <= response.status < 300:
-                raise failure(
-                    "sitemap_request_failed",
-                    f"The sitemap could not be fetched (HTTP {response.status}).",
-                )
-            media = _media_type(response.headers)
-            content = response.content
-            compressed = (
-                urlsplit(response.url).path.lower().endswith(".gz")
-                or media in GZIP_MEDIA
-                or response.headers.get("content-encoding", "").lower() == "gzip"
-            )
-            if compressed:
-                content = _gunzip(content, policy.max_response_bytes)
-            elif media not in SITEMAP_MEDIA:
-                raise failure(
-                    "unsupported_sitemap", "The sitemap response must be XML."
-                )
-            upper = content.upper()
-            if b"<!DOCTYPE" in upper or b"<!ENTITY" in upper:
-                raise failure(
-                    "unsafe_sitemap",
-                    "Sitemaps with document types or entities are not accepted.",
-                )
-            try:
-                return ET.fromstring(content)
-            except ET.ParseError as exc:
-                raise failure(
-                    "invalid_sitemap", "The sitemap XML is malformed."
-                ) from exc
+            return parse_sitemap_response(response, policy.max_response_bytes)
 
         def sitemap_pages(root, room: int):
             """Up to `room` listed pages; admission could never record more."""
