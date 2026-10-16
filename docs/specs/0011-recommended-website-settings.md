@@ -1,7 +1,7 @@
 # 0011. Recommended Website settings from the site
 
 **Date**: 2026-10-14
-**Status**: Trimmed 2026-10-14 by the owner's decision: Website only, computed by code, no decision model. The owner accepted the recommended defaults for D3-D7, D10 and D11 below and asked for Slices 0-3 to be built and pushed. Sources: two independent research reports (A and B, 2026-10-14, held in the session scratchpad) and a combined draft that also covered jev and Extract. That draft's extra parts are listed under "Later, optional". Code claims were checked against the working tree at `4dc466f`.
+**Status**: Slices 0-3 built (Slice 3 on 2026-10-17); `SETTING_RECOMMENDATIONS_ENABLED` stays off pending the owner's review of the Slice 3 card and evaluation (`docs/qa/setting-recommendations-2026-10/README.md`). Trimmed 2026-10-14 by the owner's decision: Website only, computed by code, no decision model. The owner accepted the recommended defaults for D3-D7, D10 and D11 below and asked for Slices 0-3 to be built and pushed. Sources: two independent research reports (A and B, 2026-10-14, held in the session scratchpad) and a combined draft that also covered jev and Extract. That draft's extra parts are listed under "Later, optional". Code claims were checked against the working tree at `4dc466f`.
 
 ## Summary
 

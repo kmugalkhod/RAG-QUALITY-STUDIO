@@ -778,6 +778,14 @@ export type SettingRecommendation = {
     /** robots.txt facts of the entered origin and of other origins read. */
     robots?: RecommendationRobotsFacts;
     extra_robots?: RecommendationRobotsFacts[];
+    /** The sitemap read for a crawl or sitemap input; absent for other inputs. */
+    sitemap?: {
+      found: boolean | null;
+      url: string | null;
+      in_scope: number;
+      lower_bound: boolean;
+    };
+    sample_pages?: { url: string; status: number | null; text_length: number | null }[];
     [key: string]: unknown;
   };
   created_at: string;

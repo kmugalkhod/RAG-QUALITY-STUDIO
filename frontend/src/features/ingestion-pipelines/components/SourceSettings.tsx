@@ -13,12 +13,25 @@ import type {
   NotionConfig,
   S3Config,
   SettingRecommendation,
+  SettingsProvenance,
   WebsiteConfig,
+  WebsiteSelection,
 } from '../model';
 import { derivedIncludePrefixes, folderStartUrl } from '../editorModel';
-import { applyRecommendation, recommendationMatches } from '../recommendationsModel';
+import {
+  addressSelection,
+  analysableSelection,
+  applyRecommendation,
+  effectiveStatus,
+  enteredSelection,
+  isStale,
+  recommendationMatches,
+  resetToRecommended,
+  selectionKey,
+  selectionUrls,
+} from '../recommendationsModel';
 import { useWebsiteRecommendation } from '../useWebsiteRecommendation';
-import { WebsiteRecommendations } from './WebsiteRecommendations';
+import { WebsiteRecommendations, type RecommendationCardView } from './WebsiteRecommendations';
 import {
   CHECK_ROW,
   DETAILS,
@@ -118,16 +131,20 @@ export type WebsiteRecommendationContext = {
   /** The recommendation already applied to this source in the draft. */
   applied?: SettingRecommendation;
   onApplied: (recommendation: SettingRecommendation) => void;
+  /** A viewer sees recommendations but cannot start, cancel or apply them. */
+  readOnly?: boolean;
+  /** What the open saved version recorded for this source, when it recorded anything. */
+  provenance?: SettingsProvenance['nodes'][string];
+  savedVersion?: number;
+  /** Changes when another saved version opens, so the card starts again from it. */
+  versionKey?: string;
 };
 
-const analysableUrl = (value: string) => {
-  try {
-    const url = new URL(value.trim());
-    return url.protocol === 'http:' || url.protocol === 'https:' ? url.href : null;
-  } catch {
-    return null;
-  }
-};
+const ADDRESS_HINT =
+  'Enter a page, a section or a sitemap. Settings are recommended from the site.';
+
+const finished = (value?: SettingRecommendation): value is SettingRecommendation =>
+  value?.status === 'succeeded' || value?.status === 'expired';
 
 export function WebsiteSettings({
   config,
@@ -207,31 +224,94 @@ export function WebsiteSettings({
     // Runs when a new recommendation arrives; config is read at that moment.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [latest]);
-  const shown = recommendations
-    ? [latest, recommendations.applied].find(
-        (value) => value !== undefined && recommendationMatches(config, value),
-      )
-    : undefined;
-  const cardShown = !!shown && (shown.status === 'succeeded' || shown.status === 'expired');
-  const formHidden = cardShown && !editing;
-  const analyse = (value: string) => {
-    const url = analysableUrl(value);
-    if (!recommendations || mode !== 'crawl' || !url || url === lastAnalysed.current) {
+
+  // What the card shows: the running analysis, its failure, the recommendation this
+  // source uses (the latest finished one, else the one applied in the draft), or what
+  // the saved version recorded.
+  const readOnly = !!recommendations?.readOnly;
+  const otherPages = recommendations?.otherSourcesMaxPages ?? 0;
+  const described = recommendations ? [latest, recommendations.applied].find(finished) : undefined;
+  const stale = !!described && isStale(config, described, otherPages);
+  let view: RecommendationCardView | null = null;
+  if (recommendations) {
+    if (analysis.analysing) {
+      view = { kind: 'analysing', recommendation: latest };
+    } else if (analysis.error) {
+      view = { kind: 'failed', message: analysis.error };
+    } else if (latest?.status === 'failed') {
+      view = { kind: 'failed', message: latest.error ?? 'The site check did not finish.' };
+    } else if (latest?.status === 'cancelled') {
+      view = { kind: 'cancelled' };
+    } else if (described) {
+      view = {
+        kind: 'live',
+        recommendation: described,
+        stale,
+        expired: effectiveStatus(described) === 'expired',
+      };
+    } else if (recommendations.provenance?.status === 'applied') {
+      view = {
+        kind: 'saved',
+        provenance: recommendations.provenance,
+        version: recommendations.savedVersion,
+      };
+    }
+  }
+  const current = view?.kind === 'live' && !stale;
+  const hasFieldErrors = Object.keys(fieldErrors).some((key) => key.startsWith('website.'));
+  // The form folds behind Edit only while a current recommendation fills it; a server
+  // error on one of its fields keeps it open.
+  const collapsible = current && !readOnly && !hasFieldErrors;
+  const formHidden = collapsible && !editing;
+  // The address the user entered: the analysed input while the draft reads the
+  // sitemap the recommendation chose for it.
+  const entered = recommendations ? enteredSelection(config, described) : config.selection;
+  const analyse = (
+    selection: WebsiteSelection,
+    { force = false, refresh = false }: { force?: boolean; refresh?: boolean } = {},
+  ) => {
+    const valid = analysableSelection(selection);
+    if (!recommendations || readOnly || !valid) {
       return;
     }
-    lastAnalysed.current = url;
-    void analysis.start({ mode: 'crawl', start_url: url }, recommendations.otherSourcesMaxPages);
+    const key = `${selectionKey(valid)}|${otherPages}`;
+    if (!force) {
+      const describedKey = described
+        ? `${selectionKey(described.inputs.selection)}|${described.inputs.other_sources_max_pages}`
+        : null;
+      const recorded = recommendations.provenance?.entered_url;
+      if (
+        key === lastAnalysed.current ||
+        key === describedKey ||
+        (!described &&
+          !!recorded &&
+          selectionKey(valid) === selectionKey(addressSelection(recorded)))
+      ) {
+        return;
+      }
+    }
+    lastAnalysed.current = key;
+    void analysis.start(valid, otherPages, refresh);
   };
   // Analysis starts when a valid address is committed: blur, Enter or paste.
   const urlHandlers: Partial<ComponentProps<typeof Input>> = recommendations
     ? {
-        onBlur: (event) => analyse(event.target.value),
+        onBlur: (event) => analyse(addressSelection(event.target.value, entered.mode)),
         onKeyDown: (event) => {
           if (event.key === 'Enter') {
-            analyse(event.currentTarget.value);
+            analyse(addressSelection(event.currentTarget.value, entered.mode));
           }
         },
-        onPaste: (event) => analyse(event.clipboardData.getData('text')),
+        onPaste: (event) => {
+          const text = event.clipboardData.getData('text');
+          const pasted = addressSelection(text, entered.mode);
+          if (pasted.mode === 'url_list') {
+            // A multi-line paste is a URL list; a one-line field would drop the breaks.
+            event.preventDefault();
+            setSelection(pasted);
+          }
+          analyse(pasted);
+        },
       }
     : {};
   const toggleEdit = () => {
@@ -253,7 +333,7 @@ export function WebsiteSettings({
     ) : (
       children
     );
-  const setSelection = (selection: WebsiteConfig['selection']) => {
+  function setSelection(selection: WebsiteConfig['selection']) {
     const inferredOrigins = originsOf(websiteUrls(selection));
     const originsDerived =
       config.allowed_origins.length === 0 ||
@@ -278,7 +358,7 @@ export function WebsiteSettings({
       allowed_origins: allowedOrigins,
       include_path_prefixes: includePrefixes,
     });
-  };
+  }
   // The URL list field owns its text; this serves the single-URL input.
   const setUrlValue = (value: string) =>
     setSelection(
@@ -288,6 +368,24 @@ export function WebsiteSettings({
           ? { mode: 'crawl', start_url: value }
           : { mode: 'sitemap', sitemap_url: value },
     );
+  // Recommendations on: a discovery change keeps the entered address.
+  const discoveryFor = (next: string): WebsiteSelection => {
+    const urls = selectionUrls(entered).filter(Boolean);
+    const recommended = described?.recommended?.selection;
+    if (next === 'url_list') {
+      return { mode: 'url_list', urls };
+    }
+    if (next === 'single_url') {
+      return { mode: 'single_url', url: urls[0] ?? '' };
+    }
+    if (next === 'sitemap') {
+      return {
+        mode: 'sitemap',
+        sitemap_url: recommended?.mode === 'sitemap' ? recommended.sitemap_url : (urls[0] ?? ''),
+      };
+    }
+    return { mode: 'crawl', start_url: urls[0] ?? '' };
+  };
   const numberField = (
     key: 'max_pages' | 'max_depth' | 'requests_per_second',
     label: string,
@@ -327,80 +425,143 @@ export function WebsiteSettings({
     );
   };
 
+  const discoverySelect = (
+    <Label>
+      Discovery mode
+      <NativeSelect
+        value={mode}
+        onChange={(event) => {
+          const next = event.target.value;
+          if (recommendations) {
+            setSelection(discoveryFor(next));
+            return;
+          }
+          setSelection(
+            next === 'url_list'
+              ? { mode: 'url_list', urls: [] }
+              : next === 'single_url'
+                ? { mode: 'single_url', url: '' }
+                : next === 'sitemap'
+                  ? { mode: 'sitemap', sitemap_url: '' }
+                  : { mode: 'crawl', start_url: '' },
+          );
+        }}
+      >
+        <NativeSelectOption value="single_url">Single URL</NativeSelectOption>
+        <NativeSelectOption value="url_list">URL list</NativeSelectOption>
+        <NativeSelectOption value="crawl">Crawl from URL</NativeSelectOption>
+        <NativeSelectOption value="sitemap">Sitemap</NativeSelectOption>
+      </NativeSelect>
+    </Label>
+  );
+  const slashAdvisory = widerScope !== null && slashedStart && !current && (
+    <div className="flex flex-col gap-2">
+      <small id={`${fieldId}-slash`} role="status" className="text-xs text-warning">
+        This URL has no trailing slash, so the crawl covers every page under{' '}
+        <code>{widerScope}</code>. Add a slash to crawl only{' '}
+        <code>{new URL(slashedStart).pathname}</code>.
+      </small>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="self-start"
+        onClick={() => setUrlValue(slashedStart)}
+      >
+        Add trailing slash
+      </Button>
+    </div>
+  );
+  const slashId = slashAdvisory ? `${fieldId}-slash` : undefined;
+  const addressHintId = `${fieldId}-address-hint`;
+  const addressDescribedBy = [addressHintId, slashId].filter(Boolean).join(' ');
+
   return (
     <>
-      <Label>
-        Discovery mode
-        <NativeSelect
-          value={mode}
-          onChange={(event) => {
-            const next = event.target.value;
-            setSelection(
-              next === 'url_list'
-                ? { mode: 'url_list', urls: [] }
-                : next === 'single_url'
-                  ? { mode: 'single_url', url: '' }
-                  : next === 'sitemap'
-                    ? { mode: 'sitemap', sitemap_url: '' }
-                    : { mode: 'crawl', start_url: '' },
-            );
-          }}
-        >
-          <NativeSelectOption value="single_url">Single URL</NativeSelectOption>
-          <NativeSelectOption value="url_list">URL list</NativeSelectOption>
-          <NativeSelectOption value="crawl">Crawl from URL</NativeSelectOption>
-          <NativeSelectOption value="sitemap">Sitemap</NativeSelectOption>
-        </NativeSelect>
-      </Label>
-      <Label>
-        {URL_LABEL[mode]}
-        {mode === 'url_list' ? (
-          <LinesTextarea
-            value={websiteUrls(config.selection)}
-            rows={4}
-            onLines={(urls) => setSelection({ mode: 'url_list', urls })}
-          />
-        ) : (
-          <Input
-            type="url"
-            value={websiteUrls(config.selection)[0]}
-            aria-describedby={widerScope !== null ? `${fieldId}-slash` : undefined}
-            onChange={(event) => setUrlValue(event.target.value)}
-            {...urlHandlers}
-          />
-        )}
-      </Label>
-      {widerScope !== null && slashedStart && (
+      {recommendations ? (
         <div className="flex flex-col gap-2">
-          <small id={`${fieldId}-slash`} role="status" className="text-xs text-warning">
-            This URL has no trailing slash, so the crawl covers every page under{' '}
-            <code>{widerScope}</code>. Add a slash to crawl only{' '}
-            <code>{new URL(slashedStart).pathname}</code>.
+          <Label>
+            Website address
+            {entered.mode === 'url_list' ? (
+              <LinesTextarea
+                value={entered.urls}
+                rows={4}
+                aria-describedby={addressDescribedBy}
+                onLines={(urls) => setSelection({ mode: 'url_list', urls })}
+                onBlur={(event) => analyse(addressSelection(event.target.value, 'url_list'))}
+              />
+            ) : (
+              <Input
+                type="url"
+                value={selectionUrls(entered)[0]}
+                aria-describedby={addressDescribedBy}
+                onChange={(event) =>
+                  setSelection(addressSelection(event.target.value, entered.mode))
+                }
+                {...urlHandlers}
+              />
+            )}
+          </Label>
+          <small id={addressHintId} className="text-xs text-foreground-muted">
+            {ADDRESS_HINT}
           </small>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="self-start"
-            onClick={() => setUrlValue(slashedStart)}
-          >
-            Add trailing slash
-          </Button>
         </div>
+      ) : (
+        <>
+          {discoverySelect}
+          <Label>
+            {URL_LABEL[mode]}
+            {mode === 'url_list' ? (
+              <LinesTextarea
+                value={websiteUrls(config.selection)}
+                rows={4}
+                onLines={(urls) => setSelection({ mode: 'url_list', urls })}
+              />
+            ) : (
+              <Input
+                type="url"
+                value={websiteUrls(config.selection)[0]}
+                aria-describedby={slashId}
+                onChange={(event) => setUrlValue(event.target.value)}
+              />
+            )}
+          </Label>
+        </>
       )}
-      {recommendations && (mode === 'crawl' || shown) && (
+      {slashAdvisory}
+      {view && (
         <WebsiteRecommendations
+          view={view}
           config={config}
-          recommendation={analysis.analysing ? latest : shown}
-          error={analysis.error}
-          analysing={analysis.analysing}
+          readOnly={readOnly}
           editing={editing}
-          formId={formId}
+          formId={collapsible ? formId : undefined}
           onToggleEdit={toggleEdit}
+          onCancel={() => void analysis.cancel()}
+          onRetry={() => analyse(entered, { force: true })}
+          onReanalyze={() => analyse(entered, { force: true, refresh: true })}
+          onReset={() => {
+            if (described) {
+              emit(resetToRecommended(config, described));
+            }
+          }}
         />
       )}
       {settingsRegion(
         <>
+          {recommendations && discoverySelect}
+          {recommendations &&
+            config.selection.mode === 'sitemap' &&
+            entered !== config.selection && (
+              <Label>
+                Sitemap URL
+                <Input
+                  type="url"
+                  value={config.selection.sitemap_url}
+                  onChange={(event) => setUrlValue(event.target.value)}
+                />
+              </Label>
+            )}
           {showPageLimit && (
             <div className={FIELD_GRID}>
               {numberField('max_pages', 'Maximum pages', { min: 1, max: 1000 })}

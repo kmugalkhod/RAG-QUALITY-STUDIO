@@ -148,6 +148,8 @@ export function IngestionPipelineEditor({
   const [appliedRecommendations, setAppliedRecommendations] = useState<
     Record<string, SettingRecommendation>
   >({});
+  // A viewer may read recommendations but not start them; loaded only while they are on.
+  const [recommendationsReadOnly, setRecommendationsReadOnly] = useState(false);
   const [selectedNode, setSelectedNode] = useState('source');
   // Sources panel editor: which sources a stage edit applies to, and the sources marked
   // customized in this session before their settings differ from the shared ones.
@@ -270,6 +272,23 @@ export function IngestionPipelineEditor({
       disposed = true;
     };
   }, [projectId, pipelineId, versionId, open]);
+
+  // Viewers get the recommendations card without its actions (the server refuses their
+  // POSTs). The role is read only while the server offers recommendations.
+  const recommendationsEnabled = !!extractionCapabilities?.setting_recommendations?.enabled;
+  useEffect(() => {
+    if (!recommendationsEnabled) {
+      return;
+    }
+    let disposed = false;
+    api
+      .getProjectAccess(projectId)
+      .then((access) => !disposed && setRecommendationsReadOnly(access.role === 'viewer'))
+      .catch(() => !disposed && setRecommendationsReadOnly(false));
+    return () => {
+      disposed = true;
+    };
+  }, [projectId, recommendationsEnabled]);
 
   useEffect(() => {
     let disposed = false;
@@ -976,15 +995,23 @@ export function IngestionPipelineEditor({
     if (!draft) {
       return;
     }
-    const websiteIds = new Set(
-      draft.execution.nodes
-        .filter((node) => node.type === 'source' && node.config.kind === 'website')
-        .map((node) => node.id),
-    );
-    const recommendationIds = Object.entries(appliedRecommendations)
-      .filter(([nodeId]) => websiteIds.has(nodeId))
-      .map(([, recommendation]) => recommendation.id)
-      .slice(0, 5);
+    const websiteIds = draft.execution.nodes
+      .filter((node) => node.type === 'source' && node.config.kind === 'website')
+      .map((node) => node.id);
+    // A source analysed in this draft sends its new recommendation; one that was not
+    // keeps the recommendation the open version recorded, so the server can compare
+    // the saved values with it again.
+    const recorded = saved?.settings_provenance?.nodes ?? {};
+    const recommendationIds = Array.from(
+      new Set(
+        websiteIds.flatMap((nodeId) => {
+          const id =
+            appliedRecommendations[nodeId]?.id ??
+            (recorded[nodeId]?.status === 'applied' ? recorded[nodeId]?.recommendation_id : null);
+          return id ? [id] : [];
+        }),
+      ),
+    ).slice(0, 5);
     void perform(async () => {
       const version = saved
         ? await api.createIngestionPipelineVersion(
@@ -1188,10 +1215,15 @@ export function IngestionPipelineEditor({
           : total,
       0,
     );
+    const recorded = saved?.settings_provenance?.nodes[nodeId];
     return {
       projectId,
       nodeId,
       otherSourcesMaxPages,
+      readOnly: recommendationsReadOnly,
+      provenance: recorded?.status === 'applied' ? recorded : undefined,
+      savedVersion: saved?.version,
+      versionKey: saved?.id ?? 'new',
       applied: appliedRecommendations[nodeId],
       onApplied: (recommendation: SettingRecommendation) =>
         setAppliedRecommendations((current) => ({ ...current, [nodeId]: recommendation })),

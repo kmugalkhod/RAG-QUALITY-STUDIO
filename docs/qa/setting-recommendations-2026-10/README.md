@@ -137,3 +137,55 @@ Slice 3 runs the Slice 2 probe and rules on every row, with the feature on, in a
 **Usability:** for each row that can be run, count the fields a user must still change for a valid, safe draft after the recommendation is applied. The target is 1 field (the URL) on 80% or more of rows; today it is 2 of 11. The results list this count beside `touches_valid_safe` from `baseline.csv`.
 
 The live sites may change before Slice 3 runs. If a site's robots.txt, sitemap or structure has changed since 2026-10-14, the results note it, and that row is not counted against the rules.
+
+## Results (Slice 3, 2026-10-16)
+
+**How it was run.** [`backend/scripts/setting_recommendations/evaluate.py`](../../../backend/scripts/setting_recommendations/evaluate.py) runs the real probe (`probe_website`, the product's SSRF-safe client, robots.txt, at most 18 requests at 1 request per second per origin, Crawl-delay honoured) and then `recommend()` for every row, with `other_sources_max_pages` 0 and the page ceiling 200, exactly as the worker does. It was run once in a throwaway backend container with no database, no model and no embedding calls. All 15 rows took about 5 minutes. Per-row values, reason codes, warnings and scores are in [`results.csv`](results.csv).
+
+**Network note.** The first attempt used the host's resolver, which answers with DNS64 (NAT64) addresses in `64:ff9b::/96` for IPv4-only hosts. The SSRF guard treats those as reserved, so six sites failed with "The website destination is not public." That is the guard working as designed, not a rule failure. The scored run used public resolvers (`--dns 1.1.1.1 --dns 8.8.8.8`). A deployment behind DNS64 would block such sites the same way.
+
+**Site changes since 2026-10-14.** None seen that affect a label. robots.txt, sitemaps and redirects matched the labelling notes on every row.
+
+### Per site
+
+| ID | Status | Mode | Origins | Include | Exclude | Pages | Depth | Speed | Warnings | Safe | Mode ok | Pages ok | Touches (today → now) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| W1a | succeeded | crawl | docs.python.org | `/3/tutorial/` | none | 50 (open, Check this) | 2 | 2 | none | yes | yes | no (17-30) | 2 → 1 |
+| W1b | succeeded | crawl | docs.python.org | `/3/tutorial/` | none | 50 (open, Check this) | 2 | 2 | none | yes | yes | no (17-30) | 1 → 1 |
+| W2 | succeeded | url_list | en.wikipedia.org | n/a | n/a | 10 | n/a | 2 | none | yes | yes | yes | 2 → 1 |
+| W3 | succeeded | url_list | www.gov.uk | n/a | n/a | 10 | n/a | 2 | none | yes | yes | yes | 2 → 1 |
+| W4 | succeeded | url_list | developer.mozilla.org | n/a | n/a | 10 | n/a | 2 | none | yes | yes | yes | 2 → 1 |
+| S1 | succeeded | sitemap | fastapi.tiangolo.com | `/tutorial/` | none | 60 | n/a | 2 | none | yes | yes | yes | 1 → 1 |
+| S2 | succeeded | crawl | www.openbsd.org | `/faq/` | none | 90 (open, Check this) | 2 | 2 | none | yes | yes | no (35-60) | 2 → 1 |
+| S3 | succeeded | crawl | www.sqlite.org | every path (Check this) | none | 200 (open) | 3 | 2 | none | known label mismatch | yes | no (36-60) | 2 → 2 |
+| S4 | succeeded | crawl | www.rust-lang.org, rust-lang.org | every path | none | 140 (open, Check this) | 3 | 2 | none | yes | yes | no (25-60) | 2 → 1 |
+| S5 | succeeded | crawl | hacks.mozilla.org | every path | none | 100 (open, Check this) | 2 | 0.1 | none | yes | yes (crawl allowed) | no (150-200) | 2 → 1 |
+| S6 | succeeded | crawl | www.gnu.org | `/software/make/manual/html_node/` | none | 200 | 2 | 0.25 | none | yes | yes | yes | 2 → 1 |
+| S7 | failed | none | | | | | | | `robots_blocks_start` | yes | n/a | n/a | n/a |
+| S8 | failed | none | | | | | | | `robots_blocks_start` | yes | n/a | n/a | n/a |
+| S9 | failed | none | | | | | | | `client_rendered` | yes | n/a | n/a | n/a |
+| S10 | failed | none | | | | | | | `non_html_start` | yes | n/a | n/a | n/a |
+
+### Summary against the Slice 3 acceptance
+
+| Criterion | Target | Result | Pass |
+| --- | --- | --- | --- |
+| Scope safety, all 15 rows (origins, include, start section, speed, pages, `none` rows) | 0 failures | 0 failures (S3 counted as a known label mismatch, see below) | Pass |
+| Mode on reachable rows that can be run | 90% or more | 11 of 11 (100%) | Pass |
+| `max_pages` within the labelled range | 80% or more | 5 of 11 (45%) | **Fail** |
+| W1a without the slash gives `/3/tutorial/` | required | `/3/tutorial/`, reason `include_redirect_folder` | Pass |
+| Fields a user must touch is 1 (the URL) | 80% or more | 10 of 11 (91%); today 2 of 11 (18%) | Pass |
+
+Reported fields: origins equal the label on 11 of 11; include equals the label on 10 of 11 (not S3); speed equals `max_speed` on 11 of 11 (S5 0.1 and S6 0.25 from Crawl-delay, including S5's delay before the first `User-agent` line); depth within range on 6 of 7 crawl rows (S3 gives 3); no exclusion was recommended on any row, so every row is within `acceptable_exclusions`, but S4 found 0 of the 10 language exclusions and S5 0 of the 7 listing exclusions. All 4 `none` rows ended failed with the expected warning, so no draft was offered (S8 is now blocked, because Slice 2 reads robots.txt groups as RFC 9309 does).
+
+**S3 (known label mismatch, not a rule failure).** The label wants the non-folder prefix `/lang`. The folder rule gives every path, which equals today's derivation, is marked **Check this**, and is no wider than the baseline. It still needs one more touch (the include prefix), which is the one row below the usability target.
+
+**Why page counts miss.** Every miss comes from the open-frontier branch, `min(C, B, ceil10(max(50, 2 × N)))`, which never goes below 50 and is marked **Check this**:
+
+- W1a and W1b: a probe gap, not a site change. The tutorial's start page declares `rel=canonical` `.../3/tutorial/index.html`, and the chapter pages link to `index.html`. The probe counts that alias of the start page as a new level-two URL (L2 = 1), so the frontier is "open" and the floor of 50 applies. Treating the start page's canonical URL as the start page itself would close the frontier and give 20, inside 17-30. Not fixed here because it does not affect scope safety; it is a candidate fix for the owner.
+- S2: the frontier really is open (FAQ chapters link to 6 pages the start page does not), so 2 × 40 rounds to 90.
+- S4: governance links 52 team pages, so 2 × 67 rounds to 140. The label's 25-60 assumed about 30 English pages.
+- S5: the floor and doubling give 100. The label expects the ceiling (150-200) because the site has about 1,630 posts; the crawl rule does not use the sitemap's 1,001+ post count because coverage was partial.
+- S3: the whole-site scope reaches the ceiling (200).
+
+Raising the page target to 80% would need the canonical fix (W1a, W1b: 7 of 11) plus a rule change for open frontiers, which the owner should decide on.

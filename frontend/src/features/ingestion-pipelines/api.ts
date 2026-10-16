@@ -89,6 +89,11 @@ export function getSettingRecommendation(
   );
 }
 
+/** The caller's role in the project; viewers read recommendations but cannot start them. */
+export function getProjectAccess(projectId: string): Promise<{ role: string }> {
+  return request<{ role: string }>(`/projects/${encodeURIComponent(projectId)}/access`);
+}
+
 export function cancelSettingRecommendation(
   projectId: string,
   recommendationId: string,

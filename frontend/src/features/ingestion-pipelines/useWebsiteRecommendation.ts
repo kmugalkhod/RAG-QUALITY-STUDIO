@@ -71,5 +71,25 @@ export function useWebsiteRecommendation(projectId: string, nodeId: string) {
     [projectId, nodeId],
   );
 
-  return { recommendation, error, analysing: polling, start };
+  /** Cancels the running analysis; a response still in flight for it is ignored. */
+  const cancel = useCallback(async () => {
+    if (!recommendation || !active(recommendation)) {
+      return;
+    }
+    generation.current += 1;
+    const ticket = generation.current;
+    setError('');
+    try {
+      const next = await api.cancelSettingRecommendation(projectId, recommendation.id);
+      if (ticket === generation.current) {
+        setRecommendation(next);
+      }
+    } catch (cause) {
+      if (ticket === generation.current) {
+        setError(requestErrorMessage(cause));
+      }
+    }
+  }, [projectId, recommendation]);
+
+  return { recommendation, error, analysing: polling && !error, start, cancel };
 }

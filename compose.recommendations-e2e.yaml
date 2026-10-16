@@ -1,0 +1,13 @@
+# Apply after compose.e2e.yaml and compose.index-e2e.yaml to turn on recommended
+# Website settings (spec 0011) in an isolated browser stack only. The development
+# project keeps SETTING_RECOMMENDATIONS_ENABLED from its own environment (off by default).
+services:
+  backend:
+    environment:
+      SETTING_RECOMMENDATIONS_ENABLED: "true"
+  worker:
+    environment:
+      SETTING_RECOMMENDATIONS_ENABLED: "true"
+  dispatcher:
+    environment:
+      SETTING_RECOMMENDATIONS_ENABLED: "true"

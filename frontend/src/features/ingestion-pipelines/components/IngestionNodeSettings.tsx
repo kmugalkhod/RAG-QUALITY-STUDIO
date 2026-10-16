@@ -173,6 +173,10 @@ export function IngestionNodeSettings({
         : stageName(node);
   // Server errors are keyed per node, so each source shows only its own.
   const nodeErrors = fieldErrorsForNode(serverFieldErrors, selected?.id ?? selectedNode);
+  const websiteContext =
+    selected?.type === 'source' && selected.config.kind === 'website'
+      ? websiteRecommendations?.(selected.id)
+      : undefined;
   const readsFiles = extractReadsFiles(nodes);
   const [extractAdvancedOpen, setExtractAdvancedOpen] = useState(false);
   const selectedOcr =
@@ -539,10 +543,10 @@ export function IngestionNodeSettings({
               </>
             ) : selected.config.kind === 'website' ? (
               <WebsiteSettings
-                key={selected.id}
+                key={`${selected.id}:${websiteContext?.versionKey ?? ''}`}
                 config={selected.config}
                 fieldErrors={nodeErrors}
-                recommendations={websiteRecommendations?.(selected.id)}
+                recommendations={websiteContext}
                 update={(config) =>
                   updateNode(selected.id, (node) =>
                     node.type === 'source' ? { ...node, config } : node,
