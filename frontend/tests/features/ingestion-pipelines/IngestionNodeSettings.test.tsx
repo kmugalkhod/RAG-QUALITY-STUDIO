@@ -8,7 +8,7 @@ import type { IngestionNode } from '../../../src/features/ingestion-pipelines/mo
 let lastChunk: IngestionNode | undefined;
 
 function Harness({
-  chunkVersion = 'section-token-v2',
+  chunkVersion = 'section-token-v3',
   initial,
 }: {
   chunkVersion?: string;
@@ -112,23 +112,23 @@ test('a new token chunker uses the current version and shows no upgrade', () => 
   expect(screen.queryByRole('button', { name: 'Upgrade chunking' })).not.toBeInTheDocument();
 
   fireEvent.click(screen.getByRole('radio', { name: /Parent and child/ }));
-  expect(lastChunk).toMatchObject({ config_version: 'parent-child-v2' });
+  expect(lastChunk).toMatchObject({ config_version: 'parent-child-v3' });
   expect(screen.queryByRole('button', { name: 'Upgrade chunking' })).not.toBeInTheDocument();
 
   fireEvent.click(screen.getByRole('radio', { name: /Section-aware/ }));
-  expect(lastChunk).toMatchObject({ config_version: 'section-token-v2' });
+  expect(lastChunk).toMatchObject({ config_version: 'section-token-v3' });
 });
 
 test('offers a saved section-token-v1 chunker an explicit upgrade that keeps its settings', () => {
   render(<Harness chunkVersion="section-token-v1" />);
   expect(screen.getByText('Saved with section-token-v1')).toBeInTheDocument();
-  expect(screen.getByText(/The current\s+chunking, section-token-v2:/)).toBeInTheDocument();
+  expect(screen.getByText(/The current\s+chunking, section-token-v3:/)).toBeInTheDocument();
   fireEvent.change(screen.getByLabelText('Target size (bytes)'), { target: { value: '500' } });
 
   fireEvent.click(screen.getByRole('button', { name: 'Upgrade chunking' }));
 
   expect(screen.queryByText('Saved with section-token-v1')).not.toBeInTheDocument();
-  expect(lastChunk).toMatchObject({ config_version: 'section-token-v2', target_tokens: 500 });
+  expect(lastChunk).toMatchObject({ config_version: 'section-token-v3', target_tokens: 500 });
 });
 
 function PolicyHarness({

@@ -1,0 +1,178 @@
+{
+  "A4p:A5p:fg|f1-q1": {
+    "X": "A5p",
+    "Y": "A4p"
+  },
+  "A4p:A5p:fg|f1-q4": {
+    "X": "A4p",
+    "Y": "A5p"
+  },
+  "A4p:A5p:fg|f2-q1": {
+    "X": "A4p",
+    "Y": "A5p"
+  },
+  "A4p:A5p:fg|f2-q10": {
+    "X": "A5p",
+    "Y": "A4p"
+  },
+  "A4p:A5p:fg|f2-q4": {
+    "X": "A4p",
+    "Y": "A5p"
+  },
+  "A4p:A5p:fg|f2-q6": {
+    "X": "A5p",
+    "Y": "A4p"
+  },
+  "A4p:A5p:fg|f2-q9": {
+    "X": "A4p",
+    "Y": "A5p"
+  },
+  "A4p:A5p:fg|f3-q1": {
+    "X": "A4p",
+    "Y": "A5p"
+  },
+  "A4p:A5p:fg|f3-q4": {
+    "X": "A5p",
+    "Y": "A4p"
+  },
+  "A4p:A5p:fg|f3-q8": {
+    "X": "A4p",
+    "Y": "A5p"
+  },
+  "A4p:A5p:fg|f4-q1": {
+    "X": "A4p",
+    "Y": "A5p"
+  },
+  "A4p:A5p:fg|f4-q2": {
+    "X": "A4p",
+    "Y": "A5p"
+  },
+  "A4p:A5p:fg|f4-q3": {
+    "X": "A4p",
+    "Y": "A5p"
+  },
+  "A4p:A5p:fg|f4-q4": {
+    "X": "A4p",
+    "Y": "A5p"
+  },
+  "A4p:A5p:fg|f4-q5": {
+    "X": "A4p",
+    "Y": "A5p"
+  },
+  "A4p:A5p:fg|f5-q1": {
+    "X": "A5p",
+    "Y": "A4p"
+  },
+  "A4p:A5p:fg|f5-q2": {
+    "X": "A5p",
+    "Y": "A4p"
+  },
+  "A4p:A5p:fg|f5-q3": {
+    "X": "A4p",
+    "Y": "A5p"
+  },
+  "A4p:A5p:fg|f5-q4": {
+    "X": "A5p",
+    "Y": "A4p"
+  },
+  "A4p:A5p:fg|f6-q1": {
+    "X": "A5p",
+    "Y": "A4p"
+  },
+  "A4p:A5p:fg|f6-q2": {
+    "X": "A5p",
+    "Y": "A4p"
+  },
+  "A4p:A5p:fg|f7-q1": {
+    "X": "A5p",
+    "Y": "A4p"
+  },
+  "A4p:A5p:fg|f7-q2": {
+    "X": "A5p",
+    "Y": "A4p"
+  },
+  "A4p:A5p:fg|f7-q3": {
+    "X": "A5p",
+    "Y": "A4p"
+  },
+  "A4p:A5p:fg|f7-q4": {
+    "X": "A4p",
+    "Y": "A5p"
+  },
+  "A4p:A5p:fg|g1-q1": {
+    "X": "A5p",
+    "Y": "A4p"
+  },
+  "A4p:A5p:fg|g1-q2": {
+    "X": "A5p",
+    "Y": "A4p"
+  },
+  "A4p:A5p:fg|g2-q1": {
+    "X": "A4p",
+    "Y": "A5p"
+  },
+  "A4p:A5p:fg|g2-q2": {
+    "X": "A4p",
+    "Y": "A5p"
+  },
+  "A4p:A5p:fg|g2-q3": {
+    "X": "A5p",
+    "Y": "A4p"
+  },
+  "A4p:A5p:fg|g3-q1": {
+    "X": "A5p",
+    "Y": "A4p"
+  },
+  "A4p:A5p:fg|g3-q2": {
+    "X": "A4p",
+    "Y": "A5p"
+  },
+  "A4p:A5p:fg|g4-q1": {
+    "X": "A5p",
+    "Y": "A4p"
+  },
+  "A4p:A5p:fg|g4-q2": {
+    "X": "A4p",
+    "Y": "A5p"
+  },
+  "A4p:A5p:fg|g5-q1": {
+    "X": "A4p",
+    "Y": "A5p"
+  },
+  "A4p:A5p:fg|g5-q2": {
+    "X": "A4p",
+    "Y": "A5p"
+  },
+  "A4p:A5p:fg|g6-q1": {
+    "X": "A5p",
+    "Y": "A4p"
+  },
+  "A4p:A5p:fg|g6-q2": {
+    "X": "A4p",
+    "Y": "A5p"
+  },
+  "A4p:A5p:fg|g6-q3": {
+    "X": "A4p",
+    "Y": "A5p"
+  },
+  "A4p:A5p:fg|g7-q1": {
+    "X": "A5p",
+    "Y": "A4p"
+  },
+  "A4p:A5p:fg|g7-q2": {
+    "X": "A5p",
+    "Y": "A4p"
+  },
+  "A4p:A5p:fg|g8-q1": {
+    "X": "A5p",
+    "Y": "A4p"
+  },
+  "A4p:A5p:fg|g8-q2": {
+    "X": "A4p",
+    "Y": "A5p"
+  },
+  "A4p:A5p:fg|g8-q3": {
+    "X": "A4p",
+    "Y": "A5p"
+  }
+}

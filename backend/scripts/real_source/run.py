@@ -17,6 +17,9 @@ fetched once, in R1; later website rounds build from the R1 source snapshot.
 Spec 0008 adds round A2 and a third track, "new", for the `files_v4` sources
 (`setup` uploads them too); questions marked with a later "round" are skipped in
 earlier rounds. Spec 0010 adds rounds A4s and A4p (A3 with the v2 chunkers).
+Spec 0012 adds round A5: A4s with `structure-clean-v2` and `section-token-v3`,
+and the websites rebuilt from the R1 snapshot with the same two versions; and A5p:
+A4p with `structure-clean-v2` and `parent-child-v3`.
 
 Run inside the backend container against http://127.0.0.1:8000 (local auth mode).
 """
@@ -98,6 +101,21 @@ ROUNDS = {
             "extract": {"config_version": "layout-ocr-v5"}, "ocr": {"max_pages": 100},
             "quality": {"d2": "warn-v1"}, "reuse": {"web": "A1"},
             "chunk_profile": "parent_child"},
+    # Spec 0012 slice 7: A4s with the new cleaning and chunking versions only. The
+    # websites are rebuilt from the R1 snapshot too, since structure-clean-v2 mostly
+    # changes website chrome removal; their baseline is A1.
+    "A5": {"tracks": ["web", "files", "new", "d2"],
+           "label": "Clean v2 and chunk v3: section-token-v3",
+           "extract": {"config_version": "layout-ocr-v5"}, "ocr": {"max_pages": 100},
+           "quality": {"web": "warn-v1", "d2": "warn-v1"},
+           "chunk_profile": "section_token",
+           "clean_version": "structure-clean-v2", "chunk_version": "section-token-v3"},
+    "A5p": {"tracks": ["files", "new", "d2"],
+            "label": "Clean v2 and chunk v3: parent-child-v3",
+            "extract": {"config_version": "layout-ocr-v5"}, "ocr": {"max_pages": 100},
+            "quality": {"d2": "warn-v1"}, "reuse": {"web": "A1"},
+            "chunk_profile": "parent_child",
+            "clean_version": "structure-clean-v2", "chunk_version": "parent-child-v3"},
 }
 # The index a track falls back to when a round does not rebuild it.
 BASELINE = {"web": "R1", "files": "R1w"}
@@ -323,6 +341,8 @@ class Run:
                 "unit": "tokens",
                 **profile["settings"],
             }
+        if "chunk_version" in spec:
+            chunk["config_version"] = spec["chunk_version"]
         if track == "web":
             sources = [
                 {"id": "source" if i == 0 else f"source-{i + 1}", "type": "source",
@@ -349,7 +369,7 @@ class Run:
                 "maximum_text_chars": 2_000_000,
                 "exact_content_deduplication": True,
                 "profile": cleaning["id"],
-                "config_version": cleaning["config_version"],
+                "config_version": spec.get("clean_version", cleaning["config_version"]),
                 "steps": cleaning.get("steps", []),
             },
             chunk,

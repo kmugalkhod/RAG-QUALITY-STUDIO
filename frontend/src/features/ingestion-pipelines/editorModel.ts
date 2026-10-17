@@ -55,12 +55,13 @@ export const defaultSensitiveDataPolicy: SensitiveDataPolicy = {
 export const currentExtractVersion = 'layout-ocr-v5';
 
 /**
- * New drafts chunk with the current token versions, which join short pieces such as
- * chart labels to the text before them; saved v1 versions stay as saved.
+ * New drafts chunk with the current token versions (spec 0012 v3: splits and overlap
+ * between words, no remainder under 40 bytes where it can join); saved versions stay
+ * as saved.
  */
 export const currentChunkVersions = {
-  section_token: 'section-token-v2',
-  parent_child: 'parent-child-v2',
+  section_token: 'section-token-v3',
+  parent_child: 'parent-child-v3',
 } as const;
 
 /** The number at the end of a version label; a missing version is v1. */

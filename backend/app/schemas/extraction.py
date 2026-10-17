@@ -29,7 +29,7 @@ class OcrCapability(Strict):
 class CleaningProfileCapability(Strict):
     id: Literal["structure-aware-v1"]
     name: str
-    config_version: Literal["structure-clean-v1"]
+    config_version: Literal["structure-clean-v1", "structure-clean-v2"]
     steps: list[CleaningTransform]
 
 

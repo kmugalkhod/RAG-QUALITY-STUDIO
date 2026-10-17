@@ -89,11 +89,29 @@ test('the chunk upgrade notice lists what each newer version changes', () => {
   expect(chunkVersionChanges[3]).toMatch(/under 40 bytes/);
 });
 
-test('a pipeline saved with a newer chunker than the default is never offered a downgrade', () => {
-  const v3 = { ...section, config_version: 'section-token-v3' };
-  expect(chunkUpgradeAvailable(v3)).toBe(false);
-  expect(chunkUpgradeChanges(v3)).toEqual([]);
-  render(<ChunkSettings node={v3} websiteSource={false} serverErrors={{}} update={vi.fn()} />);
+test('a saved v2 chunker is offered only the v3 changes', () => {
+  const v2 = { ...section, config_version: 'section-token-v2' };
+  expect(chunkUpgradeChanges(v2)).toEqual([chunkVersionChanges[3]]);
+  render(<ChunkSettings node={v2} websiteSource={false} serverErrors={{}} update={vi.fn()} />);
+  expect(screen.getByText('Saved with section-token-v2')).toBeInTheDocument();
+  expect(screen.getByText(chunkVersionChanges[3])).toBeInTheDocument();
+  expect(screen.queryByText(chunkVersionChanges[2])).not.toBeInTheDocument();
+});
+
+test('the current chunker, or a newer one, is never offered an upgrade or a downgrade', () => {
+  for (const version of ['section-token-v3', 'section-token-v4']) {
+    const node = { ...section, config_version: version };
+    expect(chunkUpgradeAvailable(node)).toBe(false);
+    expect(chunkUpgradeChanges(node)).toEqual([]);
+  }
+  render(
+    <ChunkSettings
+      node={{ ...section, config_version: 'section-token-v3' }}
+      websiteSource={false}
+      serverErrors={{}}
+      update={vi.fn()}
+    />,
+  );
   expect(screen.queryByRole('button', { name: 'Upgrade chunking' })).not.toBeInTheDocument();
 });
 

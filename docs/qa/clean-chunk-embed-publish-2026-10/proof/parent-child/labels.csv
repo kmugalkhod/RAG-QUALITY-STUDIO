@@ -1,0 +1,89 @@
+pair,question_id,slot,label,reason
+A4p:A5p:fg,f1-q4,X,correct,Names BooksCorpus and English Wikipedia with word counts.
+A4p:A5p:fg,f1-q4,Y,correct,Names BooksCorpus and English Wikipedia with word counts.
+A4p:A5p:fg,f2-q1,X,correct,"States $74,580."
+A4p:A5p:fg,f2-q1,Y,correct,"States $74,580."
+A4p:A5p:fg,f2-q10,X,wrong-abstain,Declined an answerable table question.
+A4p:A5p:fg,f2-q10,Y,wrong-abstain,Declined an answerable table question.
+A4p:A5p:fg,f2-q4,X,correct,"States $110,800."
+A4p:A5p:fg,f2-q4,Y,correct,"States $110,800."
+A4p:A5p:fg,f2-q6,X,correct,"States $45,440."
+A4p:A5p:fg,f2-q6,Y,correct,"States $45,440."
+A4p:A5p:fg,f2-q9,X,wrong-abstain,Declined an answerable table question.
+A4p:A5p:fg,f2-q9,Y,wrong-abstain,Declined an answerable table question.
+A4p:A5p:fg,f3-q1,X,correct,States 139 pictures.
+A4p:A5p:fg,f3-q1,Y,correct,States 139 pictures.
+A4p:A5p:fg,f3-q4,X,correct,States 7.3 kg.
+A4p:A5p:fg,f3-q4,Y,correct,States 7.3 kg.
+A4p:A5p:fg,f3-q8,X,correct-abstain,Declined: the source does not state it.
+A4p:A5p:fg,f3-q8,Y,correct-abstain,Declined: the source does not state it.
+A4p:A5p:fg,f4-q2,X,correct,States 5.5 times.
+A4p:A5p:fg,f4-q2,Y,correct,States 5.5 times.
+A4p:A5p:fg,f4-q3,X,correct,"States 76.7%, which the source rounds to 77%."
+A4p:A5p:fg,f4-q3,Y,correct,"States 76.7%, which the source rounds to 77%."
+A4p:A5p:fg,f4-q4,X,correct,"States 22.4%, the reference's 22%."
+A4p:A5p:fg,f4-q4,Y,correct,"States 22.4%, the reference's 22%."
+A4p:A5p:fg,f4-q5,X,correct-abstain,Declined: the source does not state it.
+A4p:A5p:fg,f4-q5,Y,correct-abstain,Declined: the source does not state it.
+A4p:A5p:fg,f5-q1,X,correct,Names Kenneth A. MacKichan.
+A4p:A5p:fg,f5-q1,Y,correct,Names Kenneth A. MacKichan.
+A4p:A5p:fg,f5-q2,X,correct,"States 1,070 mgd."
+A4p:A5p:fg,f5-q2,Y,correct,"States 1,070 mgd."
+A4p:A5p:fg,f5-q3,X,wrong-abstain,Declined an answerable table question.
+A4p:A5p:fg,f5-q3,Y,wrong-abstain,Declined an answerable table question.
+A4p:A5p:fg,f5-q4,X,correct-abstain,Declined: the source does not state it.
+A4p:A5p:fg,f5-q4,Y,correct-abstain,Declined: the source does not state it.
+A4p:A5p:fg,f6-q1,X,wrong-abstain,Declined an answerable question.
+A4p:A5p:fg,f6-q1,Y,wrong-abstain,Declined an answerable question.
+A4p:A5p:fg,f6-q2,X,correct,Lists the six asset categories.
+A4p:A5p:fg,f6-q2,Y,correct,Lists the six asset categories.
+A4p:A5p:fg,f7-q1,X,correct,States 7 to 11.
+A4p:A5p:fg,f7-q1,Y,correct,States 7 to 11.
+A4p:A5p:fg,f7-q2,X,correct,"Names Major, rating 4."
+A4p:A5p:fg,f7-q2,Y,correct,"Names Major, rating 4."
+A4p:A5p:fg,f7-q3,X,correct,States a 1-5 scale.
+A4p:A5p:fg,f7-q3,Y,correct,States a 1-5 scale.
+A4p:A5p:fg,f7-q4,X,correct-abstain,Declined: no critical band in the source.
+A4p:A5p:fg,f7-q4,Y,correct-abstain,Declined: no critical band in the source.
+A4p:A5p:fg,g1-q1,X,correct,"States $12,500."
+A4p:A5p:fg,g1-q1,Y,correct,"States $12,500."
+A4p:A5p:fg,g2-q1,X,correct,States at least 8 characters.
+A4p:A5p:fg,g2-q1,Y,correct,States at least 8 characters.
+A4p:A5p:fg,g2-q2,X,correct,States at least 64 characters.
+A4p:A5p:fg,g2-q2,Y,correct,States at least 64 characters.
+A4p:A5p:fg,g2-q3,X,correct-abstain,Declined: the source does not state it.
+A4p:A5p:fg,g2-q3,Y,correct-abstain,Declined: the source does not state it.
+A4p:A5p:fg,g3-q1,X,correct,States $55.6 billion.
+A4p:A5p:fg,g3-q1,Y,correct,States $55.6 billion.
+A4p:A5p:fg,g4-q1,X,correct,Names the Secretary of War and designated commanders.
+A4p:A5p:fg,g4-q1,Y,correct,Names the Secretary of War and designated commanders.
+A4p:A5p:fg,g4-q2,X,correct,"Names the Act of April 20, 1918, 40 Stat. 533."
+A4p:A5p:fg,g4-q2,Y,correct,"Names the Act of April 20, 1918, 40 Stat. 533."
+A4p:A5p:fg,g5-q1,X,correct,States 73.3%.
+A4p:A5p:fg,g5-q1,Y,correct,States 73.3%.
+A4p:A5p:fg,g5-q2,X,correct,States 26.9%.
+A4p:A5p:fg,g5-q2,Y,correct,States 26.9%.
+A4p:A5p:fg,g6-q1,X,correct,Names Patrick Crawford.
+A4p:A5p:fg,g6-q1,Y,correct,Names Patrick Crawford.
+A4p:A5p:fg,g6-q2,X,correct,"States £36,300 to £43,690."
+A4p:A5p:fg,g6-q2,Y,correct,"States £36,300 to £43,690."
+A4p:A5p:fg,g6-q3,X,correct-abstain,Declined: the chart is from 2012.
+A4p:A5p:fg,g6-q3,Y,correct-abstain,Declined: the chart is from 2012.
+A4p:A5p:fg,g7-q1,X,correct,States the 5 years before the application.
+A4p:A5p:fg,g7-q1,Y,correct,States the 5 years before the application.
+A4p:A5p:fg,g7-q2,X,correct,"Names UK GDPR, DPA 2018 and FOIA 2000."
+A4p:A5p:fg,g7-q2,Y,correct,"Names UK GDPR, DPA 2018 and FOIA 2000."
+A4p:A5p:fg,g8-q1,X,correct,States 41 participants.
+A4p:A5p:fg,g8-q1,Y,correct,States 41 participants.
+A4p:A5p:fg,g8-q2,X,wrong-abstain,Declined an answerable question.
+A4p:A5p:fg,g8-q2,Y,wrong-abstain,Declined an answerable question.
+A4p:A5p:fg,g8-q3,X,correct-abstain,Declined: the source does not state it.
+A4p:A5p:fg,g8-q3,Y,correct-abstain,Declined: the source does not state it.
+A4p:A5p:fg,f1-q1,X,correct,"States 12 layers, hidden size 768 and 12 heads."
+A4p:A5p:fg,f1-q1,Y,wrong-abstain,Declined an answerable question.
+A4p:A5p:fg,f4-q1,X,wrong-abstain,Declined an answerable question.
+A4p:A5p:fg,f4-q1,Y,correct,"States 381 deaths per 100,000."
+A4p:A5p:fg,g1-q2,X,correct,"States $24,150."
+A4p:A5p:fg,g1-q2,Y,wrong-abstain,Declined an answerable question.
+A4p:A5p:fg,g3-q2,X,wrong-abstain,Declined an answerable question.
+A4p:A5p:fg,g3-q2,Y,wrong,"Gives 'more than 20 actions', not the 158 mandates."

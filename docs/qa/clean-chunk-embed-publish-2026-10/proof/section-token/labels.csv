@@ -1,0 +1,113 @@
+pair,question_id,slot,label,reason
+A4s:A5:fg,f1-q1,X,correct,"States 12 layers, hidden size 768 and 12 heads."
+A4s:A5:fg,f1-q1,Y,correct,"States 12 layers, hidden size 768 and 12 heads."
+A4s:A5:fg,f1-q4,X,correct,Names BooksCorpus and English Wikipedia with word counts.
+A4s:A5:fg,f1-q4,Y,correct,Names BooksCorpus and English Wikipedia with word counts.
+A4s:A5:fg,f2-q1,X,correct,"States $74,580."
+A4s:A5:fg,f2-q1,Y,correct,"States $74,580."
+A4s:A5:fg,f2-q10,X,wrong-abstain,Declined an answerable table question.
+A4s:A5:fg,f2-q10,Y,wrong-abstain,Declined an answerable table question.
+A4s:A5:fg,f2-q4,X,correct,"States $110,800."
+A4s:A5:fg,f2-q4,Y,correct,"States $110,800."
+A4s:A5:fg,f2-q6,X,correct,"States $45,440."
+A4s:A5:fg,f2-q6,Y,correct,"States $45,440."
+A4s:A5:fg,f2-q9,X,wrong-abstain,Declined an answerable table question.
+A4s:A5:fg,f2-q9,Y,wrong-abstain,Declined an answerable table question.
+A4s:A5:fg,f3-q1,X,correct,States 139 pictures.
+A4s:A5:fg,f3-q1,Y,correct,States 139 pictures.
+A4s:A5:fg,f3-q4,X,correct,States 7.3 kg.
+A4s:A5:fg,f3-q4,Y,correct,States 7.3 kg.
+A4s:A5:fg,f3-q8,X,correct-abstain,Declined: the source does not state it.
+A4s:A5:fg,f3-q8,Y,correct-abstain,Declined: the source does not state it.
+A4s:A5:fg,f4-q1,X,correct,"States 381 deaths per 100,000."
+A4s:A5:fg,f4-q1,Y,correct,"States 381 deaths per 100,000."
+A4s:A5:fg,f4-q2,X,correct,States 5.5 times.
+A4s:A5:fg,f4-q2,Y,correct,States 5.5 times.
+A4s:A5:fg,f4-q3,X,correct,"States 76.7%, which the source rounds to 77%."
+A4s:A5:fg,f4-q3,Y,correct,"States 76.7%, which the source rounds to 77%."
+A4s:A5:fg,f4-q4,X,correct,"States 22.4%, the reference's 22%."
+A4s:A5:fg,f4-q4,Y,correct,"States 22.4%, the reference's 22%."
+A4s:A5:fg,f4-q5,X,correct-abstain,Declined: the source does not state it.
+A4s:A5:fg,f4-q5,Y,correct-abstain,Declined: the source does not state it.
+A4s:A5:fg,f5-q1,X,correct,Names Kenneth A. MacKichan.
+A4s:A5:fg,f5-q1,Y,correct,Names Kenneth A. MacKichan.
+A4s:A5:fg,f5-q2,X,wrong-abstain,Declined an answerable table question.
+A4s:A5:fg,f5-q2,Y,wrong-abstain,Declined an answerable table question.
+A4s:A5:fg,f5-q3,X,wrong-abstain,Declined an answerable table question.
+A4s:A5:fg,f5-q3,Y,wrong-abstain,Declined an answerable table question.
+A4s:A5:fg,f5-q4,X,correct-abstain,Declined: the source does not state it.
+A4s:A5:fg,f5-q4,Y,correct-abstain,Declined: the source does not state it.
+A4s:A5:fg,f6-q2,X,correct,Lists the six asset categories.
+A4s:A5:fg,f6-q2,Y,correct,Lists the six asset categories.
+A4s:A5:fg,f7-q1,X,correct,States 7 to 11.
+A4s:A5:fg,f7-q1,Y,correct,States 7 to 11.
+A4s:A5:fg,f7-q2,X,correct,"Names Major, rating 4."
+A4s:A5:fg,f7-q2,Y,correct,"Names Major, rating 4."
+A4s:A5:fg,f7-q3,X,correct,States a 1-5 scale.
+A4s:A5:fg,f7-q3,Y,correct,States a 1-5 scale.
+A4s:A5:fg,f7-q4,X,correct-abstain,Declined: no critical band in the source.
+A4s:A5:fg,f7-q4,Y,correct-abstain,Declined: no critical band in the source.
+A4s:A5:fg,g1-q1,X,correct,"States $12,500."
+A4s:A5:fg,g1-q1,Y,correct,"States $12,500."
+A4s:A5:fg,g1-q2,X,correct,"States $24,150."
+A4s:A5:fg,g1-q2,Y,correct,"States $24,150."
+A4s:A5:fg,g2-q1,X,correct,States at least 8 characters.
+A4s:A5:fg,g2-q1,Y,correct,States at least 8 characters.
+A4s:A5:fg,g2-q2,X,correct,States at least 64 characters.
+A4s:A5:fg,g2-q2,Y,correct,States at least 64 characters.
+A4s:A5:fg,g2-q3,X,correct-abstain,Declined: the source does not state it.
+A4s:A5:fg,g2-q3,Y,correct-abstain,Declined: the source does not state it.
+A4s:A5:fg,g3-q1,X,correct,States $55.6 billion.
+A4s:A5:fg,g3-q1,Y,correct,States $55.6 billion.
+A4s:A5:fg,g3-q2,X,wrong-abstain,Declined an answerable question.
+A4s:A5:fg,g3-q2,Y,wrong-abstain,Declined an answerable question.
+A4s:A5:fg,g4-q1,X,correct,Names the Secretary of War and designated commanders.
+A4s:A5:fg,g4-q1,Y,correct,Names the Secretary of War and designated commanders.
+A4s:A5:fg,g4-q2,X,correct,"Names the Act of April 20, 1918, 40 Stat. 533."
+A4s:A5:fg,g4-q2,Y,correct,"Names the Act of April 20, 1918, 40 Stat. 533."
+A4s:A5:fg,g5-q1,X,correct,States 73.3%.
+A4s:A5:fg,g5-q1,Y,correct,States 73.3%.
+A4s:A5:fg,g5-q2,X,correct,States 26.9%.
+A4s:A5:fg,g5-q2,Y,correct,States 26.9%.
+A4s:A5:fg,g6-q1,X,correct,Names Patrick Crawford.
+A4s:A5:fg,g6-q1,Y,correct,Names Patrick Crawford.
+A4s:A5:fg,g6-q2,X,correct,"States £36,300 to £43,690."
+A4s:A5:fg,g6-q2,Y,correct,"States £36,300 to £43,690."
+A4s:A5:fg,g6-q3,X,correct-abstain,Declined: the chart is from 2012.
+A4s:A5:fg,g6-q3,Y,correct-abstain,Declined: the chart is from 2012.
+A4s:A5:fg,g7-q1,X,correct,States the 5 years before the application.
+A4s:A5:fg,g7-q1,Y,correct,States the 5 years before the application.
+A4s:A5:fg,g7-q2,X,correct,"Names UK GDPR, DPA 2018 and FOIA 2000."
+A4s:A5:fg,g7-q2,Y,correct,"Names UK GDPR, DPA 2018 and FOIA 2000."
+A4s:A5:fg,g8-q1,X,correct,States 41 participants.
+A4s:A5:fg,g8-q1,Y,correct,States 41 participants.
+A4s:A5:fg,g8-q2,X,correct,Names impulse control.
+A4s:A5:fg,g8-q2,Y,correct,Names impulse control.
+A4s:A5:fg,g8-q3,X,correct-abstain,Declined: the source does not state it.
+A4s:A5:fg,g8-q3,Y,correct-abstain,Declined: the source does not state it.
+A4s:A5:fg,f6-q1,X,correct,States 250 words.
+A4s:A5:fg,f6-q1,Y,wrong-abstain,Declined an answerable question.
+A1:A5:w,w1-q1,X,correct,Names collections.deque.
+A1:A5:w,w1-q1,Y,correct,Names collections.deque.
+A1:A5:w,w1-q3,X,correct,Gives python -m venv tutorial-env.
+A1:A5:w,w1-q3,Y,correct,Gives python -m venv tutorial-env.
+A1:A5:w,w1-q8,X,correct-abstain,Declined: the tutorial gives no date.
+A1:A5:w,w1-q8,Y,correct-abstain,Declined: the tutorial gives no date.
+A1:A5:w,w2-q1,X,correct,"States 8,848.86 m."
+A1:A5:w,w2-q1,Y,correct,"States 8,848.86 m."
+A1:A5:w,w2-q3,X,correct,"States about 215,000 to 230,000 m3/s."
+A1:A5:w,w2-q3,Y,correct,"States about 215,000 to 230,000 m3/s."
+A1:A5:w,w2-q5,X,correct,"Names Mendeleev, 1869."
+A1:A5:w,w2-q5,Y,correct,"Names Mendeleev, 1869."
+A1:A5:w,w3-q1,X,correct,States £6.40.
+A1:A5:w,w3-q1,Y,correct,States £6.40.
+A1:A5:w,w3-q2,X,correct,"States £50,271 to £125,140."
+A1:A5:w,w3-q2,Y,correct,"States £50,271 to £125,140."
+A1:A5:w,w3-q6,X,correct,States £455.
+A1:A5:w,w3-q6,Y,correct,States £455.
+A1:A5:w,w4-q1,X,correct,Refuses to brew coffee with a teapot.
+A1:A5:w,w4-q1,Y,correct,Refuses to brew coffee with a teapot.
+A1:A5:w,w4-q4,X,correct,Function bundled with its lexical environment.
+A1:A5:w,w4-q4,Y,correct,Function bundled with its lexical environment.
+A1:A5:w,w4-q8,X,correct-abstain,Declined: no such status code.
+A1:A5:w,w4-q8,Y,correct-abstain,Declined: no such status code.

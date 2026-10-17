@@ -866,15 +866,20 @@ def test_layout_capabilities_and_thumbnail_are_project_scoped(ingestion_api):
         "native",
         "layout_aware",
     }
-    # New drafts take these versions; saved v1 chunkers stay as saved.
+    # New drafts take these versions (spec 0012 slice 7); saved versions stay as
+    # saved.
     assert {
         profile["id"]: profile["settings"]["config_version"]
         for profile in capabilities.json()["chunking_profiles"]
     } == {
-        "section_token": "section-token-v2",
-        "parent_child": "parent-child-v2",
+        "section_token": "section-token-v3",
+        "parent_child": "parent-child-v3",
         "character_window": "character-window-v1",
     }
+    assert [
+        profile["config_version"]
+        for profile in capabilities.json()["cleaning_profiles"]
+    ] == ["structure-clean-v2"]
     assert (
         client.get(
             f"/api/projects/{other_project_id}/ingestion-capabilities"

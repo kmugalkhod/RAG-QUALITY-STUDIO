@@ -333,7 +333,9 @@ def extraction_capabilities() -> dict[str, Any]:
             {
                 "id": "structure-aware-v1",
                 "name": "Structure-aware standard",
-                "config_version": "structure-clean-v1",
+                # Spec 0012 slice 7: new drafts use v2 after a real-source round
+                # lost no answer; saved v1 versions keep v1.
+                "config_version": "structure-clean-v2",
                 "steps": default_structure_steps(),
             }
         ],
@@ -350,7 +352,7 @@ def extraction_capabilities() -> dict[str, Any]:
                     "maximum_tokens": 800,
                     "overlap_tokens": 80,
                     "add_heading_context": True,
-                    "config_version": "section-token-v2",
+                    "config_version": "section-token-v3",
                 },
             },
             {
@@ -366,7 +368,7 @@ def extraction_capabilities() -> dict[str, Any]:
                     "parent_target_tokens": 900,
                     "parent_maximum_tokens": 1200,
                     "add_heading_context": True,
-                    "config_version": "parent-child-v2",
+                    "config_version": "parent-child-v3",
                 },
             },
             {

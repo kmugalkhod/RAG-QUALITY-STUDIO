@@ -1,0 +1,582 @@
+{
+  "A4s:A5:fg": {
+    "questions": 44,
+    "A4s": 38,
+    "A5": 39,
+    "wins": [
+      "f6-q1"
+    ],
+    "losses": [],
+    "per_question": {
+      "f1-q1": {
+        "A5": {
+          "label": "correct",
+          "reason": "States 12 layers, hidden size 768 and 12 heads."
+        },
+        "A4s": {
+          "label": "correct",
+          "reason": "States 12 layers, hidden size 768 and 12 heads."
+        }
+      },
+      "f1-q4": {
+        "A4s": {
+          "label": "correct",
+          "reason": "Names BooksCorpus and English Wikipedia with word counts."
+        },
+        "A5": {
+          "label": "correct",
+          "reason": "Names BooksCorpus and English Wikipedia with word counts."
+        }
+      },
+      "f2-q1": {
+        "A4s": {
+          "label": "correct",
+          "reason": "States $74,580."
+        },
+        "A5": {
+          "label": "correct",
+          "reason": "States $74,580."
+        }
+      },
+      "f2-q10": {
+        "A5": {
+          "label": "wrong-abstain",
+          "reason": "Declined an answerable table question."
+        },
+        "A4s": {
+          "label": "wrong-abstain",
+          "reason": "Declined an answerable table question."
+        }
+      },
+      "f2-q4": {
+        "A4s": {
+          "label": "correct",
+          "reason": "States $110,800."
+        },
+        "A5": {
+          "label": "correct",
+          "reason": "States $110,800."
+        }
+      },
+      "f2-q6": {
+        "A5": {
+          "label": "correct",
+          "reason": "States $45,440."
+        },
+        "A4s": {
+          "label": "correct",
+          "reason": "States $45,440."
+        }
+      },
+      "f2-q9": {
+        "A4s": {
+          "label": "wrong-abstain",
+          "reason": "Declined an answerable table question."
+        },
+        "A5": {
+          "label": "wrong-abstain",
+          "reason": "Declined an answerable table question."
+        }
+      },
+      "f3-q1": {
+        "A4s": {
+          "label": "correct",
+          "reason": "States 139 pictures."
+        },
+        "A5": {
+          "label": "correct",
+          "reason": "States 139 pictures."
+        }
+      },
+      "f3-q4": {
+        "A5": {
+          "label": "correct",
+          "reason": "States 7.3 kg."
+        },
+        "A4s": {
+          "label": "correct",
+          "reason": "States 7.3 kg."
+        }
+      },
+      "f3-q8": {
+        "A4s": {
+          "label": "correct-abstain",
+          "reason": "Declined: the source does not state it."
+        },
+        "A5": {
+          "label": "correct-abstain",
+          "reason": "Declined: the source does not state it."
+        }
+      },
+      "f4-q1": {
+        "A4s": {
+          "label": "correct",
+          "reason": "States 381 deaths per 100,000."
+        },
+        "A5": {
+          "label": "correct",
+          "reason": "States 381 deaths per 100,000."
+        }
+      },
+      "f4-q2": {
+        "A4s": {
+          "label": "correct",
+          "reason": "States 5.5 times."
+        },
+        "A5": {
+          "label": "correct",
+          "reason": "States 5.5 times."
+        }
+      },
+      "f4-q3": {
+        "A4s": {
+          "label": "correct",
+          "reason": "States 76.7%, which the source rounds to 77%."
+        },
+        "A5": {
+          "label": "correct",
+          "reason": "States 76.7%, which the source rounds to 77%."
+        }
+      },
+      "f4-q4": {
+        "A4s": {
+          "label": "correct",
+          "reason": "States 22.4%, the reference's 22%."
+        },
+        "A5": {
+          "label": "correct",
+          "reason": "States 22.4%, the reference's 22%."
+        }
+      },
+      "f4-q5": {
+        "A4s": {
+          "label": "correct-abstain",
+          "reason": "Declined: the source does not state it."
+        },
+        "A5": {
+          "label": "correct-abstain",
+          "reason": "Declined: the source does not state it."
+        }
+      },
+      "f5-q1": {
+        "A5": {
+          "label": "correct",
+          "reason": "Names Kenneth A. MacKichan."
+        },
+        "A4s": {
+          "label": "correct",
+          "reason": "Names Kenneth A. MacKichan."
+        }
+      },
+      "f5-q2": {
+        "A5": {
+          "label": "wrong-abstain",
+          "reason": "Declined an answerable table question."
+        },
+        "A4s": {
+          "label": "wrong-abstain",
+          "reason": "Declined an answerable table question."
+        }
+      },
+      "f5-q3": {
+        "A4s": {
+          "label": "wrong-abstain",
+          "reason": "Declined an answerable table question."
+        },
+        "A5": {
+          "label": "wrong-abstain",
+          "reason": "Declined an answerable table question."
+        }
+      },
+      "f5-q4": {
+        "A5": {
+          "label": "correct-abstain",
+          "reason": "Declined: the source does not state it."
+        },
+        "A4s": {
+          "label": "correct-abstain",
+          "reason": "Declined: the source does not state it."
+        }
+      },
+      "f6-q1": {
+        "A5": {
+          "label": "correct",
+          "reason": "States 250 words."
+        },
+        "A4s": {
+          "label": "wrong-abstain",
+          "reason": "Declined an answerable question."
+        }
+      },
+      "f6-q2": {
+        "A5": {
+          "label": "correct",
+          "reason": "Lists the six asset categories."
+        },
+        "A4s": {
+          "label": "correct",
+          "reason": "Lists the six asset categories."
+        }
+      },
+      "f7-q1": {
+        "A5": {
+          "label": "correct",
+          "reason": "States 7 to 11."
+        },
+        "A4s": {
+          "label": "correct",
+          "reason": "States 7 to 11."
+        }
+      },
+      "f7-q2": {
+        "A5": {
+          "label": "correct",
+          "reason": "Names Major, rating 4."
+        },
+        "A4s": {
+          "label": "correct",
+          "reason": "Names Major, rating 4."
+        }
+      },
+      "f7-q3": {
+        "A5": {
+          "label": "correct",
+          "reason": "States a 1-5 scale."
+        },
+        "A4s": {
+          "label": "correct",
+          "reason": "States a 1-5 scale."
+        }
+      },
+      "f7-q4": {
+        "A4s": {
+          "label": "correct-abstain",
+          "reason": "Declined: no critical band in the source."
+        },
+        "A5": {
+          "label": "correct-abstain",
+          "reason": "Declined: no critical band in the source."
+        }
+      },
+      "g1-q1": {
+        "A5": {
+          "label": "correct",
+          "reason": "States $12,500."
+        },
+        "A4s": {
+          "label": "correct",
+          "reason": "States $12,500."
+        }
+      },
+      "g1-q2": {
+        "A5": {
+          "label": "correct",
+          "reason": "States $24,150."
+        },
+        "A4s": {
+          "label": "correct",
+          "reason": "States $24,150."
+        }
+      },
+      "g2-q1": {
+        "A4s": {
+          "label": "correct",
+          "reason": "States at least 8 characters."
+        },
+        "A5": {
+          "label": "correct",
+          "reason": "States at least 8 characters."
+        }
+      },
+      "g2-q2": {
+        "A4s": {
+          "label": "correct",
+          "reason": "States at least 64 characters."
+        },
+        "A5": {
+          "label": "correct",
+          "reason": "States at least 64 characters."
+        }
+      },
+      "g2-q3": {
+        "A5": {
+          "label": "correct-abstain",
+          "reason": "Declined: the source does not state it."
+        },
+        "A4s": {
+          "label": "correct-abstain",
+          "reason": "Declined: the source does not state it."
+        }
+      },
+      "g3-q1": {
+        "A5": {
+          "label": "correct",
+          "reason": "States $55.6 billion."
+        },
+        "A4s": {
+          "label": "correct",
+          "reason": "States $55.6 billion."
+        }
+      },
+      "g3-q2": {
+        "A4s": {
+          "label": "wrong-abstain",
+          "reason": "Declined an answerable question."
+        },
+        "A5": {
+          "label": "wrong-abstain",
+          "reason": "Declined an answerable question."
+        }
+      },
+      "g4-q1": {
+        "A5": {
+          "label": "correct",
+          "reason": "Names the Secretary of War and designated commanders."
+        },
+        "A4s": {
+          "label": "correct",
+          "reason": "Names the Secretary of War and designated commanders."
+        }
+      },
+      "g4-q2": {
+        "A4s": {
+          "label": "correct",
+          "reason": "Names the Act of April 20, 1918, 40 Stat. 533."
+        },
+        "A5": {
+          "label": "correct",
+          "reason": "Names the Act of April 20, 1918, 40 Stat. 533."
+        }
+      },
+      "g5-q1": {
+        "A4s": {
+          "label": "correct",
+          "reason": "States 73.3%."
+        },
+        "A5": {
+          "label": "correct",
+          "reason": "States 73.3%."
+        }
+      },
+      "g5-q2": {
+        "A4s": {
+          "label": "correct",
+          "reason": "States 26.9%."
+        },
+        "A5": {
+          "label": "correct",
+          "reason": "States 26.9%."
+        }
+      },
+      "g6-q1": {
+        "A5": {
+          "label": "correct",
+          "reason": "Names Patrick Crawford."
+        },
+        "A4s": {
+          "label": "correct",
+          "reason": "Names Patrick Crawford."
+        }
+      },
+      "g6-q2": {
+        "A4s": {
+          "label": "correct",
+          "reason": "States \u00a336,300 to \u00a343,690."
+        },
+        "A5": {
+          "label": "correct",
+          "reason": "States \u00a336,300 to \u00a343,690."
+        }
+      },
+      "g6-q3": {
+        "A4s": {
+          "label": "correct-abstain",
+          "reason": "Declined: the chart is from 2012."
+        },
+        "A5": {
+          "label": "correct-abstain",
+          "reason": "Declined: the chart is from 2012."
+        }
+      },
+      "g7-q1": {
+        "A5": {
+          "label": "correct",
+          "reason": "States the 5 years before the application."
+        },
+        "A4s": {
+          "label": "correct",
+          "reason": "States the 5 years before the application."
+        }
+      },
+      "g7-q2": {
+        "A5": {
+          "label": "correct",
+          "reason": "Names UK GDPR, DPA 2018 and FOIA 2000."
+        },
+        "A4s": {
+          "label": "correct",
+          "reason": "Names UK GDPR, DPA 2018 and FOIA 2000."
+        }
+      },
+      "g8-q1": {
+        "A5": {
+          "label": "correct",
+          "reason": "States 41 participants."
+        },
+        "A4s": {
+          "label": "correct",
+          "reason": "States 41 participants."
+        }
+      },
+      "g8-q2": {
+        "A4s": {
+          "label": "correct",
+          "reason": "Names impulse control."
+        },
+        "A5": {
+          "label": "correct",
+          "reason": "Names impulse control."
+        }
+      },
+      "g8-q3": {
+        "A4s": {
+          "label": "correct-abstain",
+          "reason": "Declined: the source does not state it."
+        },
+        "A5": {
+          "label": "correct-abstain",
+          "reason": "Declined: the source does not state it."
+        }
+      }
+    }
+  },
+  "A1:A5:w": {
+    "questions": 12,
+    "A1": 12,
+    "A5": 12,
+    "wins": [],
+    "losses": [],
+    "per_question": {
+      "w1-q1": {
+        "A5": {
+          "label": "correct",
+          "reason": "Names collections.deque."
+        },
+        "A1": {
+          "label": "correct",
+          "reason": "Names collections.deque."
+        }
+      },
+      "w1-q3": {
+        "A5": {
+          "label": "correct",
+          "reason": "Gives python -m venv tutorial-env."
+        },
+        "A1": {
+          "label": "correct",
+          "reason": "Gives python -m venv tutorial-env."
+        }
+      },
+      "w1-q8": {
+        "A1": {
+          "label": "correct-abstain",
+          "reason": "Declined: the tutorial gives no date."
+        },
+        "A5": {
+          "label": "correct-abstain",
+          "reason": "Declined: the tutorial gives no date."
+        }
+      },
+      "w2-q1": {
+        "A1": {
+          "label": "correct",
+          "reason": "States 8,848.86 m."
+        },
+        "A5": {
+          "label": "correct",
+          "reason": "States 8,848.86 m."
+        }
+      },
+      "w2-q3": {
+        "A1": {
+          "label": "correct",
+          "reason": "States about 215,000 to 230,000 m3/s."
+        },
+        "A5": {
+          "label": "correct",
+          "reason": "States about 215,000 to 230,000 m3/s."
+        }
+      },
+      "w2-q5": {
+        "A1": {
+          "label": "correct",
+          "reason": "Names Mendeleev, 1869."
+        },
+        "A5": {
+          "label": "correct",
+          "reason": "Names Mendeleev, 1869."
+        }
+      },
+      "w3-q1": {
+        "A5": {
+          "label": "correct",
+          "reason": "States \u00a36.40."
+        },
+        "A1": {
+          "label": "correct",
+          "reason": "States \u00a36.40."
+        }
+      },
+      "w3-q2": {
+        "A1": {
+          "label": "correct",
+          "reason": "States \u00a350,271 to \u00a3125,140."
+        },
+        "A5": {
+          "label": "correct",
+          "reason": "States \u00a350,271 to \u00a3125,140."
+        }
+      },
+      "w3-q6": {
+        "A5": {
+          "label": "correct",
+          "reason": "States \u00a3455."
+        },
+        "A1": {
+          "label": "correct",
+          "reason": "States \u00a3455."
+        }
+      },
+      "w4-q1": {
+        "A1": {
+          "label": "correct",
+          "reason": "Refuses to brew coffee with a teapot."
+        },
+        "A5": {
+          "label": "correct",
+          "reason": "Refuses to brew coffee with a teapot."
+        }
+      },
+      "w4-q4": {
+        "A1": {
+          "label": "correct",
+          "reason": "Function bundled with its lexical environment."
+        },
+        "A5": {
+          "label": "correct",
+          "reason": "Function bundled with its lexical environment."
+        }
+      },
+      "w4-q8": {
+        "A1": {
+          "label": "correct-abstain",
+          "reason": "Declined: no such status code."
+        },
+        "A5": {
+          "label": "correct-abstain",
+          "reason": "Declined: no such status code."
+        }
+      }
+    }
+  }
+}

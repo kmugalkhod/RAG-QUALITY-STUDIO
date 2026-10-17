@@ -117,6 +117,24 @@ So the Slice 6 check "no chunk under 40 bytes" holds for both website indexes an
 
 **`structure-clean-v2` on the website pages.** Pages are grouped by host to measure repeated chrome, as a crawl groups them by source. On the 47 round-A1 pages, v1 removed 179 blocks as repeated site chrome, 4 of them protected (tables, lists, code, quotes or footnotes); v2 removes 162 and no protected block, keeping 19: those 4 protected blocks on every page and the first page's copy of each other repeat. The W1a pages have no repeated chrome under either version. The soft-hyphen case is covered by `tests/test_structure_cleaning_v2.py`: v1 kept a repeated line on every page because its fingerprint had a soft hyphen; v2 removes it from all pages except the first.
 
+## Proof round (Slice 7, 2026-10-18)
+
+Rounds A5 and A5p of the real-source harness (`backend/scripts/real_source/run.py`, project "Real-source test 2026-10") repeat rounds A4s and A4p with only the cleaning and chunking versions changed: the same 15 files, extractor `layout-ocr-v5`, the sizes a new pipeline gets, vector search top 5 and `google/gemini-2.5-flash` at temperature 0. A5 uses `structure-clean-v2` with `section-token-v3` and also rebuilds the four websites from the R1 snapshot (baseline: round A1, `structure-clean-v1` with `section-token-v1`); A5p uses `structure-clean-v2` with `parent-child-v3`. Every index published, with exactly the passage counts the corpus check predicted (A5: 2,334, 660, 506, 751; A5p: 1,955, 905, 1,857).
+
+Answers were scored blind with the spec 0004 rubric (correct, partial, wrong, correct-abstain, wrong-abstain, fabricated): `backend/scripts/clean_chunk/blind_rounds.py` shows each question's two answers as X and Y from a fixed seed; every label and its reason was written before the key was read. The review, labels, key and results are in [`proof/`](proof/). Re-scoring the baselines this way gave the same totals as their original hand scores (A4s 38/44, A4p 35/44).
+
+| Comparison | Questions | Baseline correct | New correct | Wins | Losses |
+| --- | ---: | ---: | ---: | --- | --- |
+| A4s → A5 (files, section-token) | 44 | 38 | **39** | f6-q1 | none |
+| A1 → A5 (websites) | 12 | 12 | **12** | | none |
+| A4p → A5p (files, parent-child) | 44 | 35 | **38** | f1-q1, f4-q1, g1-q2 | none |
+
+Retrieval (phrase in the top 5, 49 answerable file questions, 28 website questions): A4s 41 and A5 41 within the top 5, 27 and 23 at rank 1 (f2-q5, f2-q6, f6-q2 and g2-q1 moved from rank 1 to 2); A1 27 and A5 27, 18 and 19 at rank 1; A4p 42 and A5p 43 (g1-q2 now found), 30 and 29 at rank 1 (g2-q1 to rank 2). The A5 win f6-q1 is the answer model's choice: the 250-word passage was rank 1 in both rounds and A4s declined. One A5p answer is worse in kind though not a loss: on g3-q2 A4p declined and A5p answered "more than 20 actions" instead of 158 mandates (both are not correct).
+
+**Decision (D6):** no correct answer was lost, so new drafts use `structure-clean-v2`, `section-token-v3` and `parent-child-v3` (the server's capabilities and the editor's current versions). Saved pipelines keep their versions and show the upgrade notice with what each later version changes.
+
+Spend, by the harness's upper-bound estimate: A5 $0.092 (index embeddings $0.051, query embeddings $0.0001, 56 answers $0.041) and A5p $0.079 ($0.032, $0.0001, 44 answers $0.047): **$0.171** of the $1 cap. The provider charged $0.0096 for the index embeddings, because 4,716 unchanged passages reused their vectors.
+
 ## Bug reproductions
 
 One failing test per Part A item that has a backend or frontend path. Each states the fixed behaviour and is marked as expected to fail: `backend/tests/test_spec0012_repro.py` (strict `xfail`) and `frontend/tests/features/ingestion-pipelines/spec0012Repro.test.tsx` (`test.fails`). The slice that fixes an item removes its marker. Each was checked to fail on its assertion, not on setup: the backend tests against the unmodified code with `--runxfail`, the frontend tests by running a copy as plain tests.
