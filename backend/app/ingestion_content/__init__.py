@@ -16,8 +16,10 @@ from app.ingestion_content.processing import (
     PreparedChunk,
     cleaner_for_node,
     chunker_version_for_node,
+    clean_identity_value,
     derivation_identity,
     derivation_hash_from_config,
+    extraction_identity,
     processing_identity,
 )
 from app.ingestion_content.canonical import (
@@ -53,6 +55,8 @@ __all__ = [
     "chunker_version_for_node",
     "derivation_identity",
     "derivation_hash_from_config",
+    "clean_identity_value",
+    "extraction_identity",
     "processing_identity",
     "CanonicalBlock",
     "CanonicalChunkingResult",

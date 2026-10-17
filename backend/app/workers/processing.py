@@ -26,6 +26,7 @@ from app.services.derivations import (
     link_reused_derivations,
     persist_derivations,
     reusable_cleaned_document,
+    reusable_extracted_document,
 )
 from app.services import artifact_storage
 from app.workers.celery_app import celery
@@ -89,7 +90,7 @@ def _chunk_cleaned(job, cleaned, config, on_stage):
     return chunks, hashlib.sha256(encoded).hexdigest(), chunking.spans
 
 
-def _v2_chunks(job, path, media, title, on_stage, cancelled=None):
+def _v2_configs(job):
     config = job.processing_config or {}
     extract_config = ExtractNodeV2.model_validate(
         {"id": "extract", "type": "extract", **config.get("extract", {})}
@@ -97,7 +98,11 @@ def _v2_chunks(job, path, media, title, on_stage, cancelled=None):
     clean_config = CleanNodeV2.model_validate(
         {"id": "clean", "type": "clean", **config.get("clean", {})}
     )
-    cleaner = cleaner_for_node(clean_config)
+    return extract_config, clean_config
+
+
+def _v2_chunks(job, path, media, title, on_stage, cancelled=None):
+    extract_config, _ = _v2_configs(job)
     extracted, extractor_version = extract_document(
         path,
         media,
@@ -105,6 +110,15 @@ def _v2_chunks(job, path, media, title, on_stage, cancelled=None):
         extract_config,
         cancelled=cancelled,
     )
+    return _v2_from_extracted(job, extracted, extractor_version, on_stage)
+
+
+def _v2_from_extracted(job, extracted, extractor_version, on_stage):
+    """Quality decision, cleaning and chunking of an extracted document, whether it
+    was just extracted or reused from an earlier run (spec 0012 C5)."""
+    config = job.processing_config or {}
+    extract_config, clean_config = _v2_configs(job)
+    cleaner = cleaner_for_node(clean_config)
     if not quality_allows_publication(
         extract_config.quality_policy, extracted.measurements.quality_decision
     ):
@@ -189,6 +203,7 @@ def process(run_id: UUID, db_engine=engine, send=None):
         processing_config = job.processing_config
         processing_config_hash = job.processing_config_hash
         reused_from_processing_run_id = job.reused_from_processing_run_id
+        reused_extraction_id = job.reused_extraction_from_processing_run_id
         document_id = doc.id
         project_id = doc.project_id
         title = doc.filename
@@ -230,24 +245,44 @@ def process(run_id: UUID, db_engine=engine, send=None):
                 )
                 canonical = ("reused", reused_from_processing_run_id, spans)
             else:
-                with Session(db_engine) as session:
-                    source_document = session.get(Document, document_id)
-                    with artifact_storage.materialize(source_document) as path:
-                        (
-                            chunks,
-                            output_hash,
-                            extracted,
-                            cleaned,
-                            spans,
-                            extractor_version,
-                        ) = _v2_chunks(
-                            scoped_job,
-                            path,
-                            media,
-                            title,
-                            stage,
-                            cancelled,
+                reused_extraction = None
+                if reused_extraction_id is not None:
+                    with Session(db_engine) as session:
+                        reused_extraction = reusable_extracted_document(
+                            session, reused_extraction_id
                         )
+                if reused_extraction is not None:
+                    # Only cleaning or chunking changed: the extracted document and
+                    # its OCR are reused; cleaning and chunking run again. A fresh
+                    # extracted derivation is stored, so protection follows this
+                    # run's redaction setting (spec 0012 C5).
+                    (
+                        chunks,
+                        output_hash,
+                        extracted,
+                        cleaned,
+                        spans,
+                        extractor_version,
+                    ) = _v2_from_extracted(scoped_job, *reused_extraction, stage)
+                else:
+                    with Session(db_engine) as session:
+                        source_document = session.get(Document, document_id)
+                        with artifact_storage.materialize(source_document) as path:
+                            (
+                                chunks,
+                                output_hash,
+                                extracted,
+                                cleaned,
+                                spans,
+                                extractor_version,
+                            ) = _v2_chunks(
+                                scoped_job,
+                                path,
+                                media,
+                                title,
+                                stage,
+                                cancelled,
+                            )
                 canonical = (
                     "new",
                     extracted,

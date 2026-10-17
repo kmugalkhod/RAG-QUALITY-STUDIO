@@ -145,6 +145,23 @@ class QualityFinding(Strict):
         return self
 
 
+def page_counts(blocks, page_numbers) -> tuple[list[int], list[int]]:
+    """Characters and blocks on each of `page_numbers`, in that order.
+
+    One pass over the blocks (spec 0012 C2); the per-page scans it replaces gave the
+    same lists in O(pages × blocks)."""
+    characters: dict = {}
+    counts: dict = {}
+    for block in blocks:
+        page = block.page_number
+        characters[page] = characters.get(page, 0) + len(block.text)
+        counts[page] = counts.get(page, 0) + 1
+    return (
+        [characters.get(page, 0) for page in page_numbers],
+        [counts.get(page, 0) for page in page_numbers],
+    )
+
+
 class DocumentMeasurements(Strict):
     character_count: int = Field(ge=0)
     block_count: int = Field(ge=0)
@@ -191,15 +208,15 @@ class ExtractedDocumentV1(Strict):
         if [block.ordinal for block in self.blocks] != list(range(len(self.blocks))):
             raise ValueError("Block ordinals must be contiguous and ordered.")
         block_ids = [block.id for block in self.blocks]
-        if len(set(block_ids)) != len(block_ids):
+        known = set(block_ids)
+        if len(known) != len(block_ids):
             raise ValueError("Block IDs must be unique within a derivation.")
         page_numbers = [page.page_number for page in self.pages]
         if page_numbers != sorted(set(page_numbers)):
             raise ValueError("Pages must be unique and ordered.")
+        # The set is built once, not once per page block (spec 0012 C2).
         if any(
-            block_id not in set(block_ids)
-            for page in self.pages
-            for block_id in page.block_ids
+            block_id not in known for page in self.pages for block_id in page.block_ids
         ):
             raise ValueError("Every page block ID must reference this document.")
         if self.measurements.block_count != len(self.blocks):

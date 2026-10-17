@@ -61,6 +61,31 @@ Parents of the parent-child indexes: 612, 438 and 647, median 757 bytes, smalles
 
 The spec quotes 11.7 s for C1 and 0.64 s for C3 from the audit. The audit used a different input, and the numbers here are the ones Slice 5 is measured against.
 
+## Part C after Slice 5 (2026-10-18)
+
+The same `perf.py` on the code before this spec (`2f5851d`) and after Slice 5, in the test image on this machine. Every output digest is identical before and after.
+
+| Item | Before | After | Output digest |
+| --- | ---: | ---: | --- |
+| C1 chunk one 2 MB block, `section-token-v1` | 2.72 s | 0.30 s | `a5f16cfe47b70341` |
+| C1 chunk one 2 MB block, `section-token-v2` | 2.62 s | 0.21 s | `a5f16cfe47b70341` |
+| C2 clean 1,000 pages × 20 blocks | 3.03 s | 1.28 s | `778c4082f7f1b1c8` |
+| C2 build and validate 1,000 pages × 20 blocks (found while profiling) | 30.48 s | 0.68 s | `99e40c5922da71c6` |
+| C3 control characters, 2 MB of ordinary text | 0.22 s | 0.002 s | `9c23deec8262b6ec` |
+| C3 control characters, 2 MB with one every few words | 0.21 s | 0.26 s | `0408d18a63b95a23` |
+| C4 fingerprints of 200 pages, peak traced memory | 27.0 MB | 0.3 MB | `b4b3732cb41480b1` |
+
+The C2 "build and validate" row is the document check that every page's block IDs belong to the document; it rebuilt a set for each page block, so every extracted and cleaned document paid pages × blocks. C3 is a little slower only on text that is mostly control characters; ordinary text, which has none, is a hundred times faster.
+
+Embedding (C6), from the opt-in `tests/test_indexing_throughput.py` with a deterministic provider double, so it measures database and batching cost, not provider latency:
+
+| Index | Before | After |
+| --- | --- | --- |
+| First index, 2,000 chunks | 125 batches, 8.24 s | 32 batches, 1.11 s |
+| Second index, 4,000 chunks (half reused) | 250 batches, 19.12 s | 63 batches, 2.91 s |
+
+C5: a Clean-only change starts a processing run that reuses the earlier run's extracted document; the test replaces the extractor with one that fails if called, and the run succeeds with the same extracted output and a different cleaned output. The dev database's 616 existing schema-v2 processing runs were backfilled, so they are reusable at once.
+
 ## Bug reproductions
 
 One failing test per Part A item that has a backend or frontend path. Each states the fixed behaviour and is marked as expected to fail: `backend/tests/test_spec0012_repro.py` (strict `xfail`) and `frontend/tests/features/ingestion-pipelines/spec0012Repro.test.tsx` (`test.fails`). The slice that fixes an item removes its marker. Each was checked to fail on its assertion, not on setup: the backend tests against the unmodified code with `--runxfail`, the frontend tests by running a copy as plain tests.

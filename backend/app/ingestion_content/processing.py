@@ -276,6 +276,32 @@ def derivation_identity(
     return hashlib.sha256(encoded).hexdigest()
 
 
+def extraction_identity(
+    *, schema_version: int, extractor_version: str, extract: dict[str, Any]
+) -> str:
+    """Hash only the extraction identity (spec 0012 C5): a run whose extraction
+    settings match can reuse the extracted document, OCR included, even when its
+    cleaning settings differ."""
+
+    value = {
+        "schema_version": schema_version,
+        "versions": {"extractor": extractor_version},
+        "extract": extract,
+    }
+    encoded = json.dumps(
+        value, sort_keys=True, separators=(",", ":"), ensure_ascii=True
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def clean_identity_value(clean) -> dict[str, Any]:
+    """The cleaning settings that change cleaned text. The duplicate policy is
+    applied after cleaning, across documents, so it is not part of the identity
+    (spec 0012 C5); changing it reuses the processing run."""
+
+    return clean.model_dump(mode="json", exclude={"id", "type", "duplicate_policy"})
+
+
 def derivation_hash_from_config(configuration: dict[str, Any]) -> str:
     """Return the extraction/cleaning identity from a saved schema-v2 config."""
 

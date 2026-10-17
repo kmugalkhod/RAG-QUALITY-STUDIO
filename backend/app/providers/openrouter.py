@@ -1,6 +1,8 @@
 """OpenRouter embeddings REST adapter; retries belong to the durable indexing worker."""
 
 import json
+from contextlib import contextmanager
+
 import httpx
 from app.core.config import settings
 from app.providers import credentials
@@ -11,6 +13,33 @@ from app.providers.embeddings import (
     reported_usage,
     validate_vectors,
 )
+
+
+_shared: httpx.Client | None = None
+
+
+def _new_client(transport=None) -> httpx.Client:
+    return httpx.Client(
+        timeout=httpx.Timeout(40, connect=5),
+        transport=transport,
+        follow_redirects=False,
+        trust_env=False,
+    )
+
+
+@contextmanager
+def _client_for(transport):
+    """One pooled client per worker process, so connections are reused across
+    embedding requests (spec 0012 C6). An injected transport gets its own client,
+    closed after the request."""
+    global _shared
+    if transport is not None:
+        with _new_client(transport) as client:
+            yield client
+        return
+    if _shared is None or _shared.is_closed:
+        _shared = _new_client()
+    yield _shared
 
 
 class OpenRouterEmbeddings:
@@ -25,7 +54,7 @@ class OpenRouterEmbeddings:
         # Conservative UTF-8 byte limit bounds tokens without truncating source text.
         if (
             not texts
-            or len(texts) > 16
+            or len(texts) > 64
             or any(not t.strip() or len(t.encode("utf-8")) > 8191 for t in texts)
         ):
             raise EmbeddingError(
@@ -37,12 +66,7 @@ class OpenRouterEmbeddings:
             raise EmbeddingError(str(exc)) from None
         reserve_request()
         try:
-            with httpx.Client(
-                timeout=httpx.Timeout(40, connect=5),
-                transport=self.transport,
-                follow_redirects=False,
-                trust_env=False,
-            ) as client:
+            with _client_for(self.transport) as client:
                 with client.stream(
                     "POST",
                     settings.embedding_base_url.rstrip("/") + "/embeddings",

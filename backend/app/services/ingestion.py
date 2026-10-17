@@ -22,7 +22,9 @@ from app.models.source import SourceRevision, WebsiteRunItem
 from app.ingestion_content import (
     cleaner_for_node,
     chunker_version_for_node,
+    clean_identity_value,
     derivation_identity,
+    extraction_identity,
     processing_identity,
 )
 from app.ingestion_content.extractors import extractor_version_for_settings
@@ -77,7 +79,7 @@ def _processing_spec(execution: IngestionExecution):
     clean = next(node for node in execution.nodes if node.type == "clean")
     chunk = next(node for node in execution.nodes if node.type == "chunk")
     extract_value = extract.model_dump(mode="json", exclude={"id", "type"})
-    clean_value = clean.model_dump(mode="json", exclude={"id", "type"})
+    clean_value = clean_identity_value(clean)
     chunk_value = chunk.model_dump(mode="json", exclude={"id", "type"})
     cleaner_version = cleaner_for_node(clean).version
     extractor_version = extractor_version_for_settings(extract)
@@ -100,6 +102,11 @@ def _processing_spec(execution: IngestionExecution):
             extract=extract_value,
             clean=clean_value,
         ),
+        extraction_identity(
+            schema_version=execution.schema_version,
+            extractor_version=extractor_version,
+            extract=extract_value,
+        ),
     )
 
 
@@ -118,13 +125,30 @@ def _compatible_processing(
             and _processing_matches(latest, chunk.size, chunk.overlap)
             else None
         )
-    _, config_hash, _ = spec
+    config_hash = spec[1]
     return session.scalar(
         select(ProcessingRun)
         .where(
             ProcessingRun.document_id == document_id,
             ProcessingRun.status == "succeeded",
             ProcessingRun.processing_config_hash == config_hash,
+        )
+        .order_by(ProcessingRun.version.desc())
+        .limit(1)
+    )
+
+
+def _compatible_extraction(session, document_id, spec):
+    """A succeeded run of this file whose extracted document can be reused, OCR
+    included, when only cleaning or chunking settings changed (spec 0012 C5)."""
+    if spec is None:
+        return None
+    return session.scalar(
+        select(ProcessingRun)
+        .where(
+            ProcessingRun.document_id == document_id,
+            ProcessingRun.status == "succeeded",
+            ProcessingRun.extraction_config_hash == spec[3],
         )
         .order_by(ProcessingRun.version.desc())
         .limit(1)
@@ -578,6 +602,11 @@ def _start_run(
         if processing_created:
             spec = _processing_spec(execution)
             reusable = _compatible_derivation(session, document.id, spec)
+            extraction = (
+                None
+                if reusable is not None
+                else _compatible_extraction(session, document.id, spec)
+            )
             processing = ProcessingRun(
                 document_id=document.id,
                 version=(latest.version if latest is not None else 0) + 1,
@@ -593,7 +622,11 @@ def _start_run(
                 processing_config=spec[0] if spec else None,
                 processing_config_hash=spec[1] if spec else None,
                 derivation_config_hash=spec[2] if spec else None,
+                extraction_config_hash=spec[3] if spec else None,
                 reused_from_processing_run_id=(reusable.id if reusable else None),
+                reused_extraction_from_processing_run_id=(
+                    extraction.id if extraction else None
+                ),
             )
             session.add(processing)
             session.flush()

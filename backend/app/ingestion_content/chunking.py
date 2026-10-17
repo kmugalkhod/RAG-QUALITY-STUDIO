@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from bisect import bisect_right
 from dataclasses import dataclass, replace
 from typing import Any, Iterable
 
@@ -86,19 +87,25 @@ def _piece(block: CanonicalBlock, ranges: Iterable[tuple[int, int]], findings=()
 def _split_ranges(
     text: str, maximum_tokens: int, tokenizer: Utf8ByteTokenizer
 ) -> list[tuple[int, int]]:
+    """Split a block into ranges of at most `maximum_tokens`, preferring to end at a
+    sentence or line boundary. Spec 0012 C1: byte offsets are computed once and both
+    the budget end and the last boundary are found by bisection, so a long block is
+    split in linear time with exactly the ranges of the original scan."""
     boundaries = [match.end() for match in _BOUNDARY.finditer(text)]
+    offsets = tokenizer.byte_offsets(text)
     ranges: list[tuple[int, int]] = []
     start = 0
-    while start < len(text):
-        cap = tokenizer.prefix_end(text, start, maximum_tokens)
-        if cap == len(text):
+    length = len(text)
+    while start < length:
+        # The largest end whose bytes since `start` fit the budget (prefix_end).
+        cap = bisect_right(offsets, offsets[start] + maximum_tokens) - 1
+        if cap == length:
             ranges.append((start, cap))
             break
         if cap <= start:
             cap = start + 1
-        preferred = max(
-            (value for value in boundaries if start < value <= cap), default=cap
-        )
+        last = bisect_right(boundaries, cap) - 1
+        preferred = boundaries[last] if last >= 0 and boundaries[last] > start else cap
         ranges.append((start, preferred))
         start = preferred
     return ranges

@@ -77,14 +77,16 @@ def detect_language(text: str) -> LanguageResult:
 
 
 def apply_language_policy(document: ExtractedDocumentV1, policy) -> ExtractedDocumentV1:
-    page_languages = {}
-    for page in document.pages:
-        page_text = "\n".join(
-            block.text
-            for block in document.blocks
-            if block.page_number == page.page_number
+    # Blocks grouped by page in one pass (spec 0012 C2), in document order.
+    page_blocks: dict = {}
+    for block in document.blocks:
+        page_blocks.setdefault(block.page_number, []).append(block.text)
+    page_languages = {
+        page.page_number: detect_language(
+            "\n".join(page_blocks.get(page.page_number, []))
         )
-        page_languages[page.page_number] = detect_language(page_text)
+        for page in document.pages
+    }
     document_language = detect_language(
         "\n".join(block.text for block in document.blocks)
     )

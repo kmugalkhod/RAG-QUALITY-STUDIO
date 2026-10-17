@@ -677,7 +677,13 @@ def test_adapter_input_bound(embedding_config):
             lambda _: pytest.fail("Must reject before sending.")
         ),
     )
-    for texts in [[], [" "], ["a" * 8192], ["😀" * 2048], ["a"] * 17]:
+    for texts in [
+        [],
+        [" "],
+        ["a" * 8192],
+        ["😀" * 2048],
+        ["a"] * 65,
+    ]:  # spec 0012 C6: up to 64 per request
         with pytest.raises(embeddings.EmbeddingError):
             provider.embed(texts)
 

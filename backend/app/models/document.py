@@ -95,6 +95,7 @@ class ProcessingRun(Base):
         ),
         Index("ix_runs_status_updated", "status", "updated_at"),
         Index("ix_runs_derivation_config", "document_id", "derivation_config_hash"),
+        Index("ix_runs_extraction_config", "document_id", "extraction_config_hash"),
         Index(
             "uq_run_active_document",
             "document_id",
@@ -113,6 +114,12 @@ class ProcessingRun(Base):
     processing_config_hash: Mapped[str | None] = mapped_column(String(64))
     derivation_config_hash: Mapped[str | None] = mapped_column(String(64))
     reused_from_processing_run_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("processing_runs.id")
+    )
+    # Spec 0012 C5: extraction settings alone, so a cleaning change reuses the
+    # extracted document (and its OCR) of an earlier run of the same file.
+    extraction_config_hash: Mapped[str | None] = mapped_column(String(64))
+    reused_extraction_from_processing_run_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("processing_runs.id")
     )
     output_hash: Mapped[str | None] = mapped_column(String(64))

@@ -14,6 +14,7 @@ from app.ingestion_content.contracts import (
     CanonicalBlock,
     CleanedDocumentV1,
     ExtractedDocumentV1,
+    ExtractedPage,
     ChunkBlockSpanV1,
 )
 from app.models.derivation import (
@@ -397,6 +398,69 @@ def reusable_cleaned_document(
         sensitive_data_applied=cleaned.sensitive_data_applied,
     )
     return document, extracted.engine_version
+
+
+def reusable_extracted_document(
+    session: Session, source_processing_run_id: UUID
+) -> tuple[ExtractedDocumentV1, str] | None:
+    """The extracted document of an earlier run, rebuilt from its stored blocks,
+    pages, measurements and findings (spec 0012 C5), or None when it cannot be read,
+    for example protected text whose key is unavailable. The caller then extracts
+    the file again."""
+    row = session.execute(
+        select(ContentDerivation)
+        .join(
+            ProcessingDerivation,
+            ProcessingDerivation.derivation_id == ContentDerivation.id,
+        )
+        .where(
+            ProcessingDerivation.processing_run_id == source_processing_run_id,
+            ProcessingDerivation.kind == "extracted",
+        )
+    ).scalar_one_or_none()
+    if row is None:
+        return None
+    stored = session.scalars(
+        select(ContentBlock)
+        .where(ContentBlock.derivation_id == row.id)
+        .order_by(ContentBlock.ordinal)
+    ).all()
+    keyring = data_key = None
+    try:
+        if any(block.protected_text_ciphertext is not None for block in stored):
+            keyring, data_key = _protected_derivation_key(session, row)
+        blocks = [
+            CanonicalBlock(
+                id=block.block_id,
+                ordinal=block.ordinal,
+                type=block.block_type,
+                text=_block_text(block, row, keyring, data_key),
+                page_number=block.page_number,
+                bounding_box=block.bounding_box,
+                heading_path=block.heading_path,
+                source_span=block.source_span,
+                attributes=block.attributes,
+            )
+            for block in stored
+        ]
+    except HTTPException:
+        return None
+    by_page: dict = {}
+    for block in blocks:
+        by_page.setdefault(block.page_number, []).append(block.id)
+    document = ExtractedDocumentV1(
+        media_type=row.media_type,
+        title=row.title,
+        language=row.language,
+        pages=[
+            ExtractedPage(**page, block_ids=by_page.get(page["page_number"], []))
+            for page in row.pages or []
+        ],
+        blocks=blocks,
+        measurements=row.measurements,
+        findings=row.findings,
+    )
+    return document, row.engine_version
 
 
 def link_reused_derivations(

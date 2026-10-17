@@ -94,14 +94,64 @@ def clean_thousand_pages():
     return seconds, _digest([b.text for b in cleaned.blocks])
 
 
-def remove_controls():
-    text = ("Lantern\u0007 maps​ and­ letters.\n" * 60_000)[:2_000_000]
+def build_thousand_pages():
+    """Validating a 1,000-page extracted document (pages × blocks before C2)."""
+    segments = [
+        CanonicalInputSegment(
+            text=f"Page {page} paragraph {block}. " + SENTENCE,
+            page_number=page,
+            block_type="paragraph",
+        )
+        for page in range(1, 1001)
+        for block in range(20)
+    ]
+    seconds, extracted = _timed(
+        lambda: build_extracted_document(segments, media_type="application/pdf")
+    )
+    return seconds, _digest([b.id for b in extracted.blocks])
+
+
+def remove_controls(worst_case: bool):
+    text = (
+        ("Lantern\u0007 maps​ and­ letters.\n" * 60_000)
+        if worst_case
+        else SENTENCE * 30_000
+    )[:2_000_000]
     block = build_extracted_document(
         [CanonicalInputSegment(text=text, page_number=1, block_type="paragraph")],
         media_type="text/plain",
     ).blocks[0]
+    _controls(block.model_copy(update={"text": "warm up"}))  # one-time table, if any
     seconds, (value, removed) = _timed(lambda: _controls(block))
     return seconds, _digest([value, removed])
+
+
+def fingerprint_memory(pages: int = 200):
+    """Peak traced memory of Website chrome fingerprints over a page stream (C4)."""
+    import tracemalloc
+
+    from app.ingestion_content.cleaning import website_text_fingerprints
+
+    def documents():
+        for page in range(pages):
+            yield build_extracted_document(
+                [
+                    CanonicalInputSegment(
+                        text=f"Page {page} block {block}. " + SENTENCE * 20,
+                        page_number=1,
+                        block_type="paragraph",
+                    )
+                    for block in range(40)
+                ]
+                + [CanonicalInputSegment(text="Skip to content", block_type="unknown")],
+                media_type="text/html",
+            )
+
+    tracemalloc.start()
+    fingerprints = website_text_fingerprints(documents())
+    _, peak = tracemalloc.get_traced_memory()
+    tracemalloc.stop()
+    return round(peak / 1_000_000, 1), _digest(sorted(fingerprints))
 
 
 def main():
@@ -109,9 +159,13 @@ def main():
     for version in ("section-token-v1", "section-token-v2"):
         results[f"C1 chunk 2 MB block ({version})"] = chunk_two_megabytes(version)
     results["C2 clean 1,000 pages x 20 blocks"] = clean_thousand_pages()
-    results["C3 control characters, 2 MB"] = remove_controls()
+    results["C2 build and validate 1,000 pages x 20 blocks"] = build_thousand_pages()
+    results["C3 control characters, 2 MB, one every few words"] = remove_controls(True)
+    results["C3 control characters, 2 MB of ordinary text"] = remove_controls(False)
     for name, (seconds, digest) in results.items():
         print(f"{name}: {seconds} s  output {digest}")
+    megabytes, digest = fingerprint_memory()
+    print(f"C4 fingerprints of 200 pages: peak {megabytes} MB  output {digest}")
 
 
 if __name__ == "__main__":

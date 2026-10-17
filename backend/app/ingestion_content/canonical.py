@@ -19,6 +19,7 @@ from app.ingestion_content.contracts import (
     ProviderBlockSpan,
     QualityFinding,
     TransformAudit,
+    page_counts,
 )
 from app.ingestion_content.processing import (
     CharacterWindowChunker,
@@ -130,12 +131,14 @@ def build_extracted_document(
                 attributes=attributes,
             )
         )
+    # Blocks grouped by page in one pass, in document order (spec 0012 C2).
+    page_block_ids: dict[int | None, list[str]] = {}
+    for block in blocks:
+        page_block_ids.setdefault(block.page_number, []).append(block.id)
     pages = [
         ExtractedPage(
             page_number=page_number,
-            block_ids=[
-                block.id for block in blocks if block.page_number == page_number
-            ],
+            block_ids=page_block_ids.get(page_number, []),
             **((page_metadata or {}).get(page_number, {})),
         )
         for page_number in sorted(
@@ -219,22 +222,14 @@ def clean_document(
                     "character_count": sum(len(block.text) for block in blocks),
                     "block_count": len(blocks),
                     "page_count": extracted.measurements.page_count,
-                    "page_character_counts": [
-                        sum(
-                            len(block.text)
-                            for block in blocks
-                            if block.page_number == page.page_number
+                    **dict(
+                        zip(
+                            ("page_character_counts", "page_block_counts"),
+                            page_counts(
+                                blocks, [page.page_number for page in extracted.pages]
+                            ),
                         )
-                        for page in extracted.pages
-                    ],
-                    "page_block_counts": [
-                        sum(
-                            1
-                            for block in blocks
-                            if block.page_number == page.page_number
-                        )
-                        for page in extracted.pages
-                    ],
+                    ),
                 }
             ),
             findings=extracted.findings,

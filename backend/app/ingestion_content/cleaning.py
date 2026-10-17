@@ -9,9 +9,11 @@ from __future__ import annotations
 
 import hashlib
 import re
+import sys
 import time
 import unicodedata
 from collections import Counter
+from functools import lru_cache
 from typing import Iterable
 
 from app.ingestion_content.contracts import (
@@ -20,6 +22,7 @@ from app.ingestion_content.contracts import (
     ExtractedDocumentV1,
     TransformAudit,
     TransformChange,
+    page_counts,
 )
 from app.ingestion_content.processing import (
     IngestionStageError,
@@ -109,13 +112,15 @@ def _fingerprint(value: str) -> str:
 def website_text_fingerprints(
     documents: Iterable[ExtractedDocumentV1], minimum_page_ratio: float = 0.6
 ) -> set[str]:
-    """Return bounded cross-page text fingerprints repeated across a website run."""
+    """Return bounded cross-page text fingerprints repeated across a website run.
 
-    docs = list(documents)
-    if len(docs) < 3:
-        return set()
+    Pages are read one at a time and only their fingerprints are kept, so memory does
+    not grow with the number of pages (spec 0012 C4)."""
+
+    pages = 0
     counts: Counter[str] = Counter()
-    for document in docs:
+    for document in documents:
+        pages += 1
         counts.update(
             {
                 value
@@ -123,10 +128,10 @@ def website_text_fingerprints(
                 if (value := _fingerprint(block.text)) and len(value) <= 500
             }
         )
+    if pages < 3:
+        return set()
     return {
-        value
-        for value, count in counts.items()
-        if count / len(docs) >= minimum_page_ratio
+        value for value, count in counts.items() if count / pages >= minimum_page_ratio
     }
 
 
@@ -205,22 +210,27 @@ def _unicode(block: CanonicalBlock, form: str):
     )
 
 
+_KEPT_CONTROLS = {"\n", "\r", "\t", "\u200c", "\u200d"}
+
+
+@lru_cache(maxsize=1)
+def _unsupported_controls() -> dict[int, None]:
+    """Every Cc and Cf character except line breaks, tab and the joiners, from this
+    Python's Unicode database, as a deletion table. Built once; spec 0012 C3 replaces
+    a per-character Python loop with one `str.translate` that removes exactly the
+    same characters."""
+    return {
+        code: None
+        for code in range(sys.maxunicode + 1)
+        if not 0xD800 <= code <= 0xDFFF
+        and unicodedata.category(chr(code)) in {"Cc", "Cf"}
+        and chr(code) not in _KEPT_CONTROLS
+    }
+
+
 def _controls(block: CanonicalBlock):
-    removed = 0
-    values = []
-    for value in block.text:
-        unsupported = unicodedata.category(value) in {"Cc", "Cf"} and value not in {
-            "\n",
-            "\r",
-            "\t",
-            "\u200c",
-            "\u200d",
-        }
-        if unsupported:
-            removed += 1
-        else:
-            values.append(value)
-    return "".join(values), removed
+    value = block.text.translate(_unsupported_controls())
+    return value, len(block.text) - len(value)
 
 
 def _reflow(block: CanonicalBlock, allowed: set[str]):
@@ -655,20 +665,16 @@ def clean_structure_document(
             "too_much_useful_content",
             "Cleaned content exceeds the saved maximum character limit.",
         )
-    page_numbers = [page.page_number for page in extracted.pages]
+    page_characters, page_blocks = page_counts(
+        blocks, [page.page_number for page in extracted.pages]
+    )
     measurements = extracted.measurements.model_copy(
         update={
             "character_count": characters,
             "block_count": len(blocks),
             "empty_block_count": sum(not block.text.strip() for block in blocks),
-            "page_character_counts": [
-                sum(len(block.text) for block in blocks if block.page_number == page)
-                for page in page_numbers
-            ],
-            "page_block_counts": [
-                sum(block.page_number == page for block in blocks)
-                for page in page_numbers
-            ],
+            "page_character_counts": page_characters,
+            "page_block_counts": page_blocks,
         }
     )
     return CleanedDocumentV1(

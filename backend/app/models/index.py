@@ -164,6 +164,14 @@ class IndexChunk(Base):
             name="ck_embedding_nonzero",
         ),
         Index("ix_index_chunks_member", "run_id", "ordinal", "index_id"),
+        # Members still waiting for a vector (spec 0012 C6, migration 0053).
+        Index(
+            "ix_index_chunks_unembedded",
+            "index_id",
+            "run_id",
+            "ordinal",
+            postgresql_where=text("embedding IS NULL"),
+        ),
     )
     index_id: Mapped[uuid.UUID] = mapped_column(primary_key=True)
     run_id: Mapped[uuid.UUID] = mapped_column(primary_key=True)

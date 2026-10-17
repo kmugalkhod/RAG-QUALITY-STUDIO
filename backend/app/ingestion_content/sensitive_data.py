@@ -331,26 +331,18 @@ def apply_sensitive_data_policy(
         changes=changes[:200],
     )
     from app.ingestion_content.canonical import document_hash
+    from app.ingestion_content.contracts import page_counts
 
     pages = sorted(
         {block.page_number for block in rewritten if block.page_number is not None}
     )
+    page_characters, page_blocks = page_counts(rewritten, pages)
     measurements = document.measurements.model_copy(
         update={
             "character_count": sum(len(block.text) for block in rewritten),
             "block_count": len(rewritten),
-            "page_character_counts": [
-                sum(
-                    len(block.text)
-                    for block in rewritten
-                    if block.page_number == page_number
-                )
-                for page_number in pages
-            ],
-            "page_block_counts": [
-                sum(block.page_number == page_number for block in rewritten)
-                for page_number in pages
-            ],
+            "page_character_counts": page_characters,
+            "page_block_counts": page_blocks,
         }
     )
     redacted = document.model_copy(

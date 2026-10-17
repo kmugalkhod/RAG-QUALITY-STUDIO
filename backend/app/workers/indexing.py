@@ -14,13 +14,20 @@ from app.models.document import Chunk, Document, ProcessingRun
 from app.models.index import IndexChunk, IndexVersion, KnowledgeSet
 from app.models.ingestion import IngestionRun
 from app.providers import embeddings
+from app.providers.rate_limit import request_share
 from app.services import ingestion_execution, provider_credentials
 from app.workers.celery_app import celery
 from app.workers.handoff import hand_off
 from app.workers.processing import now
 
-BATCH_SIZE = 16
-MAX_BATCH_CHARACTERS = 24000
+# Spec 0012 C6/D7: up to 64 passages per request within a byte budget far below
+# the provider's per-request token limit (OpenAI allows 2,048 inputs and 300,000
+# tokens; UTF-8 bytes are an upper bound on tokens).
+BATCH_SIZE = 64
+MAX_BATCH_BYTES = 192_000
+# Indexing takes at most this share of the per-minute request budget, leaving the
+# rest for Playground and answer queries (45 of the default 60).
+INDEXING_REQUEST_SHARE = 0.75
 THROTTLE_DELAY_SECONDS = 20
 RETRY_DELAY_SECONDS = 15
 # Spec 0012 D7: continuous throttling for this long fails the index.
@@ -90,12 +97,13 @@ def _process_batch(index_id: UUID, db_engine, token, handing_off) -> int | None:
                     .limit(BATCH_SIZE)
                 ).all()
                 batch = []
-                characters = 0
+                total = 0
                 for row in candidates:
-                    if batch and characters + len(row.text) > MAX_BATCH_CHARACTERS:
+                    size = len(row.text.encode("utf-8"))
+                    if batch and total + size > MAX_BATCH_BYTES:
                         break
                     batch.append(row)
-                    characters += len(row.text)
+                    total += size
                 vectors = {}
                 # Exact text plus the complete embedding config, only within this
                 # project. One indexed hash lookup serves the whole batch.
@@ -164,17 +172,14 @@ def _process_batch(index_id: UUID, db_engine, token, handing_off) -> int | None:
                         )
                     ):
                         return
-                raw, usage = embeddings.embed_with_usage(
-                    provider, [r.text for r in missing]
-                )
-                values = embeddings.validate_vectors(
-                    raw, len(missing), config.dimensions
-                )
+                # Identical texts in one batch are sent once (spec 0012 C6).
+                texts = list(dict.fromkeys(row.text for row in missing))
+                with request_share(INDEXING_REQUEST_SHARE):
+                    raw, usage = embeddings.embed_with_usage(provider, texts)
+                values = embeddings.validate_vectors(raw, len(texts), config.dimensions)
+                by_text = dict(zip(texts, values, strict=True))
                 vectors.update(
-                    {
-                        (row.run_id, row.ordinal): value
-                        for row, value in zip(missing, values, strict=True)
-                    }
+                    {(row.run_id, row.ordinal): by_text[row.text] for row in missing}
                 )
             with Session(db_engine) as session:
                 # Lock the parent ingestion run before the index, the same order as
@@ -218,21 +223,36 @@ def _process_batch(index_id: UUID, db_engine, token, handing_off) -> int | None:
                     job.updated_at = job.finished_at = now()
                     session.commit()
                     return
-                for (run_id, ordinal), vector in vectors.items():
-                    member = session.get(IndexChunk, (index_id, run_id, ordinal))
-                    member.embedding = vector
+                # One bulk update by primary key, not one load per row (C6).
+                if vectors:
+                    session.execute(
+                        update(IndexChunk),
+                        [
+                            {
+                                "index_id": index_id,
+                                "run_id": run_id,
+                                "ordinal": ordinal,
+                                "embedding": vector,
+                            }
+                            for (run_id, ordinal), vector in vectors.items()
+                        ],
+                    )
                 if job.reused_vector_count is not None:
                     job.reused_vector_count += len(batch) - len(missing)
                 job.throttled_since = None
-                session.flush()
-                completed = session.scalar(
-                    select(func.count())
-                    .select_from(IndexChunk)
-                    .where(
-                        IndexChunk.index_id == index_id,
-                        IndexChunk.embedding.is_not(None),
+                # A running count; the fenced token means each row is counted once.
+                # The whole index is counted only to confirm completion.
+                completed = job.embedded_count + len(vectors)
+                if completed >= job.chunk_count:
+                    session.flush()
+                    completed = session.scalar(
+                        select(func.count())
+                        .select_from(IndexChunk)
+                        .where(
+                            IndexChunk.index_id == index_id,
+                            IndexChunk.embedding.is_not(None),
+                        )
                     )
-                )
                 job.embedded_count = completed
                 job.failures = 0
                 job.execution_token = None

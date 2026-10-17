@@ -1,7 +1,7 @@
 from uuid import UUID
 
 from fastapi import HTTPException
-from sqlalchemy import func, insert, select, update
+from sqlalchemy import func, insert, literal, select, update
 from sqlalchemy.orm import Session
 
 from app.models.document import Chunk, Document, ProcessingRun
@@ -251,19 +251,22 @@ def create_index_from_processing_runs(
     )
     session.add(result)
     session.flush()
-    for start in range(0, len(members), 500):
-        session.execute(
-            insert(IndexChunk),
-            [
-                dict(
-                    index_id=result.id,
-                    run_id=r,
-                    ordinal=o,
-                    dimensions=config.dimensions,
-                )
-                for r, o in members[start : start + 500]
-            ],
+    # One INSERT … SELECT while the index lock is held, instead of up to a hundred
+    # batches of rows sent from Python (spec 0012 C7). Same rows as \`members\`.
+    session.execute(
+        insert(IndexChunk).from_select(
+            ["index_id", "run_id", "ordinal", "dimensions"],
+            select(
+                literal(result.id, type_=IndexChunk.index_id.type),
+                Chunk.run_id,
+                Chunk.ordinal,
+                literal(config.dimensions, type_=IndexChunk.dimensions.type),
+            ).where(
+                Chunk.run_id.in_(processing_run_ids),
+                Chunk.chunk_role != "parent",
+            ),
         )
+    )
     if commit:
         session.commit()
         session.refresh(result)
