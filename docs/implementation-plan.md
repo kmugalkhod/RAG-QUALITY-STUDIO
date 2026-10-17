@@ -1,5 +1,9 @@
 # Implementation plan
 
+## Clean, Chunk, Embed and Publish Index — spec 0012 (drafted 2026-10-17)
+
+**Status:** approved 2026-10-17 (owner accepted D1-D9 as recommended). Nothing built; Slice 0 is next. [Spec 0012](specs/0012-clean-chunk-embed-publish.md).
+
 ## Recommended Website settings — spec 0011 (started 2026-10-14)
 
 **Status:** trimmed to Website only with code-computed settings and no decision model; the owner accepted the recommended defaults and asked for Slices 0-3 to be built and pushed. [Spec 0011](specs/0011-recommended-website-settings.md).
