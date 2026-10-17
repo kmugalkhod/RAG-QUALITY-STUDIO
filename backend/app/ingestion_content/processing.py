@@ -21,9 +21,13 @@ from app.pipelines.parsing import PARSER_VERSION, pages, windows
 LEGACY_CLEANER_VERSION = "legacy-whitespace-boilerplate-v1"
 STANDARD_CLEANER_VERSION = "deterministic-clean-v1"
 STRUCTURE_CLEANER_VERSION = "structure-clean-v1"
+# Spec 0012 Part D: keeps protected blocks and the first page's copy of repeated
+# website chrome, matches chrome after normalization, and checks length once.
+STRUCTURE_CLEANER_V2_VERSION = "structure-clean-v2"
 CHARACTER_CHUNKER_VERSION = "character-window-v1"
 SECTION_TOKEN_CHUNKER_VERSION = "section-token-v2"
 PARENT_CHILD_CHUNKER_VERSION = "parent-child-v2"
+V3_CHUNKER_VERSIONS = {"section-token-v3", "parent-child-v3"}
 _SPACE = re.compile(r"\s+")
 
 
@@ -161,12 +165,15 @@ class DeterministicCleaner:
 class StructureAwareCleaner:
     """Identity and shared bounds for the canonical ordered-transform engine."""
 
-    version = STRUCTURE_CLEANER_VERSION
+    def __init__(self, version: str = STRUCTURE_CLEANER_VERSION):
+        self.version = version
 
-    @staticmethod
     def length_violation(
-        text_length: int, settings: CleanSettings
+        self, text_length: int, settings: CleanSettings
     ) -> Literal["too_short", "too_long"] | None:
+        if self.version == STRUCTURE_CLEANER_V2_VERSION:
+            # v2 checks length once, inside the cleaner, with the measured count.
+            return None
         return DeterministicCleaner.length_violation(text_length, settings)
 
 
@@ -198,6 +205,8 @@ class CharacterWindowChunker:
 
 
 def chunker_version_for_node(settings) -> str:
+    if getattr(settings, "config_version", None) in V3_CHUNKER_VERSIONS:
+        return settings.config_version
     versions = {
         "character_window": CHARACTER_CHUNKER_VERSION,
         "section_token": SECTION_TOKEN_CHUNKER_VERSION,
@@ -213,7 +222,7 @@ def cleaner_for_node(
     clean: CleanSettings,
 ) -> DeterministicCleaner | StructureAwareCleaner:
     if getattr(clean, "profile", None) == "structure-aware-v1":
-        return StructureAwareCleaner()
+        return StructureAwareCleaner(clean.config_version)
     semantics = (
         CleanSemantics.STANDARD_V1
         if getattr(clean, "profile", None) == "standard-v1"

@@ -26,6 +26,7 @@ from app.ingestion_content.contracts import (
 )
 from app.ingestion_content.processing import (
     IngestionStageError,
+    STRUCTURE_CLEANER_V2_VERSION,
     STRUCTURE_CLEANER_VERSION,
 )
 
@@ -109,6 +110,59 @@ def _fingerprint(value: str) -> str:
     return _SPACE.sub(" ", value).strip().casefold()
 
 
+def _fingerprint_v2(value: str) -> str:
+    """v2 matches chrome after compatibility normalization and control removal, so
+    a soft hyphen or a different Unicode form on one page does not hide a repeat."""
+    return _fingerprint(
+        unicodedata.normalize("NFKC", value).translate(_unsupported_controls())
+    )
+
+
+def website_chrome_owners(
+    pages: Iterable[tuple[str, ExtractedDocumentV1]], minimum_page_ratio: float = 0.6
+) -> dict[str, str]:
+    """structure-clean-v2: each repeated fingerprint mapped to the first page that
+    holds it. That page keeps its copy; the other pages drop theirs."""
+
+    count = 0
+    counts: Counter[str] = Counter()
+    owners: dict[str, str] = {}
+    for location, document in pages:
+        count += 1
+        values = {
+            value
+            for block in document.blocks[:10_000]
+            if (value := _fingerprint_v2(block.text)) and len(value) <= 500
+        }
+        counts.update(values)
+        for value in values:
+            owners.setdefault(value, location)
+    if count < 3:
+        return {}
+    return {
+        value: owners[value]
+        for value, seen in counts.items()
+        if seen / count >= minimum_page_ratio
+    }
+
+
+def site_chrome_for(
+    clean, pages: Iterable[tuple[str, ExtractedDocumentV1]], minimum_page_ratio: float
+) -> set[str] | dict[str, str]:
+    """Repeated site chrome in the form the saved cleaner reads: fingerprints for
+    v1, fingerprints with their owning page for v2."""
+    if getattr(clean, "config_version", None) == STRUCTURE_CLEANER_V2_VERSION:
+        return website_chrome_owners(pages, minimum_page_ratio)
+    return website_text_fingerprints(
+        (document for _location, document in pages), minimum_page_ratio
+    )
+
+
+def stored_site_chrome(value: set[str] | dict[str, str]) -> list[str] | dict[str, str]:
+    """JSON form of site_chrome_for's result for a run's saved processing state."""
+    return dict(value) if isinstance(value, dict) else sorted(value)
+
+
 def website_text_fingerprints(
     documents: Iterable[ExtractedDocumentV1], minimum_page_ratio: float = 0.6
 ) -> set[str]:
@@ -149,10 +203,11 @@ def _audit(
     changes: list[TransformChange],
     *,
     metrics: dict[str, int | float | str | bool] | None = None,
+    version: str = STRUCTURE_CLEANER_VERSION,
 ) -> TransformAudit:
     return TransformAudit(
         transform=transform,
-        version=STRUCTURE_CLEANER_VERSION,
+        version=version,
         changed_blocks=sum(change.action == "rewritten" for change in changes),
         removed_blocks=sum(change.action == "removed" for change in changes),
         duration_ms=max(0, (time.perf_counter_ns() - started) // 1_000_000),
@@ -448,8 +503,18 @@ def _website_selectors(blocks, step):
     return output, _audit(step.type, started, changes)
 
 
-def _website_main(blocks, step, repeated_fingerprints):
+def _website_main(
+    blocks,
+    step,
+    repeated_fingerprints,
+    *,
+    v2: bool = False,
+    protected: set[str] | None = None,
+    document_location: str | None = None,
+):
     started = time.perf_counter_ns()
+    owners = repeated_fingerprints if isinstance(repeated_fingerprints, dict) else {}
+    kept_repeats = 0
     output = []
     changes = []
     web_blocks = [
@@ -485,6 +550,17 @@ def _website_main(blocks, step, repeated_fingerprints):
             hint in token_text for hint in _COOKIE_HINTS
         ):
             reason = "cookie_or_consent_banner"
+        elif v2 and step.remove_repeated_site_chrome:
+            value = _fingerprint_v2(block.text)
+            if value in repeated_fingerprints:
+                if block.type in (protected or set()) or (
+                    document_location is not None
+                    and owners.get(value) == document_location
+                ):
+                    # Protected blocks and the first page's copy stay.
+                    kept_repeats += 1
+                else:
+                    reason = "repeated_site_chrome"
         elif (
             step.remove_repeated_site_chrome
             and _fingerprint(block.text) in repeated_fingerprints
@@ -503,13 +579,23 @@ def _website_main(blocks, step, repeated_fingerprints):
         metrics={
             "main_content_detected": has_main,
             "site_fingerprints_available": len(repeated_fingerprints),
+            **({"repeated_blocks_kept": kept_repeats} if v2 else {}),
         },
     )
 
 
-def _validate(blocks, step):
+def _validate(blocks, step, *, v2: bool = False):
     started = time.perf_counter_ns()
     characters = sum(len(block.text) for block in blocks)
+    if v2:
+        # v2 checks the step's bounds once, with the node's, after cleaning ends.
+        return blocks, _audit(
+            step.type,
+            started,
+            [],
+            metrics={"useful_characters": characters},
+            version=STRUCTURE_CLEANER_V2_VERSION,
+        )
     if characters < step.minimum_characters:
         raise IngestionStageError(
             "clean",
@@ -536,16 +622,20 @@ def clean_structure_document(
     *,
     extractor_version: str,
     configuration_hash: str,
-    repeated_site_fingerprints: set[str] | None = None,
+    repeated_site_fingerprints: set[str] | dict[str, str] | None = None,
+    document_location: str | None = None,
 ) -> CleanedDocumentV1:
     """Execute the saved ordered transform list and return a new immutable document."""
 
     from app.ingestion_content.canonical import document_hash
 
+    v2 = settings.config_version == STRUCTURE_CLEANER_V2_VERSION
     blocks = list(extracted.blocks)
     audits = []
     protected = set(_PROTECTED_DEFAULT)
     repeated_site_fingerprints = repeated_site_fingerprints or set()
+    minimum_characters = settings.minimum_text_chars
+    maximum_characters = settings.maximum_text_chars
     for step in settings.steps:
         if not step.enabled:
             continue
@@ -605,9 +695,18 @@ def clean_structure_document(
         elif step.type == "website_selectors":
             blocks, audit = _website_selectors(blocks, step)
         elif step.type == "website_main_content":
-            blocks, audit = _website_main(blocks, step, repeated_site_fingerprints)
+            blocks, audit = _website_main(
+                blocks,
+                step,
+                repeated_site_fingerprints,
+                v2=v2,
+                protected=protected,
+                document_location=document_location,
+            )
         elif step.type == "validate_useful_content":
-            blocks, audit = _validate(blocks, step)
+            blocks, audit = _validate(blocks, step, v2=v2)
+            minimum_characters = max(minimum_characters, step.minimum_characters)
+            maximum_characters = min(maximum_characters, step.maximum_characters)
         else:  # pragma: no cover - strict schema makes this unreachable
             raise IngestionStageError(
                 "clean",
@@ -653,13 +752,32 @@ def clean_structure_document(
         for index, block in enumerate(blocks)
     ]
     characters = sum(len(block.text) for block in blocks)
-    if characters < settings.minimum_text_chars:
+    if v2:
+        audits = [
+            audit.model_copy(update={"version": STRUCTURE_CLEANER_V2_VERSION})
+            for audit in audits
+        ]
+        if characters < minimum_characters:
+            raise IngestionStageError(
+                "clean",
+                "too_little_useful_content",
+                f"Cleaning left {characters:,} characters of useful text; "
+                f"the minimum is {minimum_characters:,}.",
+            )
+        if characters > maximum_characters:
+            raise IngestionStageError(
+                "clean",
+                "too_much_useful_content",
+                f"Cleaning left {characters:,} characters of useful text; "
+                f"the maximum is {maximum_characters:,}.",
+            )
+    elif characters < settings.minimum_text_chars:
         raise IngestionStageError(
             "clean",
             "too_little_useful_content",
             "Cleaning left too little useful content for the saved minimum.",
         )
-    if characters > settings.maximum_text_chars:
+    elif characters > settings.maximum_text_chars:
         raise IngestionStageError(
             "clean",
             "too_much_useful_content",
@@ -683,7 +801,9 @@ def clean_structure_document(
         language=extracted.language,
         blocks=blocks,
         extractor_version=extractor_version,
-        cleaner_version=STRUCTURE_CLEANER_VERSION,
+        cleaner_version=(
+            STRUCTURE_CLEANER_V2_VERSION if v2 else STRUCTURE_CLEANER_VERSION
+        ),
         configuration_hash=configuration_hash,
         input_hash=document_hash(extracted.blocks),
         output_hash=document_hash(blocks),

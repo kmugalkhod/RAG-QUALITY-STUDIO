@@ -716,7 +716,7 @@ export type ExtractionCapabilities = {
   cleaning_profiles: {
     id: 'structure-aware-v1';
     name: string;
-    config_version: 'structure-clean-v1';
+    config_version: 'structure-clean-v1' | 'structure-clean-v2';
     steps: CleaningTransform[];
   }[];
   tokenizers?: {

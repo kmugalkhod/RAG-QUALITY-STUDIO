@@ -122,7 +122,7 @@ test('a new token chunker uses the current version and shows no upgrade', () => 
 test('offers a saved section-token-v1 chunker an explicit upgrade that keeps its settings', () => {
   render(<Harness chunkVersion="section-token-v1" />);
   expect(screen.getByText('Saved with section-token-v1')).toBeInTheDocument();
-  expect(screen.getByText(/The current\s+chunking, section-token-v2,/)).toBeInTheDocument();
+  expect(screen.getByText(/The current\s+chunking, section-token-v2:/)).toBeInTheDocument();
   fireEvent.change(screen.getByLabelText('Target size (bytes)'), { target: { value: '500' } });
 
   fireEvent.click(screen.getByRole('button', { name: 'Upgrade chunking' }));

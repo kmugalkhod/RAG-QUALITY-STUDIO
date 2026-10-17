@@ -63,12 +63,66 @@ export const currentChunkVersions = {
   parent_child: 'parent-child-v2',
 } as const;
 
+/** The number at the end of a version label; a missing version is v1. */
+export const versionNumber = (version: string | undefined) =>
+  Number(/-v(\d+)$/.exec(version ?? '')?.[1] ?? 1);
+
+/** What each token chunker version adds, named by the upgrade notice. */
+export const chunkVersionChanges: Record<number, string> = {
+  2: 'joins a short piece on a page, such as a chart label or callout read as a heading, to the passage before it',
+  3: 'starts overlap and splits long text between words, never inside one, counts "。！？" as sentence ends, joins any remainder under 40 bytes to the passage next to it, and leaves out a heading the passage already starts with from its section prefix',
+};
+
 /** A saved token chunker without a version runs v1, as the server reads it. */
 export function chunkUpgradeAvailable(node: ChunkNode) {
   return (
     (node.algorithm === 'section_token' || node.algorithm === 'parent_child') &&
-    node.config_version !== currentChunkVersions[node.algorithm]
+    versionNumber(node.config_version) < versionNumber(currentChunkVersions[node.algorithm])
   );
+}
+
+/** The changes between a saved token chunker and the current one, oldest first. */
+export function chunkUpgradeChanges(node: ChunkNode): string[] {
+  if (node.algorithm !== 'section_token' && node.algorithm !== 'parent_child') {
+    return [];
+  }
+  const current = versionNumber(currentChunkVersions[node.algorithm]);
+  const changes: string[] = [];
+  for (let version = versionNumber(node.config_version) + 1; version <= current; version += 1) {
+    const change = chunkVersionChanges[version];
+    if (change) {
+      changes.push(change);
+    }
+  }
+  return changes;
+}
+
+/** What each structure-aware cleaner version adds, named by the upgrade notice. */
+export const cleanVersionChanges: Record<number, string> = {
+  2: "keeps tables, lists, code, quotes and footnotes and the first page's copy when it removes repeated website chrome, matches repeats after Unicode normalization so a soft hyphen no longer hides one, and states the measured length when a document has too little or too much text",
+};
+
+/** A saved structure-aware cleaner older than the server's recommended one. */
+export function cleanUpgradeChanges(
+  node: { profile?: string; config_version?: string },
+  capabilities: ExtractionCapabilities | null | undefined,
+): string[] {
+  const profile = capabilities?.cleaning_profiles?.[0];
+  if (!profile || node.profile !== profile.id) {
+    return [];
+  }
+  const changes: string[] = [];
+  for (
+    let version = versionNumber(node.config_version) + 1;
+    version <= versionNumber(profile.config_version);
+    version += 1
+  ) {
+    const change = cleanVersionChanges[version];
+    if (change) {
+      changes.push(change);
+    }
+  }
+  return changes;
 }
 
 export const isLayoutExtractVersion = (version: string | undefined) =>

@@ -18,6 +18,7 @@ import {
 import {
   chunkFieldProblems,
   chunkUpgradeAvailable,
+  chunkUpgradeChanges,
   currentChunkVersions,
   defaultChunkNode,
   embeddingInputBytes,
@@ -264,10 +265,16 @@ export function ChunkSettings({
           >
             <p>
               This version keeps its original chunking so earlier runs reproduce. The current
-              chunking, {currentChunkVersions[algorithm]}, joins a short piece on a page, such as a
-              chart label or callout read as a heading, to the passage before it, so it is no longer
-              a passage of a few words that search rarely finds. Saving the upgrade creates a new
-              pipeline version, and its next run chunks and embeds documents again.
+              chunking, {currentChunkVersions[algorithm]}:
+            </p>
+            <ul className="list-disc pl-4">
+              {chunkUpgradeChanges(node).map((change) => (
+                <li key={change}>{change}</li>
+              ))}
+            </ul>
+            <p>
+              Saving the upgrade creates a new pipeline version, and its next run chunks and embeds
+              documents again.
             </p>
             <div>
               <Button

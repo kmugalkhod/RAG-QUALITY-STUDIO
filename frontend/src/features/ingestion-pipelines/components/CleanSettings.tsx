@@ -14,7 +14,11 @@ import {
   resetCleanAdvanced,
   setCleanLiterals,
 } from '../downstreamModel';
-import { defaultDuplicatePolicy, defaultSensitiveDataPolicy } from '../editorModel';
+import {
+  cleanUpgradeChanges,
+  defaultDuplicatePolicy,
+  defaultSensitiveDataPolicy,
+} from '../editorModel';
 import type { ExtractionCapabilities, IngestionNode } from '../model';
 import { CleaningTransformSettings, cleaningStepProblems } from './CleaningTransformSettings';
 import { ListTextField } from './ListTextField';
@@ -66,6 +70,7 @@ export function CleanSettings({
   const duplicate = node.duplicate_policy ?? structuredClone(defaultDuplicatePolicy);
   const sensitive = node.sensitive_data_policy ?? structuredClone(defaultSensitiveDataPolicy);
   const profile = capabilities?.cleaning_profiles?.[0];
+  const upgradeChanges = structure ? cleanUpgradeChanges(node, capabilities) : [];
 
   return (
     <div className={STACK}>
@@ -115,6 +120,32 @@ export function CleanSettings({
         </>
       ) : (
         <>
+          {profile && upgradeChanges.length > 0 && (
+            <Callout role="note" title={`Saved with ${node.config_version}`}>
+              <p>
+                This version keeps its original cleaning so earlier runs reproduce. The current
+                cleaning, {profile.config_version}:
+              </p>
+              <ul className="list-disc pl-4">
+                {upgradeChanges.map((change) => (
+                  <li key={change}>{change}</li>
+                ))}
+              </ul>
+              <p>
+                Saving the upgrade creates a new pipeline version, and its next run cleans documents
+                again.
+              </p>
+              <div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => update({ ...node, config_version: profile.config_version })}
+                >
+                  Upgrade cleaning
+                </Button>
+              </div>
+            </Callout>
+          )}
           <p className={HINT}>
             Removes website menus, cookie banners and repeated page headers; keeps tables, lists and
             code.

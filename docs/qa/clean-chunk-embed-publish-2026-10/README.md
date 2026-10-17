@@ -86,6 +86,37 @@ Embedding (C6), from the opt-in `tests/test_indexing_throughput.py` with a deter
 
 C5: a Clean-only change starts a processing run that reuses the earlier run's extracted document; the test replaces the extractor with one that fails if called, and the run succeeds with the same extracted output and a different cleaned output. The dev database's 616 existing schema-v2 processing runs were backfilled, so they are reusable at once.
 
+## Part D new versions on the saved corpus (Slice 6, 2026-10-18)
+
+Free and read-only: `backend/scripts/clean_chunk/v3_corpus.py` rebuilds every processing run of the eight saved indexes from its stored extracted and cleaned derivations, chunks and cleans again in memory and compares; raw numbers are in [`v3_corpus.json`](v3_corpus.json). `short_passages.py` gives the reason for each v3 passage still under 40 bytes.
+
+**v1 and v2 are byte-identical.** All 94 runs give exactly their stored passages (text, embedding text, role and parent) when chunked again with their saved version (`section-token-v1` for the 47 web-A1 pages, `section-token-v2` and `parent-child-v2` for the rest). Cleaning the stored extracted document again with `structure-clean-v1` reproduces the stored cleaned output hash for all 30 file runs and all 64 website pages.
+
+**v3 against the saved version, same sizes:**
+
+| Index | Passages | Under 40 bytes | Of which on a page under 40 bytes | Mid-word starts | Median | Max embedding text | Parents (smallest) |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| A4s files F1-F3 | 673 → 660 | 6 → 1 | 1 | 156 → 0 | 651 → 656.5 | 1,102 → 1,094 | |
+| A4s files F4-F7 | 524 → 506 | 20 → 5 | 4 | 79 → 0 | 283 → 301.5 | 980 → 953 | |
+| A4s d2 | 790 → 751 | 30 → 2 | 0 | 164 → 0 | 558.5 → 583 | 1,031 → 1,026 | |
+| A4p files F1-F3 (children) | 1,905 → 1,955 | 21 → 3 | 1 | 311 → 0 | 294 → 295 | 628 → 620 | 612 (4 bytes) → 630 (12) |
+| A4p files F4-F7 (children) | 937 → 905 | 34 → 7 | 4 | 157 → 0 | 225 → 235 | 504 → 504 | 438 (5) → 423 (21) |
+| A4p d2 (children) | 1,914 → 1,857 | 70 → 9 | 0 | 332 → 0 | 268.5 → 271 | 540 → 540 | 647 (2) → 618 (40) |
+| Websites, round A1 (v1 → v3) | 2,381 → 2,334 | 41 → 0 | 0 | 674 → 0 | 605 → 608 | 937 → 937 | |
+| W1a Python tutorial | 469 → 462 | 2 → 0 | 0 | 137 → 0 | 616 → 617.5 | 893 → 892 | |
+| **All** | **9,593 → 9,430** | **224 → 27** | **10** | **2,010 → 0** | | | |
+
+No v3 passage or parent starts mid-word, and no passage is larger than the saved maximum. 27 passages remain under 40 bytes, each where joining it would break another rule:
+
+- 10: the page holds under 40 bytes ("(Blank Page)", a chapter divider such as "Population et société 1"). A passage cites one page, so it cannot join the next page.
+- 11: a heading directly before, or a page number directly after, a table, list or code block that fills a passage ("Table 8-1 Authenticator Threats", "Head of Household"). Those blocks are never split, and the passage maximum is a hard limit.
+- 2: both neighbours on the page are full ("Page 4 GAO-23-900494", a running footer read as a heading).
+- 4: parent-child headings that the parent level joins to the parent before them while their text starts the next parent ("A.3 Fine-tuning Procedure").
+
+So the Slice 6 check "no chunk under 40 bytes" holds for both website indexes and for every short passage that has room next to it, not for these 27. Removing them would mean crossing pages, splitting tables or lists, or exceeding the maximum, which v3 does not do.
+
+**`structure-clean-v2` on the website pages.** Pages are grouped by host to measure repeated chrome, as a crawl groups them by source. On the 47 round-A1 pages, v1 removed 179 blocks as repeated site chrome, 4 of them protected (tables, lists, code, quotes or footnotes); v2 removes 162 and no protected block, keeping 19: those 4 protected blocks on every page and the first page's copy of each other repeat. The W1a pages have no repeated chrome under either version. The soft-hyphen case is covered by `tests/test_structure_cleaning_v2.py`: v1 kept a repeated line on every page because its fingerprint had a soft hyphen; v2 removes it from all pages except the first.
+
 ## Bug reproductions
 
 One failing test per Part A item that has a backend or frontend path. Each states the fixed behaviour and is marked as expected to fail: `backend/tests/test_spec0012_repro.py` (strict `xfail`) and `frontend/tests/features/ingestion-pipelines/spec0012Repro.test.tsx` (`test.fails`). The slice that fixes an item removes its marker. Each was checked to fail on its assertion, not on setup: the backend tests against the unmodified code with `--runxfail`, the frontend tests by running a copy as plain tests.

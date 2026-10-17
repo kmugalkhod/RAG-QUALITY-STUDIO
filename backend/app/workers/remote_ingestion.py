@@ -549,7 +549,10 @@ def _process_crawled(run_id, token, db_engine, execution, prior_revisions):
             and main_step is not None
             and main_step.remove_repeated_site_chrome
         ):
-            from app.ingestion_content.cleaning import website_text_fingerprints
+            from app.ingestion_content.cleaning import (
+                site_chrome_for,
+                stored_site_chrome,
+            )
 
             extracted = itertools.count(1)
 
@@ -559,8 +562,12 @@ def _process_crawled(run_id, token, db_engine, execution, prior_revisions):
                 for row in rows:
                     if next(extracted) % 25 == 0 and not heartbeat():
                         raise _Fenced
-                    yield website_ingestion.canonical_extracted_document(
-                        website_crawl.page_artifact(row, prior_body), clean, extract
+                    artifact = website_crawl.page_artifact(row, prior_body)
+                    yield (
+                        artifact.canonical_location,
+                        website_ingestion.canonical_extracted_document(
+                            artifact, clean, extract
+                        ),
                     )
 
             with Session(worker_engine) as session:
@@ -581,9 +588,11 @@ def _process_crawled(run_id, token, db_engine, execution, prior_revisions):
                     by_source.setdefault(row.source_node_id, []).append(row)
                 try:
                     fingerprints = {
-                        source_node_id: sorted(
-                            website_text_fingerprints(
-                                documents(source_rows), main_step.minimum_page_ratio
+                        source_node_id: stored_site_chrome(
+                            site_chrome_for(
+                                clean,
+                                documents(source_rows),
+                                main_step.minimum_page_ratio,
                             )
                         )
                         for source_node_id, source_rows in by_source.items()
@@ -605,7 +614,9 @@ def _process_crawled(run_id, token, db_engine, execution, prior_revisions):
         # Runs recorded before per-source fingerprints stored one shared list.
         if isinstance(recorded, list):
             return set(recorded)
-        return set(recorded.get(source_node_id) or [])
+        value = recorded.get(source_node_id)
+        # structure-clean-v2 stores each fingerprint with the page that keeps it.
+        return dict(value) if isinstance(value, dict) else set(value or [])
 
     def phase_callback(node_type):
         return ingestion_execution.transition(
@@ -1292,7 +1303,7 @@ def _advance_website(run_id, token, db_engine, connector_factory):
     # Repeated site chrome is measured per source, never across sites.
     repeated_site_fingerprints = {}
     if getattr(clean, "profile", None) == "structure-aware-v1":
-        from app.ingestion_content.cleaning import website_text_fingerprints
+        from app.ingestion_content.cleaning import site_chrome_for
 
         main_step = next(
             (
@@ -1317,10 +1328,10 @@ def _advance_website(run_id, token, db_engine, connector_factory):
                     extracted_by_location[
                         (source_node_id, artifact.canonical_location)
                     ] = document
-                    source_documents.append(document)
+                    source_documents.append((artifact.canonical_location, document))
             if main_step is not None and main_step.remove_repeated_site_chrome:
-                repeated_site_fingerprints[source_node_id] = website_text_fingerprints(
-                    source_documents, main_step.minimum_page_ratio
+                repeated_site_fingerprints[source_node_id] = site_chrome_for(
+                    clean, source_documents, main_step.minimum_page_ratio
                 )
 
     def phase_callback(node_type):
@@ -1847,12 +1858,16 @@ def _carry_forward(session, job, carried, kept_items, chunk, clean, extract, sta
             and main_step is not None
             and main_step.remove_repeated_site_chrome
         ):
-            from app.ingestion_content.cleaning import website_text_fingerprints
+            from app.ingestion_content.cleaning import site_chrome_for
 
-            fingerprints = website_text_fingerprints(
+            fingerprints = site_chrome_for(
+                clean,
                 (
-                    website_ingestion.canonical_extracted_document(
-                        _stored_page(session, location, revision), clean, extract
+                    (
+                        location,
+                        website_ingestion.canonical_extracted_document(
+                            _stored_page(session, location, revision), clean, extract
+                        ),
                     )
                     for location, revision, _ in pages
                 ),

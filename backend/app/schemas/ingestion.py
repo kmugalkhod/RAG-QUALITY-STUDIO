@@ -854,9 +854,9 @@ CLEANING_STEP_NAMES = {
 
 class CleanNodeV2(LegacyCleanNode):
     profile: Literal["standard-v1", "structure-aware-v1"] = "standard-v1"
-    config_version: Literal["deterministic-clean-v1", "structure-clean-v1"] = (
-        "deterministic-clean-v1"
-    )
+    config_version: Literal[
+        "deterministic-clean-v1", "structure-clean-v1", "structure-clean-v2"
+    ] = "deterministic-clean-v1"
     steps: list[CleaningTransform] = Field(
         default_factory=list, max_length=20, exclude_if=lambda value: not value
     )
@@ -878,9 +878,10 @@ class CleanNodeV2(LegacyCleanNode):
                     "use the structure-aware cleaner for steps."
                 )
             return self
-        if self.config_version != "structure-clean-v1":
+        if self.config_version not in {"structure-clean-v1", "structure-clean-v2"}:
             raise ValueError(
-                "structure-aware-v1 requires the structure-clean-v1 engine."
+                "structure-aware-v1 requires the structure-clean-v1 or "
+                "structure-clean-v2 engine."
             )
         if not self.steps:
             raise ValueError("Structure-aware cleaning needs at least one step.")
@@ -954,8 +955,11 @@ class SectionTokenChunkNodeV2(NodeBase):
     overlap_tokens: int = Field(default=80, strict=True, ge=0, le=4096)
     add_heading_context: bool = True
     # v2 appends a section's short first chunk to the chunk before it on the
-    # same page (spec 0010); v1 stays as saved.
-    config_version: Literal["section-token-v1", "section-token-v2"] = "section-token-v1"
+    # same page (spec 0010); v3 also splits and overlaps at word boundaries and
+    # joins short remainders (spec 0012 Part D). Earlier versions stay as saved.
+    config_version: Literal[
+        "section-token-v1", "section-token-v2", "section-token-v3"
+    ] = "section-token-v1"
 
     @property
     def size(self):
@@ -994,7 +998,9 @@ class ParentChildChunkNodeV2(NodeBase):
     parent_target_tokens: int = Field(default=900, strict=True, ge=128, le=16384)
     parent_maximum_tokens: int = Field(default=1200, strict=True, ge=128, le=32768)
     add_heading_context: bool = True
-    config_version: Literal["parent-child-v1", "parent-child-v2"] = "parent-child-v1"
+    config_version: Literal["parent-child-v1", "parent-child-v2", "parent-child-v3"] = (
+        "parent-child-v1"
+    )
 
     @property
     def size(self):

@@ -169,6 +169,7 @@ def _canonical_chunks(
         extractor_version=web_extractor_version(extract_config),
         configuration_hash=processing_config_hash,
         repeated_site_fingerprints=repeated_site_fingerprints,
+        document_location=artifact.canonical_location,
     )
     combined = "\n\n".join(block.text for block in cleaned.blocks)
     violation = cleaner.length_violation(len(combined), clean)
