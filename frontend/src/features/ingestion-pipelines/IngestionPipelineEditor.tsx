@@ -33,6 +33,7 @@ import { IngestionPreviewResults, IngestionRunResults } from './components/Inges
 import { IngestionGroupStrip } from './components/IngestionGroupStrip';
 import { IngestionRunStrip } from './components/IngestionRunStrip';
 import { nameClash, takenMessage } from './components/PublishIndexSettings';
+import { cleaningStepProblems } from './components/CleaningTransformSettings';
 import { IngestionMoreActions, IngestionToolbar } from './components/IngestionToolbar';
 import {
   defaultConfluence,
@@ -730,6 +731,12 @@ export function IngestionPipelineEditor({
         const problems = Object.values(chunkFieldProblems(chunk));
         if (problems.length) {
           reasons.push(`${stage}Chunk: ${problems.join(' ')}`);
+        }
+      }
+      if (chunk?.type === 'clean' && chunk.profile === 'structure-aware-v1') {
+        const problems = Object.values(cleaningStepProblems(chunk));
+        if (problems.length) {
+          reasons.push(`${stage}Clean: ${problems.join(' ')}`);
         }
       }
       const clean = chunk;

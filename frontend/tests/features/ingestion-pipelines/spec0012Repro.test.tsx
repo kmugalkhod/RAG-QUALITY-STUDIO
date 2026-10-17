@@ -318,7 +318,7 @@ test('A16: switching the chunking method offers Undo', () => {
 });
 
 // A17: the literal box keeps typed spaces and new lines.
-test.fails('A17: the literal text box keeps spaces and new lines while typing', () => {
+test('A17: the literal text box keeps spaces and new lines while typing', () => {
   render(<CleanHarness onChange={() => undefined} />);
   const box = screen.getByLabelText('Exact literals');
   fireEvent.change(box, { target: { value: 'Page 1 of \n' } });
@@ -326,13 +326,13 @@ test.fails('A17: the literal text box keeps spaces and new lines while typing', 
 });
 
 // A18: "Preserve structured blocks" cannot be switched off, so it has no toggle.
-test.fails('A18: Preserve structured blocks has no on/off toggle', () => {
+test('A18: Preserve structured blocks has no on/off toggle', () => {
   render(<CleanHarness onChange={() => undefined} />);
   expect(screen.queryByRole('checkbox', { name: /Preserve structured blocks/ })).toBeNull();
 });
 
 // A19: adding "Remove literal boilerplate" starts with no literal.
-test.fails('A19: a new literal step saves no placeholder', () => {
+test('A19: a new literal step saves no placeholder', () => {
   let latest: Clean | undefined;
   const node: Clean = {
     ...structuredClone(structureClean),
@@ -353,7 +353,7 @@ test.fails('A19: a new literal step saves no placeholder', () => {
 });
 
 // A20: a Clean server error is attached to its step's field.
-test.fails('A20: a clean step server error maps to its field', () => {
+test('A20: a clean step server error maps to its field', () => {
   const nodes = defaultIngestionDraft(embedding, []).execution.nodes;
   const position = nodes.findIndex((node) => node.type === 'clean');
   const errors = serverFieldErrors(
@@ -369,7 +369,7 @@ test.fails('A20: a clean step server error maps to its field', () => {
 });
 
 // A22: guided setup creates new drafts, which offer only the structure-aware cleaner.
-test.fails('A22: guided setup offers no compatibility cleaner', () => {
+test('A22: guided setup offers no compatibility cleaner', () => {
   render(
     <ProcessingStep
       guided={newGuidedDraft(embedding)}

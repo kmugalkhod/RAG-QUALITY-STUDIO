@@ -47,6 +47,7 @@ import {
 } from './SourceSettings';
 import { ChunkSettings } from './ChunkSettings';
 import { CleaningTransformSettings } from './CleaningTransformSettings';
+import { ListTextField } from './ListTextField';
 import { PublishIndexSettings } from './PublishIndexSettings';
 import {
   CHECK_ROW,
@@ -1139,6 +1140,7 @@ export function IngestionNodeSettings({
                 <CleaningTransformSettings
                   node={selected}
                   capabilities={extractionCapabilities}
+                  errors={nodeErrors}
                   update={(value) =>
                     updateNode(selected.id, (node) => (node.type === 'clean' ? value : node))
                   }
@@ -1199,29 +1201,26 @@ export function IngestionNodeSettings({
                         />
                       </Label>
                     )}
-                    <Label>
-                      Pinned canonical locations
-                      <Input
-                        value={selectedDuplicate.pinned_canonical_locations.join(', ')}
-                        placeholder="Comma-separated stable source identities"
-                        onChange={(event) =>
-                          updateNode(selected.id, (node) =>
-                            node.type === 'clean'
-                              ? {
-                                  ...node,
-                                  duplicate_policy: {
-                                    ...selectedDuplicate,
-                                    pinned_canonical_locations: event.target.value
-                                      .split(',')
-                                      .map((value) => value.trim())
-                                      .filter(Boolean),
-                                  },
-                                }
-                              : node,
-                          )
-                        }
-                      />
-                    </Label>
+                    <ListTextField
+                      label="Pinned canonical locations"
+                      separator=","
+                      trim
+                      placeholder="Comma-separated stable source identities"
+                      values={selectedDuplicate.pinned_canonical_locations}
+                      onChange={(values) =>
+                        updateNode(selected.id, (node) =>
+                          node.type === 'clean'
+                            ? {
+                                ...node,
+                                duplicate_policy: {
+                                  ...selectedDuplicate,
+                                  pinned_canonical_locations: values,
+                                },
+                              }
+                            : node,
+                        )
+                      }
+                    />
                     <p className={HINT}>
                       Canonical order: pinned source, connector priority, first stable identity,
                       then lexical identity. Overrides are saved in a new pipeline version.

@@ -413,7 +413,6 @@ def test_a14_processing_record_names_the_saved_chunker_version(api):
 # Clean ------------------------------------------------------------------------
 
 
-@bug("A20", "Clean errors use raw transform IDs")
 def test_a20_clean_order_error_uses_plain_names(api):
     client, _, project_id, _, config, _ = api
     document = upload(client, project_id, TEXT, "a20.txt")
@@ -435,7 +434,6 @@ def test_a20_clean_order_error_uses_plain_names(api):
     assert "Normalize Unicode must run before Remove unsupported controls" in message
 
 
-@bug("A21", "the dehyphenation count includes compounds that were kept")
 def test_a21_dehyphenation_counts_only_joined_words():
     steps = deepcopy(default_structure_steps())
     for step in steps:

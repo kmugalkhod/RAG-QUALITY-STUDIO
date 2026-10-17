@@ -285,7 +285,8 @@ def _dehyphenate_compounds(block: CanonicalBlock, compounds: set[str]):
         nonlocal count
         left, right = match.group(1), match.group(2)
         if f"{left}-{right}".casefold() in compounds:
-            count += 1
+            # A kept compound only loses its line break; it is not a joined word,
+            # so it is not counted (spec 0012 A21). The text is unchanged.
             return f"{left}-{right}"
         if left[-1].islower() and right[0].islower():
             count += 1

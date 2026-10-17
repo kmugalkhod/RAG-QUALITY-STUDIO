@@ -752,17 +752,25 @@ class RemoveLiteralBoilerplateTransform(CleaningTransformBase):
         default_factory=lambda: ["paragraph", "unknown"], min_length=1, max_length=10
     )
 
-    @model_validator(mode="after")
-    def safe_literals(self):
-        if len(set(self.values)) != len(self.values) or any(
-            not value.strip() or len(value) > 500 for value in self.values
+    # Field-level, so the error is shown on the text box (spec 0012 A20).
+    @field_validator("values")
+    @classmethod
+    def safe_literals(cls, values):
+        if len(set(values)) != len(values) or any(
+            not value.strip() or len(value) > 500 for value in values
         ):
             raise ValueError(
-                "Literal boilerplate values must be unique and contain 1 to 500 visible characters."
+                "Each line of text to remove must be unique, 1 to 500 characters "
+                "long and not only spaces."
             )
-        if len(set(self.block_types)) != len(self.block_types):
+        return values
+
+    @field_validator("block_types")
+    @classmethod
+    def unique_block_types(cls, values):
+        if len(set(values)) != len(values):
             raise ValueError("Literal boilerplate block types must be unique.")
-        return self
+        return values
 
 
 _SAFE_SELECTOR = r"^(?:[a-z][a-z0-9-]*|\.[a-zA-Z0-9_-]+|#[a-zA-Z0-9_-]+|\[role=(?:main|navigation|banner|contentinfo|complementary|dialog|form)\])$"
@@ -828,6 +836,22 @@ CleaningTransform = Annotated[
 ]
 
 
+# Plain step names for validation messages; the Clean panel uses the same names.
+CLEANING_STEP_NAMES = {
+    "preserve_structure": "Preserve structured blocks",
+    "unicode_normalize": "Normalize Unicode",
+    "remove_control_characters": "Remove unsupported controls",
+    "reflow_pdf_lines": "Reflow PDF lines",
+    "dehyphenate": "Dehyphenate line endings",
+    "remove_repeated_headers_footers": "Remove repeated headers and footers",
+    "remove_empty_blocks": "Remove empty blocks",
+    "remove_literal_boilerplate": "Remove literal boilerplate",
+    "website_selectors": "Apply Website selectors",
+    "website_main_content": "Keep Website main content",
+    "validate_useful_content": "Validate useful content",
+}
+
+
 class CleanNodeV2(LegacyCleanNode):
     profile: Literal["standard-v1", "structure-aware-v1"] = "standard-v1"
     config_version: Literal["deterministic-clean-v1", "structure-clean-v1"] = (
@@ -850,7 +874,8 @@ class CleanNodeV2(LegacyCleanNode):
         if self.profile == "standard-v1":
             if self.config_version != "deterministic-clean-v1" or self.steps:
                 raise ValueError(
-                    "standard-v1 requires deterministic-clean-v1 and no ordered transforms."
+                    "The compatibility cleaner (standard-v1) runs no ordered steps; "
+                    "use the structure-aware cleaner for steps."
                 )
             return self
         if self.config_version != "structure-clean-v1":
@@ -858,15 +883,13 @@ class CleanNodeV2(LegacyCleanNode):
                 "structure-aware-v1 requires the structure-clean-v1 engine."
             )
         if not self.steps:
-            raise ValueError(
-                "Structure-aware cleaning requires at least one transform."
-            )
+            raise ValueError("Structure-aware cleaning needs at least one step.")
         ids = [step.id for step in self.steps]
         types = [step.type for step in self.steps]
         if len(set(ids)) != len(ids):
-            raise ValueError("Cleaning transform IDs must be unique.")
+            raise ValueError("Each cleaning step needs its own ID.")
         if len(set(types)) != len(types):
-            raise ValueError("Each cleaning transform type may appear only once.")
+            raise ValueError("Each cleaning step may appear only once.")
         enabled = [step.type for step in self.steps if step.enabled]
 
         def before(left: str, right: str):
@@ -875,7 +898,10 @@ class CleanNodeV2(LegacyCleanNode):
                 and right in enabled
                 and enabled.index(left) > enabled.index(right)
             ):
-                raise ValueError(f"{left} must run before {right}.")
+                raise ValueError(
+                    f"{CLEANING_STEP_NAMES[left]} must run before "
+                    f"{CLEANING_STEP_NAMES[right]}."
+                )
 
         for later in (
             "remove_control_characters",
@@ -896,7 +922,7 @@ class CleanNodeV2(LegacyCleanNode):
             and enabled[-1] != "validate_useful_content"
         ):
             raise ValueError(
-                "validate_useful_content must be the last enabled transform."
+                "Validate useful content must be the last step that is turned on."
             )
         return self
 

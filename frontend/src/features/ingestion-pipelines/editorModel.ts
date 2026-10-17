@@ -430,6 +430,21 @@ export const embeddingInputBytes = 8191;
 export const headingPrefixBytes = 300;
 export const maxPassageBytes = embeddingInputBytes - headingPrefixBytes;
 
+/** Cleaning step types; the server names a step's type in an error's location. */
+const cleaningStepTypes = new Set([
+  'preserve_structure',
+  'unicode_normalize',
+  'remove_control_characters',
+  'reflow_pdf_lines',
+  'dehyphenate',
+  'remove_repeated_headers_footers',
+  'remove_empty_blocks',
+  'remove_literal_boilerplate',
+  'website_selectors',
+  'website_main_content',
+  'validate_useful_content',
+]);
+
 /** Every Chunk field the server can report an error on. */
 export const chunkFields = new Set([
   'size',
@@ -574,6 +589,21 @@ export function serverFieldErrors(
       const node = typeof position === 'number' ? nodes?.[position] : undefined;
       if (typeof last === 'string' && chunkFields.has(last) && (!nodes || node?.type === 'chunk')) {
         return [[`${prefix}chunk.${last}`, issue.msg.replace(/^Value error, /, '')]];
+      }
+      if (!nodes || node?.type === 'clean') {
+        // `clean.steps.<index>[.<field>]`, skipping the step-type tag the server adds.
+        const steps = issue.loc.lastIndexOf('steps');
+        const index = issue.loc[steps + 1];
+        if (steps >= 0 && typeof index === 'number') {
+          const field = issue.loc
+            .slice(steps + 2)
+            .find((part) => typeof part === 'string' && !cleaningStepTypes.has(part));
+          const key = field ? `clean.steps.${index}.${field}` : `clean.steps.${index}`;
+          return [[`${prefix}${key}`, issue.msg.replace(/^Value error, /, '')]];
+        }
+        if (nodes && last === 'clean') {
+          return [[`${prefix}clean`, issue.msg.replace(/^Value error, /, '')]];
+        }
       }
       const website = issue.loc.lastIndexOf('website');
       const field = String(issue.loc[website + 1]);

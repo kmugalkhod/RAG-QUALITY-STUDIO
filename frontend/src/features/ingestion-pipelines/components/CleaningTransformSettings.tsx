@@ -6,9 +6,9 @@ import { Checkbox } from '../../../components/ui/checkbox';
 import { Input } from '../../../components/ui/input';
 import { Label } from '../../../components/ui/label';
 import { NativeSelect, NativeSelectOption } from '../../../components/ui/native-select';
-import { Textarea } from '../../../components/ui/textarea';
 import type { CleaningTransform, ExtractionCapabilities, IngestionNode } from '../model';
-import { FACTS, FIELD_GRID, HINT, OPTION, STACK } from './settingsStyles';
+import { ListTextField } from './ListTextField';
+import { FACTS, FIELD_ERROR, FIELD_GRID, HINT, OPTION, STACK } from './settingsStyles';
 
 type CleanNode = Extract<IngestionNode, { type: 'clean' }>;
 
@@ -59,7 +59,8 @@ function newTransform(type: CleaningTransform['type']): CleaningTransform {
       return {
         ...base,
         type,
-        values: ['Replace this literal'],
+        // Starts empty: an empty list is invalid until text is entered (spec 0012 A19).
+        values: [],
         block_types: ['paragraph', 'unknown'],
       };
     case 'website_selectors':
@@ -78,22 +79,31 @@ function newTransform(type: CleaningTransform['type']): CleaningTransform {
   }
 }
 
-function lines(value: string) {
-  return value
-    .split('\n')
-    .map((item) => item.trim())
-    .filter(Boolean);
+/** Client checks of the step fields, keyed `steps.<index>.<field>` (spec 0012 A19, A20). */
+export function cleaningStepProblems(node: CleanNode): Record<string, string> {
+  return Object.fromEntries(
+    (node.steps ?? []).flatMap((step, index) =>
+      step.type === 'remove_literal_boilerplate' && step.enabled && step.values.length === 0
+        ? [[`steps.${index}.values`, 'Enter at least one line of text to remove.']]
+        : [],
+    ),
+  );
 }
 
 export function CleaningTransformSettings({
   node,
   capabilities,
+  errors = {},
   update,
 }: {
   node: CleanNode;
   capabilities?: ExtractionCapabilities;
+  /** Server errors of this node, keyed `clean` or `clean.steps.<index>[.<field>]`. */
+  errors?: Record<string, string>;
   update: (node: CleanNode) => void;
 }) {
+  const problems = cleaningStepProblems(node);
+  const errorOf = (key: string) => errors[`clean.${key}`] ?? problems[key];
   const [selectedType, setSelectedType] = useState('');
   const steps = node.steps ?? [];
   const supported = capabilities?.cleaning_profiles?.[0];
@@ -172,6 +182,11 @@ export function CleaningTransformSettings({
         </Button>
       </div>
 
+      {errors.clean && (
+        <p role="alert" className={FIELD_ERROR}>
+          {errors.clean}
+        </p>
+      )}
       <ol className="flex flex-col gap-2" aria-label="Ordered cleaning transforms">
         {steps.map((step, index) => (
           <li
@@ -179,20 +194,35 @@ export function CleaningTransformSettings({
             className="flex min-w-0 flex-col gap-4 rounded-card border border-border bg-background p-4"
           >
             <div className="flex items-start justify-between gap-2">
-              <label className="flex min-w-0 cursor-pointer items-start gap-3 text-sm text-foreground [&>[data-slot=checkbox]]:mt-1">
-                <Checkbox
-                  checked={step.enabled}
-                  onCheckedChange={(checked) =>
-                    updateStep(index, { ...step, enabled: checked === true })
-                  }
-                />
-                <span className="flex min-w-0 flex-col gap-1">
+              {step.type === 'preserve_structure' ? (
+                // Protection always applies, so this step has no switch (spec 0012 A18).
+                <span className="flex min-w-0 flex-col gap-1 text-sm text-foreground">
                   <strong className="font-medium">
                     {index + 1}. {names[step.type]}
                   </strong>
-                  <small className="text-xs text-foreground-muted wrap-anywhere">{step.type}</small>
+                  <small className="text-xs text-foreground-muted">
+                    Always on: tables, lists, code, quotes and footnotes are never rewritten or
+                    removed.
+                  </small>
                 </span>
-              </label>
+              ) : (
+                <label className="flex min-w-0 cursor-pointer items-start gap-3 text-sm text-foreground [&>[data-slot=checkbox]]:mt-1">
+                  <Checkbox
+                    checked={step.enabled}
+                    onCheckedChange={(checked) =>
+                      updateStep(index, { ...step, enabled: checked === true })
+                    }
+                  />
+                  <span className="flex min-w-0 flex-col gap-1">
+                    <strong className="font-medium">
+                      {index + 1}. {names[step.type]}
+                    </strong>
+                    <small className="text-xs text-foreground-muted wrap-anywhere">
+                      {step.type}
+                    </small>
+                  </span>
+                </label>
+              )}
               <div className="flex shrink-0 items-center gap-1">
                 <Button
                   type="button"
@@ -230,6 +260,11 @@ export function CleaningTransformSettings({
                 </Button>
               </div>
             </div>
+            {errors[`clean.steps.${index}`] && (
+              <p role="alert" className={FIELD_ERROR}>
+                {errors[`clean.steps.${index}`]}
+              </p>
+            )}
             {step.type === 'unicode_normalize' && (
               <Label>
                 Unicode form
@@ -304,48 +339,45 @@ export function CleaningTransformSettings({
             )}
             {step.type === 'remove_literal_boilerplate' && (
               <>
-                <Label>
-                  Exact literals
-                  <Textarea
-                    value={step.values.join('\n')}
-                    onChange={(event) =>
-                      updateStep(index, { ...step, values: lines(event.target.value) })
-                    }
-                  />
-                </Label>
-                <Label>
-                  Block types, one per line
-                  <Textarea
-                    value={step.block_types.join('\n')}
-                    onChange={(event) =>
-                      updateStep(index, { ...step, block_types: lines(event.target.value) })
-                    }
-                  />
-                </Label>
+                <ListTextField
+                  label="Exact literals"
+                  hint="One per line. Spaces count: each line is removed exactly as typed."
+                  values={step.values}
+                  error={errorOf(`steps.${index}.values`)}
+                  onChange={(values) => updateStep(index, { ...step, values })}
+                />
+                <ListTextField
+                  label="Block types, one per line"
+                  trim
+                  values={step.block_types}
+                  error={errorOf(`steps.${index}.block_types`)}
+                  onChange={(values) =>
+                    updateStep(index, {
+                      ...step,
+                      block_types: values as typeof step.block_types,
+                    })
+                  }
+                />
               </>
             )}
             {step.type === 'website_selectors' && (
               <div className={FIELD_GRID}>
-                <Label>
-                  Include selectors
-                  <Textarea
-                    placeholder="main"
-                    value={step.include.join('\n')}
-                    onChange={(event) =>
-                      updateStep(index, { ...step, include: lines(event.target.value) })
-                    }
-                  />
-                </Label>
-                <Label>
-                  Exclude selectors
-                  <Textarea
-                    placeholder=".cookie-banner"
-                    value={step.exclude.join('\n')}
-                    onChange={(event) =>
-                      updateStep(index, { ...step, exclude: lines(event.target.value) })
-                    }
-                  />
-                </Label>
+                <ListTextField
+                  label="Include selectors"
+                  trim
+                  placeholder="main"
+                  values={step.include}
+                  error={errorOf(`steps.${index}.include`)}
+                  onChange={(include) => updateStep(index, { ...step, include })}
+                />
+                <ListTextField
+                  label="Exclude selectors"
+                  trim
+                  placeholder=".cookie-banner"
+                  values={step.exclude}
+                  error={errorOf(`steps.${index}.exclude`)}
+                  onChange={(exclude) => updateStep(index, { ...step, exclude })}
+                />
               </div>
             )}
             {step.type === 'website_main_content' && (

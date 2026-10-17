@@ -362,7 +362,6 @@ export function OutputStep({
 }
 
 type ExtractNode = Extract<IngestionNode, { type: 'extract' }>;
-type CleanNode = Extract<IngestionNode, { type: 'clean' }>;
 
 const extractLabels = {
   auto: 'Auto · page-level fallback',
@@ -391,7 +390,6 @@ export function ProcessingStep({
   const extract = sharedStage(guided.draft, 'extract', guided.customized).node as
     | ExtractNode
     | undefined;
-  const clean = sharedStage(guided.draft, 'clean', guided.customized).node as CleanNode | undefined;
   const embed = sharedStage(guided.draft, 'embed', guided.customized).node;
   const chunk = chunkSettings(guided);
   const structure = capabilities?.cleaning_profiles?.[0];
@@ -438,7 +436,8 @@ export function ProcessingStep({
         <span className="min-w-0 flex-1 basis-sidebar md:max-w-(--guided-control)">
           <NativeSelect
             id={cleanId}
-            value={clean?.profile === 'structure-aware-v1' ? 'structure' : 'standard'}
+            // New drafts offer only the structure-aware cleaner (spec 0012 A22).
+            value="structure"
             onChange={(event) => onClean(event.target.value === 'structure')}
           >
             <NativeSelectOption value="structure" disabled={!structure}>
@@ -446,7 +445,6 @@ export function ProcessingStep({
                 ? `${structure.name} · ${structure.steps.length} steps`
                 : 'Structure-aware (unavailable)'}
             </NativeSelectOption>
-            <NativeSelectOption value="standard">Compatibility cleaner</NativeSelectOption>
           </NativeSelect>
         </span>
       </div>
