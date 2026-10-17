@@ -9,7 +9,11 @@ the label and today's baseline (baseline.csv) and writes results.csv beside them
 
 Run inside a throwaway backend container with this directory mounted:
 
-    python scripts/setting_recommendations/evaluate.py [--only W1a,S1]
+    python scripts/setting_recommendations/evaluate.py [--only W1a,S1] [--save-signals DIR]
+
+`--save-signals DIR` also writes each row's probe signals to DIR/<site_id>.json.
+`--replay DIR` reads those files instead of probing, so a rule change can be
+re-scored offline on the same evidence (no network).
 
 Scoring follows "How Slice 3 will score" in that folder's README.md.
 """
@@ -18,6 +22,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import json
 import re
 import sys
 import time
@@ -26,7 +31,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from app.connectors.base import ConnectorFailure  # noqa: E402
-from app.connectors.website_probe import probe_website  # noqa: E402
+from app.connectors.safe_http import failure  # noqa: E402
+from app.connectors.website_probe import ProbeSignals, probe_website  # noqa: E402
 from app.core.config import settings  # noqa: E402
 from app.schemas.setting_recommendations import SettingRecommendationRequest  # noqa: E402
 from app.services.setting_recommendations import inputs_for  # noqa: E402
@@ -142,7 +148,27 @@ def no_wider(prefixes: list[str], bound: list[str]) -> bool:
     return all(any(prefix.startswith(item) for item in bound) for prefix in prefixes)
 
 
-def run_row(label: dict) -> dict:
+def probe_row(site_id: str, selection: dict, replay: Path | None, save: Path | None):
+    if replay is not None:
+        data = json.loads((replay / f"{site_id}.json").read_text(encoding="utf-8"))
+        if "failure" in data:
+            raise failure(data["failure"]["code"], data["failure"]["message"])
+        return ProbeSignals.from_json(data)
+    try:
+        signals = probe_website(selection, user_agent=settings.website_user_agent)
+    except ConnectorFailure as exc:
+        if save is not None:
+            record = {"failure": {"code": exc.issue.code, "message": exc.issue.message}}
+            (save / f"{site_id}.json").write_text(json.dumps(record), encoding="utf-8")
+        raise
+    if save is not None:
+        (save / f"{site_id}.json").write_text(
+            json.dumps(signals.as_json(), indent=1), encoding="utf-8"
+        )
+    return signals
+
+
+def run_row(label: dict, replay: Path | None = None, save: Path | None = None) -> dict:
     selection = selection_for(label["entered_url"])
     request = SettingRecommendationRequest(
         target="website",
@@ -155,9 +181,7 @@ def run_row(label: dict) -> dict:
     result: dict = {"site_id": label["site_id"], "input_mode": selection["mode"]}
     signals = None
     try:
-        signals = probe_website(
-            inputs["selection"], user_agent=settings.website_user_agent
-        )
+        signals = probe_row(label["site_id"], inputs["selection"], replay, save)
         recommendation = recommend(signals, inputs, settings)
     except ConnectorFailure as exc:
         result.update(
@@ -343,7 +367,11 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--only", default="", help="Comma-separated site IDs")
     parser.add_argument("--out", default=str(QA / "results.csv"))
+    parser.add_argument("--save-signals", type=Path, help="Write probe signals here")
+    parser.add_argument("--replay", type=Path, help="Read saved signals; no network")
     args = parser.parse_args()
+    if args.save_signals:
+        args.save_signals.mkdir(parents=True, exist_ok=True)
     with (QA / "labels.csv").open(encoding="utf-8") as handle:
         labels = list(csv.DictReader(handle))
     with (QA / "baseline.csv").open(encoding="utf-8") as handle:
@@ -353,10 +381,10 @@ def main() -> None:
     for label in labels:
         if only and label["site_id"] not in only:
             continue
-        if rows:
+        if rows and args.replay is None:
             time.sleep(ROW_PAUSE_SECONDS)
         started = time.monotonic()
-        result = run_row(label)
+        result = run_row(label, args.replay, args.save_signals)
         row = score(label, baselines[label["site_id"]], result)
         rows.append(row)
         print(

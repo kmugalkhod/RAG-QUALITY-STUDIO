@@ -134,6 +134,7 @@
     "url": null
   },
   "start_page": {
+    "canonical_url": null,
     "final_url": "https://slow.example/docs/",
     "hreflang": [],
     "html_lang": null,

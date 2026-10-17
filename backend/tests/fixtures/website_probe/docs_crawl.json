@@ -241,6 +241,7 @@
     "url": null
   },
   "start_page": {
+    "canonical_url": null,
     "final_url": "https://docs.example/manual/",
     "hreflang": [],
     "html_lang": "en",

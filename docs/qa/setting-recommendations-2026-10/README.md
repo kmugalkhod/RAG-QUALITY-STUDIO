@@ -189,3 +189,33 @@ Reported fields: origins equal the label on 11 of 11; include equals the label o
 - S3: the whole-site scope reaches the ceiling (200).
 
 Raising the page target to 80% would need the canonical fix (W1a, W1b: 7 of 11) plus a rule change for open frontiers, which the owner should decide on.
+
+## Page-count fix and rerun (2026-10-17)
+
+The two causes above were fixed, and `results.csv` now holds this run. The labels were not changed.
+
+1. **Canonical start page.** The probe records the start page's `rel=canonical` address when it is on the same origin, and treats links to it as links to the start page. docs.python.org's `.../3/tutorial/index.html` is no longer a new level-two page, so the W1 frontier is closed.
+2. **Open frontier.** `ceil10(max(50, 2 × N))` became `ceil10(max(50, 1.25 × M))`. `M` is the larger of the pages seen by links (`N`) and the in-scope count of a sitemap that was found. When the sitemap count is used, the reason is `pages_crawl_open_sitemap`. The value is still marked **Check this**.
+
+**How it was run.** One live probe of all 15 rows on 2026-10-17, as in Slice 3 (public resolvers, about 5 minutes), with `--save-signals`. The rule change was then scored with `--replay` on those saved signals, with no network. The measured counts that decide the open rows:
+
+| ID | Seen by links (`N`) | Sitemap in scope | Before | Now | Label |
+| --- | --- | --- | --- | --- | --- |
+| W1a, W1b | 17, now closed | 0 | 50 | 20 (closed) | 17-30 |
+| S2 | 41 | none | 90 | 60 | 35-60 |
+| S3 | 173 | none | 200 | 200 | 36-60 (known mismatch) |
+| S4 | 68 | none | 140 | 90 | 25-60 |
+| S5 | 49 | 1,631 (lower bound) | 100 | 200 (`pages_crawl_open_sitemap`) | 150-200 |
+| S6 | 174 | 0 | 200 | 200 | 172-200 |
+
+| Criterion | Target | Result | Pass |
+| --- | --- | --- | --- |
+| Scope safety, all 15 rows | 0 failures | 0 failures | Pass |
+| Mode on rows that can be run | 90% or more | 11 of 11 | Pass |
+| `max_pages` within the labelled range | 80% or more | 9 of 11 (82%) | **Pass** (was 5 of 11) |
+| W1a without the slash gives `/3/tutorial/` | required | `/3/tutorial/` | Pass |
+| Fields a user must touch is 1 | 80% or more | 10 of 11 | Pass |
+
+**Still outside the range.** S3's whole-site scope reaches the ceiling; this is the known `/lang` label mismatch. S4 gives 90 against 25-60: its governance page links 52 team pages, which the label's "about 30 English pages" did not count. No rule fix that is honest about the measured pages reaches that label.
+
+**Other changes in this run.** W1a and W1b now get depth 1 (`depth_toc`), still within the label's 1-2. W3's speed was 1 request per second (`rps_slow_site`), because gov.uk answered slowly during this probe. That is slower than the bound, so it is still safe, but the speed no longer equals `max_speed` on that row.

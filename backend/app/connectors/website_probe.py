@@ -398,12 +398,14 @@ class _ProbeTransport:
 
 
 class _PageFacts(HTMLParser):
-    """`<html lang>` and `<link rel=alternate hreflang>` of a page."""
+    """`<html lang>`, `<link rel=alternate hreflang>` and the first
+    `<link rel=canonical>` of a page."""
 
     def __init__(self):
         super().__init__(convert_charrefs=True)
         self.lang: str | None = None
         self.alternates: list[tuple[str, str]] = []
+        self.canonical: str | None = None
 
     def handle_starttag(self, tag, attrs):
         tag = tag.lower()
@@ -418,6 +420,13 @@ class _PageFacts(HTMLParser):
             and len(self.alternates) < MAX_HREFLANG
         ):
             self.alternates.append((values["hreflang"].strip()[:35], values["href"]))
+        elif (
+            tag == "link"
+            and self.canonical is None
+            and "canonical" in (values.get("rel") or "").lower().split()
+            and values.get("href")
+        ):
+            self.canonical = values["href"]
 
 
 def _page_links(content: bytes, final_url: str) -> tuple[list[str], int]:
@@ -590,6 +599,7 @@ class _Probe:
             "links_total": 0,
             "links_same_origin": 0,
             "links_below_path": 0,
+            "canonical_url": None,
             "response_ms": [item["elapsed_ms"] for item in records][:MAX_REQUESTS],
             "throttled": sum(
                 1
@@ -647,6 +657,20 @@ class _Probe:
                     {"lang": lang, "url": _alternate_url(href, final_url)}
                     for lang, href in facts.alternates
                 ]
+                # Another address of this same page (docs.python.org declares
+                # .../tutorial/index.html), so links to it are not new pages.
+                canonical = (
+                    _alternate_url(facts.canonical, final_url)
+                    if facts.canonical
+                    else ""
+                )
+                start["canonical_url"] = (
+                    canonical
+                    if canonical
+                    and canonical != final_url
+                    and url_origin(canonical) == final_origin
+                    else None
+                )
                 start["links_total"] = len(links)
                 start["links_same_origin"] = len(same_origin)
                 start["links_below_path"] = (
@@ -1014,6 +1038,8 @@ def _probe_page(probe: _Probe, selection: dict) -> ProbeSignals:
     signals.scope_prefixes = include
     signals.start_section = section_of(_decoded_path(final_url), include)
     itself = {start_url, final_url}
+    if start.get("canonical_url"):
+        itself.add(start["canonical_url"])
     level_one = [
         link
         for link in links

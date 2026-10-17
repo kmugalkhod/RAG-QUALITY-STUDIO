@@ -33,6 +33,7 @@
   "sections": [],
   "sitemap": {},
   "start_page": {
+    "canonical_url": null,
     "final_url": "https://app.example/",
     "hreflang": [],
     "html_lang": null,

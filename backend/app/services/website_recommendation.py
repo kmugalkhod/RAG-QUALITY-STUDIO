@@ -49,6 +49,9 @@ SLOW_RESPONSE_MS = 2000
 SITEMAP_MIN_URLS = 5
 SITEMAP_MIN_COVERAGE_PERCENT = 80
 OPEN_FRONTIER_MIN_PAGES = 50
+# Room above the pages an open frontier showed. The labelled sites (2026-10)
+# fit 1.25; the earlier 2 x N overshot every open docs site.
+OPEN_FRONTIER_HEADROOM_PERCENT = 125
 LANGUAGE_CODE = re.compile(r"^[a-z]{2}(-[a-z]{2,4})?$", re.IGNORECASE)
 
 # One sentence per reason code; values are measured numbers or the user's own
@@ -107,6 +110,10 @@ RATIONALE = {
     "pages_crawl_open": (
         "The sampled pages keep linking to new pages, so the site has more than the "
         "{count:,} found; up to {pages:,} are fetched."
+    ),
+    "pages_crawl_open_sitemap": (
+        "The sampled pages keep linking to new pages and the sitemap lists "
+        "{count:,} pages in scope, so up to {pages:,} are fetched."
     ),
     "pages_budget": (
         "The other Website sources already use {other:,} of the {limit:,}-page "
@@ -441,8 +448,18 @@ def _pages(
         if signals.links.get("frontier") == "closed":
             base, code = _ceil10(-(-count * 11 // 10)), "pages_crawl_closed"
         else:
-            base = _ceil10(max(OPEN_FRONTIER_MIN_PAGES, 2 * count))
             code, check = "pages_crawl_open", True
+            # A partial sitemap can still count more in-scope pages than the
+            # probe could reach by links (a blog's dated posts).
+            listed = signals.sitemap.get("in_scope", 0) - sum(
+                item.get("sitemap", 0) for item in excluded
+            )
+            if signals.sitemap.get("found") and listed > count:
+                count, code = listed, "pages_crawl_open_sitemap"
+                if signals.sitemap.get("lower_bound"):
+                    notes.append("lower_bound")
+            room_above = -(-count * OPEN_FRONTIER_HEADROOM_PERCENT // 100)
+            base = _ceil10(max(OPEN_FRONTIER_MIN_PAGES, room_above))
     count = max(count, 0)
     pages = max(1, min(ceiling, room, base))
     context = {"count": count, "pages": pages, "ceiling": ceiling}

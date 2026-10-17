@@ -327,6 +327,7 @@
     "url": null
   },
   "start_page": {
+    "canonical_url": null,
     "final_url": "https://lang.example/",
     "hreflang": [
       {

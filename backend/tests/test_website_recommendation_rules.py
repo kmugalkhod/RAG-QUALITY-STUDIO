@@ -168,6 +168,27 @@ RULES = [
     # Maximum pages.
     pytest.param("docs_crawl", {}, {}, {"max_pages": (50, "pages_crawl_open")}, id="pages-open-frontier"),
     pytest.param(
+        # OpenBSD FAQ (label S2): 41 pages seen (one section excluded), more linked;
+        # 1.25 x 41 rounds to 60.
+        "docs_crawl", {"links__linked_total": 42}, {}, {"max_pages": (60, "pages_crawl_open")},
+        id="pages-open-frontier-headroom",
+    ),
+    pytest.param(
+        "docs_crawl", {"links__linked_total": 170}, {}, {"max_pages": (200, "pages_crawl_open")},
+        id="pages-open-frontier-ceiling",
+    ),
+    pytest.param(
+        # Hacks (label S5): a partial sitemap lists far more posts than links reach.
+        "docs_crawl", {"sitemap__found": True, "sitemap__in_scope": 80}, {},
+        {"max_pages": (100, "pages_crawl_open_sitemap")},
+        id="pages-open-frontier-sitemap-count",
+    ),
+    pytest.param(
+        "docs_crawl", {"sitemap__found": True, "sitemap__in_scope": 3, "links__linked_total": 60}, {},
+        {"max_pages": (80, "pages_crawl_open")},
+        id="pages-open-frontier-sitemap-smaller",
+    ),
+    pytest.param(
         "docs_crawl", {"links__frontier": "closed"}, {}, {"max_pages": (10, "pages_crawl_closed")},
         id="pages-closed-frontier",
     ),
@@ -693,3 +714,23 @@ def test_links_that_all_leave_the_site_are_reported():
         }
     )
     assert "all_links_off_origin" in signals.warnings
+
+
+def test_links_to_the_start_pages_canonical_address_are_not_new_pages():
+    # docs.python.org (labels W1a, W1b): /3/tutorial/ declares rel=canonical
+    # .../index.html and every chapter links back to index.html.
+    start = "https://site.example/tutorial/"
+    canonical = "<link rel='canonical' href='https://site.example/tutorial/index.html'>"
+    signals, _ = crawl_site(
+        {
+            start: page("a.html", "b.html", head=canonical, name="start"),
+            f"{start}a.html": page("index.html", "b.html", name="a"),
+            f"{start}b.html": page("index.html", "a.html", name="b"),
+            "https://site.example/sitemap.xml": MISSING,
+            "https://site.example/sitemap_index.xml": MISSING,
+        },
+        start=start,
+    )
+    assert signals.start_page["canonical_url"] == f"{start}index.html"
+    assert signals.links["l2"] == 0
+    assert signals.links["frontier"] == "closed"
