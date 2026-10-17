@@ -284,7 +284,6 @@ def test_a7_new_name_differing_in_case_is_a_field_error(api):
 # Embed ------------------------------------------------------------------------
 
 
-@bug("A8", "chunk sizes the embedder cannot accept are saved")
 @pytest.mark.parametrize(
     "chunk",
     [
@@ -309,7 +308,6 @@ def test_a8_chunk_that_can_exceed_the_embed_limit_is_rejected(api, chunk):
     assert issue["loc"][-1] == "maximum_tokens"
 
 
-@bug("A9", "a persistently throttled index never fails")
 def test_a9_throttling_ends_after_fifteen_minutes(api, monkeypatch):
     client, engine, project_id, _, config, _ = api
     _, index_id = _indexed_run(client, engine, project_id, config, "A9")
@@ -324,7 +322,6 @@ def test_a9_throttling_ends_after_fifteen_minutes(api, monkeypatch):
         assert "kept refusing requests (rate limit)" in index.error
 
 
-@bug("A10", "the run hides why it is waiting")
 def test_a10_run_says_why_it_waits(api, monkeypatch):
     client, engine, project_id, _, config, _ = api
     run_id, index_id = _indexed_run(client, engine, project_id, config, "A10")
@@ -335,7 +332,6 @@ def test_a10_run_says_why_it_waits(api, monkeypatch):
     assert "Waiting for embedding request budget" in (result["waiting_reason"] or "")
 
 
-@bug("A11", "usage from a request that finished after a cancel is dropped")
 def test_a11_usage_is_kept_when_the_run_is_cancelled_mid_request(api, monkeypatch):
     client, engine, project_id, _, config, _ = api
     run_id, index_id = _indexed_run(client, engine, project_id, config, "A11")
@@ -369,7 +365,6 @@ def test_a11_usage_is_kept_when_the_run_is_cancelled_mid_request(api, monkeypatc
 # Chunk ------------------------------------------------------------------------
 
 
-@bug("A13", "one bad Chunk value reports an error for every node type")
 def test_a13_one_bad_chunk_value_gives_one_error(api):
     client, _, project_id, _, config, _ = api
     document = upload(client, project_id, TEXT, "a13.txt")
@@ -387,7 +382,6 @@ def test_a13_one_bad_chunk_value_gives_one_error(api):
     assert detail[0]["loc"][-1] == "target_tokens"
 
 
-@bug("A14", "a v1 chunker records only the v2 engine name")
 def test_a14_processing_record_names_the_saved_chunker_version(api):
     client, engine, project_id, _, config, _ = api
     document = upload(client, project_id, TEXT, "a14.txt")

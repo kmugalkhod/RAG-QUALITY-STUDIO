@@ -1,6 +1,7 @@
 """One bounded embedding batch per Celery delivery; PostgreSQL owns checkpoints."""
 
 from contextlib import ExitStack
+from datetime import timedelta
 from decimal import Decimal
 from uuid import UUID, uuid4
 from sqlalchemy import func, select, update
@@ -8,6 +9,7 @@ from sqlalchemy.orm import Session, aliased
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.db.session import engine
+from app.ingestion_content.chunking import EMBEDDING_INPUT_BYTES
 from app.models.document import Chunk, Document, ProcessingRun
 from app.models.index import IndexChunk, IndexVersion, KnowledgeSet
 from app.models.ingestion import IngestionRun
@@ -21,6 +23,12 @@ BATCH_SIZE = 16
 MAX_BATCH_CHARACTERS = 24000
 THROTTLE_DELAY_SECONDS = 20
 RETRY_DELAY_SECONDS = 15
+# Spec 0012 D7: continuous throttling for this long fails the index.
+THROTTLE_LIMIT = timedelta(minutes=15)
+THROTTLED_TOO_LONG = (
+    "The embedding provider kept refusing requests (rate limit) for 15 minutes, "
+    "so indexing stopped. Nothing new was published; start the run again later."
+)
 
 
 def process_index(index_id: UUID, db_engine=engine, send=None):
@@ -65,12 +73,16 @@ def _process_batch(index_id: UUID, db_engine, token, handing_off) -> int | None:
                         IndexChunk.ordinal,
                         func.coalesce(Chunk.embedding_text, Chunk.text).label("text"),
                         Chunk.embedding_text_hash,
+                        Chunk.page_number,
+                        Document.filename,
                     )
                     .join(
                         Chunk,
                         (Chunk.run_id == IndexChunk.run_id)
                         & (Chunk.ordinal == IndexChunk.ordinal),
                     )
+                    .join(ProcessingRun, ProcessingRun.id == Chunk.run_id)
+                    .join(Document, Document.id == ProcessingRun.document_id)
                     .where(
                         IndexChunk.index_id == index_id, IndexChunk.embedding.is_(None)
                     )
@@ -129,6 +141,18 @@ def _process_batch(index_id: UUID, db_engine, token, handing_off) -> int | None:
                             )[0]
                         )
             missing = [row for row in batch if (row.run_id, row.ordinal) not in vectors]
+            for row in missing:
+                size = len(row.text.encode("utf-8"))
+                if size > EMBEDDING_INPUT_BYTES:
+                    # Name the passage instead of the adapter's generic refusal
+                    # (spec 0012 A8). Not retried: the text cannot change.
+                    page = f", page {row.page_number}" if row.page_number else ""
+                    raise embeddings.EmbeddingError(
+                        f"Passage {row.ordinal + 1} of {row.filename}{page} is "
+                        f"{size:,} bytes, more than the embedding provider's "
+                        f"{EMBEDDING_INPUT_BYTES:,}-byte limit. Lower the Chunk "
+                        "maximum size and run again."
+                    )
             usage = None
             if missing:
                 with Session(db_engine) as session:
@@ -167,7 +191,22 @@ def _process_batch(index_id: UUID, db_engine, token, handing_off) -> int | None:
                     .where(IndexVersion.id == index_id)
                     .with_for_update()
                 )
+                if usage is not None:
+                    # Paid work is recorded even when the run ended during the
+                    # request (spec 0012 A11). Unknown stays unknown: one
+                    # unreported request makes the total NULL.
+                    job.embedding_tokens = (
+                        None
+                        if job.embedding_tokens is None or usage.tokens is None
+                        else job.embedding_tokens + usage.tokens
+                    )
+                    job.embedding_cost_usd = (
+                        None
+                        if job.embedding_cost_usd is None or usage.cost_usd is None
+                        else job.embedding_cost_usd + Decimal(str(usage.cost_usd))
+                    )
                 if job.status != "running" or job.execution_token != token:
+                    session.commit()
                     return
                 if ingestion_run_id is not None and parent_status not in (
                     "queued",
@@ -182,18 +221,7 @@ def _process_batch(index_id: UUID, db_engine, token, handing_off) -> int | None:
                 for (run_id, ordinal), vector in vectors.items():
                     member = session.get(IndexChunk, (index_id, run_id, ordinal))
                     member.embedding = vector
-                if usage is not None:
-                    # Unknown stays unknown: one unreported request makes the total NULL.
-                    job.embedding_tokens = (
-                        None
-                        if job.embedding_tokens is None or usage.tokens is None
-                        else job.embedding_tokens + usage.tokens
-                    )
-                    job.embedding_cost_usd = (
-                        None
-                        if job.embedding_cost_usd is None or usage.cost_usd is None
-                        else job.embedding_cost_usd + Decimal(str(usage.cost_usd))
-                    )
+                job.throttled_since = None
                 session.flush()
                 completed = session.scalar(
                     select(func.count())
@@ -249,7 +277,19 @@ def _process_batch(index_id: UUID, db_engine, token, handing_off) -> int | None:
                 job.error = message
                 job.updated_at = job.dispatched_at = now()
                 if throttled:
+                    current = now()
+                    if (
+                        job.throttled_since is not None
+                        and current - job.throttled_since >= THROTTLE_LIMIT
+                    ):
+                        job.status = "failed"
+                        job.error = THROTTLED_TOO_LONG
+                        job.dispatched_at = None
+                        job.finished_at = current
+                        session.commit()
+                        return None
                     # Waiting for request budget does not consume a retry.
+                    job.throttled_since = job.throttled_since or current
                     job.status = "queued"
                     session.commit()
                     return THROTTLE_DELAY_SECONDS

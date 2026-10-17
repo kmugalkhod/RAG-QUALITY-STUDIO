@@ -1,7 +1,7 @@
 from uuid import UUID
-from typing import Literal
+from typing import Annotated, Literal
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Query
+from fastapi import APIRouter, BackgroundTasks, Body, Depends, Query
 from app.api.routes import Database
 from app.api.documents import Limit, Offset
 from app.schemas.pipeline import (
@@ -15,6 +15,9 @@ from app.schemas.pipeline import (
 from app.schemas.query import QueryRead
 from app.services import pipelines
 from app.core.auth import CurrentPrincipal, require_project_access
+
+# The whole body is one discriminated save request.
+SaveBody = Annotated[PipelineSaveRequest, Body()]
 
 router = APIRouter(
     prefix="/api/projects/{project_id}/pipelines",
@@ -51,7 +54,7 @@ def listing(
 
 
 @router.post("", response_model=VersionRead, status_code=201)
-def create(project_id: UUID, request: PipelineSaveRequest, session: Database):
+def create(project_id: UUID, request: SaveBody, session: Database):
     return pipelines.save(session, project_id, request)
 
 
@@ -59,7 +62,7 @@ def create(project_id: UUID, request: PipelineSaveRequest, session: Database):
 def save(
     project_id: UUID,
     pipeline_id: UUID,
-    request: PipelineSaveRequest,
+    request: SaveBody,
     session: Database,
 ):
     return pipelines.save(session, project_id, request, pipeline_id)

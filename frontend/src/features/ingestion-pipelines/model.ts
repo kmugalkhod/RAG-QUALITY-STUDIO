@@ -481,6 +481,8 @@ export type IngestionRun = {
   is_current?: boolean;
   /** Problems recorded after the index went live; the run still succeeded. */
   warnings?: { code: string; message: string }[];
+  /** Why an active run's embedding waits (throttled or retrying), if it does. */
+  waiting_reason?: string | null;
   /**
    * Provider-reported embedding usage of the run's index; null until it has one.
    * Reused vectors add nothing. A null field was not reported: unknown, not zero.

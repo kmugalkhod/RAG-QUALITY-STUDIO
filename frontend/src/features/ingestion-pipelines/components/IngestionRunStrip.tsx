@@ -87,6 +87,11 @@ export function IngestionRunStrip({
                 ? `${run.processed_count} / ${run.discovered_count} discovered URLs checked`
                 : `${run.stage} checkpoint`}
           </p>
+          {run.waiting_reason && (
+            <p role="status" className="min-w-0 text-xs text-warning">
+              {run.waiting_reason}
+            </p>
+          )}
           <span className="flex-1" />
           <Button variant="ghost" size="sm" disabled={busy} onClick={onCancel}>
             <Square aria-hidden="true" />
@@ -105,9 +110,12 @@ export function IngestionRunStrip({
               {carried > 0 && <> · {carried} kept from earlier</>}
             </p>
           )}
-          {run.status === 'succeeded' && run.embedding_usage && (
-            <p className={cn(META, 'tabular-nums')}>{embeddingUsageText(run.embedding_usage)}</p>
-          )}
+          {/* Every finished run reports what embedding cost, paid or not (spec 0012 A11). */}
+          <p className={cn(META, 'tabular-nums')}>
+            {run.embedding_usage
+              ? embeddingUsageText(run.embedding_usage)
+              : 'No embedding requests were made.'}
+          </p>
           {run.status === 'succeeded' &&
             (failedSources.length > 0 || partialSources.length > 0) && (
               <p role="status" className="min-w-0 text-xs text-warning">

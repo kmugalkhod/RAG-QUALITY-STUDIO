@@ -17,7 +17,7 @@ import {
   listKnowledgeSets,
   listSourceSnapshots,
 } from '../documents/indexApi';
-import type { Document, KnowledgeSet, SourceSnapshot } from '../documents/model';
+import type { Document, EmbeddingConfig, KnowledgeSet, SourceSnapshot } from '../documents/model';
 import { getConnectionSettings, listConnections } from '../connections/api';
 import type { ConnectionSettings, SourceConnection } from '../connections/model';
 import * as api from './api';
@@ -50,6 +50,7 @@ import {
   addWebsiteSourceBlocked,
   branchExecution,
   branchSourceOf,
+  chunkFieldProblems,
   hostOf,
   indexLayout,
   ingestionStageLabels,
@@ -146,6 +147,10 @@ export function IngestionPipelineEditor({
   const [connectionSettings, setConnectionSettings] = useState<ConnectionSettings>();
   const [connections, setConnections] = useState<SourceConnection[]>([]);
   const [extractionCapabilities, setExtractionCapabilities] = useState<ExtractionCapabilities>();
+  // The server's embedding settings, or why there are none: a saved pipeline then opens
+  // read-only instead of refusing to open (spec 0012 A12).
+  const [serverEmbedding, setServerEmbedding] = useState<EmbeddingConfig>();
+  const [embeddingProblem, setEmbeddingProblem] = useState('');
   // Recommendations applied to the draft's Website sources (spec 0011). Kept beside the
   // draft, never in `execution`; their IDs go with the next save.
   const [appliedRecommendations, setAppliedRecommendations] = useState<
@@ -251,13 +256,18 @@ export function IngestionPipelineEditor({
           setConnections(connectionState.connections);
           setExtractionCapabilities(capabilities);
           setVersions(savedVersions);
-          if (!embedding.configured || !embedding.config) {
+          const unavailable = !embedding.configured || !embedding.config;
+          if (unavailable && pipelineId === 'new') {
             throw new Error(
               embedding.error ||
                 'Configure an embedding provider before creating ingestion pipelines.',
             );
           }
-          if (pipelineId === 'new') {
+          setServerEmbedding(embedding.config ?? undefined);
+          setEmbeddingProblem(
+            unavailable ? embedding.error || 'Embedding is not configured on this server.' : '',
+          );
+          if (pipelineId === 'new' && embedding.config) {
             setDraft(defaultDraft(embedding.config, [], capabilities));
             setBaseline('');
           } else {
@@ -716,46 +726,10 @@ export function IngestionPipelineEditor({
         indexLayout(draft) === 'per_source' && sources.length > 1
           ? `${nodeLabel(draft, chunk)}: `
           : '';
-      if (
-        chunk?.type === 'chunk' &&
-        (chunk.algorithm ?? 'character_window') === 'character_window'
-      ) {
-        if (
-          'size' in chunk &&
-          (chunk.size < 100 ||
-            chunk.size > 10000 ||
-            chunk.overlap < 0 ||
-            chunk.overlap >= chunk.size)
-        ) {
-          reasons.push(stage + 'Chunk size must be 100–10,000 and overlap must be smaller.');
-        }
-      }
-      if (chunk?.type === 'chunk' && chunk.algorithm === 'section_token') {
-        if (
-          chunk.target_tokens < 64 ||
-          chunk.target_tokens > chunk.maximum_tokens ||
-          chunk.maximum_tokens > 16384 ||
-          chunk.overlap_tokens < 0 ||
-          chunk.overlap_tokens >= chunk.target_tokens
-        ) {
-          reasons.push(
-            stage + 'Section token target, hard maximum and overlap limits are invalid.',
-          );
-        }
-      }
-      if (chunk?.type === 'chunk' && chunk.algorithm === 'parent_child') {
-        if (
-          chunk.child_target_tokens < 64 ||
-          chunk.child_target_tokens > chunk.child_maximum_tokens ||
-          chunk.child_overlap_tokens < 0 ||
-          chunk.child_overlap_tokens >= chunk.child_target_tokens ||
-          chunk.parent_target_tokens < 128 ||
-          chunk.parent_target_tokens > chunk.parent_maximum_tokens ||
-          chunk.child_maximum_tokens > chunk.parent_maximum_tokens
-        ) {
-          reasons.push(
-            stage + 'Parent and child token targets, maxima and overlap limits are invalid.',
-          );
+      if (chunk?.type === 'chunk') {
+        const problems = Object.values(chunkFieldProblems(chunk));
+        if (problems.length) {
+          reasons.push(`${stage}Chunk: ${problems.join(' ')}`);
         }
       }
       const clean = chunk;
@@ -783,6 +757,26 @@ export function IngestionPipelineEditor({
         reasons.push('Each source must publish to a differently named index.');
       }
     }
+    if (embeddingProblem) {
+      reasons.push(
+        `Embedding is unavailable on this server: ${embeddingProblem} You can review this pipeline, but not save, preview or run it.`,
+      );
+    }
+    for (const node of draft.execution.nodes) {
+      if (
+        node.type === 'embed' &&
+        serverEmbedding &&
+        (node.provider !== serverEmbedding.provider ||
+          node.model !== serverEmbedding.model ||
+          node.dimensions !== serverEmbedding.dimensions ||
+          node.config_version !== serverEmbedding.revision)
+      ) {
+        reasons.push(
+          "This version uses a different embedding model than the server. Choose Use the server's embedding settings in the Embed stage.",
+        );
+        break;
+      }
+    }
     for (const node of draft.execution.nodes) {
       const clash =
         node.type === 'publish_index' && !node.knowledge_set_id
@@ -793,7 +787,14 @@ export function IngestionPipelineEditor({
       }
     }
     return reasons;
-  }, [connectionSettings, draft, knowledgeSets, savedPipelineId]);
+  }, [
+    connectionSettings,
+    draft,
+    embeddingProblem,
+    knowledgeSets,
+    savedPipelineId,
+    serverEmbedding,
+  ]);
 
   function updateNode(id: string, update: (node: IngestionNode) => IngestionNode) {
     setServerFieldErrors({});
@@ -1428,7 +1429,7 @@ export function IngestionPipelineEditor({
                   : 'Run ingestion'
             }
             canPreview={validation.length === 0 && !runActive}
-            runBlocked={previewActive}
+            runBlocked={previewActive || !!embeddingProblem}
             canSave={validation.length === 0 && dirty}
             sync={
               saved && (
@@ -1675,6 +1676,7 @@ export function IngestionPipelineEditor({
             websiteRecommendations={websiteRecommendations}
             pipelineId={savedPipelineId}
             pipelineName={indexNameFor(draft)}
+            serverEmbedding={serverEmbedding}
             onSelectNode={selectFromCanvas}
           />
         </div>

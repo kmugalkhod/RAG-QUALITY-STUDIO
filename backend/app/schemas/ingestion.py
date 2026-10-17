@@ -13,8 +13,10 @@ from pydantic import (
     AnyHttpUrl,
     BaseModel,
     ConfigDict,
+    Discriminator,
     Field,
     RootModel,
+    Tag,
     field_validator,
     model_validator,
 )
@@ -907,11 +909,13 @@ class CharacterChunkNodeV2(NodeBase):
     overlap: int = Field(strict=True, ge=0, le=9999)
     config_version: Literal["character-window-v1"] = "character-window-v1"
 
-    @model_validator(mode="after")
-    def overlap_smaller_than_size(self):
-        if self.overlap >= self.size:
+    @field_validator("overlap")
+    @classmethod
+    def overlap_smaller_than_size(cls, value, info):
+        size = info.data.get("size")
+        if size is not None and value >= size:
             raise ValueError("Chunk overlap must be smaller than chunk size.")
-        return self
+        return value
 
 
 class SectionTokenChunkNodeV2(NodeBase):
@@ -935,13 +939,22 @@ class SectionTokenChunkNodeV2(NodeBase):
     def overlap(self):
         return self.overlap_tokens
 
-    @model_validator(mode="after")
-    def token_bounds(self):
-        if self.target_tokens > self.maximum_tokens:
+    # Field-level checks so an error names its field (spec 0012 A13).
+    @field_validator("maximum_tokens")
+    @classmethod
+    def maximum_not_below_target(cls, value, info):
+        target = info.data.get("target_tokens")
+        if target is not None and target > value:
             raise ValueError("Target tokens cannot exceed the hard maximum.")
-        if self.overlap_tokens >= self.target_tokens:
+        return value
+
+    @field_validator("overlap_tokens")
+    @classmethod
+    def overlap_below_target(cls, value, info):
+        target = info.data.get("target_tokens")
+        if target is not None and value >= target:
             raise ValueError("Token overlap must be smaller than the target.")
-        return self
+        return value
 
 
 class ParentChildChunkNodeV2(NodeBase):
@@ -965,17 +978,32 @@ class ParentChildChunkNodeV2(NodeBase):
     def overlap(self):
         return self.child_overlap_tokens
 
-    @model_validator(mode="after")
-    def token_bounds(self):
-        if self.child_target_tokens > self.child_maximum_tokens:
+    @field_validator("child_maximum_tokens")
+    @classmethod
+    def child_maximum_not_below_target(cls, value, info):
+        target = info.data.get("child_target_tokens")
+        if target is not None and target > value:
             raise ValueError("Child target tokens cannot exceed the child maximum.")
-        if self.child_overlap_tokens >= self.child_target_tokens:
+        return value
+
+    @field_validator("child_overlap_tokens")
+    @classmethod
+    def child_overlap_below_target(cls, value, info):
+        target = info.data.get("child_target_tokens")
+        if target is not None and value >= target:
             raise ValueError("Child overlap must be smaller than the child target.")
-        if self.parent_target_tokens > self.parent_maximum_tokens:
+        return value
+
+    @field_validator("parent_maximum_tokens")
+    @classmethod
+    def parent_maximum_holds_target_and_child(cls, value, info):
+        target = info.data.get("parent_target_tokens")
+        if target is not None and target > value:
             raise ValueError("Parent target tokens cannot exceed the parent maximum.")
-        if self.child_maximum_tokens > self.parent_maximum_tokens:
+        child = info.data.get("child_maximum_tokens")
+        if child is not None and child > value:
             raise ValueError("Child maximum tokens cannot exceed the parent maximum.")
-        return self
+        return value
 
 
 ChunkNodeV2 = Annotated[
@@ -984,17 +1012,28 @@ ChunkNodeV2 = Annotated[
 ]
 
 
+def _node_type(value):
+    return (
+        value.get("type") if isinstance(value, dict) else getattr(value, "type", None)
+    )
+
+
 IngestionNodeV2 = Annotated[
-    SourceNode
-    | ExtractNodeV2
-    | CleanNodeV2
-    | ChunkNodeV2
-    | EmbedNode
-    | PublishIndexNode,
-    # The chunk branch has its own algorithm discriminator. OpenAPI cannot
-    # represent a nested discriminator mapping as the value of "type=chunk";
-    # keep the same closed union and let Pydantic validate its branches.
-    Field(),
+    Annotated[SourceNode, Tag("source")]
+    | Annotated[ExtractNodeV2, Tag("extract")]
+    | Annotated[CleanNodeV2, Tag("clean")]
+    | Annotated[ChunkNodeV2, Tag("chunk")]
+    | Annotated[EmbedNode, Tag("embed")]
+    | Annotated[PublishIndexNode, Tag("publish_index")],
+    # The node type selects one branch, so a bad value reports one error on its
+    # field instead of one per node type (spec 0012 A13). The chunk branch has
+    # its own algorithm discriminator. A callable discriminator keeps OpenAPI
+    # valid: it cannot map "type=chunk" to a nested discriminated union.
+    Discriminator(
+        _node_type,
+        custom_error_type="invalid_node_type",
+        custom_error_message="Unknown ingestion stage type.",
+    ),
 ]
 
 
@@ -1386,6 +1425,8 @@ class IngestionRunRead(Strict):
     is_current: bool = False
     # Bookkeeping problems after the index went live; the run still succeeded.
     warnings: list[dict[str, str]] = Field(default_factory=list)
+    # Why an active run's embedding is waiting (throttled or retrying), if it is.
+    waiting_reason: str | None = None
     # None until the run has an index.
     embedding_usage: EmbeddingUsageRead | None = None
     # Multi-source runs only; empty for a single source.

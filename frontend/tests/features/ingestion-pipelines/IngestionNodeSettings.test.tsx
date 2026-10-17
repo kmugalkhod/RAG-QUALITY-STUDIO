@@ -58,8 +58,9 @@ test('edits algorithm-specific chunk settings without mixing incompatible fields
   fireEvent.change(screen.getByLabelText('Chunking algorithm'), {
     target: { value: 'character_window' },
   });
-  expect(screen.getByLabelText('Chunk size (characters)')).toHaveValue(1000);
-  expect(screen.getByLabelText('Overlap (characters)')).toHaveValue(100);
+  // Without capabilities the window uses the server's defaults (spec 0012 A15).
+  expect(screen.getByLabelText('Chunk size (characters)')).toHaveValue(800);
+  expect(screen.getByLabelText('Overlap (characters)')).toHaveValue(120);
   expect(screen.queryByLabelText('Target tokens')).not.toBeInTheDocument();
 });
 

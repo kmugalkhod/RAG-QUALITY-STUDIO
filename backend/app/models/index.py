@@ -137,6 +137,9 @@ class IndexVersion(Base):
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     dispatched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # When the current run of refused (throttled) requests began; cleared by a
+    # batch that embeds. Indexing stops after 15 minutes of it (spec 0012 D7).
+    throttled_since: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class IndexChunk(Base):

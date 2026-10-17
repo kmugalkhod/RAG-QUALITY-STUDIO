@@ -2,7 +2,15 @@ from datetime import datetime
 from typing import Annotated, Literal
 from uuid import UUID
 import re
-from pydantic import BaseModel, ConfigDict, Field, model_validator, model_serializer
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Discriminator,
+    Field,
+    Tag,
+    model_serializer,
+    model_validator,
+)
 
 from app.schemas.retrieval import RetrievalSettings, VectorSearch
 from app.schemas.ingestion import (
@@ -199,4 +207,21 @@ class PreviewRequest(RunRequest):
         return self
 
 
-PipelineSaveRequest = PipelineSave | IngestionPipelineSave
+def _save_kind(value):
+    # Answer saves may omit `kind`, which defaults to "answer".
+    if isinstance(value, dict):
+        return value.get("kind", "answer")
+    return getattr(value, "kind", "answer")
+
+
+# The kind selects one branch, so a bad value reports one error instead of one
+# per pipeline kind (spec 0012 A13).
+PipelineSaveRequest = Annotated[
+    Annotated[PipelineSave, Tag("answer")]
+    | Annotated[IngestionPipelineSave, Tag("ingestion")],
+    Discriminator(
+        _save_kind,
+        custom_error_type="invalid_pipeline_kind",
+        custom_error_message="Pipeline kind must be answer or ingestion.",
+    ),
+]

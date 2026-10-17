@@ -681,6 +681,10 @@ def _run_rows(session: Session, statement):
             IndexVersion.status,
             IndexVersion.embedding_tokens,
             IndexVersion.embedding_cost_usd,
+            IndexVersion.error,
+            IndexVersion.failures,
+            IndexVersion.throttled_since,
+            IndexVersion.updated_at,
         )
         .join(KnowledgeSet, KnowledgeSet.id == IngestionRun.knowledge_set_id)
         .outerjoin(IndexVersion, IndexVersion.ingestion_run_id == IngestionRun.id)
@@ -711,6 +715,10 @@ def _run_rows(session: Session, statement):
         index_status,
         tokens,
         cost,
+        index_error,
+        index_failures,
+        throttled_since,
+        index_updated_at,
     ) in rows:
         prior_id = run.snapshot.get("prior_ready_index_id")
         # Only a succeeded index is published; a failed or cancelled one has a
@@ -750,6 +758,14 @@ def _run_rows(session: Session, statement):
                     prior_versions.get(UUID(prior_id)) if prior_id else None
                 ),
                 "is_current": published and current_index_id == index_id,
+                "waiting_reason": (
+                    _waiting_reason(
+                        index_error, index_failures, throttled_since, index_updated_at
+                    )
+                    if run.status in ("queued", "running")
+                    and index_status in ("queued", "running")
+                    else None
+                ),
                 "embedding_usage": None
                 if index_id is None
                 else {
@@ -786,6 +802,41 @@ def _run_rows(session: Session, statement):
             }
         )
     return results
+
+
+def _processing_versions(config: dict) -> dict | None:
+    """Engine versions of a processing record, plus the saved chunk
+    `config_version` (spec 0012 A14). The engine label stays as recorded, since
+    hashes and reuse depend on it; the saved version says which behaviour ran."""
+    versions = config.get("versions")
+    chunk_version = (config.get("chunk") or {}).get("config_version")
+    if versions is None or not isinstance(chunk_version, str):
+        return versions
+    return {**versions, "chunker_config_version": chunk_version}
+
+
+def _waiting_reason(error, failures, throttled_since, updated_at):
+    """Why an embedding index is waiting, from its saved retry state (spec 0012
+    A10). The coordinator clears the run's own error on every pass, so the reason
+    is read from the index."""
+    from app.workers.indexing import RETRY_DELAY_SECONDS, THROTTLE_DELAY_SECONDS
+    from app.workers.processing import now
+
+    elapsed = (now() - updated_at).total_seconds() if updated_at else 0
+    if throttled_since is not None:
+        resumes = max(0, round(THROTTLE_DELAY_SECONDS - elapsed))
+        if (error or "").startswith("Local embedding request budget"):
+            return f"Waiting for embedding request budget, resumes in {resumes} s"
+        return (
+            "Waiting: the embedding provider is limiting requests (rate limit), "
+            f"resumes in {resumes} s"
+        )
+    if failures and error:
+        resumes = max(0, round(RETRY_DELAY_SECONDS * failures - elapsed))
+        return (
+            f"Retrying after a provider error ({failures} of 3), resumes in {resumes} s"
+        )
+    return None
 
 
 def _refresh_only(source_input, sources, remote_kind, knowledge_set):
@@ -1097,8 +1148,8 @@ def list_items(
                         if column.name not in ("run_id", "project_id", "created_at")
                     },
                     "processing_versions": (
-                        revisions[item.source_revision_id].extraction_config.get(
-                            "versions"
+                        _processing_versions(
+                            revisions[item.source_revision_id].extraction_config
                         )
                         if item.source_revision_id in revisions
                         else None
@@ -1145,7 +1196,7 @@ def list_items(
                 error=item.error,
                 duplicate_decision=item.duplicate_decision,
                 processing_versions=(
-                    processing.processing_config.get("versions")
+                    _processing_versions(processing.processing_config)
                     if processing.processing_config
                     else None
                 ),

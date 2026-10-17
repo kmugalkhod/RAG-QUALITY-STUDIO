@@ -23,6 +23,10 @@ _PROTECTED = {"list_item", "table", "code"}
 # alone as a chunk of a few words that no question ranks first.
 SHORT_CHUNK_MERGE_VERSIONS = {"section-token-v2", "parent-child-v2"}
 SHORT_CHUNK_TOKENS = 40
+# The embedding adapter's per-input limit in UTF-8 bytes, and the most the
+# "Section: …" heading prefix may add to a passage (spec 0012 D5).
+EMBEDDING_INPUT_BYTES = 8191
+HEADING_PREFIX_BYTES = 300
 
 
 @dataclass(frozen=True)
@@ -345,6 +349,14 @@ def _common_path(pieces: list[_Piece]) -> tuple[str, ...]:
     return tuple(common)
 
 
+def _capped_prefix(body: str, tokenizer: Utf8ByteTokenizer) -> str:
+    """'Section: … > <end of body>' within HEADING_PREFIX_BYTES."""
+    frame = "Section: …\n\n"
+    budget = HEADING_PREFIX_BYTES - tokenizer.count(frame)
+    start = tokenizer.suffix_start(body, len(body), budget)
+    return f"Section: …{body[start:]}\n\n"
+
+
 def _prepared(
     pieces: list[_Piece],
     *,
@@ -359,6 +371,14 @@ def _prepared(
     evidence = "\n\n".join(piece.text for piece in pieces)
     path = _common_path(pieces)
     prefix = f"Section: {' > '.join(path)}\n\n" if heading_prefix and path else ""
+    if (
+        tokenizer.count(prefix) > HEADING_PREFIX_BYTES
+        and tokenizer.count(prefix + evidence) > EMBEDDING_INPUT_BYTES
+    ):
+        # Spec 0012 D5: a long heading path is shortened from the front, keeping
+        # its most specific headings, only where the full prefix would make the
+        # passage too large to embed. Every passage that fitted is unchanged.
+        prefix = _capped_prefix(" > ".join(path), tokenizer)
     mappings: list[ChunkBlockSpanV1] = []
     cursor = 0
     for index, piece in enumerate(pieces):

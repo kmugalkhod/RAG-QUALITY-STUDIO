@@ -185,7 +185,7 @@ test('A5: a failed branch shows no index version', () => {
 });
 
 // A11: a cancelled run that paid for embeddings still reports them.
-test.fails('A11: a cancelled run shows its embedding usage', () => {
+test('A11: a cancelled run shows its embedding usage', () => {
   const usage = { tokens: 1200, cost_usd: 0.000024 };
   render(
     <IngestionRunStrip
@@ -216,7 +216,7 @@ test.fails('A11: a cancelled run shows its embedding usage', () => {
 });
 
 // A12: an Embed node saved under another server model offers a one-click way out.
-test.fails('A12: a stale embedding model offers the server settings', () => {
+test('A12: a stale embedding model offers the server settings', () => {
   const extra = { serverEmbedding: embedding } as Partial<
     ComponentProps<typeof IngestionNodeSettings>
   >;
@@ -237,7 +237,7 @@ test.fails('A12: a stale embedding model offers the server settings', () => {
 });
 
 // A13: a Chunk validation issue is mapped to its field.
-test.fails('A13: a chunk server error maps to its field', () => {
+test('A13: a chunk server error maps to its field', () => {
   const nodes = defaultIngestionDraft(embedding, []).execution.nodes;
   const position = nodes.findIndex((node) => node.type === 'chunk');
   const errors = serverFieldErrors(
@@ -253,7 +253,7 @@ test.fails('A13: a chunk server error maps to its field', () => {
 });
 
 // A15: the character window uses the server's capability defaults.
-test.fails('A15: the character window starts from the capability defaults', () => {
+test('A15: the character window starts from the capability defaults', () => {
   const capabilities = {
     quality_policies: [],
     chunking_profiles: [
@@ -291,7 +291,7 @@ test.fails('A15: the character window starts from the capability defaults', () =
 });
 
 // A16: switching the chunking method says what was replaced and can be undone.
-test.fails('A16: switching the chunking method offers Undo', () => {
+test('A16: switching the chunking method offers Undo', () => {
   let latest: IngestionNode | undefined;
   render(
     <NodeHarness

@@ -9,10 +9,8 @@ import { NativeSelect, NativeSelectOption } from '../../../components/ui/native-
 import { docsHref } from '../../../lib/docs';
 import { cn } from '../../../lib/utils';
 import type { ConnectionSettings, SourceConnection } from '../../connections/model';
-import type { Document, KnowledgeSet } from '../../documents/model';
+import type { Document, EmbeddingConfig, KnowledgeSet } from '../../documents/model';
 import {
-  chunkUpgradeAvailable,
-  currentChunkVersions,
   currentExtractVersion,
   defaultDuplicatePolicy,
   defaultLanguagePolicy,
@@ -47,6 +45,7 @@ import {
   WebsiteSettings,
   type WebsiteRecommendationContext,
 } from './SourceSettings';
+import { ChunkSettings } from './ChunkSettings';
 import { CleaningTransformSettings } from './CleaningTransformSettings';
 import { PublishIndexSettings } from './PublishIndexSettings';
 import {
@@ -99,6 +98,18 @@ const qualityChoiceHelp: Record<QualityChoice, string> = {
     'This pipeline uses custom quality rules. Review them under Advanced extraction settings.',
 };
 
+type EmbedNode = Extract<IngestionNode, { type: 'embed' }>;
+
+/** Whether an Embed node uses the server's provider, model, dimensions and revision. */
+function sameEmbedding(node: EmbedNode, server: EmbeddingConfig) {
+  return (
+    node.provider === server.provider &&
+    node.model === server.model &&
+    node.dimensions === server.dimensions &&
+    node.config_version === server.revision
+  );
+}
+
 function stageName(node: IngestionNode) {
   return node.type === 'source' ? sourceNames[node.config.kind] : labels[node.type];
 }
@@ -131,6 +142,7 @@ export function IngestionNodeSettings({
   websiteRecommendations,
   pipelineId,
   pipelineName,
+  serverEmbedding,
   onSelectNode,
 }: {
   projectId: string;
@@ -170,6 +182,8 @@ export function IngestionNodeSettings({
   pipelineId?: string;
   /** The pipeline's name, which a new index takes by default. */
   pipelineName?: string;
+  /** The server's embedding settings, to flag a version saved under another model. */
+  serverEmbedding?: EmbeddingConfig;
   onSelectNode: (nodeId: string) => void;
 }) {
   const nameOf = (node: IngestionNode) =>
@@ -256,54 +270,6 @@ export function IngestionNodeSettings({
       return;
     }
     updateNode(selected.id, (node) => (node.type === 'extract' ? { ...node, ...values } : node));
-  }
-
-  function selectChunkAlgorithm(algorithm: 'character_window' | 'section_token' | 'parent_child') {
-    if (selected?.type !== 'chunk') {
-      return;
-    }
-    const id = selected.id;
-    updateNode(id, () => {
-      if (algorithm === 'section_token') {
-        return {
-          id,
-          type: 'chunk',
-          algorithm,
-          unit: 'tokens',
-          tokenizer_version: 'utf8-byte-v1',
-          target_tokens: 600,
-          maximum_tokens: 800,
-          overlap_tokens: 80,
-          add_heading_context: true,
-          config_version: currentChunkVersions.section_token,
-        };
-      }
-      if (algorithm === 'parent_child') {
-        return {
-          id,
-          type: 'chunk',
-          algorithm,
-          unit: 'tokens',
-          tokenizer_version: 'utf8-byte-v1',
-          child_target_tokens: 240,
-          child_maximum_tokens: 320,
-          child_overlap_tokens: 40,
-          parent_target_tokens: 900,
-          parent_maximum_tokens: 1200,
-          add_heading_context: true,
-          config_version: currentChunkVersions.parent_child,
-        };
-      }
-      return {
-        id,
-        type: 'chunk',
-        algorithm,
-        unit: 'characters',
-        size: 1000,
-        overlap: 100,
-        config_version: 'character-window-v1',
-      };
-    });
   }
 
   return (
@@ -597,238 +563,16 @@ export function IngestionNodeSettings({
           </div>
         )}
         {selected?.type === 'chunk' && (
-          <div className={STACK}>
-            <p className={HINT}>
-              Choose the saved chunking algorithm used for this index variant. Token limits use the
-              stable UTF-8 byte tokenizer, a conservative model-independent upper bound.
-            </p>
-            {websiteSource && (
-              <Callout>
-                <p>
-                  To try new chunk settings without another Website request: save a new version,
-                  choose an exact ready snapshot, then select{' '}
-                  <strong>Reprocess saved source</strong>.
-                </p>
-              </Callout>
-            )}
-            <Label>
-              Chunking algorithm
-              <NativeSelect
-                value={selected.algorithm ?? 'character_window'}
-                onChange={(event) =>
-                  selectChunkAlgorithm(
-                    event.target.value as 'character_window' | 'section_token' | 'parent_child',
-                  )
-                }
-              >
-                <NativeSelectOption value="section_token">Section-aware tokens</NativeSelectOption>
-                <NativeSelectOption value="parent_child">Parent and child</NativeSelectOption>
-                <NativeSelectOption value="character_window">
-                  Character window (compatibility)
-                </NativeSelectOption>
-              </NativeSelect>
-            </Label>
-            {(selected.algorithm === 'section_token' || selected.algorithm === 'parent_child') &&
-              chunkUpgradeAvailable(selected) && (
-                <Callout
-                  role="note"
-                  title={`Saved with ${
-                    selected.config_version ??
-                    (selected.algorithm === 'section_token'
-                      ? 'section-token-v1'
-                      : 'parent-child-v1')
-                  }`}
-                >
-                  <p>
-                    This version keeps its original chunking so earlier runs reproduce. The current
-                    chunking, {currentChunkVersions[selected.algorithm]}, joins a short piece on a
-                    page, such as a chart label or callout read as a heading, to the passage before
-                    it, so it is no longer a passage of a few words that search rarely finds. Saving
-                    the upgrade creates a new pipeline version, and its next run chunks and embeds
-                    documents again.
-                  </p>
-                  <div>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() =>
-                        updateNode(selected.id, (node) =>
-                          node.type === 'chunk' &&
-                          (node.algorithm === 'section_token' || node.algorithm === 'parent_child')
-                            ? { ...node, config_version: currentChunkVersions[node.algorithm] }
-                            : node,
-                        )
-                      }
-                    >
-                      Upgrade chunking
-                    </Button>
-                  </div>
-                </Callout>
-              )}
-            {selected.algorithm === 'section_token' ? (
-              <>
-                <Label>
-                  Target tokens
-                  <Input
-                    type="number"
-                    min={64}
-                    max={8192}
-                    value={selected.target_tokens}
-                    onChange={(event) =>
-                      updateNode(selected.id, (node) =>
-                        node.type === 'chunk' && node.algorithm === 'section_token'
-                          ? { ...node, target_tokens: Number(event.target.value) }
-                          : node,
-                      )
-                    }
-                  />
-                </Label>
-                <Label>
-                  Hard maximum tokens
-                  <Input
-                    type="number"
-                    min={64}
-                    max={16384}
-                    value={selected.maximum_tokens}
-                    onChange={(event) =>
-                      updateNode(selected.id, (node) =>
-                        node.type === 'chunk' && node.algorithm === 'section_token'
-                          ? { ...node, maximum_tokens: Number(event.target.value) }
-                          : node,
-                      )
-                    }
-                  />
-                </Label>
-                <Label>
-                  Overlap tokens
-                  <Input
-                    type="number"
-                    min={0}
-                    max={4096}
-                    value={selected.overlap_tokens}
-                    onChange={(event) =>
-                      updateNode(selected.id, (node) =>
-                        node.type === 'chunk' && node.algorithm === 'section_token'
-                          ? { ...node, overlap_tokens: Number(event.target.value) }
-                          : node,
-                      )
-                    }
-                  />
-                </Label>
-              </>
-            ) : selected.algorithm === 'parent_child' ? (
-              <>
-                {(
-                  [
-                    ['Child target tokens', 'child_target_tokens', 64, 4096],
-                    ['Child hard maximum tokens', 'child_maximum_tokens', 64, 8192],
-                    ['Child overlap tokens', 'child_overlap_tokens', 0, 2048],
-                    ['Parent target tokens', 'parent_target_tokens', 128, 16384],
-                    ['Parent hard maximum tokens', 'parent_maximum_tokens', 128, 32768],
-                  ] as const
-                ).map(([label, key, minimum, maximum]) => (
-                  <Label key={key}>
-                    {label}
-                    <Input
-                      type="number"
-                      min={minimum}
-                      max={maximum}
-                      value={selected[key]}
-                      onChange={(event) =>
-                        updateNode(selected.id, (node) =>
-                          node.type === 'chunk' && node.algorithm === 'parent_child'
-                            ? { ...node, [key]: Number(event.target.value) }
-                            : node,
-                        )
-                      }
-                    />
-                  </Label>
-                ))}
-                <p className={HINT}>
-                  Child chunks are embedded. Retrieval supplies their saved parent text as evidence.
-                </p>
-              </>
-            ) : (
-              <>
-                <div className="flex flex-wrap gap-2" role="group" aria-label="Chunking presets">
-                  {(
-                    [
-                      ['Precise', 600, 80],
-                      ['Balanced', 1000, 120],
-                      ['Broad context', 1600, 200],
-                    ] as const
-                  ).map(([label, size, overlap]) => (
-                    <Button
-                      key={label}
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      className="aria-pressed:border-accent aria-pressed:text-accent"
-                      aria-pressed={selected.size === size && selected.overlap === overlap}
-                      onClick={() =>
-                        updateNode(selected.id, (node) =>
-                          node.type === 'chunk' &&
-                          (node.algorithm ?? 'character_window') === 'character_window'
-                            ? { ...node, size: Number(size), overlap: Number(overlap) }
-                            : node,
-                        )
-                      }
-                    >
-                      {label}
-                    </Button>
-                  ))}
-                </div>
-                <Label>
-                  Chunk size (characters)
-                  <Input
-                    type="number"
-                    min={100}
-                    max={10000}
-                    value={selected.size}
-                    onChange={(event) =>
-                      updateNode(selected.id, (node) =>
-                        node.type === 'chunk' &&
-                        (node.algorithm ?? 'character_window') === 'character_window'
-                          ? { ...node, size: Number(event.target.value) }
-                          : node,
-                      )
-                    }
-                  />
-                </Label>
-                <Label>
-                  Overlap (characters)
-                  <Input
-                    type="number"
-                    min={0}
-                    value={selected.overlap}
-                    onChange={(event) =>
-                      updateNode(selected.id, (node) =>
-                        node.type === 'chunk' &&
-                        (node.algorithm ?? 'character_window') === 'character_window'
-                          ? { ...node, overlap: Number(event.target.value) }
-                          : node,
-                      )
-                    }
-                  />
-                </Label>
-              </>
-            )}
-            {'add_heading_context' in selected && (
-              <label className={CHECK_ROW}>
-                <Checkbox
-                  checked={selected.add_heading_context}
-                  onCheckedChange={(checked) =>
-                    updateNode(selected.id, (node) =>
-                      node.type === 'chunk' && 'add_heading_context' in node
-                        ? { ...node, add_heading_context: checked === true }
-                        : node,
-                    )
-                  }
-                />
-                Add heading context to embedding text only
-              </label>
-            )}
-          </div>
+          <ChunkSettings
+            key={selected.id}
+            node={selected}
+            capabilities={extractionCapabilities}
+            websiteSource={websiteSource}
+            serverErrors={nodeErrors}
+            update={(value) =>
+              updateNode(selected.id, (node) => (node.type === 'chunk' ? value : node))
+            }
+          />
         )}
         {selected?.type === 'publish_index' && (
           <PublishIndexSettings
@@ -1565,6 +1309,37 @@ export function IngestionNodeSettings({
               Convert each passage into a vector for retrieval. The embedding model and dimensions
               must match the destination index.
             </p>
+            {serverEmbedding && !sameEmbedding(selected, serverEmbedding) && (
+              <Callout tone="warning" role="note" title="Saved with a different embedding model">
+                <p>
+                  This version embeds with {selected.model} ({selected.dimensions} dimensions), but
+                  the server now uses {serverEmbedding.model} ({serverEmbedding.dimensions}{' '}
+                  dimensions), so it cannot run. Using the server&apos;s settings creates a new
+                  version when you save; its next run embeds every passage again.
+                </p>
+                <div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() =>
+                      updateNode(selected.id, (node) =>
+                        node.type === 'embed'
+                          ? {
+                              ...node,
+                              provider: serverEmbedding.provider,
+                              model: serverEmbedding.model,
+                              dimensions: serverEmbedding.dimensions,
+                              config_version: serverEmbedding.revision,
+                            }
+                          : node,
+                      )
+                    }
+                  >
+                    Use the server&apos;s embedding settings
+                  </Button>
+                </div>
+              </Callout>
+            )}
             <dl className={FACTS}>
               <dt>Provider</dt>
               <dd>{selected.provider}</dd>

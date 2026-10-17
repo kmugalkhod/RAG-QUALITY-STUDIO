@@ -425,13 +425,132 @@ export function derivedIncludePrefixes(url: string): string[] {
   }
 }
 
+/** Spec 0012 D5: the embedding adapter's input limit and the heading prefix's share of it. */
+export const embeddingInputBytes = 8191;
+export const headingPrefixBytes = 300;
+export const maxPassageBytes = embeddingInputBytes - headingPrefixBytes;
+
+/** Every Chunk field the server can report an error on. */
+export const chunkFields = new Set([
+  'size',
+  'overlap',
+  'target_tokens',
+  'maximum_tokens',
+  'overlap_tokens',
+  'child_target_tokens',
+  'child_maximum_tokens',
+  'child_overlap_tokens',
+  'parent_target_tokens',
+  'parent_maximum_tokens',
+]);
+
+const chunkBounds: Record<string, Record<string, readonly [number, number]>> = {
+  section_token: {
+    target_tokens: [64, 8192],
+    maximum_tokens: [64, maxPassageBytes],
+    overlap_tokens: [0, 4096],
+  },
+  parent_child: {
+    child_target_tokens: [64, 4096],
+    child_maximum_tokens: [64, maxPassageBytes],
+    child_overlap_tokens: [0, 2048],
+    parent_target_tokens: [128, 16384],
+    parent_maximum_tokens: [128, 32768],
+  },
+  character_window: { size: [100, embeddingInputBytes], overlap: [0, 9999] },
+};
+
+/** The fields a passage's size limit applies to; over it, a passage may not embed. */
+export const passageLimitFields: Record<string, string> = {
+  section_token: 'maximum_tokens',
+  parent_child: 'child_maximum_tokens',
+  character_window: 'size',
+};
+
 /**
- * Server 422 issues that belong to a node field, keyed `ocr.<field>` or `website.<field>`.
- * With `nodes`, keys are prefixed `<node id>:` so each source shows only its own errors.
+ * Client checks for the Chunk fields, keyed by field (spec 0012 A13, D5). The server stays
+ * authoritative; this only names the field before a save. An empty field is invalid, not 0.
+ */
+export function chunkFieldProblems(node: ChunkNode): Record<string, string> {
+  const algorithm = node.algorithm ?? 'character_window';
+  const values = node as unknown as Record<string, number>;
+  const problems: Record<string, string> = {};
+  for (const [field, [minimum, maximum]] of Object.entries(chunkBounds[algorithm] ?? {})) {
+    const value = values[field];
+    if (!Number.isInteger(value)) {
+      problems[field] = 'Enter a whole number.';
+    } else if (field === passageLimitFields[algorithm] && value > maximum && value >= minimum) {
+      problems[field] =
+        algorithm === 'character_window'
+          ? `At most ${maximum.toLocaleString('en-US')} characters, the embedding provider's limit.`
+          : `At most ${maximum.toLocaleString('en-US')} bytes, so a passage with its section heading fits the embedding provider's ${embeddingInputBytes.toLocaleString('en-US')}-byte limit.`;
+    } else if (value < minimum || value > maximum) {
+      problems[field] =
+        `Enter a whole number from ${minimum.toLocaleString('en-US')} to ${maximum.toLocaleString('en-US')}.`;
+    }
+  }
+  const check = (field: string, broken: boolean, message: string) => {
+    if (broken && !problems[field]) {
+      problems[field] = message;
+    }
+  };
+  const valid = (...fields: string[]) => fields.every((field) => Number.isInteger(values[field]));
+  if (algorithm === 'section_token' && valid('target_tokens', 'maximum_tokens', 'overlap_tokens')) {
+    check(
+      'maximum_tokens',
+      values.target_tokens > values.maximum_tokens,
+      'The hard maximum cannot be smaller than the target.',
+    );
+    check(
+      'overlap_tokens',
+      values.overlap_tokens >= values.target_tokens,
+      'Overlap must be smaller than the target.',
+    );
+  }
+  if (algorithm === 'parent_child') {
+    if (valid('child_target_tokens', 'child_maximum_tokens')) {
+      check(
+        'child_maximum_tokens',
+        values.child_target_tokens > values.child_maximum_tokens,
+        'The child maximum cannot be smaller than the child target.',
+      );
+    }
+    if (valid('child_target_tokens', 'child_overlap_tokens')) {
+      check(
+        'child_overlap_tokens',
+        values.child_overlap_tokens >= values.child_target_tokens,
+        'Child overlap must be smaller than the child target.',
+      );
+    }
+    if (valid('parent_target_tokens', 'parent_maximum_tokens')) {
+      check(
+        'parent_maximum_tokens',
+        values.parent_target_tokens > values.parent_maximum_tokens,
+        'The parent maximum cannot be smaller than the parent target.',
+      );
+    }
+    if (valid('child_maximum_tokens', 'parent_maximum_tokens')) {
+      check(
+        'parent_maximum_tokens',
+        values.child_maximum_tokens > values.parent_maximum_tokens,
+        'The parent maximum cannot be smaller than the child maximum.',
+      );
+    }
+  }
+  if (algorithm === 'character_window' && valid('size', 'overlap')) {
+    check('overlap', values.overlap >= values.size, 'Overlap must be smaller than the chunk size.');
+  }
+  return problems;
+}
+
+/**
+ * Server 422 issues that belong to a node field, keyed `ocr.<field>`, `website.<field>`,
+ * `chunk.<field>` or `publish.knowledge_set_name`. With `nodes`, keys are prefixed
+ * `<node id>:` so each node shows only its own errors.
  */
 export function serverFieldErrors(
   issues: { loc: (string | number)[]; msg: string }[],
-  nodes?: { id: string }[],
+  nodes?: { id: string; type?: string }[],
 ): Record<string, string> {
   return Object.fromEntries(
     issues.flatMap((issue) => {
@@ -450,6 +569,11 @@ export function serverFieldErrors(
       }
       if (issue.loc.at(-1) === 'knowledge_set_name') {
         return [[`${prefix}publish.knowledge_set_name`, issue.msg]];
+      }
+      const last = issue.loc.at(-1);
+      const node = typeof position === 'number' ? nodes?.[position] : undefined;
+      if (typeof last === 'string' && chunkFields.has(last) && (!nodes || node?.type === 'chunk')) {
+        return [[`${prefix}chunk.${last}`, issue.msg.replace(/^Value error, /, '')]];
       }
       const website = issue.loc.lastIndexOf('website');
       const field = String(issue.loc[website + 1]);
@@ -933,23 +1057,63 @@ function numberSetting(
   return typeof value === 'number' ? value : fallback;
 }
 
-function defaultChunk(capabilities?: ExtractionCapabilities): ChunkNode {
+/**
+ * A chunk node with the server's recommended settings for the method (spec 0012 A15).
+ * The fallbacks equal the server's capability values for servers that do not send them.
+ */
+export function defaultChunkNode(
+  id: string,
+  algorithm: 'character_window' | 'section_token' | 'parent_child',
+  capabilities?: ExtractionCapabilities,
+): ChunkNode {
   const settings = capabilities?.chunking_profiles?.find(
-    (profile) => profile.id === 'section_token' && profile.recommended,
+    (profile) => profile.id === algorithm,
   )?.settings;
+  const headings =
+    typeof settings?.add_heading_context === 'boolean' ? settings.add_heading_context : true;
+  if (algorithm === 'section_token') {
+    return {
+      id,
+      type: 'chunk',
+      algorithm,
+      unit: 'tokens',
+      tokenizer_version: 'utf8-byte-v1',
+      target_tokens: numberSetting(settings, 'target_tokens', 600),
+      maximum_tokens: numberSetting(settings, 'maximum_tokens', 800),
+      overlap_tokens: numberSetting(settings, 'overlap_tokens', 80),
+      add_heading_context: headings,
+      config_version: currentChunkVersions.section_token,
+    };
+  }
+  if (algorithm === 'parent_child') {
+    return {
+      id,
+      type: 'chunk',
+      algorithm,
+      unit: 'tokens',
+      tokenizer_version: 'utf8-byte-v1',
+      child_target_tokens: numberSetting(settings, 'child_target_tokens', 240),
+      child_maximum_tokens: numberSetting(settings, 'child_maximum_tokens', 320),
+      child_overlap_tokens: numberSetting(settings, 'child_overlap_tokens', 40),
+      parent_target_tokens: numberSetting(settings, 'parent_target_tokens', 900),
+      parent_maximum_tokens: numberSetting(settings, 'parent_maximum_tokens', 1200),
+      add_heading_context: headings,
+      config_version: currentChunkVersions.parent_child,
+    };
+  }
   return {
-    id: 'chunk',
+    id,
     type: 'chunk',
-    algorithm: 'section_token',
-    unit: 'tokens',
-    tokenizer_version: 'utf8-byte-v1',
-    target_tokens: numberSetting(settings, 'target_tokens', 600),
-    maximum_tokens: numberSetting(settings, 'maximum_tokens', 800),
-    overlap_tokens: numberSetting(settings, 'overlap_tokens', 80),
-    add_heading_context:
-      typeof settings?.add_heading_context === 'boolean' ? settings.add_heading_context : true,
-    config_version: currentChunkVersions.section_token,
+    algorithm,
+    unit: 'characters',
+    size: numberSetting(settings, 'size', 800),
+    overlap: numberSetting(settings, 'overlap', 120),
+    config_version: 'character-window-v1',
   };
+}
+
+function defaultChunk(capabilities?: ExtractionCapabilities): ChunkNode {
+  return defaultChunkNode('chunk', 'section_token', capabilities);
 }
 
 export function defaultIngestionDraft(

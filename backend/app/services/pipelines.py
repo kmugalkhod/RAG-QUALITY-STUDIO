@@ -3,6 +3,7 @@ from dataclasses import asdict
 from fastapi import HTTPException
 from sqlalchemy import select, func
 from app.connectors.website import WebsiteScopeTooLarge, resolve_website_fetch_policy
+from app.ingestion_content.chunking import EMBEDDING_INPUT_BYTES, HEADING_PREFIX_BYTES
 from app.core.config import settings
 from app.models.document import Document
 from app.models.connection import SourceConnection
@@ -314,7 +315,10 @@ def validate_ingestion(session, project_id, execution: IngestionExecution):
         if actual != expected:
             raise HTTPException(
                 422,
-                "Embedding settings must match the server's configured provider, model, dimensions and revision.",
+                f"This version embeds with {embed.model} ({embed.dimensions} "
+                f"dimensions), but the server now uses {settings.embedding_model} "
+                f"({settings.embedding_dimensions} dimensions). Open the Embed stage "
+                "and choose Use the server's embedding settings, then save.",
             )
     for publish in [node for node in execution.nodes if node.type == "publish_index"]:
         if publish.knowledge_set_id is None:
@@ -331,6 +335,42 @@ def validate_ingestion(session, project_id, execution: IngestionExecution):
             raise HTTPException(
                 409, "The knowledge-set name does not match its saved identity."
             )
+
+
+def validate_new_chunking(execution: IngestionExecution):
+    """Spec 0012 D5, for newly saved versions only: every embedded passage, with
+    its heading prefix, must fit the embedding provider's input limit. Saved
+    versions above the limit still open and run; their runs stop at the Chunk
+    stage with the passage that is too large, before any embedding is paid for."""
+    issues = []
+    for position, node in enumerate(execution.nodes):
+        if node.type != "chunk":
+            continue
+        algorithm = getattr(node, "algorithm", "character_window")
+        if algorithm == "section_token":
+            field, value = "maximum_tokens", node.maximum_tokens
+            limit = EMBEDDING_INPUT_BYTES - HEADING_PREFIX_BYTES
+        elif algorithm == "parent_child":
+            field, value = "child_maximum_tokens", node.child_maximum_tokens
+            limit = EMBEDDING_INPUT_BYTES - HEADING_PREFIX_BYTES
+        else:
+            # Characters, not bytes: this only rules out sizes that cannot fit.
+            field, value = "size", node.size
+            limit = EMBEDDING_INPUT_BYTES
+        if value > limit:
+            issues.append(
+                {
+                    "loc": ["execution", "nodes", position, field],
+                    "msg": (
+                        f"Passages can be at most {limit:,} bytes so that, with "
+                        "their section heading, they fit the embedding provider's "
+                        f"{EMBEDDING_INPUT_BYTES:,}-byte limit."
+                    ),
+                    "type": "value_error",
+                }
+            )
+    if issues:
+        raise HTTPException(422, issues)
 
 
 def resolve_destinations(session, project_id, execution, pipeline_id):
@@ -383,6 +423,7 @@ def save(session, project_id, request, pipeline_id=None):
         validate_answer(session, project_id, request.execution)
     else:
         validate_source_combination(request.execution)
+        validate_new_chunking(request.execution)
         validate_ingestion(session, project_id, request.execution)
         resolve_destinations(session, project_id, request.execution, pipeline_id)
     if pipeline_id is None:

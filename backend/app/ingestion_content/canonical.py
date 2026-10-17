@@ -24,6 +24,7 @@ from app.ingestion_content.processing import (
     CharacterWindowChunker,
     DeterministicCleaner,
     ExtractedSegment,
+    IngestionStageError,
     PreparedChunk,
 )
 
@@ -247,6 +248,48 @@ def clean_document(
 
 
 def chunk_cleaned_document(
+    cleaned: CleanedDocumentV1,
+    settings,
+    *,
+    provenance: dict[str, Any] | None = None,
+    join_blocks: bool = False,
+    separator: str = "\n\n",
+) -> CanonicalChunkingResult:
+    """Chunk a cleaned document and check that every embedded passage fits the
+    embedding provider's input limit (spec 0012 A8).
+
+    A passage that does not fit stops the Chunk stage, naming the passage and its
+    page, before any embedding request is paid for. Passages that fit are
+    unchanged; the provider would have refused the others anyway.
+    """
+
+    result = _chunk_cleaned_document(
+        cleaned,
+        settings,
+        provenance=provenance,
+        join_blocks=join_blocks,
+        separator=separator,
+    )
+    from app.ingestion_content.chunking import EMBEDDING_INPUT_BYTES
+
+    for chunk in result.chunks:
+        if chunk.chunk_role == "parent":
+            continue  # parents are evidence for their children, never embedded
+        size = len((chunk.embedding_text or chunk.text).encode("utf-8"))
+        if size > EMBEDDING_INPUT_BYTES:
+            page = f" on page {chunk.page_number}" if chunk.page_number else ""
+            raise IngestionStageError(
+                "chunk",
+                "passage_too_large",
+                f"Passage {chunk.ordinal + 1}{page} is {size:,} bytes with its "
+                "heading, but the embedding provider accepts at most "
+                f"{EMBEDDING_INPUT_BYTES:,}. Lower the Chunk maximum size and run "
+                "again.",
+            )
+    return result
+
+
+def _chunk_cleaned_document(
     cleaned: CleanedDocumentV1,
     settings,
     *,
