@@ -1,0 +1,324 @@
+{
+  "indexes": {
+    "files-A4s": {
+      "chunk_versions": {
+        "section-token-v2": 673
+      },
+      "cleaners": {
+        "structure-clean-v1": 673
+      },
+      "passages": {
+        "count": 673,
+        "median": 651,
+        "min": 12,
+        "p95": 794,
+        "max": 800
+      },
+      "embedding_texts": {
+        "count": 673,
+        "median": 754,
+        "min": 12,
+        "p95": 993,
+        "max": 1102
+      },
+      "under_40_bytes": 6,
+      "over_embed_limit": 0,
+      "mid_word_starts": 156,
+      "parents": {
+        "count": 0
+      }
+    },
+    "new-A4s": {
+      "chunk_versions": {
+        "section-token-v2": 524
+      },
+      "cleaners": {
+        "structure-clean-v1": 524
+      },
+      "passages": {
+        "count": 524,
+        "median": 283.0,
+        "min": 5,
+        "p95": 783,
+        "max": 800
+      },
+      "embedding_texts": {
+        "count": 524,
+        "median": 342.5,
+        "min": 21,
+        "p95": 846,
+        "max": 980
+      },
+      "under_40_bytes": 20,
+      "over_embed_limit": 0,
+      "mid_word_starts": 79,
+      "parents": {
+        "count": 0
+      }
+    },
+    "d2-A4s": {
+      "chunk_versions": {
+        "section-token-v2": 790
+      },
+      "cleaners": {
+        "structure-clean-v1": 790
+      },
+      "passages": {
+        "count": 790,
+        "median": 558.5,
+        "min": 1,
+        "p95": 788,
+        "max": 800
+      },
+      "embedding_texts": {
+        "count": 790,
+        "median": 653.0,
+        "min": 8,
+        "p95": 901,
+        "max": 1031
+      },
+      "under_40_bytes": 30,
+      "over_embed_limit": 0,
+      "mid_word_starts": 164,
+      "parents": {
+        "count": 0
+      }
+    },
+    "files-A4p": {
+      "chunk_versions": {
+        "parent-child-v2": 1905
+      },
+      "cleaners": {
+        "structure-clean-v1": 1905
+      },
+      "passages": {
+        "count": 1905,
+        "median": 294,
+        "min": 4,
+        "p95": 320,
+        "max": 320
+      },
+      "embedding_texts": {
+        "count": 1905,
+        "median": 428,
+        "min": 12,
+        "p95": 524,
+        "max": 628
+      },
+      "under_40_bytes": 21,
+      "over_embed_limit": 0,
+      "mid_word_starts": 311,
+      "parents": {
+        "count": 612,
+        "median": 947.5,
+        "min": 4,
+        "p95": 1147,
+        "max": 1195
+      }
+    },
+    "new-A4p": {
+      "chunk_versions": {
+        "parent-child-v2": 937
+      },
+      "cleaners": {
+        "structure-clean-v1": 937
+      },
+      "passages": {
+        "count": 937,
+        "median": 225,
+        "min": 4,
+        "p95": 317,
+        "max": 320
+      },
+      "embedding_texts": {
+        "count": 937,
+        "median": 282,
+        "min": 21,
+        "p95": 428,
+        "max": 504
+      },
+      "under_40_bytes": 34,
+      "over_embed_limit": 0,
+      "mid_word_starts": 157,
+      "parents": {
+        "count": 438,
+        "median": 234.5,
+        "min": 5,
+        "p95": 1056,
+        "max": 1187
+      }
+    },
+    "d2-A4p": {
+      "chunk_versions": {
+        "parent-child-v2": 1914
+      },
+      "cleaners": {
+        "structure-clean-v1": 1914
+      },
+      "passages": {
+        "count": 1914,
+        "median": 268.5,
+        "min": 1,
+        "p95": 320,
+        "max": 320
+      },
+      "embedding_texts": {
+        "count": 1914,
+        "median": 333.0,
+        "min": 8,
+        "p95": 451,
+        "max": 540
+      },
+      "under_40_bytes": 70,
+      "over_embed_limit": 0,
+      "mid_word_starts": 332,
+      "parents": {
+        "count": 647,
+        "median": 757,
+        "min": 2,
+        "p95": 1149,
+        "max": 1196
+      }
+    },
+    "web-A1": {
+      "chunk_versions": {
+        "section-token-v1": 2381
+      },
+      "cleaners": {
+        "structure-clean-v1": 2381
+      },
+      "passages": {
+        "count": 2381,
+        "median": 605,
+        "min": 6,
+        "p95": 786,
+        "max": 800
+      },
+      "embedding_texts": {
+        "count": 2381,
+        "median": 667,
+        "min": 38,
+        "p95": 852,
+        "max": 937
+      },
+      "under_40_bytes": 41,
+      "over_embed_limit": 0,
+      "mid_word_starts": 674,
+      "parents": {
+        "count": 0
+      }
+    },
+    "W1a": {
+      "chunk_versions": {
+        "section-token-v2": 469
+      },
+      "cleaners": {
+        "structure-clean-v1": 469
+      },
+      "passages": {
+        "count": 469,
+        "median": 616,
+        "min": 15,
+        "p95": 778,
+        "max": 800
+      },
+      "embedding_texts": {
+        "count": 469,
+        "median": 691,
+        "min": 41,
+        "p95": 856,
+        "max": 893
+      },
+      "under_40_bytes": 2,
+      "over_embed_limit": 0,
+      "mid_word_starts": 137,
+      "parents": {
+        "count": 0
+      }
+    }
+  },
+  "runs": {
+    "W1a": {
+      "status": "succeeded",
+      "discovered_count": 53,
+      "chunk_count": 469,
+      "queue_seconds": 2.973254,
+      "run_seconds": 91.443302,
+      "embedding_tokens": 74728,
+      "embedding_cost_usd": 0.00149456,
+      "stages": [
+        {
+          "stage": "source",
+          "status": "succeeded",
+          "seconds": 10.98
+        },
+        {
+          "stage": "extract",
+          "status": "succeeded",
+          "seconds": 0.04
+        },
+        {
+          "stage": "clean",
+          "status": "succeeded",
+          "seconds": 0.02
+        },
+        {
+          "stage": "chunk",
+          "status": "succeeded",
+          "seconds": 4.02
+        },
+        {
+          "stage": "embed",
+          "status": "succeeded",
+          "seconds": 71.56
+        },
+        {
+          "stage": "publish_index",
+          "status": "succeeded",
+          "seconds": 4.78
+        }
+      ]
+    },
+    "S6": {
+      "status": "succeeded",
+      "discovered_count": 353,
+      "chunk_count": 1151,
+      "queue_seconds": 0.813837,
+      "run_seconds": 880.715205,
+      "embedding_tokens": 157642,
+      "embedding_cost_usd": 0.00315284,
+      "stages": [
+        {
+          "stage": "source",
+          "status": "succeeded",
+          "seconds": 682.38
+        },
+        {
+          "stage": "extract",
+          "status": "succeeded",
+          "seconds": 0.05
+        },
+        {
+          "stage": "clean",
+          "status": "succeeded",
+          "seconds": 0.02
+        },
+        {
+          "stage": "chunk",
+          "status": "succeeded",
+          "seconds": 21.77
+        },
+        {
+          "stage": "embed",
+          "status": "succeeded",
+          "seconds": 173.36
+        },
+        {
+          "stage": "publish_index",
+          "status": "succeeded",
+          "seconds": 3.1
+        }
+      ]
+    }
+  }
+}

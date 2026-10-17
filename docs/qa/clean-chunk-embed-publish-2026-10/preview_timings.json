@@ -1,0 +1,84 @@
+{
+  "status": "succeeded",
+  "wall_seconds": 195.9,
+  "known_compute_ms": 184805,
+  "items": [
+    {
+      "name": "acl-n19-1423-bert.pdf",
+      "status": "succeeded",
+      "stage_ms": {
+        "chunk_ms": 163,
+        "clean_ms": 35,
+        "total_ms": 5263,
+        "extract_ms": 5065
+      },
+      "chunks": 133
+    },
+    {
+      "name": "census-p60-279.pdf",
+      "status": "succeeded",
+      "stage_ms": {
+        "chunk_ms": 277,
+        "clean_ms": 90,
+        "total_ms": 25280,
+        "extract_ms": 24913
+      },
+      "chunks": 517
+    },
+    {
+      "name": "surveyor-vi-tv-scan.pdf",
+      "status": "succeeded",
+      "stage_ms": {
+        "chunk_ms": 53,
+        "clean_ms": 5,
+        "total_ms": 27139,
+        "extract_ms": 27081
+      },
+      "chunks": 23
+    },
+    {
+      "name": "eurostat-chiffres-cles-2019-fr.pdf",
+      "status": "succeeded",
+      "stage_ms": {
+        "chunk_ms": 304,
+        "clean_ms": 97,
+        "total_ms": 57054,
+        "extract_ms": 56653
+      },
+      "chunks": 394
+    },
+    {
+      "name": "usgs-circ115-scan.pdf",
+      "status": "succeeded",
+      "stage_ms": {
+        "chunk_ms": 105,
+        "clean_ms": 12,
+        "total_ms": 69880,
+        "extract_ms": 69763
+      },
+      "chunks": 55
+    },
+    {
+      "name": "dft-highways-maintenance-report-template.docx",
+      "status": "succeeded",
+      "stage_ms": {
+        "chunk_ms": 124,
+        "clean_ms": 7,
+        "total_ms": 131,
+        "extract_ms": 0
+      },
+      "chunks": 60
+    },
+    {
+      "name": "prevent-risk-assessment-slides.pptx",
+      "status": "succeeded",
+      "stage_ms": {
+        "chunk_ms": 58,
+        "clean_ms": 0,
+        "total_ms": 58,
+        "extract_ms": 0
+      },
+      "chunks": 15
+    }
+  ]
+}
