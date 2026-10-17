@@ -129,6 +129,27 @@ def transition_for_index(db_engine, index, node_type: str):
         transition(db_engine, index.ingestion_run_id, node_type=node_type)
 
 
+def finish_unchanged(session: Session, job: IngestionRun, index) -> None:
+    """Spec 0012 D8: nothing changed since the current version, so the run
+    publishes no version and succeeds with that version still current."""
+    timestamp = now()
+    job.status = "succeeded"
+    job.stage = "complete"
+    job.progress = 100
+    job.failed_count = min(job.failed_count, job.discovered_count)
+    job.processed_count = job.discovered_count - job.failed_count
+    job.chunk_count = index.chunk_count
+    job.embedded_count = index.chunk_count
+    job.published_count = 0
+    job.unchanged_index_id = index.id
+    job.execution_token = None
+    job.failures = 0
+    job.error = None
+    job.dispatched_at = None
+    job.updated_at = job.finished_at = timestamp
+    mark_terminal(session, job.id, "succeeded")
+
+
 def mark_terminal(
     session: Session, run_id: UUID, status: str, node_type: str | None = None
 ):

@@ -38,8 +38,9 @@ export function publishedVersionText(target?: KnowledgeSet, newName?: string): s
   if (!target.latest_version) {
     return `This run publishes version 1 of ${target.name}.`;
   }
+  // Spec 0012 D8: a run that finds nothing changed publishes no version.
   const current = target.current_version
-    ? ` Version ${target.current_version} stays available.`
+    ? ` Version ${target.current_version} stays available; if nothing changed, no version is published and it stays current.`
     : '';
   return `This run publishes version ${target.latest_version + 1} of ${target.name}.${current} Answer pipelines keep their version until you switch.`;
 }

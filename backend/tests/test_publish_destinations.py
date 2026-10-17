@@ -81,7 +81,12 @@ def test_a_pipeline_publishes_to_its_own_new_index_and_reuses_it(api):
     assert run["prior_index_version"] is None and run["is_current"] is True
 
     # A second version of the same pipeline adds a version to the index its
-    # first run created, explicitly.
+    # first run created, explicitly. It adds a file: an unchanged run would
+    # publish nothing (spec 0012 D8).
+    extra = upload(client, project_id, b"Tides turn at the harbour. " * 20, "own2.txt")
+    payload = ingestion_draft(
+        [document["id"], extra["id"]], config, name="Own", schema_version=2
+    )
     second = client.post(
         f"/api/projects/{project_id}/pipelines/{first['pipeline_id']}/versions",
         json=payload,
@@ -138,7 +143,11 @@ def test_adding_a_version_to_an_existing_index_by_id(api):
     base = client.post(f"/api/projects/{project_id}/pipelines", json=payload).json()
     run = _run_to_completion(client, engine, project_id, base)
 
-    other = ingestion_draft([document["id"]], config, name="Nightly", schema_version=2)
+    # Another file, so the run adds a version rather than finding no change.
+    extra = upload(client, project_id, b"Tides turn at the harbour. " * 20, "add2.txt")
+    other = ingestion_draft(
+        [document["id"], extra["id"]], config, name="Nightly", schema_version=2
+    )
     publish = next(
         n for n in other["execution"]["nodes"] if n["type"] == "publish_index"
     )

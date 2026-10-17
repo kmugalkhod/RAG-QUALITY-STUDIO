@@ -90,6 +90,12 @@ class IngestionRun(Base):
             ["ingestion_run_groups.id", "ingestion_run_groups.project_id"],
             name="fk_ingestion_run_group_project",
         ),
+        ForeignKeyConstraint(
+            ["unchanged_index_id", "project_id"],
+            ["index_versions.id", "index_versions.project_id"],
+            name="fk_ingestion_run_unchanged_index_project",
+            use_alter=True,
+        ),
         CheckConstraint(
             "(group_id IS NULL) = (branch_source_node_id IS NULL)",
             name="ck_ingestion_run_group_branch",
@@ -129,7 +135,9 @@ class IngestionRun(Base):
         ),
         CheckConstraint(
             "status != 'succeeded' OR "
-            "(stage = 'complete' AND progress = 100 AND published_count = 1 "
+            "(stage = 'complete' AND progress = 100 "
+            "AND (published_count = 1 OR "
+            "(published_count = 0 AND unchanged_index_id IS NOT NULL)) "
             "AND processed_count + failed_count = discovered_count "
             "AND embedded_count = chunk_count)",
             name="ck_ingestion_run_complete",
@@ -172,6 +180,9 @@ class IngestionRun(Base):
     # bytes, elapsed time and processing fingerprints, kept across recovery.
     crawl_state: Mapped[dict] = mapped_column(JSONB, default=dict)
     error: Mapped[str | None] = mapped_column(Text)
+    # The current version a run left in place because nothing changed (spec 0012
+    # D8); such a run publishes no version.
+    unchanged_index_id: Mapped[uuid.UUID | None]
     # `{code, message}` problems recorded after the index went live (spec 0012 A6).
     warnings: Mapped[list] = mapped_column(
         JSONB, default=list, server_default=text("'[]'::jsonb")

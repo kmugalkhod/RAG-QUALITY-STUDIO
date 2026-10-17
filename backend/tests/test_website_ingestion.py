@@ -129,6 +129,14 @@ def website_api(documents_api, monkeypatch):  # noqa: F811
             delete(IndexSourceRevision).where(IndexSourceRevision.index_id.in_(indexes))
         )
         session.execute(delete(IndexChunk).where(IndexChunk.index_id.in_(indexes)))
+        # An unchanged run refers to the version it kept (spec 0012 D8); it is
+        # deleted below, and the completion check needs a cancelled run first.
+        session.execute(
+            update(IngestionRun)
+            .where(IngestionRun.id.in_(runs))
+            .where(IngestionRun.unchanged_index_id.is_not(None))
+            .values(unchanged_index_id=None, status="cancelled")
+        )
         session.execute(delete(IndexVersion).where(IndexVersion.id.in_(indexes)))
         session.execute(delete(WebsiteRunItem).where(WebsiteRunItem.run_id.in_(runs)))
         session.execute(
@@ -429,12 +437,17 @@ def test_builds_independent_destination_from_ready_snapshot_without_network(
 
 
 def publish(engine, run_id, factory):
+    """Run to the end and return the index the run left current: the version it
+    published, or, when nothing changed (spec 0012 D8), the version it kept."""
     process_ingestion(UUID(run_id), engine, connector_factory=factory)
     with Session(engine) as session:
         index = session.scalar(
             select(IndexVersion).where(IndexVersion.ingestion_run_id == UUID(run_id))
         )
         run = session.get(IngestionRun, UUID(run_id))
+        if index is None and run.unchanged_index_id is not None:
+            assert run.status == "succeeded" and run.published_count == 0
+            return run.unchanged_index_id
         assert index is not None, (run.status, run.error)
         index_id = index.id
     process_ingestion(UUID(run_id), engine, connector_factory=factory)
@@ -708,7 +721,23 @@ def test_populated_upgrade_backfills_only_proven_website_lineage(website_api):
             [],
         ),
     )
-    second = start_run(client, project_id, version, reuse_stored=True)
+    # Other chunk sizes, so the stored pages publish a second version (a rerun
+    # with no change would publish nothing, spec 0012 D8).
+    changed = {
+        "kind": "ingestion",
+        "name": version["name"],
+        "execution": version["execution"],
+        "layout": version["layout"],
+    }
+    next(n for n in changed["execution"]["nodes"] if n["type"] == "chunk").update(
+        size=240, overlap=40
+    )
+    saved = client.post(
+        f"/api/projects/{project_id}/pipelines/{version['pipeline_id']}/versions",
+        json=changed,
+    )
+    assert saved.status_code == 201, saved.text
+    second = start_run(client, project_id, saved.json(), reuse_stored=True)
 
     def unexpected_connector():
         raise AssertionError("Stored-artifact lineage must not fetch the Website.")
@@ -718,6 +747,7 @@ def test_populated_upgrade_backfills_only_proven_website_lineage(website_api):
         second["id"],
         unexpected_connector,
     )
+    assert second_index != first_index
     env = {
         **os.environ,
         "DATABASE_URL": os.environ["TEST_DATABASE_URL"],
@@ -1459,7 +1489,7 @@ def test_everyday_links_and_unchanged_refresh_use_the_real_crawl_path(
     monkeypatch.setattr(settings, "website_fetch_concurrency", 2)
     version = save_crawl(client, project_id, config)
     first = start_run(client, project_id, version)
-    publish(engine, first["id"], lambda: crawl_connector(EverydaySite(3)))
+    first_index = publish(engine, first["id"], lambda: crawl_connector(EverydaySite(3)))
     items = client.get(
         f"/api/projects/{project_id}/ingestion-runs/{first['id']}/items"
     ).json()["items"]
@@ -1469,7 +1499,15 @@ def test_everyday_links_and_unchanged_refresh_use_the_real_crawl_path(
     files_before = stored_files()
     second = start_run(client, project_id, version)
     site = EverydaySite(3)
-    publish(engine, second["id"], lambda: crawl_connector(site))
+    # Spec 0012 D8: the same pages publish no new version.
+    assert publish(engine, second["id"], lambda: crawl_connector(site)) == first_index
+    refreshed = client.get(
+        f"/api/projects/{project_id}/ingestion-runs/{second['id']}"
+    ).json()
+    assert refreshed["published_index_id"] is None
+    assert refreshed["unchanged_index_version"] == 1
+    assert refreshed["is_current"] is True
+    assert refreshed["new_count"] == refreshed["changed_count"] == 0
     with Session(engine) as session:
         assert session.get(IngestionRun, UUID(second["id"])).status == "succeeded"
         rows = session.scalars(

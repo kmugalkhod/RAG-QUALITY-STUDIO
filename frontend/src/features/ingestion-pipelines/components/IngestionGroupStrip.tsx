@@ -5,7 +5,7 @@ import { LINK, META } from '../../../components/parts';
 import { StatusBadge } from '../../../components/StatusBadge';
 import { Button } from '../../../components/ui/button';
 import { cn } from '../../../lib/utils';
-import type { IngestionRun, IngestionRunGroup } from '../model';
+import { readyIndex, type IngestionRun, type IngestionRunGroup } from '../model';
 
 const groupStatusLabels: Record<IngestionRunGroup['status'], string> = {
   queued: 'Queued',
@@ -124,26 +124,25 @@ export function IngestionGroupStrip({
                 <span className={cn(META, 'min-w-0 truncate')} title={run.knowledge_set_name}>
                   {run.knowledge_set_name}
                   {/* Only a published index has a version anyone can use (spec 0012 A5). */}
-                  {run.status === 'succeeded' && run.published_index_version
-                    ? ` · version ${run.published_index_version}`
-                    : ''}
+                  {readyIndex(run)?.version ? ` · version ${readyIndex(run)?.version}` : ''}
+                  {run.status === 'succeeded' && run.unchanged_index_version ? ' · no changes' : ''}
                 </span>
                 {run.error && (
                   <span role="alert" className="min-w-0 truncate text-danger" title={run.error}>
                     {run.error}
                   </span>
                 )}
-                {run.status === 'succeeded' && run.published_index_id && (
+                {readyIndex(run) && (
                   <>
                     <a
                       className={cn(LINK, 'text-xs')}
-                      href={`#/projects/${projectId}/pipelines/new?index=${run.published_index_id}`}
+                      href={`#/projects/${projectId}/pipelines/new?index=${readyIndex(run)?.id}`}
                     >
                       Use in answer pipeline
                     </a>
                     <a
                       className={cn(LINK, 'text-xs')}
-                      href={`#/projects/${projectId}/knowledge-base?view=indexes&index=${run.published_index_id}`}
+                      href={`#/projects/${projectId}/knowledge-base?view=indexes&index=${readyIndex(run)?.id}`}
                     >
                       Inspect index
                     </a>

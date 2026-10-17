@@ -7,7 +7,7 @@ import { Progress } from '../../../components/ui/progress';
 import { cn } from '../../../lib/utils';
 import { terminalIngestionStatuses as terminal } from '../editorModel';
 import type { IngestionNodeExecutionStatus } from '../executionState';
-import type { IngestionRun } from '../model';
+import { readyIndex, type IngestionRun } from '../model';
 import { executionStatusPresentation } from './IngestionPipelineCanvas';
 
 // One line under the toolbar for the latest run: progress while it runs, then the outcome and
@@ -34,7 +34,7 @@ export function IngestionRunStrip({
   const presentation = executionStatusPresentation[displayStatus];
   const StatusIcon = presentation.icon;
   const finished = terminal.has(run.status);
-  const published = run.status === 'succeeded' && run.published_index_id;
+  const published = readyIndex(run);
   const counted =
     run.new_count > 0 || run.changed_count > 0 || run.unchanged_count > 0 || run.removed_count > 0;
   const outcomes = run.source_outcomes ?? [];
@@ -144,17 +144,17 @@ export function IngestionRunStrip({
           {published && (
             <div data-testid="published-index" className="flex flex-wrap items-center gap-2">
               <p className="text-sm font-medium text-foreground">
-                Index version {run.published_index_version} is ready to use
+                Index version {published.version} is ready to use
               </p>
               <Button size="sm" asChild>
-                <a href={`#/projects/${projectId}/pipelines/new?index=${run.published_index_id}`}>
+                <a href={`#/projects/${projectId}/pipelines/new?index=${published.id}`}>
                   Use in answer pipeline
                   <ArrowRight aria-hidden="true" />
                 </a>
               </Button>
               <Button size="sm" variant="outline" asChild>
                 <a
-                  href={`#/projects/${projectId}/knowledge-base?view=indexes&index=${run.published_index_id}`}
+                  href={`#/projects/${projectId}/knowledge-base?view=indexes&index=${published.id}`}
                 >
                   Inspect published index
                 </a>
@@ -197,6 +197,10 @@ export function IngestionRunStrip({
 /** Provider-reported numbers only; a value the provider did not report shows as unknown. */
 /** Spec 0012 B3: what a finished run did to the version answers use. */
 export function replacedVersionText(run: IngestionRun): string | undefined {
+  if (run.status === 'succeeded' && run.unchanged_index_version) {
+    // Spec 0012 D8: a refresh that found no change publishes no version.
+    return `No changes; version ${run.unchanged_index_version} stays current.`;
+  }
   const prior = run.prior_index_version;
   if (!prior) {
     return undefined;

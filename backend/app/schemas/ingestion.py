@@ -1458,6 +1458,10 @@ class IngestionRunRead(Strict):
     # index is the current version now.
     prior_index_version: int | None = None
     is_current: bool = False
+    # Spec 0012 D8: set when nothing changed, so the run published no version and
+    # this version stayed current.
+    unchanged_index_id: UUID | None = None
+    unchanged_index_version: int | None = None
     # Bookkeeping problems after the index went live; the run still succeeded.
     warnings: list[dict[str, str]] = Field(default_factory=list)
     # Why an active run's embedding is waiting (throttled or retrying), if it is.

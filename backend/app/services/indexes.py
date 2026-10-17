@@ -9,7 +9,12 @@ from app.models.index import IndexChunk, IndexVersion, KnowledgeSet
 from app.models.ingestion import IngestionRun
 from app.models.pipeline import Pipeline, PipelineVersion
 from app.models.project import Project
-from app.models.source import SourceItem, SourceRevision, SourceSnapshot
+from app.models.source import (
+    IndexSourceRevision,
+    SourceItem,
+    SourceRevision,
+    SourceSnapshot,
+)
 from app.providers import embeddings
 from app.schemas.index import IndexCreate, RetrievalRequest
 from app.services import provider_credentials
@@ -152,6 +157,70 @@ def snapshot_latest_processing_runs(
             409, "Process at least one document successfully before indexing."
         )
     return list(run_ids)
+
+
+def unchanged_current_index(
+    session: Session,
+    project_id: UUID,
+    knowledge_set_id: UUID,
+    processing_run_ids: list[UUID],
+    *,
+    embedding: dict | None,
+    source_revision_ids: list[UUID] | None = None,
+) -> IndexVersion | None:
+    """Spec 0012 D8: the knowledge set's current ready version when a new version
+    would hold exactly its passages with the same embedding settings (and, for
+    sources with revisions, the same revisions), else None.
+
+    A version holds every passage of each of its processing runs except parents,
+    so the same runs and the same passage count mean the same membership. The
+    knowledge set is locked, as when a version is created."""
+    if embedding is None or not processing_run_ids:
+        return None
+    knowledge_set = session.scalar(
+        select(KnowledgeSet)
+        .where(
+            KnowledgeSet.id == knowledge_set_id,
+            KnowledgeSet.project_id == project_id,
+        )
+        .with_for_update()
+    )
+    if knowledge_set is None or knowledge_set.current_ready_index_id is None:
+        return None
+    current = session.get(IndexVersion, knowledge_set.current_ready_index_id)
+    if (
+        current is None
+        or current.status != "succeeded"
+        or current.embedding_config != embedding
+    ):
+        return None
+    runs = set(
+        session.scalars(
+            select(IndexChunk.run_id)
+            .where(IndexChunk.index_id == current.id)
+            .distinct()
+        )
+    )
+    if runs != set(processing_run_ids):
+        return None
+    passages = session.scalar(
+        select(func.count())
+        .select_from(Chunk)
+        .where(Chunk.run_id.in_(processing_run_ids), Chunk.chunk_role != "parent")
+    )
+    if passages != current.chunk_count:
+        return None
+    if source_revision_ids is not None:
+        revisions = set(
+            session.scalars(
+                select(IndexSourceRevision.source_revision_id).where(
+                    IndexSourceRevision.index_id == current.id
+                )
+            )
+        )
+        if revisions != set(source_revision_ids):
+            return None
+    return current
 
 
 def create_index_from_processing_runs(

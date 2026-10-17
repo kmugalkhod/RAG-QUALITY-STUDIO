@@ -183,6 +183,17 @@ def _create_index(session: Session, job, items, execution, token, db_engine):
             if decision.outcome == "retained":
                 retained_items.append(item)
     job.chunk_count = sum(item.chunk_count for item in retained_items)
+    unchanged = indexes.unchanged_current_index(
+        session,
+        job.project_id,
+        job.knowledge_set_id,
+        [item.processing_run_id for item in retained_items],
+        embedding=job.snapshot.get("embedding"),
+    )
+    if unchanged is not None:
+        ingestion_execution.finish_unchanged(session, job, unchanged)
+        session.commit()
+        return
     ingestion_execution.transition(
         db_engine, job.id, node_type="embed", execution_token=token
     )

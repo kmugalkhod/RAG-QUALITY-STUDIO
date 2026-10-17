@@ -62,11 +62,19 @@ def test_a_second_version_reports_its_reused_vectors(api):
     assert run["embedding_usage"]["reused_vectors"] == 0
     calls = len(provider.calls)
 
+    # The second version adds a file, so it publishes (an unchanged run would
+    # publish nothing, spec 0012 D8).
+    added = upload(client, project_id, b"Tides turn at the harbour. " * 20, "add.txt")
+    payload = ingestion_draft(
+        [document["id"], added["id"]], config, name="Reuse", schema_version=2
+    )
     second = client.post(
         f"/api/projects/{project_id}/pipelines/{first['pipeline_id']}/versions",
         json=payload,
     ).json()
     again = _run_to_completion(client, engine, project_id, second)
-    # The same text and model: every vector is copied, none is requested.
-    assert len(provider.calls) == calls
-    assert again["embedding_usage"]["reused_vectors"] == again["embedded_count"] > 0
+    # The first file's text and model are unchanged: its vectors are copied and
+    # only the added file's passages are requested.
+    assert len(provider.calls) > calls
+    assert again["embedding_usage"]["reused_vectors"] == run["chunk_count"] > 0
+    assert again["embedded_count"] > run["chunk_count"]

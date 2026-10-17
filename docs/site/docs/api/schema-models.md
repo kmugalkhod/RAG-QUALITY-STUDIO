@@ -783,6 +783,12 @@ Type: [`IngestionExecutionV1`](#ingestionexecutionv1) or [`IngestionExecutionV2`
 | `error` | string or null | yes | — |
 | `published_index_id` | string (uuid) or null | yes | — |
 | `published_index_version` | integer or null | yes | — |
+| `prior_index_version` | integer or null | no | — |
+| `is_current` | boolean | no | default=False |
+| `unchanged_index_id` | string (uuid) or null | no | — |
+| `unchanged_index_version` | integer or null | no | — |
+| `warnings` | array of object | no | — |
+| `waiting_reason` | string or null | no | — |
 | `embedding_usage` | [`EmbeddingUsageRead`](#embeddingusageread) or null | no | — |
 | `created_at` | string (date-time) | yes | — |
 | `updated_at` | string (date-time) | yes | — |

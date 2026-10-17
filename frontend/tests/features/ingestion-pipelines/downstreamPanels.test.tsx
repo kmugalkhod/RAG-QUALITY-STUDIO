@@ -11,11 +11,12 @@ import { chunkSummaryText } from '../../../src/features/ingestion-pipelines/comp
 import { replacedVersionText } from '../../../src/features/ingestion-pipelines/components/IngestionRunStrip';
 import { publishedVersionText } from '../../../src/features/ingestion-pipelines/components/PublishIndexSettings';
 import { describeIngestionNode } from '../../../src/features/ingestion-pipelines/editorModel';
-import type {
-  IngestionNode,
-  IngestionRun,
-  IngestionRunGroup,
-  SourcePreview,
+import {
+  readyIndex,
+  type IngestionNode,
+  type IngestionRun,
+  type IngestionRunGroup,
+  type SourcePreview,
 } from '../../../src/features/ingestion-pipelines/model';
 import type { KnowledgeSet } from '../../../src/features/documents/model';
 
@@ -96,7 +97,7 @@ test('the Publish stage says which version the next run publishes', () => {
     created_at: '2026-10-18T00:00:00Z',
   } as KnowledgeSet;
   expect(publishedVersionText(set)).toBe(
-    'This run publishes version 4 of Python tutorial. Version 3 stays available. Answer pipelines keep their version until you switch.',
+    'This run publishes version 4 of Python tutorial. Version 3 stays available; if nothing changed, no version is published and it stays current. Answer pipelines keep their version until you switch.',
   );
   expect(publishedVersionText(undefined, 'Docs')).toBe(
     'This run publishes version 1 of the new index Docs.',
@@ -115,6 +116,36 @@ test('a run says what happened to the version answers use', () => {
     'Version 3 is still current.',
   );
   expect(replacedVersionText({ status: 'succeeded' } as IngestionRun)).toBe(undefined);
+  // Spec 0012 D8: nothing changed, so nothing was published.
+  expect(
+    replacedVersionText({
+      status: 'succeeded',
+      prior_index_version: 3,
+      published_index_version: null,
+      unchanged_index_version: 3,
+    } as IngestionRun),
+  ).toBe('No changes; version 3 stays current.');
+});
+
+test('an unchanged run offers the version that stayed current', () => {
+  const run = {
+    status: 'succeeded',
+    published_index_id: null,
+    published_index_version: null,
+    unchanged_index_id: 'index-3',
+    unchanged_index_version: 3,
+  } as IngestionRun;
+  expect(readyIndex(run)).toEqual({ id: 'index-3', version: 3 });
+  expect(readyIndex({ ...run, status: 'failed' })).toBe(null);
+  expect(
+    readyIndex({
+      ...run,
+      published_index_id: 'index-4',
+      published_index_version: 4,
+      unchanged_index_id: null,
+      unchanged_index_version: null,
+    }),
+  ).toEqual({ id: 'index-4', version: 4 });
 });
 
 test('a preview item summarizes its passages', () => {

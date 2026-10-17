@@ -917,6 +917,18 @@ def _advance_credentialed_snapshot(
         processing_ids = list(
             dict.fromkeys(revision.processing_run_id for _, _, revision in memberships)
         )
+        unchanged = indexes.unchanged_current_index(
+            session,
+            job.project_id,
+            job.knowledge_set_id,
+            processing_ids,
+            embedding=job.snapshot.get("embedding"),
+            source_revision_ids=[revision.id for _, _, revision in memberships],
+        )
+        if unchanged is not None:
+            ingestion_execution.finish_unchanged(session, job, unchanged)
+            session.commit()
+            return
         index = indexes.create_index_from_processing_runs(
             session,
             job.project_id,
@@ -1194,6 +1206,18 @@ def _advance_credentialed(
         processing_ids = list(
             dict.fromkeys(revision.processing_run_id for _, _, revision in memberships)
         )
+        unchanged = indexes.unchanged_current_index(
+            session,
+            job.project_id,
+            job.knowledge_set_id,
+            processing_ids,
+            embedding=job.snapshot.get("embedding"),
+            source_revision_ids=[revision.id for _, _, revision in memberships],
+        )
+        if unchanged is not None:
+            ingestion_execution.finish_unchanged(session, job, unchanged)
+            session.commit()
+            return
         index = indexes.create_index_from_processing_runs(
             session,
             job.project_id,
@@ -1722,6 +1746,18 @@ def _advance_website(run_id, token, db_engine, connector_factory):
         processing_ids = list(
             dict.fromkeys(revision.processing_run_id for _, _, revision in memberships)
         )
+        unchanged = indexes.unchanged_current_index(
+            session,
+            job.project_id,
+            job.knowledge_set_id,
+            processing_ids,
+            embedding=job.snapshot.get("embedding"),
+            source_revision_ids=[revision.id for _, _, revision in memberships],
+        )
+        if unchanged is not None:
+            ingestion_execution.finish_unchanged(session, job, unchanged)
+            session.commit()
+            return
         index = indexes.create_index_from_processing_runs(
             session,
             job.project_id,

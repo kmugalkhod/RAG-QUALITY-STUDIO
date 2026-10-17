@@ -739,6 +739,20 @@ def _run_rows(session: Session, statement):
         if prior_ids
         else {}
     )
+    unchanged_ids = {
+        run.unchanged_index_id for run, *_ in rows if run.unchanged_index_id
+    }
+    unchanged_versions = (
+        dict(
+            session.execute(
+                select(IndexVersion.id, IndexVersion.version).where(
+                    IndexVersion.id.in_(unchanged_ids)
+                )
+            ).all()
+        )
+        if unchanged_ids
+        else {}
+    )
     results = []
     for (
         run,
@@ -792,7 +806,15 @@ def _run_rows(session: Session, statement):
                 "prior_index_version": (
                     prior_versions.get(UUID(prior_id)) if prior_id else None
                 ),
-                "is_current": published and current_index_id == index_id,
+                "is_current": (published and current_index_id == index_id)
+                or (
+                    run.unchanged_index_id is not None
+                    and current_index_id == run.unchanged_index_id
+                ),
+                # Spec 0012 D8: nothing changed, so this version stayed current.
+                "unchanged_index_version": unchanged_versions.get(
+                    run.unchanged_index_id
+                ),
                 "waiting_reason": (
                     _waiting_reason(
                         index_error, index_failures, throttled_since, index_updated_at

@@ -163,6 +163,14 @@ def ingestion_api(documents_api, monkeypatch):  # noqa: F811
         pipeline_ids = select(Pipeline.id).where(Pipeline.project_id.in_(project_ids))
         session.execute(delete(QueryRun).where(QueryRun.project_id.in_(project_ids)))
         session.execute(delete(IndexChunk).where(IndexChunk.index_id.in_(index_ids)))
+        # An unchanged run refers to the version it kept (spec 0012 D8); it is
+        # deleted below, and the completion check needs a cancelled run first.
+        session.execute(
+            update(IngestionRun)
+            .where(IngestionRun.id.in_(run_ids))
+            .where(IngestionRun.unchanged_index_id.is_not(None))
+            .values(unchanged_index_id=None, status="cancelled")
+        )
         session.execute(delete(IndexVersion).where(IndexVersion.id.in_(index_ids)))
         session.execute(
             delete(IngestionRunItem).where(IngestionRunItem.run_id.in_(run_ids))

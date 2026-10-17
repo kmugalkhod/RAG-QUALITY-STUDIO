@@ -439,7 +439,21 @@ export type SourcePreviewRepresentation = {
   metadata: Record<string, unknown>;
 };
 
-export type IngestionRun = {
+/** The index a succeeded run left ready: the one it published, or the unchanged current one. */
+export function readyIndex(run: IngestionRun): { id: string; version: number | null } | null {
+  if (run.status !== 'succeeded') {
+    return null;
+  }
+  if (run.published_index_id) {
+    return { id: run.published_index_id, version: run.published_index_version };
+  }
+  if (run.unchanged_index_id) {
+    return { id: run.unchanged_index_id, version: run.unchanged_index_version ?? null };
+  }
+  return null;
+}
+
+export interface IngestionRun {
   id: string;
   project_id: string;
   pipeline_version_id: string;
@@ -479,6 +493,9 @@ export type IngestionRun = {
   /** The version answers used when the run started, and whether this run's is current. */
   prior_index_version?: number | null;
   is_current?: boolean;
+  /** Spec 0012 D8: nothing changed, so no version was published and this one stayed current. */
+  unchanged_index_id?: string | null;
+  unchanged_index_version?: number | null;
   /** Problems recorded after the index went live; the run still succeeded. */
   warnings?: { code: string; message: string }[];
   /** Why an active run's embedding waits (throttled or retrying), if it does. */
@@ -504,7 +521,7 @@ export type IngestionRun = {
   updated_at: string;
   started_at: string | null;
   finished_at: string | null;
-};
+}
 
 export type IngestionRunGroup = {
   id: string;
