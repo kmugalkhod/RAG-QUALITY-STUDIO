@@ -1001,8 +1001,11 @@ def test_quality_rejection_preserves_previous_ready_index(ingestion_api):
         ),
         ocr_mode="off",
     )
+    # A new version of the same pipeline adds a version to its index (spec 0012 D3).
     rejected_version = client.post(
-        f"/api/projects/{project_id}/pipelines", json=rejected_payload
+        f"/api/projects/{project_id}/pipelines/"
+        f"{successful_version['pipeline_id']}/versions",
+        json=rejected_payload,
     ).json()
     rejected_run = client.post(
         f"/api/projects/{project_id}/pipelines/{rejected_version['pipeline_id']}"

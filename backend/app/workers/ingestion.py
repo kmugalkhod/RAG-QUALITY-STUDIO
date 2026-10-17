@@ -87,6 +87,38 @@ def _cancel_unpublished_work(session: Session, run_id: UUID):
     )
 
 
+FINALIZE_WARNING = {
+    "code": "finalize_incomplete",
+    "message": (
+        "The index was published and is in use. Recording the run's final stage "
+        "details did not complete, so some stage states may be out of date."
+    ),
+}
+
+
+def finish_published(session: Session, job: IngestionRun, index: IndexVersion):
+    """Spec 0012 A6: once the run's index is live, the run succeeded. A later
+    bookkeeping error is kept as a run warning instead of failing the run."""
+    job.status = "succeeded"
+    job.stage = "complete"
+    job.progress = 100
+    job.failed_count = min(job.failed_count, job.discovered_count)
+    job.processed_count = job.discovered_count - job.failed_count
+    job.chunk_count = index.chunk_count
+    job.embedded_count = index.embedded_count
+    job.published_count = 1
+    job.execution_token = None
+    job.failures = 0
+    job.error = None
+    job.warnings = [*(job.warnings or []), FINALIZE_WARNING]
+    job.updated_at = job.finished_at = now()
+    try:
+        with session.begin_nested():
+            ingestion_execution.mark_terminal(session, job.id, "succeeded")
+    except Exception:  # the warning above already says states may be stale
+        pass
+
+
 def _create_index(session: Session, job, items, execution, token, db_engine):
     """Classify duplicates once and create the run's index. Later coordinator
     passes only poll the index, so duplicate decisions are not recomputed."""
@@ -383,6 +415,13 @@ def process_ingestion(
                 select(IngestionRun).where(IngestionRun.id == run_id).with_for_update()
             )
             if job is None or job.status != "running" or job.execution_token != token:
+                return
+            index = session.scalar(
+                select(IndexVersion).where(IndexVersion.ingestion_run_id == run_id)
+            )
+            if index is not None and index.status == "succeeded":
+                finish_published(session, job, index)
+                session.commit()
                 return
             job.failures += 1
             if transient and job.failures < 3:

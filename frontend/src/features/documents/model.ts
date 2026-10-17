@@ -76,6 +76,11 @@ export interface KnowledgeSet {
   project_id: string;
   name: string;
   current_ready_index_id: string | null;
+  /** The version answers use now, and the highest version created so far. */
+  current_version?: number | null;
+  latest_version?: number | null;
+  /** Ingestion pipelines whose runs published to this index. */
+  publishing_pipelines?: { id: string; name: string }[];
   created_at: string;
 }
 

@@ -123,7 +123,10 @@ export function IngestionGroupStrip({
                 </StatusBadge>
                 <span className={cn(META, 'min-w-0 truncate')} title={run.knowledge_set_name}>
                   {run.knowledge_set_name}
-                  {run.published_index_version ? ` · version ${run.published_index_version}` : ''}
+                  {/* Only a published index has a version anyone can use (spec 0012 A5). */}
+                  {run.status === 'succeeded' && run.published_index_version
+                    ? ` · version ${run.published_index_version}`
+                    : ''}
                 </span>
                 {run.error && (
                   <span role="alert" className="min-w-0 truncate text-danger" title={run.error}>

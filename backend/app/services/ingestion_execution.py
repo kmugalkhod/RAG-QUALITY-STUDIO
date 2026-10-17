@@ -169,7 +169,7 @@ def mark_terminal(
             cause.finished_at = timestamp
             cause.updated_at = timestamp
             for node in nodes:
-                if node.ordinal > cause.ordinal and node.status == "running":
+                if node is not cause and node.status == "running":
                     node.status = "cancelled"
                     node.finished_at = timestamp
                     node.updated_at = timestamp
@@ -197,3 +197,12 @@ def mark_terminal(
         active.status = "failed"
         active.finished_at = timestamp
         active.updated_at = timestamp
+    # No stage of a failed run stays running (spec 0012 A4).
+    session.execute(
+        update(IngestionRunNode)
+        .where(
+            IngestionRunNode.run_id == run_id,
+            IngestionRunNode.status == "running",
+        )
+        .values(status="cancelled", finished_at=timestamp, updated_at=timestamp)
+    )

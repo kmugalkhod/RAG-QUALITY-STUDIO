@@ -48,6 +48,7 @@ import {
   type WebsiteRecommendationContext,
 } from './SourceSettings';
 import { CleaningTransformSettings } from './CleaningTransformSettings';
+import { PublishIndexSettings } from './PublishIndexSettings';
 import {
   CHECK_ROW,
   DETAILS,
@@ -128,6 +129,8 @@ export function IngestionNodeSettings({
   stageOptions,
   scopeControl,
   websiteRecommendations,
+  pipelineId,
+  pipelineName,
   onSelectNode,
 }: {
   projectId: string;
@@ -163,6 +166,10 @@ export function IngestionNodeSettings({
   scopeControl?: ReactNode;
   /** Recommended settings for a Website source; undefined while the server has them off. */
   websiteRecommendations?: (nodeId: string) => WebsiteRecommendationContext | undefined;
+  /** The saved pipeline being edited, if any. */
+  pipelineId?: string;
+  /** The pipeline's name, which a new index takes by default. */
+  pipelineName?: string;
   onSelectNode: (nodeId: string) => void;
 }) {
   const nameOf = (node: IngestionNode) =>
@@ -824,53 +831,17 @@ export function IngestionNodeSettings({
           </div>
         )}
         {selected?.type === 'publish_index' && (
-          <div className={STACK}>
-            <p className={HINT}>
-              Make the embedded passages available as an immutable, reusable index version.
-              Publishing does not embed the passages again.
-            </p>
-            <Label>
-              Reusable index collection
-              <NativeSelect
-                value={selected.knowledge_set_id ?? ''}
-                onChange={(event) => {
-                  const set = knowledgeSets.find((item) => item.id === event.target.value);
-                  updateNode(selected.id, (node) =>
-                    node.type === 'publish_index'
-                      ? {
-                          ...node,
-                          knowledge_set_id: set?.id ?? null,
-                          knowledge_set_name: set?.name ?? node.knowledge_set_name,
-                        }
-                      : node,
-                  );
-                }}
-              >
-                <NativeSelectOption value="">Create a new knowledge set</NativeSelectOption>
-                {knowledgeSets.map((set) => (
-                  <NativeSelectOption key={set.id} value={set.id}>
-                    {set.name}
-                  </NativeSelectOption>
-                ))}
-              </NativeSelect>
-            </Label>
-            {!selected.knowledge_set_id && (
-              <Label>
-                New knowledge set name
-                <Input
-                  value={selected.knowledge_set_name}
-                  maxLength={120}
-                  onChange={(event) =>
-                    updateNode(selected.id, (node) =>
-                      node.type === 'publish_index'
-                        ? { ...node, knowledge_set_name: event.target.value }
-                        : node,
-                    )
-                  }
-                />
-              </Label>
-            )}
-          </div>
+          <PublishIndexSettings
+            key={selected.id}
+            node={selected}
+            knowledgeSets={knowledgeSets}
+            pipelineId={pipelineId}
+            defaultName={pipelineName ?? selected.knowledge_set_name}
+            serverError={nodeErrors['publish.knowledge_set_name']}
+            update={(value) =>
+              updateNode(selected.id, (node) => (node.type === 'publish_index' ? value : node))
+            }
+          />
         )}
         {selected?.type === 'extract' && (
           <div className={STACK}>

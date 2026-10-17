@@ -43,6 +43,52 @@ def get_knowledge_set(session: Session, project_id: UUID, knowledge_set_id: UUID
     return result
 
 
+def knowledge_set_named(session: Session, project_id: UUID, name: str):
+    """The project's index with this name, ignoring case (spec 0012 A7).
+
+    Older saves could create "Docs" and "docs" side by side; an exact match then
+    wins, otherwise the oldest.
+    """
+    return session.scalars(
+        select(KnowledgeSet)
+        .where(
+            KnowledgeSet.project_id == project_id,
+            func.lower(KnowledgeSet.name) == func.lower(name),
+        )
+        .order_by(
+            (KnowledgeSet.name == name).desc(),
+            KnowledgeSet.created_at,
+            KnowledgeSet.id,
+        )
+        .limit(1)
+    ).first()
+
+
+def published_by_pipeline(session: Session, knowledge_set_id, pipeline_id) -> bool:
+    """Whether any run of any version of this pipeline published to the index."""
+    return (
+        session.scalar(
+            select(IngestionRun.id)
+            .join(
+                PipelineVersion, PipelineVersion.id == IngestionRun.pipeline_version_id
+            )
+            .where(
+                IngestionRun.knowledge_set_id == knowledge_set_id,
+                PipelineVersion.pipeline_id == pipeline_id,
+            )
+            .limit(1)
+        )
+        is not None
+    )
+
+
+def name_taken_message(name: str) -> str:
+    return (
+        f'An index named "{name}" already exists. Choose "Add a version to an '
+        'existing index" to publish to it, or enter another name.'
+    )
+
+
 def default_knowledge_set(session: Session, project_id: UUID):
     result = session.scalar(
         select(KnowledgeSet).where(
@@ -352,7 +398,7 @@ def list_indexes(
 
 def list_knowledge_sets(session, project_id, limit, offset):
     project(session, project_id)
-    return paginate(
+    page = paginate(
         session,
         select(KnowledgeSet)
         .where(KnowledgeSet.project_id == project_id)
@@ -360,6 +406,45 @@ def list_knowledge_sets(session, project_id, limit, offset):
         limit,
         offset,
     )
+    ids = [row.id for row in page["items"]]
+    publishers: dict = {value: [] for value in ids}
+    for set_id, pipeline_id, name in session.execute(
+        select(IngestionRun.knowledge_set_id, Pipeline.id, Pipeline.name)
+        .join(PipelineVersion, PipelineVersion.id == IngestionRun.pipeline_version_id)
+        .join(Pipeline, Pipeline.id == PipelineVersion.pipeline_id)
+        .where(IngestionRun.knowledge_set_id.in_(ids))
+        .distinct()
+        .order_by(IngestionRun.knowledge_set_id, Pipeline.name, Pipeline.id)
+    ):
+        publishers[set_id].append({"id": pipeline_id, "name": name})
+    versions = dict(
+        session.execute(
+            select(IndexVersion.knowledge_set_id, func.max(IndexVersion.version))
+            .where(IndexVersion.knowledge_set_id.in_(ids))
+            .group_by(IndexVersion.knowledge_set_id)
+        ).all()
+    )
+    current = dict(
+        session.execute(
+            select(KnowledgeSet.id, IndexVersion.version)
+            .join(IndexVersion, IndexVersion.id == KnowledgeSet.current_ready_index_id)
+            .where(KnowledgeSet.id.in_(ids))
+        ).all()
+    )
+    page["items"] = [
+        {
+            "id": row.id,
+            "project_id": row.project_id,
+            "name": row.name,
+            "current_ready_index_id": row.current_ready_index_id,
+            "current_version": current.get(row.id),
+            "latest_version": versions.get(row.id),
+            "publishing_pipelines": publishers[row.id],
+            "created_at": row.created_at,
+        }
+        for row in page["items"]
+    ]
+    return page
 
 
 def list_index_records(session, project_id, index_id, limit, offset):

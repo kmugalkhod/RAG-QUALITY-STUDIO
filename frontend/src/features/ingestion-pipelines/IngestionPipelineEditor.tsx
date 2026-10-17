@@ -32,6 +32,7 @@ import { StageScope, type StageScopeMode } from './components/StageScope';
 import { IngestionPreviewResults, IngestionRunResults } from './components/IngestionResults';
 import { IngestionGroupStrip } from './components/IngestionGroupStrip';
 import { IngestionRunStrip } from './components/IngestionRunStrip';
+import { nameClash, takenMessage } from './components/PublishIndexSettings';
 import { IngestionMoreActions, IngestionToolbar } from './components/IngestionToolbar';
 import {
   defaultConfluence,
@@ -55,7 +56,9 @@ import {
   nodeLabel,
   maxWebsiteRunPages,
   maxWebsiteSources,
+  indexNameFor,
   removeSource,
+  renameIngestionDraft,
   sourceLabel,
   sourceNodes,
   upgradeIngestionDraft,
@@ -183,6 +186,8 @@ export function IngestionPipelineEditor({
   const [flow, setFlow] = useState<ReactFlowInstance<IngestionFlowNode, Edge>>();
   const [flowNodes, setFlowNodes, onFlowNodesChange] = useNodesState<IngestionFlowNode>([]);
   const dirty = !!draft && canonicalIngestion(draft) !== baseline;
+  // A saved pipeline's own runs do not make its index name "taken".
+  const savedPipelineId = saved?.pipeline_id;
   useUnsavedChanges(dirty);
 
   const open = useCallback(
@@ -778,8 +783,17 @@ export function IngestionPipelineEditor({
         reasons.push('Each source must publish to a differently named index.');
       }
     }
+    for (const node of draft.execution.nodes) {
+      const clash =
+        node.type === 'publish_index' && !node.knowledge_set_id
+          ? nameClash(node.knowledge_set_name, knowledgeSets, savedPipelineId)
+          : undefined;
+      if (clash) {
+        reasons.push(takenMessage(clash.name));
+      }
+    }
     return reasons;
-  }, [connectionSettings, draft]);
+  }, [connectionSettings, draft, knowledgeSets, savedPipelineId]);
 
   function updateNode(id: string, update: (node: IngestionNode) => IngestionNode) {
     setServerFieldErrors({});
@@ -1455,7 +1469,7 @@ export function IngestionPipelineEditor({
                 onUpgrade={() => setDraft(upgradeIngestionDraft(draft))}
               />
             }
-            onNameChange={(name) => setDraft({ ...draft, name })}
+            onNameChange={(name) => setDraft(renameIngestionDraft(draft, name))}
             onVersionSelect={open}
             onDiscard={discard}
             onPreview={runPreview}
@@ -1659,6 +1673,8 @@ export function IngestionPipelineEditor({
             stageOptions={stageOptions}
             scopeControl={scopeControl}
             websiteRecommendations={websiteRecommendations}
+            pipelineId={savedPipelineId}
+            pipelineName={indexNameFor(draft)}
             onSelectNode={selectFromCanvas}
           />
         </div>

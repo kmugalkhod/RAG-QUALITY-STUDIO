@@ -7,6 +7,7 @@ import {
   defaultWebsite,
   derivedIncludePrefixes,
   indexLayout,
+  indexNameFor,
   maxWebsiteRunPages,
   maxWebsiteSources,
   removeSource,
@@ -224,12 +225,14 @@ function setSourceConfig(
 
 /** Index names follow the pipeline name: one shared name, or one per website. */
 export function withIndexNames(draft: IngestionPipelineDraft): IngestionPipelineDraft {
-  const name = draft.name.trim() || 'Ingested knowledge';
+  const name = indexNameFor(draft);
   if (indexLayout(draft) !== 'per_source') {
     const publish = draft.execution.nodes.find((node) => node.type === 'publish_index');
     return publish
       ? updateNodes(draft, [publish.id], (node) =>
-          node.type === 'publish_index' ? { ...node, knowledge_set_name: name } : node,
+          node.type === 'publish_index'
+            ? { ...node, knowledge_set_name: name, destination: 'new' as const }
+            : node,
         )
       : draft;
   }

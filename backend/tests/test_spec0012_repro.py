@@ -131,7 +131,6 @@ class ThrottledProvider:
 # Publish Index --------------------------------------------------------------
 
 
-@bug("A1", "a new index whose name matches an existing index saves")
 def test_a1_new_index_with_an_existing_name_is_a_field_error(api):
     client, engine, project_id, _, config, _ = api
     _knowledge_set(engine, project_id, "Docs")
@@ -143,7 +142,6 @@ def test_a1_new_index_with_an_existing_name_is_a_field_error(api):
     assert issue["loc"][-1] == "knowledge_set_name"
 
 
-@bug("A3", "the losing start of a race gets a database error, shown as 503")
 def test_a3_concurrent_start_loses_with_409(api, monkeypatch):
     client, engine, project_id, _, config, _ = api
     document = upload(client, project_id, TEXT, "a3.txt")
@@ -190,7 +188,6 @@ def test_a3_concurrent_start_loses_with_409(api, monkeypatch):
     assert results == {"first": "started", "second": 409}, results
 
 
-@bug("A4", "a stale-failed run leaves node states and items unfinished")
 def test_a4_stale_failure_leaves_terminal_states(api):
     client, engine, project_id, _, config, _ = api
     document = upload(client, project_id, TEXT, "a4.txt")
@@ -224,7 +221,6 @@ def test_a4_stale_failure_leaves_terminal_states(api):
     assert "processing" not in items, items
 
 
-@bug("A5", "an index that did not publish is returned as the published index")
 def test_a5_unpublished_index_has_no_published_version(api):
     client, engine, project_id, _, config, _ = api
     run_id, index_id = _indexed_run(client, engine, project_id, config, "A5")
@@ -243,7 +239,6 @@ def test_a5_unpublished_index_has_no_published_version(api):
     assert "prior_index_version" in result and "is_current" in result
 
 
-@bug("A6", "a bookkeeping error after the index went live fails the run")
 def test_a6_live_index_finalizes_the_run_as_succeeded(api, monkeypatch):
     client, engine, project_id, _, config, _ = api
     run_id, index_id = _indexed_run(client, engine, project_id, config, "A6")
@@ -264,7 +259,6 @@ def test_a6_live_index_finalizes_the_run_as_succeeded(api, monkeypatch):
         assert run.status == "succeeded", run.error
 
 
-@bug("A7", "a name that differs only in case creates a second index")
 def test_a7_saved_name_resolves_ignoring_case(api):
     client, engine, project_id, _, config, _ = api
     existing = _knowledge_set(engine, project_id, "Docs")
@@ -278,7 +272,6 @@ def test_a7_saved_name_resolves_ignoring_case(api):
         assert run.knowledge_set_id == existing
 
 
-@bug("A7", "a new index named like an existing one in another case saves")
 def test_a7_new_name_differing_in_case_is_a_field_error(api):
     client, engine, project_id, _, config, _ = api
     _knowledge_set(engine, project_id, "Docs")

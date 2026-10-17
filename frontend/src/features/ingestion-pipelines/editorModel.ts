@@ -448,6 +448,9 @@ export function serverFieldErrors(
           ? [[`${prefix}ocr.${field}`, issue.msg]]
           : [];
       }
+      if (issue.loc.at(-1) === 'knowledge_set_name') {
+        return [[`${prefix}publish.knowledge_set_name`, issue.msg]];
+      }
       const website = issue.loc.lastIndexOf('website');
       const field = String(issue.loc[website + 1]);
       return website >= 0 && ['max_pages', 'max_depth', 'requests_per_second'].includes(field)
@@ -596,14 +599,52 @@ export function hostOf(node: IngestionNode) {
   }
 }
 
+export const untitledPipelineName = 'Untitled ingestion pipeline';
+
+/** The index name a new pipeline publishes to: its own name. */
+export function indexNameFor(draft: IngestionPipelineDraft) {
+  return draft.name.trim() || untitledPipelineName;
+}
+
+/**
+ * Renames the pipeline. A new index whose name still follows the pipeline name is
+ * renamed with it; a name the user typed and an existing index are kept.
+ */
+export function renameIngestionDraft(
+  draft: IngestionPipelineDraft,
+  name: string,
+): IngestionPipelineDraft {
+  const next = { ...draft, name };
+  const sources = sourceNodes(draft);
+  const nodes = draft.execution.nodes.map((node) => {
+    if (node.type !== 'publish_index' || node.knowledge_set_id) {
+      return node;
+    }
+    if (indexLayout(draft) !== 'per_source') {
+      return node.knowledge_set_name === indexNameFor(draft)
+        ? { ...node, knowledge_set_name: indexNameFor(next) }
+        : node;
+    }
+    const sourceId = branchSourceOf(draft, node.id);
+    const position = sources.findIndex((source) => source.id === sourceId);
+    if (position < 0) {
+      return node;
+    }
+    const source = sources[position];
+    return node.knowledge_set_name === branchIndexName(draft, source, position + 1)
+      ? { ...node, knowledge_set_name: branchIndexName(next, source, position + 1) }
+      : node;
+  });
+  return { ...next, execution: { ...draft.execution, nodes } };
+}
+
 /** Default index name of a branch: "<pipeline> · <host>", or "· Website N" without a URL. */
 export function branchIndexName(
   draft: IngestionPipelineDraft,
   source: IngestionNode,
   number: number,
 ) {
-  const pipeline = draft.name.trim() || 'Ingested knowledge';
-  return `${pipeline} · ${hostOf(source) ?? `Website ${number}`}`;
+  return `${indexNameFor(draft)} · ${hostOf(source) ?? `Website ${number}`}`;
 }
 
 function uniqueId(ids: Set<string>, base: string) {
@@ -623,7 +664,7 @@ function withIndexName(node: IngestionNode, name: string): IngestionNode {
   // A new branch publishes to a new index; it never reuses another branch's index.
   const { knowledge_set_id: _ignored, ...rest } = node;
   void _ignored;
-  return { ...rest, knowledge_set_name: name };
+  return { ...rest, knowledge_set_name: name, destination: 'new' };
 }
 
 function copyChain(template: IngestionNode[], ids: Set<string>, name: string): IngestionNode[] {
@@ -692,7 +733,7 @@ export function setIndexLayout(
   }
   const first = sources[0];
   const chain = branchChain(draft, first.id).map((node) =>
-    withIndexName(node, draft.name.trim() || 'Ingested knowledge'),
+    withIndexName(node, indexNameFor(draft)),
   );
   sources.forEach((source, index) => {
     positions[source.id] = origin(source, index);
@@ -948,11 +989,17 @@ export function defaultIngestionDraft(
       dimensions: embedding.dimensions,
       config_version: embedding.revision,
     },
-    { id: 'publish', type: 'publish_index', knowledge_set_name: 'Ingested knowledge' },
+    // A new pipeline publishes to an index of its own name (spec 0012 D2).
+    {
+      id: 'publish',
+      type: 'publish_index',
+      knowledge_set_name: untitledPipelineName,
+      destination: 'new',
+    },
   ];
   return {
     kind: 'ingestion',
-    name: 'Untitled ingestion pipeline',
+    name: untitledPipelineName,
     execution: {
       schema_version: 2,
       index_layout: 'merged',

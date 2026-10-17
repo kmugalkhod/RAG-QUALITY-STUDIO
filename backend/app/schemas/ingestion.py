@@ -408,12 +408,23 @@ class PublishIndexNode(NodeBase):
     type: Literal["publish_index"]
     knowledge_set_name: str = Field(min_length=1, max_length=120)
     knowledge_set_id: UUID | None = None
+    # Spec 0012 D3: `new` publishes to a newly named index and never into another
+    # pipeline's index; `existing` adds a version to the index in
+    # `knowledge_set_id`. Versions saved before the choice existed have none and
+    # still publish to the index with their name.
+    destination: Literal["new", "existing"] | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
 
     @model_validator(mode="after")
     def clean_name(self):
         self.knowledge_set_name = self.knowledge_set_name.strip()
         if not self.knowledge_set_name:
-            raise ValueError("Knowledge set name is required.")
+            raise ValueError("Index name is required.")
+        if self.destination == "existing" and self.knowledge_set_id is None:
+            raise ValueError("Choose the index to add a version to.")
+        if self.destination == "new" and self.knowledge_set_id is not None:
+            raise ValueError("A new index cannot name an existing index.")
         return self
 
 
@@ -1366,8 +1377,15 @@ class IngestionRunRead(Strict):
     failures: int
     node_states: list[IngestionRunNodeRead]
     error: str | None
+    # Set only when the run's index published (spec 0012 A5).
     published_index_id: UUID | None
     published_index_version: int | None
+    # The version that was current when the run started, and whether this run's
+    # index is the current version now.
+    prior_index_version: int | None = None
+    is_current: bool = False
+    # Bookkeeping problems after the index went live; the run still succeeded.
+    warnings: list[dict[str, str]] = Field(default_factory=list)
     # None until the run has an index.
     embedding_usage: EmbeddingUsageRead | None = None
     # Multi-source runs only; empty for a single source.

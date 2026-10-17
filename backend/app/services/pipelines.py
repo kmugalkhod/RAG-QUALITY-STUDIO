@@ -333,6 +333,50 @@ def validate_ingestion(session, project_id, execution: IngestionExecution):
             )
 
 
+def resolve_destinations(session, project_id, execution, pipeline_id):
+    """Spec 0012 D3, for newly saved versions only.
+
+    Every Publish node records whether it creates a new index or adds a version to
+    an existing one. A new index may not take the name of an existing index,
+    ignoring case, unless this pipeline already published to that index (its
+    first run created it); the version then adds a version to it explicitly.
+    """
+    for position, node in enumerate(execution.nodes):
+        if node.type != "publish_index":
+            continue
+        if node.knowledge_set_id is not None:
+            node.destination = "existing"
+            continue
+        existing = indexes.knowledge_set_named(
+            session, project_id, node.knowledge_set_name
+        )
+        if existing is None:
+            node.destination = "new"
+            continue
+        if pipeline_id is not None and indexes.published_by_pipeline(
+            session, existing.id, pipeline_id
+        ):
+            node.destination = "existing"
+            node.knowledge_set_id = existing.id
+            node.knowledge_set_name = existing.name
+            continue
+        raise HTTPException(
+            422,
+            [
+                {
+                    "loc": [
+                        "execution",
+                        "nodes",
+                        position,
+                        "knowledge_set_name",
+                    ],
+                    "msg": indexes.name_taken_message(existing.name),
+                    "type": "value_error",
+                }
+            ],
+        )
+
+
 def save(session, project_id, request, pipeline_id=None):
     project(session, project_id)
     if request.kind == "answer":
@@ -340,6 +384,7 @@ def save(session, project_id, request, pipeline_id=None):
     else:
         validate_source_combination(request.execution)
         validate_ingestion(session, project_id, request.execution)
+        resolve_destinations(session, project_id, request.execution, pipeline_id)
     if pipeline_id is None:
         row = Pipeline(project_id=project_id, name=request.name, kind=request.kind)
         session.add(row)

@@ -20,7 +20,7 @@ from uuid import uuid4
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from app.api.routes import router
 from app.core.config import settings
 from app.core.auth import validate_security_configuration
@@ -193,6 +193,21 @@ async def database_error(request: Request, exc: SQLAlchemyError):
     return JSONResponse(
         status_code=503,
         content={"detail": "Database unavailable. Please try again shortly."},
+    )
+
+
+@app.exception_handler(IntegrityError)
+async def conflict_error(request: Request, exc: IntegrityError):
+    # A unique or foreign-key conflict means another request changed the same
+    # records first; the database itself is available (spec 0012 A3).
+    if _deployment_path(request):
+        return await database_error(request, exc)
+    return JSONResponse(
+        status_code=409,
+        content={
+            "detail": "This change conflicts with another request that finished "
+            "first. Refresh and try again."
+        },
     )
 
 

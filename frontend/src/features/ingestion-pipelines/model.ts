@@ -328,6 +328,11 @@ export type IngestionNode =
       type: 'publish_index';
       knowledge_set_name: string;
       knowledge_set_id?: string | null;
+      /**
+       * Spec 0012 D3: a new index, or a version added to `knowledge_set_id`. Versions
+       * saved before the choice have none and publish to the index with their name.
+       */
+      destination?: 'new' | 'existing';
     });
 
 export type IngestionPipelineDraft = {
@@ -468,8 +473,14 @@ export type IngestionRun = {
     finished_at: string | null;
   }[];
   error: string | null;
+  /** Set only once the run's index published. */
   published_index_id: string | null;
   published_index_version: number | null;
+  /** The version answers used when the run started, and whether this run's is current. */
+  prior_index_version?: number | null;
+  is_current?: boolean;
+  /** Problems recorded after the index went live; the run still succeeded. */
+  warnings?: { code: string; message: string }[];
   /**
    * Provider-reported embedding usage of the run's index; null until it has one.
    * Reused vectors add nothing. A null field was not reported: unknown, not zero.

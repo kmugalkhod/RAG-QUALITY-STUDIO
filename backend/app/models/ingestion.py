@@ -172,6 +172,10 @@ class IngestionRun(Base):
     # bytes, elapsed time and processing fingerprints, kept across recovery.
     crawl_state: Mapped[dict] = mapped_column(JSONB, default=dict)
     error: Mapped[str | None] = mapped_column(Text)
+    # `{code, message}` problems recorded after the index went live (spec 0012 A6).
+    warnings: Mapped[list] = mapped_column(
+        JSONB, default=list, server_default=text("'[]'::jsonb")
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

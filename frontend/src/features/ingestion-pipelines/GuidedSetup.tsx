@@ -20,7 +20,12 @@ import { ApiError } from '../../lib/api';
 import { cn } from '../../lib/utils';
 import { getEmbeddingSettings } from '../documents/indexApi';
 import * as api from './api';
-import { branchExecution, indexLayout, terminalIngestionStatuses } from './editorModel';
+import {
+  branchExecution,
+  indexLayout,
+  indexNameFor,
+  terminalIngestionStatuses,
+} from './editorModel';
 import {
   addSite,
   chunkSettings,
@@ -364,12 +369,12 @@ export function GuidedSetup({ projectId }: { projectId: string }) {
 
   const review: ReviewEntry[] = [
     { key: 'Sources', value: sites.map(siteHost).join(', ') || 'None', step: 1 },
-    { key: 'Name', value: draft.name.trim() || 'Ingested knowledge', step: 2 },
+    { key: 'Name', value: indexNameFor(draft), step: 2 },
     {
       key: 'Output',
       value: perSource
         ? `${sites.length} indexes, one per site`
-        : `1 index · ${draft.name.trim() || 'Ingested knowledge'}`,
+        : `1 index · ${indexNameFor(draft)}`,
       step: 2,
     },
     {

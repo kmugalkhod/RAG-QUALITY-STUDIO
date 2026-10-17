@@ -615,7 +615,12 @@ def test_refreshing_one_source_needs_a_ready_index_and_known_sources(api):
     assert unknown.status_code == 422, unknown.text
     assert "source-9" in unknown.json()["detail"]
 
-    single = save(client, project_id, merged_draft(config, source_count=1))
+    payload = merged_draft(config, source_count=1)
+    # Another pipeline needs its own index name (spec 0012 D3).
+    for node in payload["execution"]["nodes"]:
+        if node["type"] == "publish_index":
+            node["knowledge_set_name"] = "Single site docs"
+    single = save(client, project_id, payload)
     one = start_status(
         client,
         project_id,

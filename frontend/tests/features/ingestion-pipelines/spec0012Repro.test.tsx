@@ -114,7 +114,7 @@ function CleanHarness({ onChange }: { onChange: (node: Clean) => void }) {
 }
 
 // A1: picking an existing index and switching back to "new" must not keep its name.
-test.fails('A1: switching back to a new index does not inherit the existing name', () => {
+test('A1: switching back to a new index does not inherit the existing name', () => {
   render(
     <NodeHarness
       initial={{ id: 'publish', type: 'publish_index', knowledge_set_name: 'My pipeline' }}
@@ -131,24 +131,21 @@ test.fails('A1: switching back to a new index does not inherit the existing name
       }}
     />,
   );
-  fireEvent.change(screen.getByLabelText('Reusable index collection'), {
-    target: { value: 'set-1' },
-  });
-  fireEvent.change(screen.getByLabelText('Reusable index collection'), {
-    target: { value: '' },
-  });
-  expect(screen.getByLabelText('New knowledge set name')).not.toHaveValue('Docs');
+  // Slice 1 replaced the select with an explicit choice (D3).
+  fireEvent.click(screen.getByRole('radio', { name: /Add a version to an existing index/ }));
+  fireEvent.click(screen.getByRole('radio', { name: /New index/ }));
+  expect(screen.getByLabelText('Index name')).not.toHaveValue('Docs');
 });
 
 // A2: a new draft publishes to an index named after the pipeline.
-test.fails('A2: a new draft does not publish to "Ingested knowledge"', () => {
+test('A2: a new draft does not publish to "Ingested knowledge"', () => {
   const draft = defaultIngestionDraft(embedding, []);
   const publish = draft.execution.nodes.find((node) => node.type === 'publish_index');
   expect(publish).toMatchObject({ knowledge_set_name: draft.name });
 });
 
 // A5: a branch whose index did not publish shows no version.
-test.fails('A5: a failed branch shows no index version', () => {
+test('A5: a failed branch shows no index version', () => {
   const group: IngestionRunGroup = {
     id: 'group',
     project_id: 'project',

@@ -6,7 +6,7 @@ from datetime import timedelta
 from uuid import uuid4
 
 from fastapi import HTTPException
-from sqlalchemy import and_, func, or_, select, update
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -168,10 +168,15 @@ def dispatch_indexes_once(db_engine=engine, send=None):
 
 
 def dispatch_ingestion_once(db_engine=engine, send=None):
-    from app.models.ingestion import IngestionRun, IngestionRunItem
+    from app.models.ingestion import IngestionRun
     from app.models.index import IndexVersion
-    from app.workers.ingestion import coordinate_ingestion, queue_for
-    from app.workers.remote_ingestion import REMOTE_SOURCE_KINDS
+    from app.workers.ingestion import (
+        _cancel_unpublished_work,
+        coordinate_ingestion,
+        finish_published,
+        queue_for,
+    )
+    from app.workers.remote_ingestion import REMOTE_SOURCE_KINDS, fail_run
 
     queues = {}
     send = send or (
@@ -203,48 +208,33 @@ def dispatch_ingestion_once(db_engine=engine, send=None):
                 >= current - timedelta(seconds=REMOTE_DISCOVERY_STALE_SECONDS)
             ):
                 continue
+            index = session.scalar(
+                select(IndexVersion).where(IndexVersion.ingestion_run_id == job.id)
+            )
+            if index is not None and index.status == "succeeded":
+                # The index is live; the interrupted pass was only bookkeeping.
+                finish_published(session, job, index)
+                continue
             job.failures += 1
             job.execution_token = None
-            job.status = "failed" if job.failures >= 3 else "queued"
+            job.dispatched_at = None
+            if job.failures >= 3:
+                # The same terminal helpers as an ordinary failure, so stage
+                # states, the source snapshot and unfinished work all end too
+                # (spec 0012 A4).
+                fail_run(
+                    session,
+                    job,
+                    "The ingestion worker was interrupted three times, so the run "
+                    "stopped. Nothing new was published; start a new run to retry.",
+                )
+                _cancel_unpublished_work(session, job.id)
+                continue
+            job.status = "queued"
             job.error = (
                 "Ingestion worker was interrupted; recovery uses its saved checkpoint."
             )
             job.updated_at = current
-            job.dispatched_at = None
-            if job.status == "failed":
-                job.finished_at = current
-                created_processing = select(IngestionRunItem.processing_run_id).where(
-                    IngestionRunItem.run_id == job.id,
-                    IngestionRunItem.processing_created.is_(True),
-                )
-                session.execute(
-                    update(ProcessingRun)
-                    .where(
-                        ProcessingRun.id.in_(created_processing),
-                        ProcessingRun.status.in_(["queued", "running"]),
-                    )
-                    .values(
-                        status="cancelled",
-                        execution_token=None,
-                        error="Parent ingestion recovery exhausted its retry budget.",
-                        updated_at=current,
-                        finished_at=current,
-                    )
-                )
-                session.execute(
-                    update(IndexVersion)
-                    .where(
-                        IndexVersion.ingestion_run_id == job.id,
-                        IndexVersion.status.in_(["queued", "running"]),
-                    )
-                    .values(
-                        status="cancelled",
-                        execution_token=None,
-                        error="Parent ingestion recovery exhausted its retry budget.",
-                        updated_at=current,
-                        finished_at=current,
-                    )
-                )
         session.commit()
     with Session(
         db_engine.execution_options(isolation_level="READ COMMITTED")

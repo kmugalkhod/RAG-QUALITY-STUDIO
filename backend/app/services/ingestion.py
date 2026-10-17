@@ -4,6 +4,7 @@ from uuid import UUID
 
 from fastapi import HTTPException
 from sqlalchemy import func, select, update
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
 
 from app.connectors.existing_files import ExistingFilesConnector
@@ -146,7 +147,7 @@ def _compatible_derivation(session, document_id, spec):
     )
 
 
-def _knowledge_set(session, project_id, publish, *, create: bool):
+def _knowledge_set(session, project_id, publish, *, create: bool, pipeline_id=None):
     if publish.knowledge_set_id is not None:
         result = indexes.get_knowledge_set(
             session, project_id, publish.knowledge_set_id
@@ -156,12 +157,25 @@ def _knowledge_set(session, project_id, publish, *, create: bool):
                 409, "The saved knowledge-set name no longer matches its identity."
             )
         return result
-    result = session.scalar(
-        select(KnowledgeSet).where(
-            KnowledgeSet.project_id == project_id,
-            KnowledgeSet.name == publish.knowledge_set_name,
+    if create:
+        # Two starts that would create the same index take turns (spec 0012 A3).
+        session.execute(
+            select(Project.id).where(Project.id == project_id).with_for_update()
         )
+    result = indexes.knowledge_set_named(
+        session, project_id, publish.knowledge_set_name
     )
+    if (
+        result is not None
+        and getattr(publish, "destination", None) == "new"
+        and (
+            pipeline_id is None
+            or not indexes.published_by_pipeline(session, result.id, pipeline_id)
+        )
+    ):
+        # A version saved as "new index" never publishes into another pipeline's
+        # index; versions saved before the choice keep publishing by name.
+        raise HTTPException(409, indexes.name_taken_message(result.name))
     if result is None and create:
         result = KnowledgeSet(project_id=project_id, name=publish.knowledge_set_name)
         session.add(result)
@@ -171,9 +185,11 @@ def _knowledge_set(session, project_id, publish, *, create: bool):
     return result
 
 
-def _run_destination(session, project_id, publish, destination):
+def _run_destination(session, project_id, publish, destination, pipeline_id=None):
     if destination is None:
-        return _knowledge_set(session, project_id, publish, create=True)
+        return _knowledge_set(
+            session, project_id, publish, create=True, pipeline_id=pipeline_id
+        )
     if destination.kind == "existing":
         return indexes.get_knowledge_set(
             session, project_id, destination.knowledge_set_id
@@ -181,16 +197,9 @@ def _run_destination(session, project_id, publish, destination):
     session.execute(
         select(Project.id).where(Project.id == project_id).with_for_update()
     )
-    existing = session.scalar(
-        select(KnowledgeSet).where(
-            KnowledgeSet.project_id == project_id,
-            KnowledgeSet.name == destination.name,
-        )
-    )
+    existing = indexes.knowledge_set_named(session, project_id, destination.name)
     if existing is not None:
-        raise HTTPException(
-            409, "An index with this name already exists. Select it explicitly."
-        )
+        raise HTTPException(409, indexes.name_taken_message(existing.name))
     result = KnowledgeSet(project_id=project_id, name=destination.name)
     session.add(result)
     session.flush()
@@ -313,7 +322,26 @@ def _add_node_states(
         )
 
 
-def start_run(
+_RACE_SQLSTATES = {"23505", "40001", "40P01"}
+
+
+def start_run(session: Session, *args, **kwargs):
+    """Start one run; see `_start_run`. A start that loses a race with another
+    start of the same index gets 409, not a database error (spec 0012 A3)."""
+    try:
+        return _start_run(session, *args, **kwargs)
+    except DBAPIError as exc:
+        if getattr(exc.orig, "sqlstate", None) not in _RACE_SQLSTATES:
+            raise
+        session.rollback()
+        raise HTTPException(
+            409,
+            "Another run of this index started at the same time. Wait for it to "
+            "finish, then start again.",
+        ) from None
+
+
+def _start_run(
     session: Session,
     project_id: UUID,
     pipeline_id: UUID,
@@ -354,7 +382,9 @@ def start_run(
         source.config.kind == remote_kind for source in sources
     ):
         publish = next(node for node in execution.nodes if node.type == "publish_index")
-        knowledge_set = _run_destination(session, project_id, publish, destination)
+        knowledge_set = _run_destination(
+            session, project_id, publish, destination, pipeline.id
+        )
         session.execute(
             select(KnowledgeSet)
             .where(KnowledgeSet.id == knowledge_set.id)
@@ -484,7 +514,9 @@ def start_run(
     if any(source.config.kind != "existing_files" for source in sources):
         raise HTTPException(409, "An ingestion run cannot mix source connector kinds.")
     selected, chunk, publish = _document_selection(execution)
-    knowledge_set = _knowledge_set(session, project_id, publish, create=True)
+    knowledge_set = _knowledge_set(
+        session, project_id, publish, create=True, pipeline_id=pipeline.id
+    )
     session.execute(
         select(KnowledgeSet)
         .where(KnowledgeSet.id == knowledge_set.id)
@@ -609,6 +641,11 @@ def start_run(
             "execution": execution.model_dump(mode="json"),
             "knowledge_set_id": str(knowledge_set.id),
             "knowledge_set_name": knowledge_set.name,
+            "prior_ready_index_id": (
+                str(knowledge_set.current_ready_index_id)
+                if knowledge_set.current_ready_index_id
+                else None
+            ),
             "processing": processing_snapshot,
             "embedding": embedding_config.model_dump(mode="json"),
         },
@@ -638,16 +675,47 @@ def _run_rows(session: Session, statement):
     rows = session.execute(
         statement.add_columns(
             KnowledgeSet.name,
+            KnowledgeSet.current_ready_index_id,
             IndexVersion.id,
             IndexVersion.version,
+            IndexVersion.status,
             IndexVersion.embedding_tokens,
             IndexVersion.embedding_cost_usd,
         )
         .join(KnowledgeSet, KnowledgeSet.id == IngestionRun.knowledge_set_id)
         .outerjoin(IndexVersion, IndexVersion.ingestion_run_id == IngestionRun.id)
     ).all()
+    prior_ids = {
+        UUID(run.snapshot["prior_ready_index_id"])
+        for run, *_ in rows
+        if run.snapshot.get("prior_ready_index_id")
+    }
+    prior_versions = (
+        dict(
+            session.execute(
+                select(IndexVersion.id, IndexVersion.version).where(
+                    IndexVersion.id.in_(prior_ids)
+                )
+            ).all()
+        )
+        if prior_ids
+        else {}
+    )
     results = []
-    for run, set_name, index_id, index_version, tokens, cost in rows:
+    for (
+        run,
+        set_name,
+        current_index_id,
+        index_id,
+        index_version,
+        index_status,
+        tokens,
+        cost,
+    ) in rows:
+        prior_id = run.snapshot.get("prior_ready_index_id")
+        # Only a succeeded index is published; a failed or cancelled one has a
+        # version number but was never available (spec 0012 A5).
+        published = index_id is not None and index_status == "succeeded"
         node_states = session.scalars(
             select(IngestionRunNode)
             .where(IngestionRunNode.run_id == run.id)
@@ -676,8 +744,12 @@ def _run_rows(session: Session, statement):
                 },
                 "knowledge_set_name": set_name,
                 "fetch_policies": run.snapshot.get("fetch_policies") or {},
-                "published_index_id": index_id,
-                "published_index_version": index_version,
+                "published_index_id": index_id if published else None,
+                "published_index_version": index_version if published else None,
+                "prior_index_version": (
+                    prior_versions.get(UUID(prior_id)) if prior_id else None
+                ),
+                "is_current": published and current_index_id == index_id,
                 "embedding_usage": None
                 if index_id is None
                 else {

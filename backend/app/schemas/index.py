@@ -7,12 +7,22 @@ from app.providers.embeddings import EmbeddingConfig
 from app.schemas.retrieval import RetrievalInput, RetrievalSettings
 
 
+class PipelineReference(BaseModel):
+    id: UUID
+    name: str
+
+
 class KnowledgeSetRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: UUID
     project_id: UUID
     name: str
     current_ready_index_id: UUID | None
+    # Spec 0012: the version number answers use now, the highest version number
+    # created so far, and the ingestion pipelines whose runs published here.
+    current_version: int | None = None
+    latest_version: int | None = None
+    publishing_pipelines: list[PipelineReference] = Field(default_factory=list)
     created_at: datetime
 
 

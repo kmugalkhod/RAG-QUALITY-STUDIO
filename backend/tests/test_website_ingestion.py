@@ -13,7 +13,12 @@ from app.connectors.website import PreviewOutcome, WebsiteArtifact
 from app.core.config import settings
 from app.models.document import Chunk, Document, ProcessingRun
 from app.models.index import IndexChunk, IndexVersion, KnowledgeSet
-from app.models.ingestion import IngestionRun, IngestionRunGroup, IngestionSchedule
+from app.models.ingestion import (
+    IngestionRun,
+    IngestionRunGroup,
+    IngestionRunNode,
+    IngestionSchedule,
+)
 from app.models.pipeline import Pipeline, PipelineVersion
 from app.models.source import (
     IndexSourceRevision,
@@ -27,7 +32,7 @@ from app.models.source import (
 from app.pipelines.web_content import chunk_sections, extract_sections
 from app.providers import embeddings
 from app.schemas.ingestion import CleanNode
-from app.services import ingestion
+from app.services import ingestion, ingestion_execution
 from app.workers.dispatcher import dispatch_ingestion_once
 from app.workers.indexing import process_index
 from app.workers.ingestion import process_ingestion
@@ -1681,3 +1686,30 @@ def test_out_of_scope_links_are_listed_once_as_skipped(website_api):
     assert [(i["outcome"], i["status"]) for i in outside] == [("excluded", "skipped")]
     indexed = [i for i in items if i["outcome"] == "new"]
     assert indexed and all(i["status"] == "succeeded" for i in indexed)
+
+
+def test_stale_failed_website_run_ends_its_snapshot_and_stages(website_api):
+    """Spec 0012 A4: stale recovery uses the same terminal helpers as a failure."""
+    client, engine, project_id, _, config, _ = website_api
+    version = save_website(client, project_id, config)
+    run = start_run(client, project_id, version)
+    run_id = UUID(run["id"])
+    ingestion_execution.transition(engine, run_id, node_type="source")
+    with Session(engine) as session:
+        job = session.get(IngestionRun, run_id)
+        job.status = "running"
+        job.failures = 2
+        job.started_at = job.updated_at = now() - timedelta(seconds=3701)
+        session.commit()
+    dispatch_ingestion_once(engine, send=lambda value: None)
+    with Session(engine) as session:
+        job = session.get(IngestionRun, run_id)
+        assert job.status == "failed" and job.finished_at is not None
+        states = session.scalars(
+            select(IngestionRunNode.status).where(IngestionRunNode.run_id == run_id)
+        ).all()
+    assert "running" not in states, states
+    snapshot = client.get(
+        f"/api/projects/{project_id}/source-snapshots/{run['source_snapshot_id']}"
+    ).json()
+    assert snapshot["status"] == "failed"
