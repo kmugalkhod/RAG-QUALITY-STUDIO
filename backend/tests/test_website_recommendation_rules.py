@@ -12,7 +12,12 @@ from copy import deepcopy
 import pytest
 
 from app.connectors.base import ConnectorFailure
-from app.connectors.website import resolve_website_fetch_policy
+from app.connectors.safe_http import SafeHttpClient
+from app.connectors.website import (
+    MemoryCrawlStore,
+    WebsiteConnector,
+    resolve_website_fetch_policy,
+)
 from app.connectors.website_probe import (
     MAX_REQUESTS,
     MAX_SIGNALS_BYTES,
@@ -33,8 +38,10 @@ from website_probe_sites import (
     SITES,
     XML,
     FakeClock,
+    Transport,
     page,
     probe_site,
+    public_resolver,
     recorded,
     robots,
     run,
@@ -111,7 +118,7 @@ RULES = [
     ),
     pytest.param(
         "docs_crawl", {}, {},
-        {"selection": ({"mode": "crawl", "start_url": "https://docs.example/manual"}, "mode_crawl_no_sitemap")},
+        {"selection": ({"mode": "crawl", "start_url": "https://docs.example/manual/"}, "mode_crawl_no_sitemap")},
         id="mode-crawl-no-sitemap",
     ),
     pytest.param(
@@ -734,3 +741,36 @@ def test_links_to_the_start_pages_canonical_address_are_not_new_pages():
     assert signals.start_page["canonical_url"] == f"{start}index.html"
     assert signals.links["l2"] == 0
     assert signals.links["frontier"] == "closed"
+
+
+@pytest.mark.parametrize(
+    "name", sorted(name for name in SITES if selection_of(name)["mode"] == "crawl")
+)
+def test_a_crawl_with_the_recommended_settings_fetches_the_start_page(name):
+    # The rules were checked as valid configs, but a crawl rejected its own
+    # start URL: docs.python.org/3/tutorial with include /3/tutorial/.
+    _, responses = SITES[name]()
+    signals = signals_of(name)
+    config = recommend(signals, inputs_for(name), settings).recommended
+    clock = FakeClock()
+    client = SafeHttpClient(
+        resolver=public_resolver, transport=Transport(responses, clock)
+    )
+    connector = WebsiteConnector(
+        client=client, clock=clock, sleeper=clock.sleep, jitter=lambda: 0.0
+    )
+    store = MemoryCrawlStore()
+    connector.crawl(
+        config,
+        resolve_website_fetch_policy(WebsiteConfig.model_validate(config), settings),
+        None,
+        store,
+    )
+    included = {
+        item.canonical_location for item in store.outcomes if item.status == "included"
+    }
+    start = config["selection"].get("start_url")
+    reached = {start, signals.start_page["final_url"]} if start else set()
+    assert included & reached or (not start and included), [
+        (item.canonical_location, item.reason) for item in store.outcomes
+    ]

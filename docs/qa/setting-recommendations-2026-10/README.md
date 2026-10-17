@@ -219,3 +219,24 @@ The two causes above were fixed, and `results.csv` now holds this run. The label
 **Still outside the range.** S3's whole-site scope reaches the ceiling; this is the known `/lang` label mismatch. S4 gives 90 against 25-60: its governance page links 52 team pages, which the label's "about 30 English pages" did not count. No rule fix that is honest about the measured pages reaches that label.
 
 **Other changes in this run.** W1a and W1b now get depth 1 (`depth_toc`), still within the label's 1-2. W3's speed was 1 request per second (`rps_slow_site`), because gov.uk answered slowly during this probe. That is slower than the bound, so it is still safe, but the speed no longer equals `max_speed` on that row.
+
+## Real crawl with the recommended settings (2026-10-17)
+
+The evaluation above checks that each recommendation is a valid, safe config. This check crawls with it. In the dev stack with the gate on, a script asked for a recommendation, saved it as an ingestion pipeline (with `recommendation_ids`), and ran a **source preview** (fetch and extract, no embeddings). The project was a separate QA project, "QA recommended Website settings 2026-10-17".
+
+**Bug found and fixed.** For W1a (`https://docs.python.org/3/tutorial`, no slash) the preview included **0 pages**. The crawler checks the start URL against the include prefixes before it follows the redirect, so `/3/tutorial` was rejected by the recommended include `/3/tutorial/`. The rules now start the crawl at the same-site redirect target when the entered URL is outside the include prefix and the target is inside it (note `start_redirect`). The address field still shows what the user typed. A new test crawls every controlled crawl site with its recommended config and requires the start page to be fetched. It fails without the fix.
+
+| ID | Recommended | Preview | Verdict |
+| --- | --- | --- | --- |
+| W1a | crawl from `/3/tutorial/`, include `/3/tutorial/`, 20 pages, depth 1 | 17 included: the 16 chapters and the contents page. 19 out of scope, 26 duplicates | Right pages |
+| S1 | sitemap, include `/tutorial/`, 60 pages | 51 included, all under `/tutorial/`. 101 sitemap URLs out of scope | Right pages |
+| S2 | crawl from `/faq/`, include `/faq/`, 50 pages, depth 3, 1 rps | 41 included, all FAQ pages. Man pages and other sites excluded | Right pages |
+| S4 | crawl, whole site, 90 pages | 84 included, 68 of them governance team and people pages. The crawl deadline ended it with 392 queued pages unfetched | Weak (the page limit was flagged Check this) |
+| S6 | crawl, include the manual folder, 200 pages, 0.25 rps | 173 included (the label counts 172), 12.7 min | Right pages |
+| W3 | URL list, 10 pages | 10 of 10 included | Right pages |
+
+**Full run (W1a).** One ingestion run with the saved recommended version published an index: 17 pages, 469 chunks, 92 s, provider-reported embedding cost $0.0015.
+
+**Network note.** In the dev stack, S1, S4 and S6 first failed in the site check ("hostname could not be resolved", "destination is not public"). The host network's DNS64 answers are blocked by the SSRF guard, as in the Slice 3 run. Any Website crawl of those sites fails the same way on this network, with or without recommendations. These rows were rerun with the backend and workers using public resolvers (a local Compose override with `dns: [1.1.1.1, 8.8.8.8]`, not committed).
+
+Recommendations can differ between runs, because the probe samples a live site. In this run S2 got 50 pages and depth 3 (60 and 2 in the evaluation), and 1 rps because the site answered slowly.

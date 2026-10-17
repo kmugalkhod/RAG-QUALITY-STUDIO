@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import math
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from urllib.parse import unquote, urlsplit
 
 from pydantic import ValidationError
@@ -166,6 +166,10 @@ NOTES = {
     "language": (
         " {languages} are other-language versions of the start page, so they are "
         "skipped too."
+    ),
+    "start_redirect": (
+        " The crawl starts at {start}, where the address redirects, because the "
+        "address itself is outside the included folder."
     ),
 }
 
@@ -360,6 +364,27 @@ def _mode(signals: ProbeSignals, selection: dict) -> _Value:
             context,
         )
     return _Value(selection, "computed", "mode_crawl_sitemap_partial", context)
+
+
+def _start_inside_scope(value: _Value, include: list[str], final_url: str) -> _Value:
+    """The crawler checks the start URL against the include prefixes before it
+    follows a redirect, so `/3/tutorial` with include `/3/tutorial/` would
+    fetch nothing. Start at the redirect target instead."""
+    selection = value.value
+    if selection["mode"] != "crawl" or not include:
+        return value
+
+    def inside(url: str) -> bool:
+        return any(_path(url).startswith(prefix) for prefix in include)
+
+    if inside(selection["start_url"]) or not inside(final_url):
+        return value
+    return replace(
+        value,
+        value={**selection, "start_url": final_url},
+        context={**value.context, "start": final_url},
+        notes=[*value.notes, "start_redirect"],
+    )
 
 
 def _exclusions(
@@ -674,7 +699,9 @@ def recommend(signals: ProbeSignals, inputs: dict, settings) -> Recommendation:
 
     if mode == "crawl":
         values["include_path_prefixes"] = _include(signals, final_url)
-        values["selection"] = _mode(signals, selection)
+        values["selection"] = _start_inside_scope(
+            _mode(signals, selection), values["include_path_prefixes"].value, final_url
+        )
     elif mode == "sitemap":
         values["selection"] = _Value(selection, "computed", "mode_sitemap_input")
         values["include_path_prefixes"] = _Value([], "computed", "include_none")
