@@ -1,4 +1,5 @@
 import type { Document, EmbeddingConfig } from '../documents/model';
+import { chunkDifferences, cleanDifferences, passageSize } from './downstreamModel';
 import type {
   ExtractionCapabilities,
   ChunkNode,
@@ -382,7 +383,7 @@ export const ingestionStageLabels: Record<IngestionNode['type'], string> = {
   clean: 'Clean',
   chunk: 'Chunk',
   embed: 'Embed',
-  publish_index: 'Publish reusable index',
+  publish_index: 'Publish index',
 };
 
 export function describeCadence(schedule: IngestionSchedule) {
@@ -1252,14 +1253,16 @@ export function describeIngestionNode(
     return `Confluence · ${scope}`;
   }
   if (node.type === 'chunk') {
+    // Spec 0012 B1: say what was chosen, not the raw numbers.
     const upgrade = chunkUpgradeAvailable(node) ? ' · upgrade available' : '';
-    if (node.algorithm === 'section_token') {
-      return `Section-aware · ${node.target_tokens} target · ${node.maximum_tokens} max tokens${upgrade}`;
+    if (node.algorithm === 'section_token' || node.algorithm === 'parent_child') {
+      const method = node.algorithm === 'section_token' ? 'Section-aware' : 'Parent and child';
+      const size = passageSize(node);
+      const changed = chunkDifferences(node).length;
+      const sizeName = size ? size[0].toUpperCase() + size.slice(1) : 'Custom sizes';
+      return `${method} · ${sizeName}${changed && size ? ` · ${changed} changed` : ''}${upgrade}`;
     }
-    if (node.algorithm === 'parent_child') {
-      return `Parent/child · ${node.child_target_tokens} child · ${node.parent_target_tokens} parent${upgrade}`;
-    }
-    return `${node.size} characters · ${node.overlap} overlap`;
+    return `Character window · ${node.size} characters`;
   }
   if (node.type === 'embed') {
     return `${node.provider} · ${node.model}`;
@@ -1288,9 +1291,11 @@ export function describeIngestionNode(
       : `${summary} · upgrade available`;
   }
   if (node.type === 'clean') {
-    return node.profile === 'structure-aware-v1'
-      ? `${node.steps?.filter((step) => step.enabled).length ?? 0} ordered transforms`
-      : 'Normalize and deduplicate';
+    if (node.profile !== 'structure-aware-v1') {
+      return 'Compatibility cleaner · upgrade available';
+    }
+    const changed = cleanDifferences(node).length;
+    return changed ? `Recommended · ${changed} changed` : 'Recommended';
   }
   return documents.length ? 'Configured' : 'Waiting';
 }

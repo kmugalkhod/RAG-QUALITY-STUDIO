@@ -173,7 +173,8 @@ test('mobile stages and long source settings remain reachable without horizontal
   const stageSelect = page.getByLabel('Selected stage');
   await stageSelect.selectOption('chunk');
   await expect(page.getByRole('heading', { name: 'Chunk settings' })).toBeVisible();
-  await page.getByLabel('Target tokens').fill('700');
+  await page.getByText('Advanced chunking settings').click();
+  await page.getByLabel('Target size (bytes)').fill('700');
   await stageSelect.selectOption('source');
   await page.getByLabel('Start URL').fill('https://example.org/');
   await page.getByText('Advanced', { exact: true }).click();
@@ -181,7 +182,7 @@ test('mobile stages and long source settings remain reachable without horizontal
   await expect(page.getByLabel('Crawl speed (requests per second)')).toBeInViewport();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
   await stageSelect.selectOption('chunk');
-  await expect(page.getByLabel('Target tokens')).toHaveValue('700');
+  await expect(page.getByLabel('Target size (bytes)')).toHaveValue('700');
   expect(
     await page.getByTestId('pipeline-canvas').evaluate((element) => element.clientHeight),
   ).toBe(480);
@@ -209,10 +210,11 @@ test('saving records the draft and discard restores the saved stage settings', a
   await expect(page.getByText('Saved version 1', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Collect source & publish index' })).toBeEnabled();
   await page.getByLabel('Selected stage').selectOption('chunk');
-  await page.getByLabel('Target tokens').fill('700');
+  await page.getByText('Advanced chunking settings').click();
+  await page.getByLabel('Target size (bytes)').fill('700');
   await expect(page.getByRole('button', { name: 'Collect source & publish index' })).toBeDisabled();
   await page.getByRole('button', { name: 'Discard changes' }).click();
-  await expect(page.getByLabel('Target tokens')).toHaveValue('600');
+  await expect(page.getByLabel('Target size (bytes)')).toHaveValue('600');
   await expect(page.getByText('Saved version 1', { exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Automatic sync' })).not.toBeVisible();
   // Automatic sync opens as a popover from the toolbar, so the canvas never moves.
@@ -536,9 +538,13 @@ test('invalid chunk settings list blocking reasons and block saving and preview'
 }) => {
   await page.getByLabel('Start URL').fill('https://example.org/');
   await page.getByLabel('Selected stage').selectOption('chunk');
-  await page.getByLabel('Chunking algorithm').selectOption('character_window');
-  await page.getByLabel('Chunk size (characters)').fill('50');
-  // Chunk fields have no per field error state; the stage lists the blocking reasons.
+  await page.getByText('Advanced chunking settings').click();
+  await page.getByLabel('Target size (bytes)').fill('50');
+  // The field says why, and the stage lists the blocking reason (spec 0012 A13).
+  await expect(page.getByLabel('Target size (bytes)')).toHaveAttribute('aria-invalid', 'true');
+  await expect(page.getByLabel('Target size (bytes)')).toHaveAccessibleDescription(
+    'Enter a whole number from 64 to 8,192.',
+  );
   await expect(
     page.getByRole('status').filter({ hasText: 'Complete the configuration' }),
   ).toBeVisible();
@@ -546,9 +552,9 @@ test('invalid chunk settings list blocking reasons and block saving and preview'
   await expect(
     page.getByRole('button', { name: 'Preview processing', exact: true }),
   ).toBeDisabled();
-  await page.getByRole('button', { name: 'Balanced', exact: true }).click();
-  await expect(page.getByLabel('Chunk size (characters)')).toHaveValue('1000');
-  await expect(page.getByLabel('Overlap (characters)')).toHaveValue('120');
+  await page.getByRole('radio', { name: /Medium \(recommended\)/ }).click();
+  await expect(page.getByLabel('Target size (bytes)')).toHaveValue('600');
+  await expect(page.getByLabel('Overlap (bytes)')).toHaveValue('80');
   await expect(page.getByRole('button', { name: 'Save version', exact: true })).toBeEnabled();
 });
 
@@ -607,12 +613,13 @@ test('several websites share stages and a source can customize one for its own i
   await page
     .getByRole('button', { name: 'Customize chunking for this source', exact: true })
     .click();
-  await page.getByLabel('Target tokens').fill('400');
+  await page.getByText('Advanced chunking settings').click();
+  await page.getByLabel('Target size (bytes)').fill('400');
   await expect(sources.getByText('Custom chunking')).toBeVisible();
   await expect(page.getByText(/1 source customizes this/)).toBeVisible();
 
   await page.getByLabel('Applies to').selectOption('all');
-  await expect(page.getByLabel('Target tokens')).toHaveValue('600');
+  await expect(page.getByLabel('Target size (bytes)')).toHaveValue('600');
   await expect(
     page.getByText(/does not follow changes to the shared chunking settings/),
   ).toBeVisible();

@@ -16,6 +16,8 @@ const sidebars: SidebarsConfig = {
       'ingestion/extraction',
       'ingestion/cleaning',
       'ingestion/chunking',
+      'ingestion/embedding',
+      'ingestion/publishing',
       'ingestion/previews',
       'ingestion/runs',
       'ingestion/quality',

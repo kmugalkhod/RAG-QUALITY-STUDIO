@@ -24,7 +24,7 @@ export function RetrievalTestSettings({
   return (
     <fieldset disabled={disabled} className="flex min-w-0 flex-col gap-3 p-4">
       <Label>
-        Documents to search
+        Index to search
         <NativeSelect
           className="mt-2"
           value={indexId}

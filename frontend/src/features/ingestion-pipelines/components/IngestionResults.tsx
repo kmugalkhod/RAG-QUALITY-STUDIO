@@ -125,6 +125,34 @@ function transformMetric(derivation: ContentDerivation, transform: string, metri
   return typeof value === 'number' ? value : 0;
 }
 
+type ChunkSummary = {
+  count: number;
+  median_bytes: number | null;
+  minimum_bytes: number | null;
+  maximum_bytes: number | null;
+  under_40_bytes: number;
+  over_embed_limit: number;
+};
+
+/** Spec 0012 B2: the passages a preview item would embed, in one line. */
+export function chunkSummaryText(metrics: Record<string, unknown>): string | undefined {
+  const summary = metrics.chunk_summary as ChunkSummary | undefined;
+  if (!summary || !summary.count) {
+    return undefined;
+  }
+  const parts = [
+    `${summary.count.toLocaleString('en-US')} ${summary.count === 1 ? 'passage' : 'passages'}`,
+    `median ${summary.median_bytes?.toLocaleString('en-US')} bytes`,
+    `smallest ${summary.minimum_bytes?.toLocaleString('en-US')}`,
+    `largest ${summary.maximum_bytes?.toLocaleString('en-US')}`,
+    `${summary.under_40_bytes} under 40 bytes`,
+  ];
+  if (summary.over_embed_limit) {
+    parts.push(`${summary.over_embed_limit} too large to embed`);
+  }
+  return parts.join(' · ');
+}
+
 export function IngestionPreviewResults({
   projectId,
   preview,
@@ -292,6 +320,7 @@ export function IngestionPreviewResults({
                   {item.duplicate_decision.retained_identity}
                 </small>
               )}
+              {chunkSummaryText(item.metrics) && <small>{chunkSummaryText(item.metrics)}</small>}
               {Object.keys(item.stage_timings).length > 0 && (
                 <small>
                   Extract {item.stage_timings.extract_ms ?? 0} ms · clean{' '}
@@ -384,7 +413,7 @@ export function IngestionPreviewResults({
                   <small>
                     {item.metadata.token_count == null
                       ? 'Legacy size'
-                      : `${String(item.metadata.token_count)} tokens`}
+                      : `${String(item.metadata.token_count)} bytes`}
                     {item.metadata.parent_ordinal == null
                       ? ''
                       : ` · parent ${Number(item.metadata.parent_ordinal) + 1}`}

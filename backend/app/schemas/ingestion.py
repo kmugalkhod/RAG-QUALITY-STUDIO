@@ -1413,6 +1413,9 @@ class EmbeddingUsageRead(Strict):
 
     tokens: int | None
     cost_usd: float | None
+    # Vectors copied from earlier indexes instead of requested; None on indexes
+    # created before this was recorded.
+    reused_vectors: int | None = None
 
 
 class IngestionRunRead(Strict):

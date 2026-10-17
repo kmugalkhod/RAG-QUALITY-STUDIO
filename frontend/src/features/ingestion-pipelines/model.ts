@@ -487,7 +487,12 @@ export type IngestionRun = {
    * Provider-reported embedding usage of the run's index; null until it has one.
    * Reused vectors add nothing. A null field was not reported: unknown, not zero.
    */
-  embedding_usage?: { tokens: number | null; cost_usd: number | null } | null;
+  embedding_usage?: {
+    tokens: number | null;
+    cost_usd: number | null;
+    /** Vectors copied from earlier indexes; null when the index did not record it. */
+    reused_vectors?: number | null;
+  } | null;
   /** Multi-source runs only: how each source ended. */
   source_outcomes?: IngestionSourceOutcome[];
   /** For a succeeded run, `with_warnings` when a source or page failed. */

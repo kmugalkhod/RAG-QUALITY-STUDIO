@@ -7,6 +7,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import { useState, type ComponentProps } from 'react';
 import { expect, test, vi } from 'vitest';
 
+import { CleanSettings } from '../../../src/features/ingestion-pipelines/components/CleanSettings';
 import { CleaningTransformSettings } from '../../../src/features/ingestion-pipelines/components/CleaningTransformSettings';
 import { IngestionGroupStrip } from '../../../src/features/ingestion-pipelines/components/IngestionGroupStrip';
 import { IngestionNodeSettings } from '../../../src/features/ingestion-pipelines/components/IngestionNodeSettings';
@@ -16,6 +17,7 @@ import {
 } from '../../../src/features/ingestion-pipelines/components/IngestionRunStrip';
 import { ProcessingStep } from '../../../src/features/ingestion-pipelines/components/GuidedSetupSteps';
 import {
+  defaultChunkNode,
   defaultIngestionDraft,
   serverFieldErrors,
 } from '../../../src/features/ingestion-pipelines/editorModel';
@@ -252,11 +254,28 @@ test('A13: a chunk server error maps to its field', () => {
   expect(errors).toEqual({ 'chunk:chunk.target_tokens': 'Input should be a valid integer' });
 });
 
-// A15: the character window uses the server's capability defaults.
-test('A15: the character window starts from the capability defaults', () => {
+// A15: a method starts from the server's capability defaults, not values of its own.
+// Slice 4 replaced the method select with two choices; the character window is only for
+// saved versions, so its defaults are checked on the model.
+test('A15: switching the method starts from the capability defaults', () => {
   const capabilities = {
     quality_policies: [],
     chunking_profiles: [
+      {
+        id: 'parent_child',
+        name: 'Parent and child',
+        description: '',
+        recommended: false,
+        settings: {
+          child_target_tokens: 200,
+          child_maximum_tokens: 300,
+          child_overlap_tokens: 30,
+          parent_target_tokens: 800,
+          parent_maximum_tokens: 1000,
+          add_heading_context: true,
+          config_version: 'parent-child-v2',
+        },
+      },
       {
         id: 'character_window',
         name: 'Character window (compatibility)',
@@ -283,11 +302,13 @@ test('A15: the character window starts from the capability defaults', () => {
       extra={{ extractionCapabilities: capabilities }}
     />,
   );
-  fireEvent.change(screen.getByLabelText('Chunking algorithm'), {
-    target: { value: 'character_window' },
+  fireEvent.click(screen.getByRole('radio', { name: /Parent and child/ }));
+  expect(screen.getByLabelText('Child target size (bytes)')).toHaveValue(200);
+  expect(screen.getByLabelText('Parent maximum size (bytes)')).toHaveValue(1000);
+  expect(defaultChunkNode('chunk', 'character_window', capabilities)).toMatchObject({
+    size: 800,
+    overlap: 120,
   });
-  expect(screen.getByLabelText('Chunk size (characters)')).toHaveValue(800);
-  expect(screen.getByLabelText('Overlap (characters)')).toHaveValue(120);
 });
 
 // A16: switching the chunking method says what was replaced and can be undone.
@@ -310,17 +331,21 @@ test('A16: switching the chunking method offers Undo', () => {
       onChange={(node) => (latest = node)}
     />,
   );
-  fireEvent.change(screen.getByLabelText('Chunking algorithm'), {
-    target: { value: 'parent_child' },
-  });
+  fireEvent.click(screen.getByRole('radio', { name: /Parent and child/ }));
   fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
   expect(latest).toMatchObject({ algorithm: 'section_token', target_tokens: 500 });
 });
 
-// A17: the literal box keeps typed spaces and new lines.
+function CleanPanelHarness({ onChange }: { onChange: (node: Clean) => void }) {
+  const [node, setNode] = useState<Clean>(structuredClone(structureClean));
+  onChange(node);
+  return <CleanSettings node={node} errors={{}} update={setNode} />;
+}
+
+// A17: the literal box keeps typed spaces and new lines (Slice 4: "Text to remove").
 test('A17: the literal text box keeps spaces and new lines while typing', () => {
-  render(<CleanHarness onChange={() => undefined} />);
-  const box = screen.getByLabelText('Exact literals');
+  render(<CleanPanelHarness onChange={() => undefined} />);
+  const box = screen.getByLabelText('Text to remove');
   fireEvent.change(box, { target: { value: 'Page 1 of \n' } });
   expect(box).toHaveValue('Page 1 of \n');
 });
@@ -331,25 +356,24 @@ test('A18: Preserve structured blocks has no on/off toggle', () => {
   expect(screen.queryByRole('checkbox', { name: /Preserve structured blocks/ })).toBeNull();
 });
 
-// A19: adding "Remove literal boilerplate" starts with no literal.
+// A19: no placeholder literal can be saved. Slice 4 adds literal text only through the
+// "Text to remove" box: empty text removes the step, and the step list does not offer it.
 test('A19: a new literal step saves no placeholder', () => {
   let latest: Clean | undefined;
-  const node: Clean = {
-    ...structuredClone(structureClean),
-    steps: structureClean.steps?.filter((step) => step.type !== 'remove_literal_boilerplate'),
-  };
-  function Harness() {
-    const [value, setValue] = useState<Clean>(node);
-    latest = value;
-    return <CleaningTransformSettings node={value} update={setValue} />;
-  }
-  render(<Harness />);
-  fireEvent.change(screen.getByLabelText('Transform to add'), {
-    target: { value: 'remove_literal_boilerplate' },
-  });
-  fireEvent.click(screen.getByRole('button', { name: /Add/ }));
+  render(
+    <CleanPanelHarness
+      onChange={(node) => {
+        latest = node;
+      }}
+    />,
+  );
+  const box = screen.getByLabelText('Text to remove');
+  fireEvent.change(box, { target: { value: '' } });
+  expect(latest?.steps?.some((step) => step.type === 'remove_literal_boilerplate')).toBe(false);
+  expect(screen.queryByRole('option', { name: 'Remove literal boilerplate' })).toBeNull();
+  fireEvent.change(box, { target: { value: 'Confidential' } });
   const step = latest?.steps?.find((value) => value.type === 'remove_literal_boilerplate');
-  expect(step).toMatchObject({ values: [] });
+  expect(step).toMatchObject({ values: ['Confidential'] });
 });
 
 // A20: a Clean server error is attached to its step's field.

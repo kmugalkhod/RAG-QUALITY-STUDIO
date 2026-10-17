@@ -12,9 +12,7 @@ import type { ConnectionSettings, SourceConnection } from '../../connections/mod
 import type { Document, EmbeddingConfig, KnowledgeSet } from '../../documents/model';
 import {
   currentExtractVersion,
-  defaultDuplicatePolicy,
   defaultLanguagePolicy,
-  defaultSensitiveDataPolicy,
   extractDifferences,
   extractLegacySettings,
   extractReadsFiles,
@@ -35,8 +33,10 @@ import type {
   ExtractionCapabilities,
   IngestionNode,
   IngestionPipelineVersion,
+  IngestionRun,
   QualityPolicy,
   QualityPolicyId,
+  SourcePreview,
 } from '../model';
 import {
   ConfluenceSettings,
@@ -46,8 +46,8 @@ import {
   type WebsiteRecommendationContext,
 } from './SourceSettings';
 import { ChunkSettings } from './ChunkSettings';
-import { CleaningTransformSettings } from './CleaningTransformSettings';
-import { ListTextField } from './ListTextField';
+import { CleanSettings } from './CleanSettings';
+import { EmbedSettings } from './EmbedSettings';
 import { PublishIndexSettings } from './PublishIndexSettings';
 import {
   CHECK_ROW,
@@ -99,18 +99,6 @@ const qualityChoiceHelp: Record<QualityChoice, string> = {
     'This pipeline uses custom quality rules. Review them under Advanced extraction settings.',
 };
 
-type EmbedNode = Extract<IngestionNode, { type: 'embed' }>;
-
-/** Whether an Embed node uses the server's provider, model, dimensions and revision. */
-function sameEmbedding(node: EmbedNode, server: EmbeddingConfig) {
-  return (
-    node.provider === server.provider &&
-    node.model === server.model &&
-    node.dimensions === server.dimensions &&
-    node.config_version === server.revision
-  );
-}
-
 function stageName(node: IngestionNode) {
   return node.type === 'source' ? sourceNames[node.config.kind] : labels[node.type];
 }
@@ -144,6 +132,9 @@ export function IngestionNodeSettings({
   pipelineId,
   pipelineName,
   serverEmbedding,
+  latestPreview,
+  lastRun,
+  chunkPreview,
   onSelectNode,
 }: {
   projectId: string;
@@ -185,6 +176,12 @@ export function IngestionNodeSettings({
   pipelineName?: string;
   /** The server's embedding settings, to flag a version saved under another model. */
   serverEmbedding?: EmbeddingConfig;
+  /** The latest preview of this draft, for the Embed estimate. */
+  latestPreview?: SourcePreview;
+  /** The latest run of the open version, for the Embed usage line. */
+  lastRun?: IngestionRun;
+  /** Starts a preview from the Chunk panel; `reason` says why it cannot start now. */
+  chunkPreview?: { run: () => void; reason?: string };
   onSelectNode: (nodeId: string) => void;
 }) {
   const nameOf = (node: IngestionNode) =>
@@ -257,14 +254,6 @@ export function IngestionNodeSettings({
         key.startsWith('language_policy')),
   );
   const extractChangedCount = extractAdvanced.length + (extractLegacy.length > 0 ? 1 : 0);
-  const selectedDuplicate =
-    selected?.type === 'clean'
-      ? (selected.duplicate_policy ?? structuredClone(defaultDuplicatePolicy))
-      : structuredClone(defaultDuplicatePolicy);
-  const selectedSensitive =
-    selected?.type === 'clean'
-      ? (selected.sensitive_data_policy ?? structuredClone(defaultSensitiveDataPolicy))
-      : structuredClone(defaultSensitiveDataPolicy);
 
   function updateExtract(values: Partial<Extract<IngestionNode, { type: 'extract' }>>) {
     if (selected?.type !== 'extract') {
@@ -304,9 +293,11 @@ export function IngestionNodeSettings({
                     ? docsHref('ingestion/extraction')
                     : selected.type === 'clean'
                       ? docsHref('ingestion/cleaning')
-                      : selected.type === 'chunk' || selected.type === 'embed'
+                      : selected.type === 'chunk'
                         ? docsHref('ingestion/chunking')
-                        : docsHref('knowledge-base/collections')
+                        : selected.type === 'embed'
+                          ? docsHref('ingestion/embedding')
+                          : docsHref('ingestion/publishing')
               }
               target="_blank"
               rel="noopener noreferrer"
@@ -570,6 +561,7 @@ export function IngestionNodeSettings({
             capabilities={extractionCapabilities}
             websiteSource={websiteSource}
             serverErrors={nodeErrors}
+            preview={chunkPreview}
             update={(value) =>
               updateNode(selected.id, (node) => (node.type === 'chunk' ? value : node))
             }
@@ -1118,10 +1110,6 @@ export function IngestionNodeSettings({
         )}
         {selected?.type === 'clean' && (
           <div className={STACK}>
-            <p className={HINT}>
-              Prepare extracted text before splitting it into searchable passages. These settings
-              are recorded with the saved version.
-            </p>
             {schemaVersion === 1 ? (
               <dl className={FACTS}>
                 <dt>Normalize whitespace</dt>
@@ -1136,223 +1124,28 @@ export function IngestionNodeSettings({
                 <dd>{selected.repeated_boilerplate?.length ?? 0}</dd>
               </dl>
             ) : (
-              <>
-                <CleaningTransformSettings
-                  node={selected}
-                  capabilities={extractionCapabilities}
-                  errors={nodeErrors}
-                  update={(value) =>
-                    updateNode(selected.id, (node) => (node.type === 'clean' ? value : node))
-                  }
-                />
-                <details className={DETAILS}>
-                  <summary className={SUMMARY}>Duplicate policy</summary>
-                  <div className={STACK}>
-                    {(
-                      [
-                        ['exact_raw', 'Exact raw-content hash'],
-                        ['exact_cleaned', 'Exact cleaned-content hash'],
-                        ['normalized_sections', 'Normalized section fingerprint'],
-                        ['near_duplicate', 'Near-duplicate SimHash'],
-                      ] as const
-                    ).map(([key, label]) => (
-                      <label className={CHECK_ROW} key={key}>
-                        <Checkbox
-                          checked={selectedDuplicate[key]}
-                          onCheckedChange={(checked) =>
-                            updateNode(selected.id, (node) =>
-                              node.type === 'clean'
-                                ? {
-                                    ...node,
-                                    duplicate_policy: {
-                                      ...selectedDuplicate,
-                                      [key]: checked === true,
-                                    },
-                                  }
-                                : node,
-                            )
-                          }
-                        />
-                        {label}
-                      </label>
-                    ))}
-                    {selectedDuplicate.near_duplicate && (
-                      <Label>
-                        Near-duplicate similarity threshold
-                        <Input
-                          type="number"
-                          min={0.75}
-                          max={1}
-                          step={0.01}
-                          value={selectedDuplicate.near_duplicate_threshold}
-                          onChange={(event) =>
-                            updateNode(selected.id, (node) =>
-                              node.type === 'clean'
-                                ? {
-                                    ...node,
-                                    duplicate_policy: {
-                                      ...selectedDuplicate,
-                                      near_duplicate_threshold: Number(event.target.value),
-                                    },
-                                  }
-                                : node,
-                            )
-                          }
-                        />
-                      </Label>
-                    )}
-                    <ListTextField
-                      label="Pinned canonical locations"
-                      separator=","
-                      trim
-                      placeholder="Comma-separated stable source identities"
-                      values={selectedDuplicate.pinned_canonical_locations}
-                      onChange={(values) =>
-                        updateNode(selected.id, (node) =>
-                          node.type === 'clean'
-                            ? {
-                                ...node,
-                                duplicate_policy: {
-                                  ...selectedDuplicate,
-                                  pinned_canonical_locations: values,
-                                },
-                              }
-                            : node,
-                        )
-                      }
-                    />
-                    <p className={HINT}>
-                      Canonical order: pinned source, connector priority, first stable identity,
-                      then lexical identity. Overrides are saved in a new pipeline version.
-                    </p>
-                  </div>
-                </details>
-                <details className={DETAILS}>
-                  <summary className={SUMMARY}>Sensitive-data policy</summary>
-                  <div className={STACK}>
-                    <label className={CHECK_ROW}>
-                      <Checkbox
-                        checked={selectedSensitive.enabled}
-                        onCheckedChange={(checked) =>
-                          updateNode(selected.id, (node) =>
-                            node.type === 'clean'
-                              ? {
-                                  ...node,
-                                  sensitive_data_policy: {
-                                    ...selectedSensitive,
-                                    enabled: checked === true,
-                                  },
-                                }
-                              : node,
-                          )
-                        }
-                      />
-                      Redact sensitive values before chunking and embedding
-                    </label>
-                    <p className={HINT}>
-                      Redaction is irreversible in cleaned passages, embeddings, retrieval evidence,
-                      and provider requests. Raw artifacts and full diffs are encrypted, retained
-                      for 30 days, and limited to project owners and admins.
-                    </p>
-                    {selectedSensitive.rules.map((rule) => (
-                      <Label key={rule.entity_class}>
-                        {rule.entity_class.replaceAll('_', ' ')}
-                        <NativeSelect
-                          aria-label={`${rule.entity_class.replaceAll('_', ' ')} action`}
-                          disabled={!selectedSensitive.enabled}
-                          value={rule.action}
-                          onChange={(event) =>
-                            updateNode(selected.id, (node) =>
-                              node.type === 'clean'
-                                ? {
-                                    ...node,
-                                    sensitive_data_policy: {
-                                      ...selectedSensitive,
-                                      rules: selectedSensitive.rules.map((value) =>
-                                        value.entity_class === rule.entity_class
-                                          ? {
-                                              ...value,
-                                              action: event.target.value as
-                                                | 'redact'
-                                                | 'drop_document',
-                                            }
-                                          : value,
-                                      ),
-                                    },
-                                  }
-                                : node,
-                            )
-                          }
-                        >
-                          <NativeSelectOption value="redact">Redact value</NativeSelectOption>
-                          <NativeSelectOption value="drop_document">
-                            Drop entire document
-                          </NativeSelectOption>
-                        </NativeSelect>
-                      </Label>
-                    ))}
-                    <p className={HINT}>
-                      Deterministic pattern detectors cover the listed classes but cannot detect
-                      every sensitive value. Review synthetic false-positive and false-negative
-                      cases before relying on this policy.
-                    </p>
-                  </div>
-                </details>
-              </>
+              <CleanSettings
+                key={selected.id}
+                node={selected}
+                capabilities={extractionCapabilities}
+                errors={nodeErrors}
+                update={(value) =>
+                  updateNode(selected.id, (node) => (node.type === 'clean' ? value : node))
+                }
+              />
             )}
           </div>
         )}
         {selected?.type === 'embed' && (
-          <div className={STACK}>
-            <p className={HINT}>
-              Convert each passage into a vector for retrieval. The embedding model and dimensions
-              must match the destination index.
-            </p>
-            {serverEmbedding && !sameEmbedding(selected, serverEmbedding) && (
-              <Callout tone="warning" role="note" title="Saved with a different embedding model">
-                <p>
-                  This version embeds with {selected.model} ({selected.dimensions} dimensions), but
-                  the server now uses {serverEmbedding.model} ({serverEmbedding.dimensions}{' '}
-                  dimensions), so it cannot run. Using the server&apos;s settings creates a new
-                  version when you save; its next run embeds every passage again.
-                </p>
-                <div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() =>
-                      updateNode(selected.id, (node) =>
-                        node.type === 'embed'
-                          ? {
-                              ...node,
-                              provider: serverEmbedding.provider,
-                              model: serverEmbedding.model,
-                              dimensions: serverEmbedding.dimensions,
-                              config_version: serverEmbedding.revision,
-                            }
-                          : node,
-                      )
-                    }
-                  >
-                    Use the server&apos;s embedding settings
-                  </Button>
-                </div>
-              </Callout>
-            )}
-            <dl className={FACTS}>
-              <dt>Provider</dt>
-              <dd>{selected.provider}</dd>
-              <dt>Model</dt>
-              <dd>{selected.model}</dd>
-              <dt>Dimensions</dt>
-              <dd>{selected.dimensions}</dd>
-              <dt>Configuration version</dt>
-              <dd>{selected.config_version}</dd>
-            </dl>
-            <p className={HINT}>
-              Model configuration is managed by the backend and saved with this pipeline version.
-            </p>
-          </div>
+          <EmbedSettings
+            node={selected}
+            serverEmbedding={serverEmbedding}
+            preview={latestPreview}
+            lastRun={lastRun}
+            update={(value) =>
+              updateNode(selected.id, (node) => (node.type === 'embed' ? value : node))
+            }
+          />
         )}
       </div>
     </aside>

@@ -80,7 +80,7 @@ test('pipeline create configure save reopen run evidence and immutable versions'
   expect(retrieverBox.y).toBeGreaterThan(questionBox.y);
   expect(Math.abs(retrieverBox.x - questionBox.x)).toBeLessThan(2);
   await page
-    .getByLabel('Documents to search', { exact: true })
+    .getByLabel('Index to search', { exact: true })
     .selectOption({ label: 'Uploaded documents · Version 1 · 1 passages' });
   await page.getByLabel('Top k', { exact: true }).fill('3');
   await page.getByLabel('Selected node').selectOption('prompt');

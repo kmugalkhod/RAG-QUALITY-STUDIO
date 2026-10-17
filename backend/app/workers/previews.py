@@ -53,6 +53,30 @@ MAX_PREVIEW_TEXT_PER_REPRESENTATION = 50_000
 MAX_PREVIEW_TOTAL_TEXT = 2_000_000
 
 
+def chunk_summary(chunks: list[dict]) -> dict:
+    """Sizes of the passages a run would embed, in UTF-8 bytes (spec 0012 B2).
+
+    Parents are evidence for their children and are not embedded, so they are
+    left out. `embedding_bytes` includes heading prefixes; it is the basis of the
+    Embed stage's cost estimate."""
+    from app.ingestion_content.chunking import EMBEDDING_INPUT_BYTES, SHORT_CHUNK_TOKENS
+
+    embedded = [c for c in chunks if (c.get("chunk_role") or "leaf") != "parent"]
+    sizes = sorted(len(c["text"].encode("utf-8")) for c in embedded)
+    inputs = [
+        len((c.get("embedding_text") or c["text"]).encode("utf-8")) for c in embedded
+    ]
+    return {
+        "count": len(sizes),
+        "median_bytes": sizes[len(sizes) // 2] if sizes else None,
+        "minimum_bytes": sizes[0] if sizes else None,
+        "maximum_bytes": sizes[-1] if sizes else None,
+        "under_40_bytes": sum(size < SHORT_CHUNK_TOKENS for size in sizes),
+        "over_embed_limit": sum(size > EMBEDDING_INPUT_BYTES for size in inputs),
+        "embedding_bytes": sum(inputs),
+    }
+
+
 def _outcomes(db_session, project_id, execution, fetch_policies):
     results = []
     chunk = next(node for node in execution.nodes if node.type == "chunk")
@@ -463,6 +487,7 @@ def _process_outcomes(session, outcomes, execution, config_hash):
                 ),
                 "cleaned_character_count": prepared.cleaned.measurements.character_count,
                 "chunk_count": len(prepared.chunks),
+                "chunk_summary": chunk_summary(prepared.chunks),
                 "warning_publication": policy_settings["warning_action"],
             }
             item["stage_timings"] = {
@@ -670,9 +695,22 @@ def process_preview(preview_id: UUID, db_engine=engine, connector_factory=None):
                 for item in outcomes
             }
             preview.fetch_mode = next(iter(modes)) if len(modes) == 1 else "mixed"
+            summaries = [
+                (item.get("metrics") or {}).get("chunk_summary") or {}
+                for item in outcomes
+                if item.get("processing_status") == "succeeded"
+            ]
             preview.cost_basis = {
                 **(preview.cost_basis or {}),
                 "known_local_compute_ms": known_compute_ms,
+                # The Embed stage's estimate: what a run would send to the provider
+                # if no vector could be reused (spec 0012 Part B).
+                "embedding_estimate": {
+                    "chunks": sum(value.get("count", 0) for value in summaries),
+                    "embedding_bytes": sum(
+                        value.get("embedding_bytes", 0) for value in summaries
+                    ),
+                },
             }
             preview.execution_token = None
             preview.failures = 0

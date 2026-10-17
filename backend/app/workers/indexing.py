@@ -221,6 +221,8 @@ def _process_batch(index_id: UUID, db_engine, token, handing_off) -> int | None:
                 for (run_id, ordinal), vector in vectors.items():
                     member = session.get(IndexChunk, (index_id, run_id, ordinal))
                     member.embedding = vector
+                if job.reused_vector_count is not None:
+                    job.reused_vector_count += len(batch) - len(missing)
                 job.throttled_since = None
                 session.flush()
                 completed = session.scalar(

@@ -124,6 +124,9 @@ class IndexVersion(Base):
     embedding_cost_usd: Mapped[Decimal | None] = mapped_column(
         Numeric(14, 8), default=0
     )
+    # Vectors copied from an earlier index with the same text and embedding
+    # config instead of being requested (spec 0012); NULL on older indexes.
+    reused_vector_count: Mapped[int | None] = mapped_column(default=0)
     attempts: Mapped[int] = mapped_column(default=0)
     failures: Mapped[int] = mapped_column(default=0)
     execution_token: Mapped[uuid.UUID | None]

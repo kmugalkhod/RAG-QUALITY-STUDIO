@@ -28,6 +28,22 @@ export function nameClash(
   return match;
 }
 
+/** What the next run publishes, and that earlier versions stay available (spec 0012 B). */
+export function publishedVersionText(target?: KnowledgeSet, newName?: string): string | undefined {
+  if (!target) {
+    return newName?.trim()
+      ? `This run publishes version 1 of the new index ${newName.trim()}.`
+      : undefined;
+  }
+  if (!target.latest_version) {
+    return `This run publishes version 1 of ${target.name}.`;
+  }
+  const current = target.current_version
+    ? ` Version ${target.current_version} stays available.`
+    : '';
+  return `This run publishes version ${target.latest_version + 1} of ${target.name}.${current} Answer pipelines keep their version until you switch.`;
+}
+
 export function takenMessage(name: string) {
   return `An index named "${name}" already exists. Choose "Add a version to an existing index" to publish to it, or enter another name.`;
 }
@@ -62,7 +78,18 @@ export function PublishIndexSettings({
     ? undefined
     : nameClash(node.knowledge_set_name, knowledgeSets, pipelineId);
   const error = serverError ?? (clash ? takenMessage(clash.name) : undefined);
-  const others = (selected?.publishing_pipelines ?? []).filter((value) => value.id !== pipelineId);
+  // A new name this pipeline already published to is saved as a version of that index.
+  const own = existing
+    ? undefined
+    : knowledgeSets.find(
+        (set) =>
+          set.name.toLocaleLowerCase() === node.knowledge_set_name.trim().toLocaleLowerCase() &&
+          !!pipelineId &&
+          set.publishing_pipelines?.some((value) => value.id === pipelineId),
+      );
+  const target = selected ?? own;
+  const others = (target?.publishing_pipelines ?? []).filter((value) => value.id !== pipelineId);
+  const versionLine = publishedVersionText(target, existing ? undefined : node.knowledge_set_name);
 
   function choose(value: string) {
     if (value === 'new') {
@@ -175,6 +202,7 @@ export function PublishIndexSettings({
           )}
         </div>
       )}
+      {versionLine && !error && <p className={HINT}>{versionLine}</p>}
       {others.length > 0 && (
         <p className={HINT}>
           Also published by {others.map((value) => value.name).join(', ')}. Each run replaces its

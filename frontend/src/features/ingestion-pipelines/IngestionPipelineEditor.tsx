@@ -1684,6 +1684,19 @@ export function IngestionPipelineEditor({
             pipelineId={savedPipelineId}
             pipelineName={indexNameFor(draft)}
             serverEmbedding={serverEmbedding}
+            latestPreview={preview}
+            lastRun={run}
+            chunkPreview={{
+              run: () => void runPreview(),
+              reason:
+                validation.length > 0
+                  ? 'Complete the configuration first.'
+                  : runActive
+                    ? 'Wait for the run to finish.'
+                    : previewActive
+                      ? 'A preview is running.'
+                      : undefined,
+            }}
             onSelectNode={selectFromCanvas}
           />
         </div>

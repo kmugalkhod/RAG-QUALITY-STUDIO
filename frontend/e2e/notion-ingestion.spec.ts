@@ -86,8 +86,8 @@ test('Notion preview publishes and incrementally refreshes an exact index', asyn
   await page.getByRole('link', { name: 'New answer pipeline' }).click();
   await page.reload();
   await page
-    .getByLabel('Documents to search', { exact: true })
-    .selectOption({ label: 'Ingested knowledge · Version 2 · 2 passages' });
+    .getByLabel('Index to search', { exact: true })
+    .selectOption({ label: 'Controlled Notion ingestion · Version 2 · 2 passages' });
   await page.getByRole('button', { name: 'Save version' }).click();
   await page.getByRole('button', { name: 'Open Playground' }).click();
   await page.getByLabel('Question', { exact: true }).fill('What does the orchard grow?');

@@ -681,6 +681,7 @@ def _run_rows(session: Session, statement):
             IndexVersion.status,
             IndexVersion.embedding_tokens,
             IndexVersion.embedding_cost_usd,
+            IndexVersion.reused_vector_count,
             IndexVersion.error,
             IndexVersion.failures,
             IndexVersion.throttled_since,
@@ -715,6 +716,7 @@ def _run_rows(session: Session, statement):
         index_status,
         tokens,
         cost,
+        reused,
         index_error,
         index_failures,
         throttled_since,
@@ -771,6 +773,7 @@ def _run_rows(session: Session, statement):
                 else {
                     "tokens": tokens,
                     "cost_usd": None if cost is None else float(cost),
+                    "reused_vectors": reused,
                 },
                 "node_states": [
                     {

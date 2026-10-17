@@ -110,6 +110,9 @@ export function IngestionRunStrip({
               {carried > 0 && <> · {carried} kept from earlier</>}
             </p>
           )}
+          {replacedVersionText(run) && (
+            <p className={cn(META, 'tabular-nums')}>{replacedVersionText(run)}</p>
+          )}
           {/* Every finished run reports what embedding cost, paid or not (spec 0012 A11). */}
           <p className={cn(META, 'tabular-nums')}>
             {run.embedding_usage
@@ -192,6 +195,21 @@ export function IngestionRunStrip({
 }
 
 /** Provider-reported numbers only; a value the provider did not report shows as unknown. */
+/** Spec 0012 B3: what a finished run did to the version answers use. */
+export function replacedVersionText(run: IngestionRun): string | undefined {
+  const prior = run.prior_index_version;
+  if (!prior) {
+    return undefined;
+  }
+  if (run.status === 'succeeded' && run.published_index_version) {
+    return `Replaced version ${prior}; it remains available.`;
+  }
+  if (run.status === 'failed' || run.status === 'cancelled') {
+    return `Version ${prior} is still current.`;
+  }
+  return undefined;
+}
+
 export function embeddingUsageText(usage: NonNullable<IngestionRun['embedding_usage']>) {
   const tokens = usage.tokens === null ? 'unknown' : usage.tokens.toLocaleString();
   const cost =

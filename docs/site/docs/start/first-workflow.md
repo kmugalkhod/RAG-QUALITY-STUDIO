@@ -40,7 +40,7 @@ Publishing embeds the prepared passage and can be billed. If the button is disab
 
 ## 4. Save an answer version
 
-From the selected ready collection, select **Use version 1 in a pipeline** (use the actual displayed number). In the answer editor, check **Documents to search** names the exact collection version. Give the pipeline a name, select **Save version**, and then **Open Playground**. The saved version and collection membership remain fixed for this run; changing the draft later requires another save to persist it.
+From the selected ready collection, select **Use version 1 in a pipeline** (use the actual displayed number). In the answer editor, check **Index to search** names the exact collection version. Give the pipeline a name, select **Save version**, and then **Open Playground**. The saved version and collection membership remain fixed for this run; changing the draft later requires another save to persist it.
 
 If validation blocks saving, open the selected node's labeled settings, resolve the shown field error, and save again. The five supported answer nodes are Question → Retriever → Prompt → LLM → Answer; arbitrary branches are rejected. See [answer pipelines](../answers/pipelines.md).
 

@@ -134,12 +134,20 @@ export function IngestionGroupStrip({
                   </span>
                 )}
                 {run.status === 'succeeded' && run.published_index_id && (
-                  <a
-                    className={cn(LINK, 'text-xs')}
-                    href={`#/projects/${projectId}/knowledge-base?view=indexes&index=${run.published_index_id}`}
-                  >
-                    Inspect index
-                  </a>
+                  <>
+                    <a
+                      className={cn(LINK, 'text-xs')}
+                      href={`#/projects/${projectId}/pipelines/new?index=${run.published_index_id}`}
+                    >
+                      Use in answer pipeline
+                    </a>
+                    <a
+                      className={cn(LINK, 'text-xs')}
+                      href={`#/projects/${projectId}/knowledge-base?view=indexes&index=${run.published_index_id}`}
+                    >
+                      Inspect index
+                    </a>
+                  </>
                 )}
                 {finished && (
                   <Button

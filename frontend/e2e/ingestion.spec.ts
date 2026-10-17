@@ -110,7 +110,7 @@ test('website discovery publishes and incrementally refreshes an exact index', a
     `/#/projects/${project.id}/knowledge-base?view=indexes&mode=snapshots&snapshot=${snapshots.items[0].id}`,
   );
   await expect(page.getByRole('heading', { name: 'Snapshot 1' })).toBeVisible();
-  await expect(page.getByText('Ingested knowledge · v1')).toBeVisible();
+  await expect(page.getByText('Controlled website preview · v1')).toBeVisible();
   await expect(page.getByText('Precise website · v1')).toBeVisible();
   await page.setViewportSize({ width: 390, height: 844 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -233,8 +233,8 @@ test('existing files publish an exact index that grounds an answer pipeline', as
   await page.getByRole('tab', { name: 'Answer pipelines' }).click();
   await page.getByRole('link', { name: 'New answer pipeline' }).click();
   await page
-    .getByLabel('Documents to search', { exact: true })
-    .selectOption({ label: 'Ingested knowledge · Version 1 · 2 passages' });
+    .getByLabel('Index to search', { exact: true })
+    .selectOption({ label: 'Project files ingestion · Version 1 · 2 passages' });
   await page.getByRole('button', { name: 'Save version' }).click();
   await page.getByRole('button', { name: 'Open Playground' }).click();
   await page.getByLabel('Question', { exact: true }).fill('What does the orchard grow?');

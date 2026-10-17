@@ -81,10 +81,10 @@ export function NodeSettings({
         <>
           <h3 className="text-sm font-semibold text-foreground">Inputs</h3>
           <Label className="mb-0">
-            Documents to search
+            Index to search
             <NativeSelect
               className="mt-2"
-              aria-label="Documents to search"
+              aria-label="Index to search"
               value={config.index_id}
               onChange={(e) => onUpdate({ index_id: e.target.value })}
             >

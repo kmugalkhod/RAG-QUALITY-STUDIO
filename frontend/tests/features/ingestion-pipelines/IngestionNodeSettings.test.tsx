@@ -7,19 +7,27 @@ import type { IngestionNode } from '../../../src/features/ingestion-pipelines/mo
 
 let lastChunk: IngestionNode | undefined;
 
-function Harness({ chunkVersion = 'section-token-v2' }: { chunkVersion?: string }) {
-  const [node, setNode] = useState<IngestionNode>({
-    id: 'chunk',
-    type: 'chunk',
-    algorithm: 'section_token',
-    unit: 'tokens',
-    tokenizer_version: 'utf8-byte-v1',
-    target_tokens: 600,
-    maximum_tokens: 800,
-    overlap_tokens: 80,
-    add_heading_context: true,
-    config_version: chunkVersion,
-  });
+function Harness({
+  chunkVersion = 'section-token-v2',
+  initial,
+}: {
+  chunkVersion?: string;
+  initial?: IngestionNode;
+}) {
+  const [node, setNode] = useState<IngestionNode>(
+    initial ?? {
+      id: 'chunk',
+      type: 'chunk',
+      algorithm: 'section_token',
+      unit: 'tokens',
+      tokenizer_version: 'utf8-byte-v1',
+      target_tokens: 600,
+      maximum_tokens: 800,
+      overlap_tokens: 80,
+      add_heading_context: true,
+      config_version: chunkVersion,
+    },
+  );
   lastChunk = node;
   return (
     <IngestionNodeSettings
@@ -41,42 +49,73 @@ function Harness({ chunkVersion = 'section-token-v2' }: { chunkVersion?: string 
   );
 }
 
-test('edits algorithm-specific chunk settings without mixing incompatible fields', () => {
+test('edits method-specific chunk settings without mixing incompatible fields', () => {
   render(<Harness />);
 
-  expect(screen.getByLabelText('Target tokens')).toHaveValue(600);
-  expect(screen.getByLabelText('Hard maximum tokens')).toHaveValue(800);
+  expect(screen.getByRole('radio', { name: /Section-aware \(recommended\)/ })).toBeChecked();
+  expect(screen.getByRole('radio', { name: /Medium \(recommended\)/ })).toBeChecked();
+  expect(screen.getByLabelText('Target size (bytes)')).toHaveValue(600);
+  expect(screen.getByLabelText('Maximum size (bytes)')).toHaveValue(800);
   expect(screen.queryByLabelText('Chunk size (characters)')).not.toBeInTheDocument();
 
-  fireEvent.change(screen.getByLabelText('Chunking algorithm'), {
-    target: { value: 'parent_child' },
-  });
-  expect(screen.getByLabelText('Child target tokens')).toHaveValue(240);
-  expect(screen.getByLabelText('Parent hard maximum tokens')).toHaveValue(1200);
-  expect(screen.getByText(/Child chunks are embedded/)).toBeVisible();
+  fireEvent.click(screen.getByRole('radio', { name: /Parent and child/ }));
+  expect(screen.getByLabelText('Child target size (bytes)')).toHaveValue(240);
+  expect(screen.getByLabelText('Parent maximum size (bytes)')).toHaveValue(1200);
+  expect(screen.getByText(/Child passages are embedded/)).toBeInTheDocument();
+  expect(screen.queryByLabelText('Target size (bytes)')).not.toBeInTheDocument();
+  // New choices offer the two methods only; the character window is for saved versions.
+  expect(screen.queryByRole('radio', { name: /Character window/ })).not.toBeInTheDocument();
+});
 
-  fireEvent.change(screen.getByLabelText('Chunking algorithm'), {
-    target: { value: 'character_window' },
+test('passage sizes say about how many words they hold and set the exact bytes', () => {
+  render(<Harness />);
+  expect(screen.getByRole('radio', { name: /Small about 50 words/ })).toBeInTheDocument();
+  expect(
+    screen.getByRole('radio', { name: /Medium \(recommended\) about 100 words/ }),
+  ).toBeChecked();
+  fireEvent.click(screen.getByRole('radio', { name: /Large about 200 words/ }));
+  expect(lastChunk).toMatchObject({
+    target_tokens: 1200,
+    maximum_tokens: 1600,
+    overlap_tokens: 160,
   });
-  // Without capabilities the window uses the server's defaults (spec 0012 A15).
-  expect(screen.getByLabelText('Chunk size (characters)')).toHaveValue(800);
-  expect(screen.getByLabelText('Overlap (characters)')).toHaveValue(120);
-  expect(screen.queryByLabelText('Target tokens')).not.toBeInTheDocument();
+  expect(screen.getByText(/Advanced chunking settings/)).toBeInTheDocument();
+
+  fireEvent.change(screen.getByLabelText('Target size (bytes)'), { target: { value: '1000' } });
+  expect(screen.getByText('Custom sizes, listed under Advanced.')).toBeInTheDocument();
+  expect(screen.getByText('· 1 changed')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Reset to recommended' }));
+  expect(lastChunk).toMatchObject({ target_tokens: 600, maximum_tokens: 800, overlap_tokens: 80 });
+});
+
+test('a saved character window opens with its sizes under Advanced', () => {
+  render(
+    <Harness
+      initial={{
+        id: 'chunk',
+        type: 'chunk',
+        algorithm: 'character_window',
+        unit: 'characters',
+        size: 1000,
+        overlap: 100,
+        config_version: 'character-window-v1',
+      }}
+    />,
+  );
+  expect(screen.getByText('Saved with the character window')).toBeInTheDocument();
+  expect(screen.getByLabelText('Chunk size (characters)')).toHaveValue(1000);
+  expect(screen.getByRole('radio', { name: /Section-aware/ })).not.toBeChecked();
 });
 
 test('a new token chunker uses the current version and shows no upgrade', () => {
   render(<Harness />);
   expect(screen.queryByRole('button', { name: 'Upgrade chunking' })).not.toBeInTheDocument();
 
-  fireEvent.change(screen.getByLabelText('Chunking algorithm'), {
-    target: { value: 'parent_child' },
-  });
+  fireEvent.click(screen.getByRole('radio', { name: /Parent and child/ }));
   expect(lastChunk).toMatchObject({ config_version: 'parent-child-v2' });
   expect(screen.queryByRole('button', { name: 'Upgrade chunking' })).not.toBeInTheDocument();
 
-  fireEvent.change(screen.getByLabelText('Chunking algorithm'), {
-    target: { value: 'section_token' },
-  });
+  fireEvent.click(screen.getByRole('radio', { name: /Section-aware/ }));
   expect(lastChunk).toMatchObject({ config_version: 'section-token-v2' });
 });
 
@@ -84,7 +123,7 @@ test('offers a saved section-token-v1 chunker an explicit upgrade that keeps its
   render(<Harness chunkVersion="section-token-v1" />);
   expect(screen.getByText('Saved with section-token-v1')).toBeInTheDocument();
   expect(screen.getByText(/The current\s+chunking, section-token-v2,/)).toBeInTheDocument();
-  fireEvent.change(screen.getByLabelText('Target tokens'), { target: { value: '500' } });
+  fireEvent.change(screen.getByLabelText('Target size (bytes)'), { target: { value: '500' } });
 
   fireEvent.click(screen.getByRole('button', { name: 'Upgrade chunking' }));
 
@@ -164,23 +203,21 @@ test('edits saved language behavior without offering translation', () => {
 
 test('makes irreversible sensitive-data actions explicit and keyboard-editable', () => {
   render(<PolicyHarness kind="clean" />);
-  fireEvent.click(screen.getByText('Sensitive-data policy'));
+  // Spec 0012 D9: the switch is visible on the panel, the rules are under Advanced.
+  expect(screen.getByLabelText(/Redact emails, phone numbers and IDs/)).toBeChecked();
+  expect(screen.getByText(/Redaction cannot be undone/)).toBeInTheDocument();
+  expect(screen.getByText(/cannot find every one/)).toBeInTheDocument();
 
-  expect(
-    screen.getByLabelText('Redact sensitive values before chunking and embedding'),
-  ).toBeChecked();
-  expect(screen.getByText(/Redaction is irreversible/)).toBeInTheDocument();
-  expect(screen.getByText(/cannot detect every sensitive value/)).toBeInTheDocument();
-
-  fireEvent.change(screen.getByLabelText('email action'), {
+  fireEvent.change(screen.getByLabelText('Email addresses'), {
     target: { value: 'drop_document' },
   });
-  expect(screen.getByLabelText('email action')).toHaveValue('drop_document');
+  expect(screen.getByLabelText('Email addresses')).toHaveValue('drop_document');
+  expect(screen.getByText('· 1 changed')).toBeInTheDocument();
 });
 
 test('edits exact and near-duplicate decisions with a visible threshold', () => {
   render(<PolicyHarness kind="clean" />);
-  fireEvent.click(screen.getByLabelText('Near-duplicate SimHash'));
+  fireEvent.click(screen.getByLabelText('Nearly identical text'));
   expect(screen.getByLabelText('Near-duplicate similarity threshold')).toHaveValue(0.92);
   fireEvent.change(screen.getByLabelText('Pinned canonical locations'), {
     target: { value: 'project-file:one, https://example.com/copy' },
@@ -188,7 +225,7 @@ test('edits exact and near-duplicate decisions with a visible threshold', () => 
   expect(screen.getByLabelText('Pinned canonical locations')).toHaveValue(
     'project-file:one, https://example.com/copy',
   );
-  expect(screen.getByText(/Canonical order: pinned source/i)).toBeInTheDocument();
+  expect(screen.getByText(/The copy kept is the pinned source/i)).toBeInTheDocument();
 });
 
 test('offers a saved layout-ocr-v1 extractor an explicit upgrade', () => {

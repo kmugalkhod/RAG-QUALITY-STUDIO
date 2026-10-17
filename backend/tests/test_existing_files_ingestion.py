@@ -569,7 +569,11 @@ def test_existing_files_preview_run_publication_and_exact_answer_index(ingestion
     assert [state["status"] for state in complete["node_states"]] == ["succeeded"] * 6
     assert complete["published_index_id"] == str(index_id)
     # The test double reports no usage, so it is unknown rather than zero.
-    assert complete["embedding_usage"] == {"tokens": None, "cost_usd": None}
+    assert complete["embedding_usage"] == {
+        "tokens": None,
+        "cost_usd": None,
+        "reused_vectors": 0,
+    }
     assert complete["published_count"] == 1
     filtered_runs = client.get(
         f"/api/projects/{project_id}/ingestion-runs?pipeline_version_id={version['id']}"

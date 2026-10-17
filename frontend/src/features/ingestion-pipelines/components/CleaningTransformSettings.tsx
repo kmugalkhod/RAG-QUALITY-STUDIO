@@ -1,32 +1,22 @@
 import { useState } from 'react';
-import { ArrowDown, ArrowUp, Plus, RotateCcw, Trash2 } from 'lucide-react';
+import { Plus } from 'lucide-react';
 
 import { Button } from '../../../components/ui/button';
 import { Checkbox } from '../../../components/ui/checkbox';
 import { Input } from '../../../components/ui/input';
 import { Label } from '../../../components/ui/label';
 import { NativeSelect, NativeSelectOption } from '../../../components/ui/native-select';
-import type { CleaningTransform, ExtractionCapabilities, IngestionNode } from '../model';
+import { cleaningStepNames as names, insertStep } from '../downstreamModel';
+import type { CleaningTransform, IngestionNode } from '../model';
 import { ListTextField } from './ListTextField';
-import { FACTS, FIELD_ERROR, FIELD_GRID, HINT, OPTION, STACK } from './settingsStyles';
+import { FIELD_ERROR, FIELD_GRID, HINT, OPTION, STACK } from './settingsStyles';
 
 type CleanNode = Extract<IngestionNode, { type: 'clean' }>;
 
-const names: Record<CleaningTransform['type'], string> = {
-  preserve_structure: 'Preserve structured blocks',
-  unicode_normalize: 'Normalize Unicode',
-  remove_control_characters: 'Remove unsupported controls',
-  reflow_pdf_lines: 'Reflow PDF lines',
-  dehyphenate: 'Dehyphenate line endings',
-  remove_repeated_headers_footers: 'Remove repeated headers and footers',
-  remove_empty_blocks: 'Remove empty blocks',
-  remove_literal_boilerplate: 'Remove literal boilerplate',
-  website_selectors: 'Apply Website selectors',
-  website_main_content: 'Keep Website main content',
-  validate_useful_content: 'Validate useful content',
-};
-
-const transformTypes = Object.keys(names) as CleaningTransform['type'][];
+const transformTypes = (Object.keys(names) as CleaningTransform['type'][]).filter(
+  // Literal text has its own box on the Clean panel.
+  (type) => type !== 'remove_literal_boilerplate',
+);
 
 function newTransform(type: CleaningTransform['type']): CleaningTransform {
   const base = { id: type.replaceAll('_', '-'), type, enabled: true };
@@ -90,14 +80,17 @@ export function cleaningStepProblems(node: CleanNode): Record<string, string> {
   );
 }
 
+/**
+ * The advanced list of cleaning steps (spec 0012 Part B): in their saved order, each with
+ * its switch and fields, without reordering or deleting. A missing step can be added at
+ * its place in the server order. Literal text is edited in the Clean panel's own box.
+ */
 export function CleaningTransformSettings({
   node,
-  capabilities,
   errors = {},
   update,
 }: {
   node: CleanNode;
-  capabilities?: ExtractionCapabilities;
   /** Server errors of this node, keyed `clean` or `clean.steps.<index>[.<field>]`. */
   errors?: Record<string, string>;
   update: (node: CleanNode) => void;
@@ -106,7 +99,6 @@ export function CleaningTransformSettings({
   const errorOf = (key: string) => errors[`clean.${key}`] ?? problems[key];
   const [selectedType, setSelectedType] = useState('');
   const steps = node.steps ?? [];
-  const supported = capabilities?.cleaning_profiles?.[0];
   const available = transformTypes.filter((type) => !steps.some((step) => step.type === type));
 
   function updateStep(index: number, value: CleaningTransform) {
@@ -115,78 +107,9 @@ export function CleaningTransformSettings({
     update({ ...node, steps: next });
   }
 
-  function move(index: number, offset: -1 | 1) {
-    const target = index + offset;
-    if (target < 0 || target >= steps.length) {
-      return;
-    }
-    const next = [...steps];
-    [next[index], next[target]] = [next[target], next[index]];
-    update({ ...node, steps: next });
-  }
-
-  function useStructureProfile() {
-    if (!supported) {
-      return;
-    }
-    update({
-      ...node,
-      profile: supported.id,
-      config_version: supported.config_version,
-      steps: structuredClone(supported.steps),
-      normalize_whitespace: true,
-      repeated_boilerplate: [],
-    });
-  }
-
-  if (node.profile !== 'structure-aware-v1') {
-    return (
-      <div className={STACK}>
-        <p className={HINT}>
-          This saved version uses the compatibility cleaner. Upgrade the draft to configure ordered,
-          attributable transforms; historical versions remain unchanged.
-        </p>
-        <Button type="button" variant="outline" disabled={!supported} onClick={useStructureProfile}>
-          Use {supported?.name ?? 'structure-aware profile'}
-        </Button>
-        <dl className={FACTS}>
-          <dt>Normalize whitespace</dt>
-          <dd>{node.normalize_whitespace === false ? 'Off' : 'On'}</dd>
-          <dt>Exact-content deduplication</dt>
-          <dd>{node.exact_content_deduplication === false ? 'Off' : 'On'}</dd>
-          <dt>Literal removals</dt>
-          <dd>{node.repeated_boilerplate?.length ?? 0}</dd>
-        </dl>
-      </div>
-    );
-  }
-
   return (
     <div className={STACK}>
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="flex min-w-0 flex-col gap-1">
-          <strong className="text-sm font-medium text-foreground">
-            {supported?.name ?? 'Structure-aware standard'}
-          </strong>
-          <p className={HINT}>Transforms run from top to bottom in this saved order.</p>
-        </div>
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          disabled={!supported}
-          onClick={useStructureProfile}
-        >
-          <RotateCcw aria-hidden="true" />
-          Reset profile
-        </Button>
-      </div>
-
-      {errors.clean && (
-        <p role="alert" className={FIELD_ERROR}>
-          {errors.clean}
-        </p>
-      )}
+      <p className={HINT}>Steps run from top to bottom in this saved order.</p>
       <ol className="flex flex-col gap-2" aria-label="Ordered cleaning transforms">
         {steps.map((step, index) => (
           <li
@@ -223,42 +146,6 @@ export function CleaningTransformSettings({
                   </span>
                 </label>
               )}
-              <div className="flex shrink-0 items-center gap-1">
-                <Button
-                  type="button"
-                  size="sm"
-                  icon
-                  variant="ghost"
-                  aria-label={`Move ${names[step.type]} up`}
-                  disabled={index === 0}
-                  onClick={() => move(index, -1)}
-                >
-                  <ArrowUp aria-hidden="true" />
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  icon
-                  variant="ghost"
-                  aria-label={`Move ${names[step.type]} down`}
-                  disabled={index === steps.length - 1}
-                  onClick={() => move(index, 1)}
-                >
-                  <ArrowDown aria-hidden="true" />
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  icon
-                  variant="ghost"
-                  aria-label={`Remove ${names[step.type]}`}
-                  onClick={() =>
-                    update({ ...node, steps: steps.filter((_, item) => item !== index) })
-                  }
-                >
-                  <Trash2 aria-hidden="true" />
-                </Button>
-              </div>
             </div>
             {errors[`clean.steps.${index}`] && (
               <p role="alert" className={FIELD_ERROR}>
@@ -292,7 +179,10 @@ export function CleaningTransformSettings({
                     step={0.05}
                     value={step.minimum_page_ratio}
                     onChange={(event) =>
-                      updateStep(index, { ...step, minimum_page_ratio: Number(event.target.value) })
+                      updateStep(index, {
+                        ...step,
+                        minimum_page_ratio: Number(event.target.value),
+                      })
                     }
                   />
                 </Label>
@@ -339,13 +229,10 @@ export function CleaningTransformSettings({
             )}
             {step.type === 'remove_literal_boilerplate' && (
               <>
-                <ListTextField
-                  label="Exact literals"
-                  hint="One per line. Spaces count: each line is removed exactly as typed."
-                  values={step.values}
-                  error={errorOf(`steps.${index}.values`)}
-                  onChange={(values) => updateStep(index, { ...step, values })}
-                />
+                <p className={HINT}>
+                  {step.values.length} {step.values.length === 1 ? 'line' : 'lines'} of text, edited
+                  in Text to remove above.
+                </p>
                 <ListTextField
                   label="Block types, one per line"
                   trim
@@ -410,7 +297,10 @@ export function CleaningTransformSettings({
                     step={0.05}
                     value={step.minimum_page_ratio}
                     onChange={(event) =>
-                      updateStep(index, { ...step, minimum_page_ratio: Number(event.target.value) })
+                      updateStep(index, {
+                        ...step,
+                        minimum_page_ratio: Number(event.target.value),
+                      })
                     }
                   />
                 </Label>
@@ -426,7 +316,10 @@ export function CleaningTransformSettings({
                     max={100000}
                     value={step.minimum_characters}
                     onChange={(event) =>
-                      updateStep(index, { ...step, minimum_characters: Number(event.target.value) })
+                      updateStep(index, {
+                        ...step,
+                        minimum_characters: Number(event.target.value),
+                      })
                     }
                   />
                 </Label>
@@ -438,7 +331,10 @@ export function CleaningTransformSettings({
                     max={2000000}
                     value={step.maximum_characters}
                     onChange={(event) =>
-                      updateStep(index, { ...step, maximum_characters: Number(event.target.value) })
+                      updateStep(index, {
+                        ...step,
+                        maximum_characters: Number(event.target.value),
+                      })
                     }
                   />
                 </Label>
@@ -475,15 +371,7 @@ export function CleaningTransformSettings({
                   return;
                 }
                 const transform = newTransform(selectedType as CleaningTransform['type']);
-                const validation = steps.findIndex(
-                  (step) => step.type === 'validate_useful_content',
-                );
-                const next = [...steps];
-                next.splice(validation < 0 ? next.length : validation, 0, transform);
-                update({
-                  ...node,
-                  steps: next,
-                });
+                update({ ...node, steps: insertStep(steps, transform) });
                 setSelectedType('');
               }}
             >
@@ -492,21 +380,6 @@ export function CleaningTransformSettings({
           </div>
         </Label>
       )}
-
-      <label className={OPTION}>
-        <Checkbox
-          checked={node.exact_content_deduplication !== false}
-          onCheckedChange={(checked) =>
-            update({ ...node, exact_content_deduplication: checked === true })
-          }
-        />
-        <span>
-          <strong>Exact-content deduplication</strong>
-          <small>
-            Recorded as a separate final removal audit; near-duplicate clustering is not enabled.
-          </small>
-        </span>
-      </label>
     </div>
   );
 }

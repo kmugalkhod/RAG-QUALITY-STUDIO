@@ -38,7 +38,7 @@ function Harness({
 
 test('an empty field is invalid on its own field, not read as 0', () => {
   render(<Harness />);
-  const target = screen.getByLabelText('Target tokens');
+  const target = screen.getByLabelText('Target size (bytes)');
   fireEvent.change(target, { target: { value: '' } });
   expect(target).toHaveValue(null);
   expect(target).toHaveAttribute('aria-invalid', 'true');
@@ -48,16 +48,16 @@ test('an empty field is invalid on its own field, not read as 0', () => {
 
 test('overlap at or above the target is an error on the overlap field', () => {
   render(<Harness />);
-  fireEvent.change(screen.getByLabelText('Overlap tokens'), { target: { value: '600' } });
-  expect(screen.getByLabelText('Overlap tokens')).toHaveAccessibleDescription(
+  fireEvent.change(screen.getByLabelText('Overlap (bytes)'), { target: { value: '600' } });
+  expect(screen.getByLabelText('Overlap (bytes)')).toHaveAccessibleDescription(
     'Overlap must be smaller than the target.',
   );
-  expect(screen.getByLabelText('Target tokens')).not.toHaveAttribute('aria-invalid', 'true');
+  expect(screen.getByLabelText('Target size (bytes)')).not.toHaveAttribute('aria-invalid', 'true');
 });
 
 test('a maximum that can exceed the embedding limit is flagged and can be reset', () => {
   render(<Harness initial={{ ...section, maximum_tokens: 16384 }} />);
-  expect(screen.getByLabelText('Hard maximum tokens')).toHaveAccessibleDescription(
+  expect(screen.getByLabelText('Maximum size (bytes)')).toHaveAccessibleDescription(
     /At most 7,891 bytes/,
   );
   expect(screen.getByText('Passages can be too large to embed')).toBeVisible();
@@ -68,7 +68,7 @@ test('a maximum that can exceed the embedding limit is flagged and can be reset'
 
 test('a server error shows on its field', () => {
   render(<Harness serverErrors={{ 'chunk.target_tokens': 'Input should be at least 64' }} />);
-  expect(screen.getByLabelText('Target tokens')).toHaveAccessibleDescription(
+  expect(screen.getByLabelText('Target size (bytes)')).toHaveAccessibleDescription(
     'Input should be at least 64',
   );
 });

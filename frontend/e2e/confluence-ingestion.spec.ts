@@ -94,10 +94,10 @@ test('Confluence preview publishes and incrementally refreshes an exact index', 
   await page.getByRole('link', { name: 'Pipelines', exact: true }).click();
   await page.getByRole('tab', { name: 'Answer pipelines' }).click();
   await page.getByRole('link', { name: 'New answer pipeline' }).click();
-  const indexSelect = page.getByLabel('Documents to search', { exact: true });
+  const indexSelect = page.getByLabel('Index to search', { exact: true });
   const indexValue = await indexSelect
     .locator('option')
-    .filter({ hasText: 'Ingested knowledge · Version 2' })
+    .filter({ hasText: 'Controlled Confluence ingestion · Version 2' })
     .getAttribute('value');
   expect(indexValue).toBeTruthy();
   await indexSelect.selectOption(indexValue!);

@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { expect, test, vi } from 'vitest';
 
+import { CleanSettings } from '../../../src/features/ingestion-pipelines/components/CleanSettings';
 import { CleaningTransformSettings } from '../../../src/features/ingestion-pipelines/components/CleaningTransformSettings';
 import { defaultQualityPolicy } from '../../../src/features/ingestion-pipelines/editorModel';
 import type {
@@ -49,6 +50,17 @@ const capabilities = {
   ],
 } satisfies ExtractionCapabilities;
 
+const structure = {
+  id: 'clean',
+  type: 'clean',
+  profile: 'structure-aware-v1',
+  config_version: 'structure-clean-v1',
+  normalize_whitespace: true,
+  repeated_boilerplate: [],
+  exact_content_deduplication: true,
+  steps,
+} satisfies Extract<IngestionNode, { type: 'clean' }>;
+
 test('upgrades a compatibility draft from the named server profile without saving it', () => {
   const update = vi.fn();
   const node = {
@@ -60,9 +72,10 @@ test('upgrades a compatibility draft from the named server profile without savin
     repeated_boilerplate: [],
     exact_content_deduplication: true,
   } satisfies Extract<IngestionNode, { type: 'clean' }>;
-  render(<CleaningTransformSettings node={node} capabilities={capabilities} update={update} />);
+  render(<CleanSettings node={node} capabilities={capabilities} errors={{}} update={update} />);
 
-  fireEvent.click(screen.getByRole('button', { name: 'Use Structure-aware standard' }));
+  expect(screen.getByText('Saved with the compatibility cleaner')).toBeVisible();
+  fireEvent.click(screen.getByRole('button', { name: 'Upgrade cleaning' }));
   expect(update).toHaveBeenCalledWith(
     expect.objectContaining({
       profile: 'structure-aware-v1',
@@ -72,55 +85,30 @@ test('upgrades a compatibility draft from the named server profile without savin
   );
 });
 
-test('reorders and disables transforms with labelled keyboard-safe controls', () => {
+test('switches a step off with a labelled control, and offers no reorder or delete', () => {
   const update = vi.fn();
-  const node = {
-    id: 'clean',
-    type: 'clean',
-    profile: 'structure-aware-v1',
-    config_version: 'structure-clean-v1',
-    normalize_whitespace: true,
-    repeated_boilerplate: [],
-    exact_content_deduplication: true,
-    steps,
-  } satisfies Extract<IngestionNode, { type: 'clean' }>;
-  const { rerender } = render(
-    <CleaningTransformSettings node={node} capabilities={capabilities} update={update} />,
-  );
+  render(<CleaningTransformSettings node={structure} update={update} />);
 
-  fireEvent.click(screen.getByRole('button', { name: 'Move Normalize Unicode down' }));
-  expect(update.mock.calls.at(-1)?.[0].steps.map((step: { type: string }) => step.type)).toEqual([
-    'validate_useful_content',
-    'unicode_normalize',
-  ]);
-
-  rerender(<CleaningTransformSettings node={node} capabilities={capabilities} update={update} />);
+  expect(screen.queryByRole('button', { name: /Move|Remove/ })).toBeNull();
   fireEvent.click(screen.getByRole('checkbox', { name: /1. Normalize Unicode/ }));
   expect(update.mock.calls.at(-1)?.[0].steps[0].enabled).toBe(false);
-  expect(screen.getByRole('button', { name: 'Reset profile' })).not.toHaveAttribute(
-    'aria-disabled',
-  );
 });
 
-test('inserts a newly added transform before final validation', () => {
+test('adds a missing step at its place in the server order', () => {
   const update = vi.fn();
-  const node = {
-    id: 'clean',
-    type: 'clean',
-    profile: 'structure-aware-v1',
-    config_version: 'structure-clean-v1',
-    steps,
-  } satisfies Extract<IngestionNode, { type: 'clean' }>;
-  render(<CleaningTransformSettings node={node} capabilities={capabilities} update={update} />);
+  render(<CleaningTransformSettings node={structure} update={update} />);
 
   fireEvent.change(screen.getByRole('combobox', { name: 'Transform to add' }), {
-    target: { value: 'remove_literal_boilerplate' },
+    target: { value: 'website_selectors' },
   });
   fireEvent.click(screen.getByRole('button', { name: 'Add' }));
 
   expect(update.mock.calls.at(-1)?.[0].steps.map((step: { type: string }) => step.type)).toEqual([
     'unicode_normalize',
-    'remove_literal_boilerplate',
+    'website_selectors',
     'validate_useful_content',
   ]);
+  expect(
+    screen.queryByRole('option', { name: 'Remove literal boilerplate' }),
+  ).not.toBeInTheDocument();
 });

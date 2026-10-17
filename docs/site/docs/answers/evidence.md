@@ -12,7 +12,7 @@ A [ready collection](../knowledge-base/collections.md) for retrieval; a configur
 
 ## Inspect a run
 
-1. Open **Playground** and choose **Retrieval test**. In **Documents to search**, select the ready collection version. Enter `When is Harbor Desk open?` under **Search query**, then select **Run retrieval test**. This shows passages without generating an answer.
+1. Open **Playground** and choose **Retrieval test**. In **Index to search**, select the ready collection version. Enter `When is Harbor Desk open?` under **Search query**, then select **Run retrieval test**. This shows passages without generating an answer.
 2. Choose **Pipeline test**. Confirm the saved pipeline name and version in the toolbar, enter the same text under **Question**, and select **Run pipeline test**.
 3. Select an inline citation or **Sources & details**. Inspect the source label, supplied passage, rank and score/distance semantics. Open **Answer details** for version and run information; **Past questions** reopens prior runs.
 

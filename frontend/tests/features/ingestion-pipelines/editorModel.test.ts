@@ -205,12 +205,12 @@ describe('ingestion editor model', () => {
       describeIngestionNode({ ...extract, config_version: 'layout-ocr-v4' } as typeof extract, []),
     ).toBe('Auto · OCR off · upgrade available');
     expect(chunk).toMatchObject({ config_version: 'section-token-v2' });
-    expect(describeIngestionNode(chunk, [])).toBe('Section-aware · 600 target · 800 max tokens');
+    expect(describeIngestionNode(chunk, [])).toBe('Section-aware · Medium');
     expect(
       describeIngestionNode({ ...chunk, config_version: 'section-token-v1' } as typeof chunk, []),
-    ).toBe('Section-aware · 600 target · 800 max tokens · upgrade available');
+    ).toBe('Section-aware · Medium · upgrade available');
     expect(describeIngestionNode({ ...chunk, config_version: undefined } as typeof chunk, [])).toBe(
-      'Section-aware · 600 target · 800 max tokens · upgrade available',
+      'Section-aware · Medium · upgrade available',
     );
     expect(describeIngestionNode(extract, [], false)).toBe('Quality and language policies');
   });

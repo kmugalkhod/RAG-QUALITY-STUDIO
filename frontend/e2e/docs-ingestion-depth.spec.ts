@@ -45,8 +45,7 @@ test('documentation T3: reuse one Website snapshot through the UI for a second i
   const snapshotId = snapshots.items[0].id;
 
   await page.getByLabel('Selected stage').selectOption('chunk');
-  await page.getByLabel('Chunking algorithm').selectOption('character_window');
-  await page.getByLabel('Chunk size (characters)').fill('600');
+  await page.getByRole('radio', { name: /Small/ }).click();
   await page.getByRole('button', { name: 'Save version' }).click();
   await expect(page.getByText('Saved version 2', { exact: true })).toBeVisible();
   await page.getByRole('link', { name: 'Knowledge Base', exact: true }).click();
@@ -54,7 +53,7 @@ test('documentation T3: reuse one Website snapshot through the UI for a second i
   await page.getByRole('tab', { name: 'Source history' }).click();
   await page.getByRole('button', { name: /Snapshot 1/ }).click();
   await expect(page.getByRole('heading', { name: 'Snapshot 1' })).toBeVisible();
-  await expect(page.getByRole('link', { name: /Ingested knowledge · v1/ })).toBeVisible();
+  await expect(page.getByRole('link', { name: /Controlled website lineage · v1/ })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Snapshot reuse guide' })).toHaveAttribute(
     'href',
     'http://127.0.0.1:3000/docs/ingestion/source-history/',
@@ -78,7 +77,7 @@ test('documentation T3: reuse one Website snapshot through the UI for a second i
     timeout: 60000,
   });
   await expect(page.getByRole('link', { name: /Controlled website variant · v1/ })).toBeVisible();
-  await expect(page.getByRole('link', { name: /Ingested knowledge · v1/ })).toBeVisible();
+  await expect(page.getByRole('link', { name: /Controlled website lineage · v1/ })).toBeVisible();
   await page
     .getByTestId('snapshot-detail')
     .screenshot({ path: `${screenshots}/12-snapshot-variant.png` });

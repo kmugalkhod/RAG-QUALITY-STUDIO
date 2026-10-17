@@ -35,7 +35,7 @@ test('retrieval-only search, editable pipeline draft, immutable save, answers an
 
   await page.getByRole('button', { name: 'Retrieval test', exact: true }).click();
   await page
-    .getByLabel('Documents to search')
+    .getByLabel('Index to search')
     .selectOption({ label: 'Uploaded documents · Version 1 · 1 passages' });
   await page.getByLabel('Top k', { exact: true }).fill('3');
   await page.reload();
@@ -60,7 +60,7 @@ test('retrieval-only search, editable pipeline draft, immutable save, answers an
 
   await page.getByRole('button', { name: 'Pipeline test', exact: true }).click();
   await page
-    .getByLabel('Documents to search')
+    .getByLabel('Index to search')
     .selectOption({ label: 'Uploaded documents · Version 1 · 1 passages' });
   await page.getByLabel('Top k', { exact: true }).fill('1');
   await page

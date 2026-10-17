@@ -382,7 +382,7 @@ export function usePipelineEditor(projectId: string, pipelineId: string, version
     }
     selectNode(retriever.id);
     requestAnimationFrame(() =>
-      document.querySelector<HTMLSelectElement>('[aria-label="Documents to search"]')?.focus(),
+      document.querySelector<HTMLSelectElement>('[aria-label="Index to search"]')?.focus(),
     );
   }
 

@@ -13,7 +13,7 @@ Complete [collection publication](../knowledge-base/collections.md), with an emb
 ## Save and test
 
 1. In **Knowledge Base → Collections**, open a ready version and select **Use version 1 in a pipeline** using the displayed number. Alternatively open **Pipelines → Answer pipelines → New answer pipeline**.
-2. Inspect Question, Retriever, Prompt, LLM and Answer. Select Retriever and use **Documents to search** to confirm the exact collection version. Edit labeled node forms rather than relying on canvas dragging. Set a bounded **Top k** and review prompt/model settings.
+2. Inspect Question, Retriever, Prompt, LLM and Answer. Select Retriever and use **Index to search** to confirm the exact collection version. Edit labeled node forms rather than relying on canvas dragging. Set a bounded **Top k** and review prompt/model settings.
 3. Enter a pipeline name and select **Save version**. The UI shows unsaved changes when the draft differs from the version. Select **Open Playground** to test the saved version.
 
 Expected result: a numbered immutable answer version appears; **Pipeline test** uses that version unless you deliberately test a draft. If saving fails, inspect the validation panel, fix its node/field and retry. A missing ready index or model prevents execution. After a failed question run, inspect its status before another paid call. Continue with [answers and evidence](./evidence.md) and [versions](../concepts/versions.md). Arbitrary branching and executable code in nodes are unsupported by this template.

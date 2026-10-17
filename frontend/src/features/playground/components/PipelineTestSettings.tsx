@@ -122,7 +122,7 @@ export function PipelineTestSettings(props: Props) {
               </p>
               <h3 className={SUBHEADING}>Retrieval inputs</h3>
               <Label>
-                Documents to search
+                Index to search
                 <NativeSelect
                   className="mt-2"
                   value={retriever?.index_id || ''}

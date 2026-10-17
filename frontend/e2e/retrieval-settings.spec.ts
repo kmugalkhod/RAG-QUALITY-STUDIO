@@ -125,7 +125,7 @@ test('legacy pipeline upgrades to hybrid, persists all six settings and tests ke
   ).toEqual(original.execution);
   await page.getByRole('button', { name: 'Retrieval test', exact: true }).click();
   await page
-    .getByRole('combobox', { name: 'Documents to search', exact: true })
+    .getByRole('combobox', { name: 'Index to search', exact: true })
     .selectOption(index.id);
   await page.getByLabel('Search method').selectOption('keyword');
   await page.getByLabel('Search query', { exact: true }).fill('apples');

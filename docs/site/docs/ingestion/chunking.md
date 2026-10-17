@@ -1,23 +1,26 @@
 ---
-verified_against: "481b4eca90c5 + docs phase 2 working tree (2026-09-26)"
-title: Chunking and embedding
+verified_against: "spec 0012 slice 4 working tree (2026-10-18)"
+title: Chunking
 slug: /ingestion/chunking/
 ---
 
-Choose passage boundaries, inspect exactly what will be embedded, and publish a version compatible with the selected embedding model. Schema-v2 supports three chunking algorithms; changing one creates a new index variant rather than rewriting an old ready version.
+Choose how cleaned text is split into passages that search finds and answers cite. Changing a chunking setting creates a new index version rather than rewriting an old ready one.
 
 ## Prerequisites
 
-Use a [saved source and extraction draft](./pipelines.md), configured embeddings, and a source you may process. Indexing makes at least one embedding request for included chunks and may be billed; the app reports known counts, while dollar cost is unknown without provider pricing. The backend supplies the Embed node's provider, model, dimensions and configuration version; mismatched dimensions cannot be mixed into a destination index.
+Use a [saved source and extraction draft](./pipelines.md) and a source you may process. Previews are free; a run embeds the passages, see [embedding](./embedding.md).
 
-## Compare passage shapes
+## Choose a method and a size
 
-1. Select **Chunk** in the stage navigation. Under **Chunking algorithm**, choose **Section-aware tokens**, **Parent and child**, or **Character window (compatibility)**. Token limits use the app's stable UTF-8 byte tokenizer, not a promise of the answer model's exact token count.
-2. For **Section-aware tokens**, set **Target tokens**, **Hard maximum tokens** and **Overlap tokens**. For **Parent and child**, set child and parent targets/maxima and child overlap; child chunks are embedded and retrieval supplies saved parent text as evidence. For **Character window**, use a preset or **Chunk size (characters)** and **Overlap (characters)**. Overlap must remain smaller than the target/size. **Add heading context to embedding text only** does not change the evidence text.
-3. Select **Preview processing → Inspect stages → Chunks**. Read the count, boundaries, evidence text and any embedding prefix. Save a version and run only after the boundaries make sense. Open **Inspect published index** to verify membership and model metadata.
+1. Select **Chunk**. Choose **Section-aware (recommended)**, which keeps headings and the text under them together, or **Parent and child**, which is better for tables and short facts: search finds a small passage and answers get the larger one around it.
+2. Choose a **Passage size**: **Small**, **Medium (recommended)** or **Large**, each with about how many words it holds.
+3. Select **Preview chunks**. In **Inspect stages → Chunks** read the count, boundaries, evidence text and any embedding prefix. The summary line gives the passage count, the median, smallest and largest size, passages under 40 bytes and any passage too large to embed.
+4. Open **Advanced chunking settings** only to set exact sizes. Sizes are UTF-8 bytes (an English word is about six): **Target size (bytes)**, **Maximum size (bytes)** and **Overlap (bytes)**, or the child and parent sizes for Parent and child. **Help search find passages by their section title** adds the section title to the embedded text only; it is not shown in answers. The summary says **recommended** or **N changed**, and **Reset to recommended** restores Medium with section titles on.
 
-New pipelines use `section-token-v2` and `parent-child-v2`. When a section on a page starts with a piece under 40 tokens, such as a chart label or callout that extraction read as a heading, v2 appends it to the passage before it on the same page, provided the result stays within the hard maximum, so it is not left as a passage of a few words that search rarely ranks first. In **Parent and child** the rule applies to parents and, inside each parent, to children. The merged passage keeps the section heading of the passage it joins. A version saved with `section-token-v1` or `parent-child-v1` keeps its chunking so earlier runs reproduce; its Chunk settings show **Saved with …** and an **Upgrade chunking** button, and saving the upgrade creates a new pipeline version whose next run chunks and embeds documents again.
+Switching the method starts from its recommended sizes and replaces your settings; the notice that appears has an **Undo** button.
 
-Expected result: the preview describes passage shape without embedding; the run embeds included chunks and publishes a new ready index only on success. A second version using the same [source snapshot](./source-history.md) can have a different count without another network collection, but embedding work may recur.
+A passage, together with its section title, must fit the embedding provider's 8,191-byte limit, so a new version accepts a maximum of at most 7,891 bytes. A version saved with a larger maximum still opens and runs: it shows **Passages can be too large to embed** with **Reset sizes to recommended**, and if a passage is too large its run stops at the Chunk stage, naming the passage and page, before any embedding is paid for.
 
-If validation rejects a target, hard maximum, overlap or destination dimension, correct the labeled field and preview again. If an item yields no useful passage or an oversize finding, inspect **Extracted** and **Cleaned** before increasing limits. A failed/cancelled index remains non-ready; keep the previous ready version. See [quality](./quality.md), [source history](./source-history.md), and [collection versions](../knowledge-base/collections.md). Local deterministic tests cover the algorithms and compatibility; provider quality and charges require the reader's configured account.
+New pipelines use `section-token-v2` and `parent-child-v2`. When a section on a page starts with a piece under 40 bytes, such as a chart label that extraction read as a heading, v2 appends it to the passage before it on the same page, within the maximum, so it is not left as a passage of a few words. A version saved with `section-token-v1` or `parent-child-v1` keeps its chunking so earlier runs reproduce; it shows **Saved with …** and an **Upgrade chunking** button. A version saved with the original character window shows **Saved with the character window**, with its sizes under Advanced.
+
+Expected result: the preview shows passage shape without embedding; the run embeds the passages and publishes a new ready index only on success. If a field is invalid, its own message says why, for example "Overlap must be smaller than the target." An empty field is invalid, not 0. See [quality](./quality.md), [source history](./source-history.md), [embedding](./embedding.md) and [publishing](./publishing.md).

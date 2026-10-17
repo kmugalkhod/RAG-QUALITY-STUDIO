@@ -8,7 +8,7 @@ Choose how a ready index returns passages, then inspect the actual ranks and sco
 
 ## Compare search methods
 
-1. Open **Playground → Retrieval test → Retrieval settings**. Under **Documents to search**, select a ready collection version. Enter a **Search query** and select **Run retrieval test**. This returns passages only; it does not call the answer model or create a saved question run.
+1. Open **Playground → Retrieval test → Retrieval settings**. Under **Index to search**, select a ready collection version. Enter a **Search query** and select **Run retrieval test**. This returns passages only; it does not call the answer model or create a saved question run.
 2. In **Search settings**, select **Search method → Vector** and set **Top k** from 1 to 50. **Advanced search settings → Maximum vector distance (optional)** accepts 0–2 or a blank value for no cutoff. A smaller cosine distance is closer in vector space, not a probability of correctness.
 3. Repeat with **Keyword**. This uses prepared chunk text and needs no query embedding. Then try **Hybrid**: **Vector candidate count** and **Keyword candidate count** must each be at least **Top k** and at most 200. **Vector weight** is 0–1; the other branch receives the remaining weight. A zero-weight branch is skipped. The distance cutoff applies only to the vector branch.
 4. Open a result with **View passage [rank]**. Read the exact evidence text and **Source details**. **Settings used for this search** shows the normalized settings and diagnostics. Compare the same query and index across methods; record whether a useful passage was returned, not just its numerical score.
