@@ -79,23 +79,49 @@ LAYOUT_OCR_V5_EXTRACTOR_VERSION = (
     f"pypdf-{pypdf_version}/pymupdf-{pymupdf.VersionBind}/tesseract-cli-v2/"
     f"layout-v5/{FORMAT_V3_EXTRACTOR_VERSION}"
 )
+# layout-ocr-v6 (spec 0014) keeps text lines beside a table and labels the columns
+# of tables rebuilt from word rows.
+LAYOUT_OCR_V6_EXTRACTOR_VERSION = (
+    f"pypdf-{pypdf_version}/pymupdf-{pymupdf.VersionBind}/tesseract-cli-v2/"
+    f"layout-v6/{FORMAT_V3_EXTRACTOR_VERSION}"
+)
 # Versions that share the v2 layout, heading, table and OCR behaviour.
 LAYOUT_V2_FAMILY = frozenset(
-    {"layout-ocr-v2", "layout-ocr-v3", "layout-ocr-v4", "layout-ocr-v5"}
+    {
+        "layout-ocr-v2",
+        "layout-ocr-v3",
+        "layout-ocr-v4",
+        "layout-ocr-v5",
+        "layout-ocr-v6",
+    }
 )
 # Versions that rebuild merged-column tables from word rows (v3 onward).
-MERGED_TABLE_VERSIONS = frozenset({"layout-ocr-v3", "layout-ocr-v4", "layout-ocr-v5"})
+MERGED_TABLE_VERSIONS = frozenset(
+    {"layout-ocr-v3", "layout-ocr-v4", "layout-ocr-v5", "layout-ocr-v6"}
+)
 # Versions that straighten sideways pages, rejoin soft hyphens and read slide
 # tables (v4 onward).
-V4_READING_VERSIONS = frozenset({"layout-ocr-v4", "layout-ocr-v5"})
+V4_READING_VERSIONS = frozenset({"layout-ocr-v4", "layout-ocr-v5", "layout-ocr-v6"})
 # Versions that read a mostly empty detected table as a chart region (v5 onward).
-CHART_REGION_VERSIONS = frozenset({"layout-ocr-v5"})
+CHART_REGION_VERSIONS = frozenset({"layout-ocr-v5", "layout-ocr-v6"})
+# Versions that drop only the text lines lying mostly inside a table and give
+# rebuilt word-row tables their columns (v6 onward, spec 0014 A1-A2).
+TABLE_ROW_VERSIONS = frozenset({"layout-ocr-v6"})
+# A text line is part of a table when at least this share of it lies inside one.
+TABLE_LINE_MIN_INSIDE = 0.5
+# Number tokens whose right edges lie this close (points) share a column.
+WORD_COLUMN_TOLERANCE = 3.0
+# Columns are resolved only from at least this many data lines, and a column
+# needs a number on at least half of them.
+WORD_COLUMN_MIN_DATA_LINES = 3
+MAX_WORD_COLUMNS = 30
+MAX_WORD_COLUMN_WORDS = 2_000
 # A detected table with fewer filled cells than this share is a chart, not a table:
 # real tables in the spec 0009 corpus are 45% filled or more, charts under 30%.
 CHART_TABLE_MAX_FILL = 0.3
 # Versions that attach a table's caption to its blocks and repeat all header lines
 # of a rebuilt table (v5 onward).
-TABLE_CONTEXT_VERSIONS = frozenset({"layout-ocr-v5"})
+TABLE_CONTEXT_VERSIONS = frozenset({"layout-ocr-v5", "layout-ocr-v6"})
 # "Table 1", "Table A-2.", "Table A-4a.", "Table 3.1:", "Tableau II" at the start
 # of a block.
 _TABLE_CAPTION = re.compile(
@@ -393,6 +419,7 @@ def extractor_version_for_settings(settings: ExtractSettings) -> str:
         "layout-ocr-v3": LAYOUT_OCR_V3_EXTRACTOR_VERSION,
         "layout-ocr-v4": LAYOUT_OCR_V4_EXTRACTOR_VERSION,
         "layout-ocr-v5": LAYOUT_OCR_V5_EXTRACTOR_VERSION,
+        "layout-ocr-v6": LAYOUT_OCR_V6_EXTRACTOR_VERSION,
     }.get(settings.config_version, LAYOUT_OCR_EXTRACTOR_VERSION)
 
 
@@ -936,6 +963,198 @@ def _word_rows(page: pymupdf.Page, box: tuple[float, float, float, float]) -> li
     return result
 
 
+def _outside_tables(
+    block: dict[str, Any], table_boxes: list[tuple[float, float, float, float]]
+) -> dict[str, Any] | None:
+    """The block without the lines that lie at least half inside a table (v6).
+
+    v2-v5 drop a whole block that touches a table box, so a row printed as text
+    just below a ruled header loses its text (GAO-23-900494 Table 2). Returns None
+    when no line is left.
+    """
+
+    if not any(_intersects(tuple(block["bbox"]), box) for box in table_boxes):
+        return block
+    lines = [
+        line
+        for line in block.get("lines", [])
+        if not any(
+            _overlap_share(tuple(float(value) for value in line["bbox"]), box)
+            >= TABLE_LINE_MIN_INSIDE
+            for box in table_boxes
+        )
+    ]
+    if not lines:
+        return None
+    boxes = [tuple(float(value) for value in line["bbox"]) for line in lines]
+    return {
+        **block,
+        "lines": lines,
+        "bbox": (
+            min(box[0] for box in boxes),
+            min(box[1] for box in boxes),
+            max(box[2] for box in boxes),
+            max(box[3] for box in boxes),
+        ),
+    }
+
+
+def _joined_header(parts: list[str]) -> str:
+    """Header words in reading order, rejoining a word broken with a hyphen."""
+
+    text = ""
+    for part in parts:
+        if text.endswith(("-", "­")) and part[:1].islower():
+            text = text[:-1] + part
+        else:
+            text = f"{text} {part}" if text else part
+    return text
+
+
+def _word_columns(
+    page: pymupdf.Page, box: tuple[float, float, float, float]
+) -> list[list[str]] | None:
+    """A word-row table as a grid with labelled columns (v6), or None.
+
+    Data lines are printed lines that are mostly numbers. The right edges of their
+    numbers mark the columns: a cluster of edges within WORD_COLUMN_TOLERANCE that
+    holds a number on at least half of the data lines is a column. Text left of the
+    first column is the row label; a first column of left-aligned numbers (years)
+    is the row label too. Header words, on the lines above the first data line, go
+    to every column that holds at least a quarter of their phrase. Returns None
+    when the columns cannot be resolved, so the caller keeps the v5 lines.
+    """
+
+    words = [
+        word
+        for word in page.get_text("words", clip=pymupdf.Rect(*box))
+        if str(word[4]).strip(". ")
+    ]
+    if not words or len(words) > MAX_WORD_COLUMN_WORDS:
+        return None
+    heights = sorted(float(word[3]) - float(word[1]) for word in words)
+    tolerance = max(1.0, heights[len(heights) // 2] * 0.5)
+    grouped: list[list[tuple[float, Any]]] = []
+    for word in sorted(words, key=lambda w: ((w[1] + w[3]) / 2, w[0])):
+        centre = (float(word[1]) + float(word[3])) / 2
+        if grouped and abs(grouped[-1][-1][0] - centre) <= tolerance:
+            grouped[-1].append((centre, word))
+        else:
+            grouped.append([(centre, word)])
+    lines = [sorted((word for _, word in line), key=lambda w: w[0]) for line in grouped]
+    texts = [" ".join(str(word[4]) for word in line) for line in lines]
+    data = [index for index, text in enumerate(texts) if _is_data_line(text)]
+    if len(data) < WORD_COLUMN_MIN_DATA_LINES:
+        return None
+    header_count = _header_line_count(texts)
+    if header_count == 0 or header_count > data[0]:
+        header_count = data[0]
+
+    def numbers(index: int) -> list[Any]:
+        return [word for word in lines[index] if _NUMBER_TOKEN.match(str(word[4]))]
+
+    edges = sorted(float(word[2]) for index in data for word in numbers(index))
+    clusters: list[list[float]] = []
+    for edge in edges:
+        if clusters and edge - clusters[-1][-1] <= WORD_COLUMN_TOLERANCE:
+            clusters[-1].append(edge)
+        else:
+            clusters.append([edge])
+    columns = []
+    for cluster in clusters:
+        members = [
+            (index, word)
+            for index in data
+            for word in numbers(index)
+            if cluster[0] <= float(word[2]) <= cluster[-1]
+        ]
+        if len({index for index, _ in members}) * 2 < len(data):
+            continue
+        lefts = [float(word[0]) for _, word in members]
+        columns.append(
+            {
+                "right": cluster[-1],
+                "left": min(lefts),
+                "left_spread": max(lefts) - min(lefts),
+                "right_spread": cluster[-1] - cluster[0],
+            }
+        )
+    if len(columns) < 2:
+        return None
+    first = columns[0]
+    if (
+        first["left_spread"] <= WORD_COLUMN_TOLERANCE
+        or first["left_spread"] < first["right_spread"]
+    ):
+        # Left-aligned numbers in the first column are row labels (years).
+        columns = columns[1:]
+    if len(columns) < 1 or len(columns) > MAX_WORD_COLUMNS:
+        return None
+    label_edge = columns[0]["left"]
+    bounds = []
+    previous = label_edge
+    for column in columns:
+        bounds.append((previous, column["right"] + WORD_COLUMN_TOLERANCE))
+        previous = column["right"] + WORD_COLUMN_TOLERANCE
+    spans = [(float(box[0]), label_edge), *bounds]
+
+    def cell(word: Any) -> int:
+        if float(word[0]) < label_edge and float(word[2]) <= label_edge + (
+            WORD_COLUMN_TOLERANCE
+        ):
+            return 0
+        for index, (_, right) in enumerate(bounds):
+            if float(word[2]) <= right:
+                return index + 1
+        return len(bounds)
+
+    header_words = sorted(
+        (word for line in lines[:header_count] for word in line),
+        key=lambda w: ((w[1] + w[3]) / 2, w[0]),
+    )
+    phrases: list[list[Any]] = []
+    for word in header_words:
+        if phrases:
+            last = phrases[-1][-1]
+            same_line = abs((last[1] + last[3]) / 2 - (word[1] + word[3]) / 2) <= 1.5
+            gap = float(word[0]) - float(last[2])
+            if same_line and 0 <= gap <= 0.6 * (float(word[3]) - float(word[1])):
+                phrases[-1].append(word)
+                continue
+        phrases.append([word])
+    header: list[list[str]] = [[] for _ in spans]
+    for phrase in phrases:
+        left, right = float(phrase[0][0]), float(phrase[-1][2])
+        width = max(right - left, 1e-6)
+        text = " ".join(str(word[4]) for word in phrase)
+        hits = [
+            index
+            for index, (start, end) in enumerate(spans)
+            if (min(right, end) - max(left, start)) / width >= 0.25
+        ]
+        if not hits:
+            middle = (left + right) / 2
+            hits = [
+                min(
+                    range(len(spans)),
+                    key=lambda index: abs(
+                        (spans[index][0] + spans[index][1]) / 2 - middle
+                    ),
+                )
+            ]
+        for index in hits:
+            header[index].append(text)
+    grid = [[_joined_header(parts) for parts in header]]
+    for line in lines[header_count:]:
+        cells: list[list[str]] = [[] for _ in spans]
+        for word in line:
+            cells[cell(word)].append(str(word[4]))
+        row = [" ".join(values) for values in cells]
+        row[0] = " ".join(row[0].split()).rstrip(". ")
+        grid.append(row)
+    return grid
+
+
 def _sideways_rotation(page: pymupdf.Page) -> int:
     """270 when most text reads bottom to top, 90 when top to bottom, else 0.
 
@@ -999,6 +1218,7 @@ def _layout_page(
     rebuild_merged_tables: bool = False,
     chart_regions: bool = False,
     table_context: bool = False,
+    table_rows: bool = False,
 ) -> tuple[list[CanonicalInputSegment], int, int, bool]:
     width, height = float(page.rect.width), float(page.rect.height)
     dictionary = page.get_text("dict", sort=False)
@@ -1051,13 +1271,22 @@ def _layout_page(
         chart_boxes.extend(tables[index][1] for index in inside)
         tables = [table for index, table in enumerate(tables) if index not in inside]
         table_boxes = [box for _, box, _ in tables]
-    text_blocks = [
-        block
-        for block in raw_blocks
-        if not any(
-            _intersects(tuple(block["bbox"]), table_box) for table_box in table_boxes
-        )
-    ]
+    if table_rows:
+        # v6: only the lines that lie mostly inside a table belong to it.
+        text_blocks = [
+            kept
+            for block in raw_blocks
+            if (kept := _outside_tables(block, table_boxes)) is not None
+        ]
+    else:
+        text_blocks = [
+            block
+            for block in raw_blocks
+            if not any(
+                _intersects(tuple(block["bbox"]), table_box)
+                for table_box in table_boxes
+            )
+        ]
     ordered, suspicious = _reading_order(text_blocks, width)
     segments: list[CanonicalInputSegment] = []
     for ordinal, block in enumerate(ordered):
@@ -1098,7 +1327,22 @@ def _layout_page(
         placed_tables = []
         for table_index, (rows, box, row_boxes) in enumerate(ordered_tables):
             table_id = f"p{page_number}-t{table_index + 1}"
-            if rebuild_merged_tables and _is_merged_column_table(rows):
+            merged = rebuild_merged_tables and _is_merged_column_table(rows)
+            grid = _word_columns(page, box) if merged and table_rows else None
+            if grid is not None:
+                # v6: the rebuilt table keeps its columns and their header names.
+                groups, limited = table_row_groups(
+                    grid,
+                    table_mode,
+                    table_id=table_id,
+                    max_rows=MAX_TABLE_V2_ROWS,
+                    max_columns=MAX_TABLE_V2_COLUMNS,
+                    max_cell_characters=None,
+                    base_attributes={"origin": "layout", "engine": "pymupdf"},
+                    table_fields={"reconstruction": "word-columns"},
+                )
+                row_boxes = []
+            elif merged:
                 lines = _word_rows(page, box)
                 header_count = _header_line_count(lines) if table_context else 0
                 if header_count > 1:
@@ -1643,6 +1887,7 @@ def extract_document(
     join_soft_hyphens = settings.config_version in V4_READING_VERSIONS
     chart_regions = settings.config_version in CHART_REGION_VERSIONS
     table_context = settings.config_version in TABLE_CONTEXT_VERSIONS
+    table_rows = settings.config_version in TABLE_ROW_VERSIONS
     try:
         for index, native_text in enumerate(native_pages):
             if cancelled and cancelled():
@@ -1715,6 +1960,7 @@ def extract_document(
                             rebuild_merged_tables=rebuild_merged_tables,
                             chart_regions=chart_regions,
                             table_context=table_context,
+                            table_rows=table_rows,
                         )
                     )
                 finally:

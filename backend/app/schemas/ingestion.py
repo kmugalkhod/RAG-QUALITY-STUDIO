@@ -649,6 +649,8 @@ class ExtractNodeV2(NodeBase):
     # reading; v1 and v2 stay frozen.
     # layout-ocr-v4 (spec 0008) reads sideways pages; v3 stays frozen.
     # layout-ocr-v5 (spec 0009) reads charts as text; v4 stays frozen.
+    # layout-ocr-v6 (spec 0014) keeps rows printed beside a table and labels the
+    # columns of rebuilt tables; v5 stays frozen.
     config_version: Literal[
         "native-text-v1",
         "layout-ocr-v1",
@@ -656,6 +658,7 @@ class ExtractNodeV2(NodeBase):
         "layout-ocr-v3",
         "layout-ocr-v4",
         "layout-ocr-v5",
+        "layout-ocr-v6",
     ] = "native-text-v1"
 
     @model_validator(mode="after")
@@ -956,9 +959,10 @@ class SectionTokenChunkNodeV2(NodeBase):
     add_heading_context: bool = True
     # v2 appends a section's short first chunk to the chunk before it on the
     # same page (spec 0010); v3 also splits and overlaps at word boundaries and
-    # joins short remainders (spec 0012 Part D). Earlier versions stay as saved.
+    # joins short remainders (spec 0012 Part D); v4 gives each table row its own
+    # passage (spec 0014 Part B). Earlier versions stay as saved.
     config_version: Literal[
-        "section-token-v1", "section-token-v2", "section-token-v3"
+        "section-token-v1", "section-token-v2", "section-token-v3", "section-token-v4"
     ] = "section-token-v1"
 
     @property
@@ -998,9 +1002,9 @@ class ParentChildChunkNodeV2(NodeBase):
     parent_target_tokens: int = Field(default=900, strict=True, ge=128, le=16384)
     parent_maximum_tokens: int = Field(default=1200, strict=True, ge=128, le=32768)
     add_heading_context: bool = True
-    config_version: Literal["parent-child-v1", "parent-child-v2", "parent-child-v3"] = (
-        "parent-child-v1"
-    )
+    config_version: Literal[
+        "parent-child-v1", "parent-child-v2", "parent-child-v3", "parent-child-v4"
+    ] = "parent-child-v1"
 
     @property
     def size(self):

@@ -59,6 +59,14 @@ def render_table(grid: list[list[str]]) -> tuple[str, str]:
     return markdown, plain
 
 
+def rendered_lines(rows: list[list[str]], rendering: str | None) -> list[str]:
+    """The lines `render_table` gives these rows, header and Markdown divider
+    included, in the block's evidence rendering."""
+
+    markdown, plain = render_table(rows)
+    return (plain if rendering == "plain_text" else markdown).split("\n")
+
+
 def _group(
     header: list[str],
     body: list[list[str]],

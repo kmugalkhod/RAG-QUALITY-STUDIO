@@ -27,7 +27,12 @@ STRUCTURE_CLEANER_V2_VERSION = "structure-clean-v2"
 CHARACTER_CHUNKER_VERSION = "character-window-v1"
 SECTION_TOKEN_CHUNKER_VERSION = "section-token-v2"
 PARENT_CHILD_CHUNKER_VERSION = "parent-child-v2"
-V3_CHUNKER_VERSIONS = {"section-token-v3", "parent-child-v3"}
+V3_CHUNKER_VERSIONS = {
+    "section-token-v3",
+    "parent-child-v3",
+    "section-token-v4",
+    "parent-child-v4",
+}
 _SPACE = re.compile(r"\s+")
 
 

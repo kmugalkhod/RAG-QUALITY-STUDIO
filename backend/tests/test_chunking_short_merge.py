@@ -300,7 +300,7 @@ def test_parent_child_v2_children_stay_inside_their_parent():
 
 @pytest.mark.parametrize(
     ("factory", "version"),
-    [(_section, "section-token-v4"), (_parent_child, "parent-child-v4")],
+    [(_section, "section-token-v5"), (_parent_child, "parent-child-v5")],
 )
 def test_unknown_chunking_versions_are_rejected(factory, version):
     with pytest.raises(ValidationError):

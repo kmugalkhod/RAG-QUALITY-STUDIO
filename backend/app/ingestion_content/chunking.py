@@ -13,6 +13,7 @@ from app.ingestion_content.contracts import (
     CleanedDocumentV1,
 )
 from app.ingestion_content.processing import PreparedChunk
+from app.ingestion_content.tables import rendered_lines
 from app.ingestion_content.tokenizers import Utf8ByteTokenizer, tokenizer_for
 
 
@@ -27,7 +28,15 @@ _PROTECTED = {"list_item", "table", "code"}
 # Spec 0012 Part D: v3 starts overlap and hard splits at a sentence or word
 # boundary, joins a remainder under 40 bytes to its neighbour, and does not repeat
 # a heading that already starts the passage in its prefix. v1 and v2 are frozen.
-V3_VERSIONS = {"section-token-v3", "parent-child-v3"}
+# Spec 0014 Part B: v4 is v3 with one passage per table row, searched as
+# "column: value" text under the row's group label.
+ROW_PASSAGE_VERSIONS = {"section-token-v4", "parent-child-v4"}
+V3_VERSIONS = {"section-token-v3", "parent-child-v3", *ROW_PASSAGE_VERSIONS}
+# A continuation mark ending a table caption ("…: 1967 to 2022—Con.").
+_CONTINUED = re.compile(
+    r"\s*[—–-]?\s*(?:con\.|cont\.|continued|\(continued\)|\(cont\.?\))\s*$",
+    re.IGNORECASE,
+)
 # Versions that append a section's short first chunk to the chunk before it on the
 # same page (spec 0010). A chart callout or label read as a heading otherwise stands
 # alone as a chunk of a few words that no question ranks first.
@@ -56,6 +65,8 @@ class _Piece:
     page_number: int | None
     protected: bool
     findings: tuple[dict[str, Any], ...] = ()
+    # A v4 table row passage: what is embedded after the heading prefix.
+    search_text: str | None = None
 
 
 def _section_path(block: CanonicalBlock) -> tuple[str, ...]:
@@ -240,6 +251,143 @@ def _table_pieces(
     return result
 
 
+def _row_cells(row: list[Any]) -> list[str]:
+    return [" ".join(str(cell or "").split()) for cell in row]
+
+
+def _table_key(block: CanonicalBlock) -> str:
+    """Rows of one table share labels across its blocks and continuation pages."""
+    table = block.attributes.get("table") or {}
+    caption = table.get("caption")
+    if caption:
+        return "caption:" + _CONTINUED.sub("", " ".join(str(caption).split()))
+    return "table:" + str(table.get("table_id") or block.id)
+
+
+def _row_passages(
+    block: CanonicalBlock,
+    maximum_tokens: int,
+    tokenizer: Utf8ByteTokenizer,
+    labels: dict[str, str],
+) -> list[_Piece] | None:
+    """One piece per body row of a structured table block (v4), or None.
+
+    A row's text is the header lines when they fit `maximum_tokens`, the lines of
+    its group label in this block, and the row. Its search text is its group label
+    and "column: value" pairs. A row with text only in its first cell is a group
+    label: it opens the rows below it, and consecutive label rows join ("AMERICAN
+    INDIAN" "AND ALASKA" …). The last label carries over to the table's next block,
+    in the search text only. None when the text does not match the structured
+    rows or a row does not fit, so the block is chunked as in v3.
+    """
+
+    table = block.attributes.get("table") or {}
+    rows = table.get("rows")
+    if (
+        block.type != "table"
+        or table.get("rows_omitted")
+        or not isinstance(rows, list)
+        or len(rows) < 2
+        or not all(isinstance(row, list) for row in rows)
+    ):
+        return None
+    expected = rendered_lines(
+        [[str(cell) for cell in row] for row in rows],
+        block.attributes.get("evidence_rendering"),
+    )
+    lines = _line_ranges(block.text)
+    if len(lines) != len(expected) or any(
+        block.text[start:end].rstrip("\n") != line
+        for (start, end), line in zip(lines, expected, strict=True)
+    ):
+        return None
+    header_count = len(lines) - (len(rows) - 1)
+    headers = lines[:header_count]
+    names = _row_cells(rows[0])
+    key = _table_key(block)
+    label = labels.get(key, "")
+    label_lines: list[tuple[int, int]] = []
+    pending_label = False
+    entries: list[tuple[list[tuple[int, int]], str]] = []
+    for row, line in zip(rows[1:], lines[header_count:], strict=True):
+        cells = _row_cells(row)
+        if len(cells) > 1 and cells[0] and not any(cells[1:]):
+            if pending_label:
+                label, label_lines = f"{label} {cells[0]}", [*label_lines, line]
+            else:
+                label, label_lines = cells[0], [line]
+            pending_label = True
+            continue
+        pending_label = False
+        pairs = [
+            f"{name}: {value}" if name else value
+            for name, value in zip(names, cells, strict=False)
+            if value
+        ]
+        if not pairs:
+            continue
+        search = "; ".join(pairs)
+        entries.append(
+            ([*label_lines, line], f"{label}. {search}" if label else search)
+        )
+    if pending_label:
+        entries.append((label_lines, label))
+    labels[key] = label
+    pieces = []
+    for row_lines, search in entries:
+        if tokenizer.count(search) > EMBEDDING_INPUT_BYTES - HEADING_PREFIX_BYTES:
+            return None
+        for ranges in ([*headers, *row_lines], row_lines):
+            text = "".join(block.text[start:end] for start, end in ranges)
+            if tokenizer.count(text) <= maximum_tokens:
+                pieces.append(replace(_piece(block, ranges), search_text=search))
+                break
+        else:
+            return None
+    return pieces or None
+
+
+def _row_pieces_by_block(
+    document: CleanedDocumentV1, maximum_tokens: int, tokenizer: Utf8ByteTokenizer
+) -> dict[str, list[_Piece]]:
+    """Row passages of every structured table block, in document order."""
+    labels: dict[str, str] = {}
+    result = {}
+    for block in document.blocks:
+        if block.type != "table":
+            continue
+        pieces = _row_passages(block, maximum_tokens, tokenizer, labels)
+        if pieces is not None:
+            result[block.id] = pieces
+    return result
+
+
+def _with_row_pieces(
+    segment: list[_Piece], rows: dict[str, list[_Piece]], used: set[tuple[str, int]]
+) -> list[_Piece]:
+    """A parent's segment with its table pieces replaced by their row passages.
+
+    Each row passage goes with the first table piece that holds the start of its
+    row line, so every row is a child of exactly one parent.
+    """
+    result: list[_Piece] = []
+    for piece in segment:
+        block_id = piece.mappings[0].block.id if piece.mappings else None
+        if block_id not in rows or piece.mappings[0].block.type != "table":
+            result.append(piece)
+            continue
+        for index, row in enumerate(rows[block_id]):
+            start = row.mappings[-1].block_start
+            if (block_id, index) in used or not any(
+                mapping.block_start <= start < mapping.block_end
+                for mapping in piece.mappings
+            ):
+                continue
+            used.add((block_id, index))
+            result.append(row)
+    return result
+
+
 def _block_pieces(
     block: CanonicalBlock,
     maximum_tokens: int,
@@ -269,6 +417,7 @@ def _sections(
     maximum_tokens: int,
     tokenizer: Utf8ByteTokenizer,
     v3: bool = False,
+    rows: dict[str, list[_Piece]] | None = None,
 ) -> list[list[_Piece]]:
     result: list[list[_Piece]] = []
     key: tuple[tuple[str, ...], int | None] | None = None
@@ -279,8 +428,34 @@ def _sections(
         if key != block_key:
             result.append([])
             key = block_key
-        result[-1].extend(_block_pieces(block, maximum_tokens, tokenizer, v3))
+        if rows is not None and block.id in rows:
+            result[-1].extend(rows[block.id])
+        else:
+            result[-1].extend(_block_pieces(block, maximum_tokens, tokenizer, v3))
     return [value for value in result if value]
+
+
+def _is_row_group(group: list[_Piece]) -> bool:
+    return any(piece.search_text is not None for piece in group)
+
+
+def _section_groups(section: list[_Piece], **pack) -> list[list[_Piece]]:
+    """Pack a section's text; each v4 table row passage stays a group of its own."""
+    if not _is_row_group(section):
+        return _pack(section, **pack)
+    groups: list[list[_Piece]] = []
+    run: list[_Piece] = []
+    for piece in section:
+        if piece.search_text is None:
+            run.append(piece)
+            continue
+        if run:
+            groups.extend(_pack(run, **pack))
+            run = []
+        groups.append([piece])
+    if run:
+        groups.extend(_pack(run, **pack))
+    return groups
 
 
 def _joined_tokens(pieces: list[_Piece], tokenizer: Utf8ByteTokenizer) -> int:
@@ -503,7 +678,7 @@ def _packed_sections(
             pending = None
         groups = [
             (group, [group])
-            for group in _pack(
+            for group in _section_groups(
                 section,
                 target_tokens=target_tokens,
                 maximum_tokens=maximum_tokens,
@@ -515,7 +690,12 @@ def _packed_sections(
         if merge_short and result and groups:
             previous, segments = result[-1]
             first, first_segments = groups[0]
-            if short(first) and can_join(previous, first):
+            if (
+                short(first)
+                and can_join(previous, first)
+                and not _is_row_group(first)
+                and not _is_row_group(previous)
+            ):
                 # The merged chunk keeps the receiving chunk's section path; the
                 # short text itself, heading included, stays in the evidence.
                 moved = repathed(first_segments, _common_path(previous))
@@ -524,7 +704,12 @@ def _packed_sections(
                     [*segments, *moved],
                 )
                 groups = groups[1:]
-        if v3 and len(groups) == 1 and short(groups[0][0]):
+        if (
+            v3
+            and len(groups) == 1
+            and short(groups[0][0])
+            and not _is_row_group(groups[0][0])
+        ):
             pending = groups.pop()[0]
         result.extend(groups)
     if pending is not None:
@@ -624,6 +809,10 @@ def _prepared(
     pages = {piece.page_number for piece in pieces}
     findings = tuple(value for piece in pieces for value in piece.findings)[:100]
     embedding_text = prefix + evidence
+    if len(pieces) == 1 and pieces[0].search_text is not None:
+        # v4: a table row is searched by its label and "column: value" pairs.
+        embedding_text = prefix + pieces[0].search_text
+        provenance = {**provenance, "table_passage": "row-v1"}
     return (
         PreparedChunk(
             ordinal=ordinal,
@@ -659,11 +848,17 @@ def chunk_structured_document(
     provenance = provenance or {}
     merge_short = settings.config_version in SHORT_CHUNK_MERGE_VERSIONS
     v3 = settings.config_version in V3_VERSIONS
+    row_passages = settings.config_version in ROW_PASSAGE_VERSIONS
     chunks: list[PreparedChunk] = []
     spans: dict[int, list[ChunkBlockSpanV1]] = {}
 
     if settings.algorithm == "section_token":
-        sections = _sections(document, settings.maximum_tokens, tokenizer, v3)
+        rows = (
+            _row_pieces_by_block(document, settings.maximum_tokens, tokenizer)
+            if row_passages
+            else None
+        )
+        sections = _sections(document, settings.maximum_tokens, tokenizer, v3, rows)
         for group, _segments in _packed_sections(
             sections,
             target_tokens=settings.target_tokens,
@@ -689,6 +884,13 @@ def chunk_structured_document(
         return chunks, spans
 
     sections = _sections(document, settings.child_maximum_tokens, tokenizer, v3)
+    # v4: parents are built as in v3; their table rows become children of their own.
+    rows = (
+        _row_pieces_by_block(document, settings.child_maximum_tokens, tokenizer)
+        if row_passages
+        else None
+    )
+    used_rows: set[tuple[str, int]] = set()
     for parent_group, segments in _packed_sections(
         sections,
         target_tokens=settings.parent_target_tokens,
@@ -713,6 +915,14 @@ def chunk_structured_document(
         spans[parent.ordinal] = parent_spans
         # Children pack within each section segment of the parent, so a merged
         # short segment joins the child before it rather than its overlap.
+        if rows:
+            segments = [
+                segment
+                for segment in (
+                    _with_row_pieces(segment, rows, used_rows) for segment in segments
+                )
+                if segment
+            ]
         for child_group, _child_segments in _packed_sections(
             segments,
             target_tokens=settings.child_target_tokens,
