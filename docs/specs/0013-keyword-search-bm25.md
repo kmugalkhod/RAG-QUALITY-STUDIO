@@ -1,7 +1,7 @@
 # 0013. Keyword search that ranks rare words: BM25 for the keyword and hybrid modes
 
 **Date**: 2026-10-18
-**Status**: Draft for owner approval. Nothing is built. D1-D6 below need a decision; each has a recommendation.
+**Status**: Recommendations D1-D6 accepted 2026-10-18; **stopped after Slice 0** by its own rule. Hybrid with BM25 loses vector top-5 hits (w1-q1 and g5-q2 on the A5 index) and finds none of f2-q9, f2-q10 and g3-q2. g3-q2 is an extraction bug (GAO Table 2's middle rows were dropped) and the Census rows are a table-granularity problem. Results: `docs/qa/keyword-search-2026-10/README.md`. Parts A-C are not built.
 
 ## Summary
 

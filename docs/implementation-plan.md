@@ -2,7 +2,9 @@
 
 ## Keyword search with BM25 — spec 0013 (drafted 2026-10-18)
 
-**Status:** draft for owner approval; nothing built. [Spec 0013](specs/0013-keyword-search-bm25.md) makes the `keyword` and `hybrid` modes rank rare words (BM25 from per-version term statistics, no new extension), keeps saved pipelines on `retrieval-v2`, and switches new answer pipelines to hybrid only if a proof round loses no answer against A5. Decisions D1-D6 are open; Slice 0 measures first and stops if hybrid loses a vector top-5 hit.
+**Status:** recommendations D1-D6 accepted 2026-10-18 ("do all things which are required"); **stopped after Slice 0** by the spec's own rule, nothing else built. [Spec 0013](specs/0013-keyword-search-bm25.md).
+
+**Slice 0 (measure first), 2026-10-18, $0.0002 in query embeddings:** BM25 (k1 1.2, b 0.75, `simple` analysis over section path and passage, any word may match) computed offline over the A5 and A5p indexes, fused with the app's vector top 50 by its reciprocal-rank rule (`backend/scripts/keyword_search/slice0.py`, `targets.py`; `docs/qa/keyword-search-2026-10/`). On A5 files, top 5 vector 41, BM25 38, hybrid 43; rank 1 23, 25, 30. Hybrid gains f1-q3, g8-q1 and g8-q2 but loses w1-q1 and g5-q2 (websites 27 → 26); on A5p it loses four and gains none. None of the targets is found. Causes: g3-q2's answer is not in the index at all, because `layout-ocr-v5` dropped the middle rows of GAO Table 2 (only the header, one row and the total survive); f2-q9 and f2-q10 answer from one large Census Table A-2 passage of many look-alike year rows, ranked 36th and 6th by BM25. Next steps for the owner: an extractor fix for dropped table rows and row-level table passages with caption and header context (spec 0008's open decision 2); optionally hybrid-BM25 as an opt-in search choice for its rank-1 gains.
 
 ## Clean, Chunk, Embed and Publish Index — spec 0012 (drafted 2026-10-17)
 
