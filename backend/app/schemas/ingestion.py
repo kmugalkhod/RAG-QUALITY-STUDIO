@@ -960,9 +960,15 @@ class SectionTokenChunkNodeV2(NodeBase):
     # v2 appends a section's short first chunk to the chunk before it on the
     # same page (spec 0010); v3 also splits and overlaps at word boundaries and
     # joins short remainders (spec 0012 Part D); v4 gives each table row its own
-    # passage (spec 0014 Part B). Earlier versions stay as saved.
+    # passage (spec 0014 Part B); v5 keeps each table's v3 passage beside its row
+    # passages and reads a title row above the header (spec 0015 S3). Earlier
+    # versions stay as saved.
     config_version: Literal[
-        "section-token-v1", "section-token-v2", "section-token-v3", "section-token-v4"
+        "section-token-v1",
+        "section-token-v2",
+        "section-token-v3",
+        "section-token-v4",
+        "section-token-v5",
     ] = "section-token-v1"
 
     @property
@@ -1003,7 +1009,11 @@ class ParentChildChunkNodeV2(NodeBase):
     parent_maximum_tokens: int = Field(default=1200, strict=True, ge=128, le=32768)
     add_heading_context: bool = True
     config_version: Literal[
-        "parent-child-v1", "parent-child-v2", "parent-child-v3", "parent-child-v4"
+        "parent-child-v1",
+        "parent-child-v2",
+        "parent-child-v3",
+        "parent-child-v4",
+        "parent-child-v5",
     ] = "parent-child-v1"
 
     @property

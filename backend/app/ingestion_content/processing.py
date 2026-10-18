@@ -32,6 +32,8 @@ V3_CHUNKER_VERSIONS = {
     "parent-child-v3",
     "section-token-v4",
     "parent-child-v4",
+    "section-token-v5",
+    "parent-child-v5",
 }
 _SPACE = re.compile(r"\s+")
 

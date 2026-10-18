@@ -73,6 +73,7 @@ export const chunkVersionChanges: Record<number, string> = {
   2: 'joins a short piece on a page, such as a chart label or callout read as a heading, to the passage before it',
   3: 'starts overlap and splits long text between words, never inside one, counts "。！？" as sentence ends, joins any remainder under 40 bytes to the passage next to it, and leaves out a heading the passage already starts with from its section prefix',
   4: 'gives each table row a passage of its own, searched by its column names and values under its group label, such as "ALL RACES"',
+  5: "keeps each table's whole passage beside its row passages, so a question about a list across rows still finds the table, and takes a spreadsheet's header from the row below a title row",
 };
 
 /** A saved token chunker without a version runs v1, as the server reads it. */
