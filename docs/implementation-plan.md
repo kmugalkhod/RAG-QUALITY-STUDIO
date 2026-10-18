@@ -2,7 +2,9 @@
 
 ## Better search and a clearer ingestion editor — spec 0015 (drafted 2026-10-18)
 
-**Status:** approved 2026-10-18 (D1 Rerank node decided by the owner, D2-D8 as recommended); Slice 0 next. [Spec 0015](specs/0015-better-search-and-editor.md).
+**Status:** approved 2026-10-18 (D1 Rerank node decided by the owner, D2-D8 as recommended). [Spec 0015](specs/0015-better-search-and-editor.md).
+
+**Slice 0 (measure first, paid), 2026-10-18:** `backend/scripts/rerank/measure.py` reranked the A5 and A6p candidates of the 77 answerable questions offline with prompt `rerank-v1` (listwise, top 5, retriever order fills any gap). `google/gemini-2.5-flash-lite` over the app's vector top 30 meets the retrieval target on A6p: 75 of 77 in the top 5 (71 before), rank 1 49 → 67, no question lost, at most $0.0013 per question, median 1.08 s. On A5 it reaches 72 (68 before; four answers are not in A5's top 30), rank 1 42 → 64, no loss. A repeat run gave the same top 5 for every question. `google/gemini-2.5-flash` gives the same top 5 for three times the cost (max $0.0038 per question, over target); BM25 candidates add one question per round for about 60% more cost. Decisions under the spec: D2 picks flash-lite; D3 skips S2 (Slice 2). Spent $0.37 of the spec's $1 cap. Details: `docs/qa/search-and-editor-2026-10/README.md`. Slice 1 (Rerank node) next.
 
 **Part 1, search (7 → 8.5):**
 - an optional **Rerank node** between Retriever and Prompt (answer graph schema version 3; the owner decided on a node on 2026-10-18), using an OpenRouter chat model over 30 candidates;
