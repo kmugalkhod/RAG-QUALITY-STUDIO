@@ -72,6 +72,7 @@ export const versionNumber = (version: string | undefined) =>
 export const chunkVersionChanges: Record<number, string> = {
   2: 'joins a short piece on a page, such as a chart label or callout read as a heading, to the passage before it',
   3: 'starts overlap and splits long text between words, never inside one, counts "。！？" as sentence ends, joins any remainder under 40 bytes to the passage next to it, and leaves out a heading the passage already starts with from its section prefix',
+  4: 'gives each table row a passage of its own, searched by its column names and values under its group label, such as "ALL RACES"',
 };
 
 /** A saved token chunker without a version runs v1, as the server reads it. */
@@ -131,7 +132,12 @@ export const isLayoutExtractVersion = (version: string | undefined) =>
   version === 'layout-ocr-v2' ||
   version === 'layout-ocr-v3' ||
   version === 'layout-ocr-v4' ||
-  version === currentExtractVersion;
+  version === 'layout-ocr-v5' ||
+  version === 'layout-ocr-v6';
+
+/** A saved layout extractor older than the one new drafts use. */
+export const extractUpgradeAvailable = (version: string | undefined) =>
+  isLayoutExtractVersion(version) && versionNumber(version) < versionNumber(currentExtractVersion);
 
 /**
  * After a source changes kind, a still-default publish choice follows the new
@@ -1332,7 +1338,7 @@ export function describeIngestionNode(
     if (!readsFiles) {
       // Page-based sources use only the quality and language policies.
       const pages = 'Quality and language policies';
-      return node.config_version === currentExtractVersion ? pages : `${pages} · upgrade available`;
+      return extractUpgradeAvailable(node.config_version) ? `${pages} · upgrade available` : pages;
     }
     const strategy =
       node.strategy === 'layout_aware'
@@ -1341,9 +1347,9 @@ export function describeIngestionNode(
           ? 'Native'
           : 'Auto';
     const summary = `${strategy} · OCR ${node.ocr?.mode ?? 'off'}`;
-    return node.config_version === currentExtractVersion
-      ? summary
-      : `${summary} · upgrade available`;
+    return extractUpgradeAvailable(node.config_version)
+      ? `${summary} · upgrade available`
+      : summary;
   }
   if (node.type === 'clean') {
     if (node.profile !== 'structure-aware-v1') {

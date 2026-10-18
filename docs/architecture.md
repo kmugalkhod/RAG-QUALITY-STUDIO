@@ -833,3 +833,25 @@ The Prompt node has an optional `answer_policy`: `strict-v1` (original) or `comp
 Citation validation ignores brackets inside fenced and inline code, which are code rather than source labels.
 
 Evidence: on the Deep Agents overview index, "Now give How to code the Deep agents" with the old pipeline (vector, top 5, strict) returned `INSUFFICIENT_EVIDENCE` at both 8k and 32k context. `complete-v2` with vector top 5 still refused; with hybrid top 10 it answered with `create_deep_agent` and `interrupt_on`; with hybrid top 20 it gave the full quickstart (import, tool, per-provider construction, `agent.invoke`), task planning and human-in-the-loop for about $0.003 and 6–8 s. This is one index and two phrasings, not the 54-question real-source set; refusal of unanswerable questions under `complete-v2` has not been measured yet.
+
+## Table rows kept and findable (spec 0014, 2026-10-18)
+
+`layout-ocr-v6` changes two table rules, and v1-v5 keep theirs. A text line is dropped
+as part of a table only when at least half of it lies inside a detected table box;
+earlier versions dropped any block that touched a box, which lost rows printed as text
+under a ruled header. A table rebuilt from word positions gets columns from the right
+edges of the numbers on its data lines, and its header words go to the columns they
+are printed over; if fewer than three data lines agree, the v5 one-line-per-row form is
+kept.
+
+`section-token-v4` and `parent-child-v4` give each structured table row its own
+passage. The passage text is still exact source spans (header lines when they fit, the
+row's group label lines and the row), so evidence and citations are unchanged in kind.
+The searched text is no longer only "heading prefix + evidence" for these passages: it
+is the heading prefix followed by the row's group label and "column: value" pairs built
+from the block's stored rows, recorded as `table_passage: "row-v1"` in the chunk's
+provenance. The answer model and the evidence inspector see the passage text, never
+the derived searched text. A group label from an earlier block of the same table
+(matched by caption without its "—Con." mark) is carried into the searched text only,
+because a passage cites one page. Trade-off: about 1.8 times as many passages for
+table-heavy reports (Census P60-279: 511 → 1,277), all small.

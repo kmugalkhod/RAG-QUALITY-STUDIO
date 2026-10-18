@@ -16,6 +16,7 @@ import {
   extractDifferences,
   extractLegacySettings,
   extractReadsFiles,
+  extractUpgradeAvailable,
   fallbackQualityPolicy,
   fieldErrorsForNode,
   ingestionStageLabels as labels,
@@ -621,7 +622,7 @@ export function IngestionNodeSettings({
               </>
             ) : (
               <>
-                {selected.config_version !== currentExtractVersion && (
+                {extractUpgradeAvailable(selected.config_version) && (
                   <Callout role="note" title={`Saved with ${selected.config_version}`}>
                     <p>
                       This version keeps its original extractor so earlier runs reproduce. The

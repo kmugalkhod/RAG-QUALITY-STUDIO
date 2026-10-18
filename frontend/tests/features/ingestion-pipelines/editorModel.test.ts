@@ -204,7 +204,14 @@ describe('ingestion editor model', () => {
     expect(
       describeIngestionNode({ ...extract, config_version: 'layout-ocr-v4' } as typeof extract, []),
     ).toBe('Auto · OCR off · upgrade available');
+    // A version newer than new drafts use (spec 0014, before its proof) is not "older".
+    expect(
+      describeIngestionNode({ ...extract, config_version: 'layout-ocr-v6' } as typeof extract, []),
+    ).toBe('Auto · OCR off');
     expect(chunk).toMatchObject({ config_version: 'section-token-v3' });
+    expect(
+      describeIngestionNode({ ...chunk, config_version: 'section-token-v4' } as typeof chunk, []),
+    ).toBe('Section-aware · Medium');
     expect(describeIngestionNode(chunk, [])).toBe('Section-aware · Medium');
     expect(
       describeIngestionNode({ ...chunk, config_version: 'section-token-v1' } as typeof chunk, []),

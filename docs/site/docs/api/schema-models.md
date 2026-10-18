@@ -546,7 +546,7 @@ Provider-reported embedding usage of the run's index. Vectors reused from earlie
 | `tables` | string: preserve, markdown, plain_text | no | default=preserve |
 | `quality_policy` | [`DefaultQualityPolicyV1`](#defaultqualitypolicyv1) or [`StrictQualityPolicyV1`](#strictqualitypolicyv1) or [`WarnQualityPolicyV1`](#warnqualitypolicyv1) or string: default-v1, strict-v1, warn-v1 | no | default=default-v1 |
 | `language_policy` | [`LanguagePolicyV1`](#languagepolicyv1) | no | — |
-| `config_version` | string: native-text-v1, layout-ocr-v1, layout-ocr-v2, layout-ocr-v3, layout-ocr-v4, layout-ocr-v5 | no | default=native-text-v1 |
+| `config_version` | string: native-text-v1, layout-ocr-v1, layout-ocr-v2, layout-ocr-v3, layout-ocr-v4, layout-ocr-v5, layout-ocr-v6 | no | default=native-text-v1 |
 
 ## ExtractionCapabilities
 
@@ -1005,7 +1005,7 @@ Type: [`IngestionExecutionV1`](#ingestionexecutionv1) or [`IngestionExecutionV2`
 | `parent_target_tokens` | integer | no | minimum=128.0, maximum=16384.0, default=900 |
 | `parent_maximum_tokens` | integer | no | minimum=128.0, maximum=32768.0, default=1200 |
 | `add_heading_context` | boolean | no | default=True |
-| `config_version` | string: parent-child-v1, parent-child-v2, parent-child-v3 | no | default=parent-child-v1 |
+| `config_version` | string: parent-child-v1, parent-child-v2, parent-child-v3, parent-child-v4 | no | default=parent-child-v1 |
 
 ## PipelinePage
 
@@ -1407,7 +1407,7 @@ Type: [`IngestionExecutionV1`](#ingestionexecutionv1) or [`IngestionExecutionV2`
 | `maximum_tokens` | integer | no | minimum=64.0, maximum=16384.0, default=800 |
 | `overlap_tokens` | integer | no | minimum=0.0, maximum=4096.0, default=80 |
 | `add_heading_context` | boolean | no | default=True |
-| `config_version` | string: section-token-v1, section-token-v2, section-token-v3 | no | default=section-token-v1 |
+| `config_version` | string: section-token-v1, section-token-v2, section-token-v3, section-token-v4 | no | default=section-token-v1 |
 
 ## SensitiveDataPolicyV1
 

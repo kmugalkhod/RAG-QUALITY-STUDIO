@@ -1,5 +1,17 @@
 # Implementation plan
 
+## Table rows kept and findable — spec 0014 (started 2026-10-18)
+
+**Status:** approved 2026-10-18 ("go ahead with the table fixes"); recommendations D1-D7 taken as accepted. Slices 0-4 done; Slice 5 (paid proof round) next. New drafts keep `layout-ocr-v5` and v3 chunking until the proof round passes (D6). [Spec 0014](specs/0014-table-rows-kept-and-findable.md).
+
+**Slice 0 (measure first), 2026-10-18, under $0.04 in embeddings:** the Census report and the GAO testimony were reprocessed with `layout-ocr-v6` and v4 chunking through the worker's own path, and their passages replaced in the A5 and A5p indexes (`backend/scripts/table_rows/slice0.py`, `docs/qa/table-rows-2026-10/`). Over the 37 answerable questions of the two tracks, vector top 5 went 31 → 33 on A5 and 32 → 33 on A5p, hybrid 33 → 36 and 29 → 31, and no vector top-5 hit was lost. g3-q2 is now rank 1 in every mode, f2-q10 rank 2 by vector search on A5, and f2-q9 rank 3 by hybrid search (still not in the vector top 5).
+
+**Slices 1-2 (`layout-ocr-v6`):** text lines are dropped only when at least half of a line lies inside a table box (`_outside_tables`); tables rebuilt from word rows get labelled columns from the right edges of their data numbers (`_word_columns`), with a fallback to v5's lines.
+
+**Slice 3 (`section-token-v4`, `parent-child-v4`):** one passage per structured table row, with header (when it fits), group label and row as text, searched as "column: value" pairs; parent-child parents unchanged from v3.
+
+**Slice 4:** the editor treats v6 and v4 as known versions and offers an upgrade only to a newer version; docs updated. **Checks:** 19 new backend tests; full backend suite in the isolated stack 874 passed, 2 failed (the known `test_connections` tamper and Redis/Celery failures); frontend lint, typecheck and ingestion-pipeline tests (194) pass. The API reference generator fails on the committed code as well (`/answer-deployments` is unclassified), so the three version lists in `schema-models.md` were updated by hand.
+
 ## Keyword search with BM25 — spec 0013 (drafted 2026-10-18)
 
 **Status:** recommendations D1-D6 accepted 2026-10-18 ("do all things which are required"); **stopped after Slice 0** by the spec's own rule, nothing else built. [Spec 0013](specs/0013-keyword-search-bm25.md).
