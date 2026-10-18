@@ -583,6 +583,14 @@ def test_existing_files_preview_run_publication_and_exact_answer_index(ingestion
         "reused_vectors": 0,
     }
     assert complete["published_count"] == 1
+    # Spec 0015 U4: the versions this run used, from its saved execution.
+    from app.pipelines.parsing import PARSER_VERSION
+
+    assert complete["stage_versions"] == {
+        "extract": [PARSER_VERSION],
+        "clean": ["legacy-whitespace-boilerplate-v1"],
+        "chunk": ["character-window-v1"],
+    }
     filtered_runs = client.get(
         f"/api/projects/{project_id}/ingestion-runs?pipeline_version_id={version['id']}"
     ).json()
@@ -751,6 +759,12 @@ def test_processing_preview_is_ephemeral_paged_and_retryable(ingestion_api):
     assert item["quality_decision"] == "pass"
     assert item["processing_status"] == "succeeded"
     assert item["processing_config_hash"] == preview["configuration_hash"]
+    chunk = client.get(
+        f"/api/projects/{project_id}/source-previews/{preview_id}"
+        "/items/0/representations?stage=chunks&limit=1"
+    ).json()["items"][0]
+    # Spec 0015 U4: an ordinary passage is searched as its own text.
+    assert chunk["metadata"]["searched_text"] is None
     for stage in ("raw", "extracted", "cleaned", "diff", "chunks"):
         page = client.get(
             f"/api/projects/{project_id}/source-previews/{preview_id}"

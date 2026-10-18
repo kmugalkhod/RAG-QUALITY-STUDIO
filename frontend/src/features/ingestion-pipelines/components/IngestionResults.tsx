@@ -2,6 +2,7 @@ import { useEffect, useState, type CSSProperties } from 'react';
 import { Check, FileText, Square, X } from 'lucide-react';
 
 import { Pagination } from '../../../components/Pagination';
+import { SearchedAs } from '../../../components/SearchedAs';
 import { CARD, LINK, LIST, LIST_ROW, META, PRE } from '../../../components/parts';
 import { Button } from '../../../components/ui/button';
 import { Label } from '../../../components/ui/label';
@@ -40,6 +41,9 @@ const INSPECTOR = cn(
   'flex flex-col gap-4 p-4 md:p-6 [&>p]:text-sm [&>p]:text-foreground-muted',
 );
 const TAB = 'aria-selected:border-accent aria-selected:text-accent';
+// Previews store the section prefix without its blank-line separator.
+const previewPrefix = (prefix: string) => (prefix ? `${prefix}\n\n` : '');
+
 const QUALITY =
   'grid grid-cols-2 gap-x-4 gap-y-2 text-sm text-foreground [&_dd]:wrap-anywhere [&_dt]:text-foreground-muted';
 /** Stacked record cards: a heading block, labeled text and optional detail. */
@@ -410,6 +414,19 @@ export function IngestionPreviewResults({
                   <pre className={PRE}>{item.text || 'Binary artifact metadata only'}</pre>
                 </section>
                 {stage === 'chunks' && typeof item.metadata.embedding_prefix === 'string' && (
+                  <SearchedAs
+                    label={`Preview record ${item.ordinal + 1} searched as`}
+                    text={item.text}
+                    prefix={previewPrefix(item.metadata.embedding_prefix)}
+                    embeddingText={
+                      previewPrefix(item.metadata.embedding_prefix) +
+                      (typeof item.metadata.searched_text === 'string'
+                        ? item.metadata.searched_text
+                        : item.text)
+                    }
+                  />
+                )}
+                {stage === 'chunks' && typeof item.metadata.embedding_prefix === 'string' && (
                   <small>
                     {item.metadata.token_count == null
                       ? 'Legacy size'
@@ -657,6 +674,13 @@ export function IngestionRunResults({
       <div className={HEADING_ROW}>
         <div className={HEADING_COPY}>
           <h2 id="ingestion-run-details-heading">Run details</h2>
+          {run.stage_versions && (
+            <p className={META} data-testid="run-stage-versions">
+              Extractor {run.stage_versions.extract.join(', ') || 'unknown'} · cleaner{' '}
+              {run.stage_versions.clean.join(', ') || 'unknown'} · chunker{' '}
+              {run.stage_versions.chunk.join(', ') || 'unknown'}
+            </p>
+          )}
           <FetchLimits policies={run.fetch_policies} />
         </div>
         <div className="flex flex-wrap gap-x-4">
@@ -1188,14 +1212,14 @@ export function IngestionRunResults({
                       <small>Evidence text</small>
                       <pre className={PRE}>{chunk.evidence_text}</pre>
                     </section>
-                    {chunk.embedding_prefix && (
-                      <section aria-label={`Chunk ${chunk.ordinal + 1} embedding prefix`}>
-                        <small>
-                          Embedding-only prefix · {chunk.embedding_token_count ?? 'unknown'} total
-                          tokens
-                        </small>
-                        <pre className={PRE}>{chunk.embedding_prefix}</pre>
-                      </section>
+                    <SearchedAs
+                      label={`Chunk ${chunk.ordinal + 1} searched as`}
+                      text={chunk.evidence_text}
+                      prefix={chunk.embedding_prefix}
+                      embeddingText={chunk.embedding_text}
+                    />
+                    {chunk.embedding_text !== chunk.evidence_text && (
+                      <small>{chunk.embedding_token_count ?? 'unknown'} searched tokens</small>
                     )}
                     {chunk.findings.length > 0 && (
                       <ul className={RECORDS}>

@@ -584,3 +584,28 @@ test('shows Website retry attempts, client-rendering warnings and nested sitemap
   expect(screen.getByText(/Likely needs JavaScript rendering — not supported/)).toBeVisible();
   expect(screen.getByText(/sitemap · succeeded · 0 chunks · Nested sitemap/)).toBeVisible();
 });
+
+test('Run details name the extract, clean and chunk versions the run used', () => {
+  render(
+    <IngestionRunResults
+      projectId="project-1"
+      run={{
+        ...run,
+        stage_versions: {
+          extract: ['layout-ocr-v6'],
+          clean: ['structure-clean-v2'],
+          chunk: ['parent-child-v4', 'section-token-v5'],
+        },
+      }}
+      items={[item]}
+    />,
+  );
+  expect(screen.getByTestId('run-stage-versions')).toHaveTextContent(
+    'Extractor layout-ocr-v6 · cleaner structure-clean-v2 · chunker parent-child-v4, section-token-v5',
+  );
+});
+
+test('Run details say nothing about versions a run did not record', () => {
+  render(<IngestionRunResults projectId="project-1" run={run} items={[item]} />);
+  expect(screen.queryByTestId('run-stage-versions')).not.toBeInTheDocument();
+});

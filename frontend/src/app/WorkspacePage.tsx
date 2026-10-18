@@ -9,11 +9,6 @@ const ExperimentsPage = lazy(() =>
     default: module.ExperimentsPage,
   })),
 );
-const IngestionPipelineEditor = lazy(() =>
-  import('../features/ingestion-pipelines/IngestionPipelineEditor').then((module) => ({
-    default: module.IngestionPipelineEditor,
-  })),
-);
 const GuidedSetup = lazy(() =>
   import('../features/ingestion-pipelines/GuidedSetup').then((module) => ({
     default: module.GuidedSetup,
@@ -24,9 +19,9 @@ const KnowledgeBase = lazy(() =>
     default: module.KnowledgeBase,
   })),
 );
-const PipelineEditor = lazy(() =>
-  import('../features/pipelines/PipelineEditor').then((module) => ({
-    default: module.PipelineEditor,
+const PipelineRoute = lazy(() =>
+  import('../features/pipelines/PipelineRoute').then((module) => ({
+    default: module.PipelineRoute,
   })),
 );
 const PipelinesPage = lazy(() =>
@@ -105,19 +100,12 @@ function WorkspaceRoute({ route, onProjectCreated }: WorkspacePageProps) {
         return <GuidedSetup projectId={projectId} />;
       }
       return detail ? (
-        query.get('kind') === 'ingestion' ? (
-          <IngestionPipelineEditor
-            projectId={projectId}
-            pipelineId={detail}
-            versionId={query.get('version') || ''}
-          />
-        ) : (
-          <PipelineEditor
-            projectId={projectId}
-            pipelineId={detail}
-            versionId={query.get('version') || ''}
-          />
-        )
+        <PipelineRoute
+          projectId={projectId}
+          pipelineId={detail}
+          versionId={query.get('version') || ''}
+          linkedKind={query.get('kind')}
+        />
       ) : (
         <PipelinesPage projectId={projectId} kind={query.get('kind') || 'answer'} />
       );

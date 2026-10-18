@@ -389,11 +389,15 @@ def _representations(prepared, raw, media_type):
         )
     for chunk in prepared.chunks:
         embedding_text = chunk.get("embedding_text") or chunk["text"]
-        prefix = (
-            embedding_text[: -len(chunk["text"])].rstrip()
-            if embedding_text.endswith(chunk["text"])
-            else ""
-        )
+        saved_prefix = (chunk.get("provenance") or {}).get("embedding_prefix")
+        if isinstance(saved_prefix, str) and embedding_text.startswith(saved_prefix):
+            prefix = saved_prefix.rstrip()
+            body = embedding_text[len(saved_prefix) :]
+        elif embedding_text.endswith(chunk["text"]):
+            prefix = embedding_text[: -len(chunk["text"])].rstrip()
+            body = chunk["text"]
+        else:
+            prefix, body = "", embedding_text
         add(
             "chunks",
             chunk["ordinal"],
@@ -406,6 +410,11 @@ def _representations(prepared, raw, media_type):
                 "token_count": chunk.get("token_count"),
                 "embedding_token_count": chunk.get("embedding_token_count"),
                 "embedding_prefix": prefix,
+                # Spec 0015 U4: what a passage is searched as when that is not
+                # its own text, such as a table row's "column: value" pairs.
+                "searched_text": None
+                if body == chunk["text"]
+                else body[:MAX_PREVIEW_TEXT_PER_REPRESENTATION],
                 "parent_ordinal": chunk.get("parent_ordinal"),
                 "findings": chunk.get("findings") or [],
                 "spans": [

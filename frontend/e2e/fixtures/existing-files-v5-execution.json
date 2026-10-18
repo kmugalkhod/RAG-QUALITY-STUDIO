@@ -1,0 +1,233 @@
+{
+  "edges": [
+    {
+      "source": "source",
+      "target": "extract"
+    },
+    {
+      "source": "extract",
+      "target": "clean"
+    },
+    {
+      "source": "clean",
+      "target": "chunk"
+    },
+    {
+      "source": "chunk",
+      "target": "embed"
+    },
+    {
+      "source": "embed",
+      "target": "publish"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "source",
+      "type": "source",
+      "config": {
+        "kind": "existing_files",
+        "document_ids": [],
+        "optional_document_ids": []
+      }
+    },
+    {
+      "id": "extract",
+      "ocr": {
+        "dpi": 200,
+        "mode": "auto",
+        "deskew": true,
+        "languages": [
+          "eng"
+        ],
+        "max_pages": 100,
+        "rotate_pages": true,
+        "timeout_seconds": 30
+      },
+      "type": "extract",
+      "tables": "preserve",
+      "strategy": "auto",
+      "config_version": "layout-ocr-v6",
+      "quality_policy": {
+        "id": "warn-v1",
+        "thresholds": {
+          "minimum_ocr_confidence": 50.0,
+          "fail_on_malformed_tables": true,
+          "maximum_empty_page_ratio": 0.2,
+          "maximum_control_character_ratio": 0.001,
+          "fail_on_suspicious_reading_order": false,
+          "maximum_replacement_character_ratio": 0.01
+        },
+        "warning_action": "publish",
+        "failed_item_action": "exclude"
+      },
+      "language_policy": {
+        "id": "language-v1",
+        "allowlist": [],
+        "detection_model": "deterministic-script-v1",
+        "disallowed_action": "fail",
+        "minimum_confidence": 0.0,
+        "mixed_language_action": "warn"
+      }
+    },
+    {
+      "id": "clean",
+      "type": "clean",
+      "steps": [
+        {
+          "id": "preserve-structure",
+          "type": "preserve_structure",
+          "enabled": true,
+          "block_types": [
+            "table",
+            "list_item",
+            "code",
+            "quote",
+            "footnote"
+          ]
+        },
+        {
+          "id": "unicode-normalize",
+          "form": "NFC",
+          "type": "unicode_normalize",
+          "enabled": true
+        },
+        {
+          "id": "remove-controls",
+          "type": "remove_control_characters",
+          "enabled": true
+        },
+        {
+          "id": "repeated-margins",
+          "type": "remove_repeated_headers_footers",
+          "enabled": true,
+          "margin_ratio": 0.12,
+          "minimum_pages": 3,
+          "minimum_page_ratio": 0.6
+        },
+        {
+          "id": "reflow-pdf-lines",
+          "type": "reflow_pdf_lines",
+          "enabled": true,
+          "block_types": [
+            "paragraph",
+            "unknown"
+          ]
+        },
+        {
+          "id": "dehyphenate",
+          "mode": "conservative-compounds",
+          "type": "dehyphenate",
+          "enabled": true
+        },
+        {
+          "id": "website-main-content",
+          "type": "website_main_content",
+          "enabled": true,
+          "minimum_page_ratio": 0.6,
+          "remove_cookie_banners": true,
+          "remove_semantic_chrome": true,
+          "remove_repeated_site_chrome": true
+        },
+        {
+          "id": "remove-empty-blocks",
+          "type": "remove_empty_blocks",
+          "enabled": true,
+          "minimum_characters": 1
+        },
+        {
+          "id": "validate-useful-content",
+          "type": "validate_useful_content",
+          "enabled": true,
+          "maximum_characters": 2000000,
+          "minimum_characters": 1
+        }
+      ],
+      "profile": "structure-aware-v1",
+      "config_version": "structure-clean-v2",
+      "duplicate_policy": {
+        "id": "duplicate-v1",
+        "exact_raw": true,
+        "exact_cleaned": true,
+        "near_duplicate": false,
+        "connector_priority": [
+          "existing_files",
+          "website",
+          "s3",
+          "notion",
+          "confluence"
+        ],
+        "normalized_sections": true,
+        "near_duplicate_method": "simhash64",
+        "near_duplicate_threshold": 0.92,
+        "pinned_canonical_locations": []
+      },
+      "maximum_text_chars": 2000000,
+      "minimum_text_chars": 1,
+      "normalize_whitespace": true,
+      "repeated_boilerplate": [],
+      "sensitive_data_policy": {
+        "id": "sensitive-data-v1",
+        "rules": [
+          {
+            "action": "redact",
+            "entity_class": "email"
+          },
+          {
+            "action": "redact",
+            "entity_class": "phone"
+          },
+          {
+            "action": "redact",
+            "entity_class": "ip_address"
+          },
+          {
+            "action": "redact",
+            "entity_class": "government_id"
+          },
+          {
+            "action": "redact",
+            "entity_class": "payment_card"
+          },
+          {
+            "action": "redact",
+            "entity_class": "api_secret"
+          }
+        ],
+        "enabled": false,
+        "detector_version": "deterministic-patterns-v1",
+        "government_id_formats": [
+          "us_ssn",
+          "in_aadhaar"
+        ]
+      },
+      "exact_content_deduplication": true
+    },
+    {
+      "id": "chunk",
+      "type": "chunk",
+      "unit": "tokens",
+      "algorithm": "section_token",
+      "config_version": "section-token-v5",
+      "tokenizer_version": "utf8-byte-v1",
+      "add_heading_context": true
+    },
+    {
+      "id": "embed",
+      "type": "embed",
+      "model": "openai/text-embedding-3-small",
+      "provider": "openrouter",
+      "dimensions": 1536,
+      "config_version": "1"
+    },
+    {
+      "id": "publish",
+      "type": "publish_index",
+      "destination": "new",
+      "knowledge_set_id": null,
+      "knowledge_set_name": "Spreadsheet rows"
+    }
+  ],
+  "index_layout": "merged",
+  "schema_version": 2
+}

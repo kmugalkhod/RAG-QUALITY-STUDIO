@@ -19,6 +19,10 @@ function pipelinePath(projectId: string, pipelineId: string): string {
   return `${pipelinesPath(projectId)}/${encodeURIComponent(pipelineId)}`;
 }
 
+export function getPipeline(projectId: string, pipelineId: string): Promise<Pipeline> {
+  return request<Pipeline>(pipelinePath(projectId, pipelineId));
+}
+
 export function getPipelineOptions(projectId: string): Promise<PipelineOptions> {
   return request<PipelineOptions>(`${pipelinesPath(projectId)}/options`);
 }

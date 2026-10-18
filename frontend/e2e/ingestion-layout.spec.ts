@@ -44,6 +44,8 @@ test.beforeEach(async ({ page }) => {
       };
     else if (path.endsWith('/source-connections/settings')) body = { enabled: false };
     else if (path.endsWith('/ingestion-capabilities')) body = capabilities;
+    else if (/\/pipelines\/pipeline-\d+$/.test(path))
+      body = { id: path.split('/').at(-1), name: 'Saved ingestion', kind: 'ingestion' };
     else if (route.request().method() !== 'GET') {
       await route.abort();
       return;

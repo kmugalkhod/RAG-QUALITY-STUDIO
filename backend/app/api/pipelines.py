@@ -7,6 +7,7 @@ from app.api.documents import Limit, Offset
 from app.schemas.pipeline import (
     PipelineSaveRequest,
     PipelinePage,
+    PipelineRead,
     VersionRead,
     VersionPage,
     RunRequest,
@@ -56,6 +57,12 @@ def listing(
 @router.post("", response_model=VersionRead, status_code=201)
 def create(project_id: UUID, request: SaveBody, session: Database):
     return pipelines.save(session, project_id, request)
+
+
+@router.get("/{pipeline_id}", response_model=PipelineRead)
+def pipeline(project_id: UUID, pipeline_id: UUID, session: Database):
+    # The editor opens a link by the pipeline's saved kind (spec 0015 U3).
+    return pipelines.get_pipeline(session, project_id, pipeline_id)
 
 
 @router.post("/{pipeline_id}/versions", response_model=VersionRead, status_code=201)

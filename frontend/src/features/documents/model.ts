@@ -130,6 +130,9 @@ export interface IndexRecord {
   start_char: number;
   end_char: number;
   text: string;
+  // What the passage is searched as: its section prefix and searched text.
+  embedding_text?: string;
+  embedding_prefix?: string;
   source_url: string | null;
   section_path: string[];
   dimensions: number;

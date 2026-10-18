@@ -846,6 +846,7 @@ def _run_rows(session: Session, statement):
                 "unchanged_count": outcome_counts.get("unchanged", 0),
                 "removed_count": outcome_counts.get("removed", 0),
                 "source_outcomes": source_outcomes,
+                "stage_versions": _stage_versions(run.snapshot.get("execution")),
                 "completion": (
                     None
                     if run.status != "succeeded"
@@ -871,6 +872,41 @@ def _processing_versions(config: dict) -> dict | None:
     if versions is None or not isinstance(chunk_version, str):
         return versions
     return {**versions, "chunker_config_version": chunk_version}
+
+
+def _stage_versions(execution: dict | None) -> dict | None:
+    """The saved extract, clean and chunk versions of a run's execution snapshot,
+    each once, in graph order. Saved defaults apply, as when the run executed."""
+    try:
+        nodes = IngestionExecution.model_validate(execution).nodes
+    except (ValueError, TypeError):
+        return None
+    versions: dict[str, list[str]] = {"extract": [], "clean": [], "chunk": []}
+    for node in nodes:
+        if node.type == "chunk":
+            # A token chunker runs its saved version (v1 when none was saved); the
+            # engine label recorded for reuse can differ (spec 0012 A14).
+            value = (
+                node.config_version
+                if getattr(node, "algorithm", None) in ("section_token", "parent_child")
+                else chunker_version_for_node(node)
+            )
+        elif node.type == "extract":
+            # A legacy extract node ran the media-type parser.
+            value = (
+                PARSER_VERSION
+                if getattr(node, "strategy", None) == "media_type_registry"
+                else node.config_version
+            )
+        elif node.type == "clean":
+            value = (
+                getattr(node, "config_version", None) or cleaner_for_node(node).version
+            )
+        else:
+            continue
+        if value and value not in versions[node.type]:
+            versions[node.type].append(str(value))
+    return versions
 
 
 def _waiting_reason(error, failures, throttled_since, updated_at):

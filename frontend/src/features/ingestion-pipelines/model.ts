@@ -496,6 +496,8 @@ export interface IngestionRun {
   /** Spec 0012 D8: nothing changed, so no version was published and this one stayed current. */
   unchanged_index_id?: string | null;
   unchanged_index_version?: number | null;
+  /** Spec 0015 U4: the saved extract, clean and chunk versions the run used. */
+  stage_versions?: { extract: string[]; clean: string[]; chunk: string[] } | null;
   /** Problems recorded after the index went live; the run still succeeded. */
   warnings?: { code: string; message: string }[];
   /** Why an active run's embedding waits (throttled or retrying), if it does. */

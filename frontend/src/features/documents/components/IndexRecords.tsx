@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Braces, Database, FileText, RotateCw } from 'lucide-react';
 
 import { Pagination } from '../../../components/Pagination';
+import { SearchedAs } from '../../../components/SearchedAs';
 import { Button } from '../../../components/ui/button';
 import { StatusBadge } from '../../../components/StatusBadge';
 import { EmptyState } from '../../../components/states/EmptyState';
@@ -90,6 +91,12 @@ export function IndexRecords({ projectId, index }: { projectId: string; index: I
               <p className="text-sm whitespace-pre-wrap text-foreground wrap-anywhere">
                 {record.text}
               </p>
+              <SearchedAs
+                label={`Chunk ${record.ordinal + 1} searched as`}
+                text={record.text}
+                prefix={record.embedding_prefix}
+                embeddingText={record.embedding_text}
+              />
               <details>
                 <summary className={SUMMARY}>
                   <Braces aria-hidden="true" /> Inspect stored values and provenance

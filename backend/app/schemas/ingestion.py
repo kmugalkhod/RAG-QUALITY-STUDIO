@@ -1438,6 +1438,12 @@ class EmbeddingUsageRead(Strict):
     reused_vectors: int | None = None
 
 
+class IngestionStageVersionsRead(Strict):
+    extract: list[str]
+    clean: list[str]
+    chunk: list[str]
+
+
 class IngestionRunRead(Strict):
     id: UUID
     project_id: UUID
@@ -1489,6 +1495,9 @@ class IngestionRunRead(Strict):
     # One branch of a one-index-per-source run group.
     group_id: UUID | None = None
     branch_source_node_id: str | None = None
+    # The saved extract, clean and chunk versions this run used (spec 0015 U4),
+    # each listed once in graph order; None when the snapshot cannot be read.
+    stage_versions: IngestionStageVersionsRead | None = None
     created_at: datetime
     updated_at: datetime
     started_at: datetime | None

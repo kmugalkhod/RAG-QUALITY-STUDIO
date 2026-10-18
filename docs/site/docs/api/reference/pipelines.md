@@ -97,6 +97,22 @@ OpenAPI operation ID: `save_api_projects__project_id__pipelines__pipeline_id__ve
 | `201` | `application/json` [`VersionRead`](../schema-models.md#versionread) |
 | `422` | `application/json` [`HTTPValidationError`](../schema-models.md#httpvalidationerror) |
 
+### GET `/api/projects/{project_id}/pipelines/{pipeline_id}`
+
+OpenAPI operation ID: `pipeline_api_projects__project_id__pipelines__pipeline_id__get`.
+
+| Parameter | In | Required | Type | Bounds/default |
+| --- | --- | --- | --- | --- |
+| `project_id` | path | yes | string (uuid) | — |
+| `pipeline_id` | path | yes | string (uuid) | — |
+
+**Request body:** none.
+
+| Response | Content contract |
+| --- | --- |
+| `200` | `application/json` [`PipelineRead`](../schema-models.md#pipelineread) |
+| `422` | `application/json` [`HTTPValidationError`](../schema-models.md#httpvalidationerror) |
+
 ### GET `/api/projects/{project_id}/pipelines/{pipeline_id}/versions`
 
 OpenAPI operation ID: `versions_api_projects__project_id__pipelines__pipeline_id__versions_get`.

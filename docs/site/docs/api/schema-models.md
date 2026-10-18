@@ -753,6 +753,14 @@ Type: [`IngestionExecutionV1`](#ingestionexecutionv1) or [`IngestionExecutionV2`
 | `limit` | integer | yes | — |
 | `offset` | integer | yes | — |
 
+## IngestionStageVersionsRead
+
+| Field | Type | Required | Bounds/default |
+| --- | --- | --- | --- |
+| `extract` | array of string | yes | — |
+| `clean` | array of string | yes | — |
+| `chunk` | array of string | yes | — |
+
 ## IngestionRunRead
 
 | Field | Type | Required | Bounds/default |
@@ -792,6 +800,7 @@ Type: [`IngestionExecutionV1`](#ingestionexecutionv1) or [`IngestionExecutionV2`
 | `warnings` | array of object | no | — |
 | `waiting_reason` | string or null | no | — |
 | `embedding_usage` | [`EmbeddingUsageRead`](#embeddingusageread) or null | no | — |
+| `stage_versions` | [`IngestionStageVersionsRead`](#ingestionstageversionsread) or null | no | — |
 | `created_at` | string (date-time) | yes | — |
 | `updated_at` | string (date-time) | yes | — |
 | `started_at` | string (date-time) or null | yes | — |
