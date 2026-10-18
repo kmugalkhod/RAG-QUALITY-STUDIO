@@ -369,3 +369,37 @@ def test_cancel_during_retrieval_prevents_generation(experiment_api):
         c.get(f"/api/projects/{p}/experiments/{run['id']}").json()["status"]
         == "cancelled"
     )
+
+
+def test_experiment_snapshot_and_summary_include_the_rerank_node(experiment_api):
+    from test_pipelines import rerank_double, rerank_draft
+
+    c, engine, p, q, versions = experiment_api
+    index_id = versions[0]["execution"]["nodes"][1]["index_id"]
+    reranked = c.post(
+        f"/api/projects/{p}/pipelines/{versions[0]['pipeline_id']}/versions",
+        json=rerank_draft(index_id),
+    ).json()
+    run, _, _ = submitted((c, engine, p, q, [versions[0], reranked]))
+    candidate = run["snapshot"]["candidates"][1]
+    assert candidate["execution"]["schema_version"] == 3
+    assert candidate["execution"]["nodes"][2]["type"] == "rerank"
+    with (
+        patch(
+            "app.providers.generation.OpenRouterChat.generate",
+            side_effect=rerank_double("2, 1"),
+        ),
+        patch("app.evaluation.evaluator.provider_for", return_value=JudgeDouble()),
+    ):
+        done = drive(c, engine, p, run["id"])
+    assert done["status"] == "succeeded"
+    plain, with_rerank = done["summary"]["candidates"]
+    assert plain["rerank_cost_usd"]["known_count"] == 0
+    assert with_rerank["rerank_cost_usd"] == {
+        "known_sum": pytest.approx(0.0003),
+        "known_count": 3,
+        "total": 3,
+    }
+    assert with_rerank["generation_cost_usd"]["known_sum"] == pytest.approx(0.006)
+    items = [i for i in done["items"] if i["candidate"] == 1]
+    assert all(i["output"]["snapshot"]["rerank"]["status"] == "reranked" for i in items)

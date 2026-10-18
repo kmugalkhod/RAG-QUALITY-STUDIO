@@ -18,8 +18,9 @@ import {
   canonical,
   createEditableExecution,
   getNodeLabel,
+  hasRerank,
   nodeIssues,
-  pipelineNodeOrder,
+  nodeOrderFor,
   validatePipelineExecution,
   type PipelineDraft,
   type PipelineExecution,
@@ -28,7 +29,13 @@ import {
   type PipelineOptions,
   type PipelineVersion,
 } from './model';
-import { createNode, createPipelineDraft } from './pipelineTemplate';
+import {
+  addRerankStep,
+  createNode,
+  createPipelineDraft,
+  removeRerankStep,
+  type GraphStep,
+} from './pipelineTemplate';
 
 const errorText = (cause: unknown) => (cause instanceof Error ? cause.message : 'Request failed.');
 function flowNode(
@@ -86,9 +93,11 @@ export function usePipelineEditor(projectId: string, pipelineId: string, version
   // Bumped whenever a version, template or arrangement replaces the layout; the canvas refits.
   const [layoutRevision, setLayoutRevision] = useState(0);
   const relayout = useCallback(() => setLayoutRevision((value) => value + 1), []);
+  const nodeConfigs = nodes.map((node) => node.data.config);
   const execution: PipelineExecution = {
-    schema_version: 2,
-    nodes: nodes.map((node) => node.data.config),
+    // Schema v3 is the shape with the optional Rerank step (spec 0015).
+    schema_version: hasRerank({ nodes: nodeConfigs }) ? 3 : 2,
+    nodes: nodeConfigs,
     edges: edges.map(({ source, target }) => ({ source, target })),
   };
   const draft: PipelineDraft = {
@@ -308,14 +317,52 @@ export function usePipelineEditor(projectId: string, pipelineId: string, version
     }
   }
   function arrange() {
-    setNodes((current) =>
-      current.map((node) => ({
+    setNodes((current) => {
+      const order: readonly PipelineNodeKind[] = nodeOrderFor({
+        nodes: current.map((node) => node.data.config),
+      });
+      return current.map((node) => ({
         ...node,
-        position: { x: 80, y: pipelineNodeOrder.indexOf(node.data.config.type) * 116 + 40 },
+        position: { x: 80, y: order.indexOf(node.data.config.type) * 116 + 40 },
         data: { ...node.data, vertical: true },
-      })),
-    );
+      }));
+    });
     relayout();
+  }
+  // Replace the graph with a rewired one, keeping each surviving node's canvas state.
+  function applyStep(change: (step: GraphStep) => GraphStep, select: string) {
+    const step = change({
+      nodes: nodes.map((node) => node.data.config),
+      edges: edges.map(({ source, target }) => ({ source, target })),
+      positions: Object.fromEntries(nodes.map((node) => [node.id, node.position])),
+    });
+    const vertical = nodes[0]?.data.vertical ?? true;
+    setNodes(
+      step.nodes.map((config) => {
+        const existing = nodes.find((node) => node.id === config.id);
+        const base = existing ?? flowNode(config, step.positions[config.id], vertical);
+        return {
+          ...base,
+          position: step.positions[config.id],
+          selected: config.id === select,
+          data: { ...base.data, config },
+        };
+      }),
+    );
+    setEdges(step.edges.map((edge) => ({ ...edge, id: `${edge.source}-${edge.target}` })));
+    setInspectorOpen(true);
+    setSelected(select);
+    relayout();
+  }
+  function addRerank() {
+    const retriever = nodes.find((node) => node.data.config.type === 'retriever');
+    if (retriever && !nodes.some((node) => node.data.config.type === 'rerank')) {
+      applyStep((step) => addRerankStep(step, options), 'rerank');
+    }
+  }
+  function removeRerank() {
+    const retriever = nodes.find((node) => node.data.config.type === 'retriever');
+    applyStep(removeRerankStep, retriever?.id ?? '');
   }
   function restoreTemplate() {
     const template = createPipelineDraft(options, name);
@@ -364,6 +411,10 @@ export function usePipelineEditor(projectId: string, pipelineId: string, version
     }
   }
   function removeNode() {
+    if (nodes.find((node) => node.id === selected)?.data.config.type === 'rerank') {
+      removeRerank();
+      return;
+    }
     setNodes((current) => current.filter((node) => node.id !== selected));
     setEdges((current) =>
       current.filter((edge) => edge.source !== selected && edge.target !== selected),
@@ -433,6 +484,8 @@ export function usePipelineEditor(projectId: string, pipelineId: string, version
     selectNode,
     updateNode,
     addNode,
+    addRerank,
+    removeRerank,
     arrange,
     restoreTemplate,
     save,

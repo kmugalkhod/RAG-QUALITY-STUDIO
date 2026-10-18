@@ -357,3 +357,158 @@ def test_invalid_ingestion_graph_never_persists(pipeline_api):
     response = c.post(base, json=payload)
     assert response.status_code == 422, response.text
     assert c.get(base + "?kind=ingestion").json()["total"] == 0
+
+
+def rerank_draft(index_id, model="test/other", top_k=3, top_n=2):
+    """A schema v3 save: Question → Retriever → Rerank → Prompt → LLM → Answer."""
+
+    payload = draft(index_id)
+    execution = payload["execution"]
+    execution["schema_version"] = 3
+    retriever = execution["nodes"][1]
+    del retriever["top_k"]
+    retriever["retrieval"] = {"mode": "vector", "top_k": top_k}
+    execution["nodes"].insert(
+        2, dict(id="rerank", type="rerank", model=model, top_n=top_n)
+    )
+    ids = [node["id"] for node in execution["nodes"]]
+    execution["edges"] = [dict(source=a, target=b) for a, b in zip(ids, ids[1:])]
+    payload["layout"]["positions"] = {
+        k: dict(x=0, y=i * 116) for i, k in enumerate(ids)
+    }
+    return payload
+
+
+def rerank_double(order="3, 1", error=None):
+    """Answers rerank calls (they disable reasoning) and answer calls apart."""
+
+    def generate(messages, config):
+        if "reasoning" in config:
+            if error:
+                raise error
+            return generation.Completion(
+                order, "test/other", {"total_tokens": 9}, 0.0001
+            )
+        return generation.Completion(
+            "Answer [S1]", "test/chat", {"total_tokens": 20}, 0.002
+        )
+
+    return generate
+
+
+def test_rerank_node_saves_runs_falls_back_and_can_be_removed(pipeline_api):
+    c, _, p, q, index = pipeline_api
+    base = f"/api/projects/{p}/pipelines"
+    payload = rerank_draft(index["id"])
+    response = c.post(base, json=payload)
+    assert response.status_code == 201, response.text
+    saved = response.json()
+    assert saved["execution"]["schema_version"] == 3
+    assert saved["execution"]["nodes"][2] == {
+        "id": "rerank",
+        "type": "rerank",
+        "model": "test/other",
+        "top_n": 2,
+    }
+    versions = f"{base}/{saved['pipeline_id']}/versions"
+    assert c.get(f"{versions}/{saved['id']}").json() == saved
+    runs = f"{versions}/{saved['id']}/runs"
+    with patch.object(
+        generation.OpenRouterChat, "generate", side_effect=rerank_double("3, 1")
+    ) as provider:
+        accepted = c.post(runs, json={"question": "abcd?"})
+        assert accepted.status_code == 202, accepted.text
+        run = c.get(f"/api/projects/{p}/query-runs/{accepted.json()['id']}").json()
+    assert run["status"] == "succeeded", run
+    snapshot = run["snapshot"]
+    assert snapshot["execution_engine"]["node_order"] == [
+        "question",
+        "retriever",
+        "rerank",
+        "prompt",
+        "llm",
+        "answer",
+    ]
+    assert snapshot["pipeline_execution"] == saved["execution"]
+    record = snapshot["rerank"]
+    assert record["status"] == "reranked" and record["model"] == "test/other"
+    assert record["prompt_version"] == "rerank-v1"
+    assert record["candidate_count"] == 3 and record["top_n"] == 2
+    assert record["cost_usd"] == 0.0001 and snapshot["cost_usd"] == 0.002
+    assert record["rerank_ms"] is not None and snapshot["rerank_ms"] is not None
+    assert [(e["rank"], e["retriever_rank"]) for e in snapshot["evidence"]] == [
+        (1, 3),
+        (2, 1),
+    ]
+    assert [e["label"] for e in snapshot["evidence"]] == ["S1", "S2"]
+    retrieved = {
+        item["rank"]: item["text"] for item in snapshot["retrieval_result"]["items"]
+    }
+    assert snapshot["evidence"][0]["text"] == retrieved[3]
+    rerank_call, answer_call = provider.call_args_list
+    assert rerank_call.args[1]["model"] == "test/other"
+    assert answer_call.args[1]["model"] == "test/chat"
+    assert retrieved[3] in answer_call.args[0][-1]["content"]
+
+    with patch.object(
+        generation.OpenRouterChat,
+        "generate",
+        side_effect=rerank_double(error=generation.GenerationError("Provider down.")),
+    ):
+        accepted = c.post(runs, json={"question": "abcd?"})
+        fallback = c.get(f"/api/projects/{p}/query-runs/{accepted.json()['id']}").json()
+    assert fallback["status"] == "succeeded", fallback
+    assert fallback["snapshot"]["rerank"]["status"] == "fallback"
+    assert (
+        fallback["snapshot"]["rerank"]["message"]
+        == "Reranking failed; retriever order used"
+    )
+    assert [e["retriever_rank"] for e in fallback["snapshot"]["evidence"]] == [1, 2]
+
+    # Removing the step saves an ordinary five-node version; v1 stays as saved.
+    removed = c.post(versions, json=draft(index["id"]))
+    assert removed.status_code == 201, removed.text
+    assert removed.json()["version"] == 2
+    assert len(removed.json()["execution"]["nodes"]) == 5
+    assert c.get(f"{versions}/{saved['id']}").json() == saved
+    assert c.post(versions.replace(p, q), json=payload).status_code == 404
+
+
+@pytest.mark.parametrize("case", ["unapproved", "top_k", "v2", "layout"])
+def test_invalid_rerank_saves_never_persist(pipeline_api, case):
+    c, _, p, _, index = pipeline_api
+    payload = rerank_draft(index["id"])
+    if case == "unapproved":
+        payload["execution"]["nodes"][2]["model"] = "not/approved"
+    if case == "top_k":
+        payload = rerank_draft(index["id"], top_k=2, top_n=3)
+    if case == "v2":
+        payload["execution"]["schema_version"] = 2
+    if case == "layout":
+        del payload["layout"]["positions"]["rerank"]
+    response = c.post(f"/api/projects/{p}/pipelines", json=payload)
+    assert response.status_code == 422, response.text
+    if case == "unapproved":
+        assert response.json()["detail"].startswith("Rerank:")
+    assert c.get(f"/api/projects/{p}/pipelines").json()["total"] == 0
+
+
+def test_preview_runs_an_unsaved_rerank_step(pipeline_api):
+    c, _, p, _, index = pipeline_api
+    base = f"/api/projects/{p}/pipelines"
+    saved = c.post(base, json=draft(index["id"])).json()
+    request = dict(
+        question="abcd?",
+        execution=rerank_draft(index["id"])["execution"],
+        base_pipeline_id=saved["pipeline_id"],
+        base_version_id=saved["id"],
+    )
+    with patch.object(
+        generation.OpenRouterChat, "generate", side_effect=rerank_double("2")
+    ):
+        accepted = c.post(base + "/preview-runs", json=request)
+    assert accepted.status_code == 202, accepted.text
+    run = c.get(f"/api/projects/{p}/query-runs/{accepted.json()['id']}").json()
+    assert run["status"] == "succeeded"
+    assert [e["retriever_rank"] for e in run["snapshot"]["evidence"]] == [2, 1]
+    assert c.get(f"{base}/{saved['pipeline_id']}/versions").json()["total"] == 1

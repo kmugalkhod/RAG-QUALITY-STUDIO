@@ -1,6 +1,7 @@
 import { formatRetrievalScores } from '../../../lib/retrieval';
 import { useEffect, type ReactNode } from 'react';
 import { BookOpenCheck, ChevronRight, CircleAlert } from 'lucide-react';
+import { Callout } from '../../../components/parts';
 import { AnswerText } from '../../../components/AnswerText';
 import { Badge } from '../../../components/ui/badge';
 import { LIST, LIST_ROW, META, PRE, SUMMARY } from '../../../components/parts';
@@ -200,6 +201,7 @@ export function RunInspector({
                   <p className={META}>
                     {e.page_number ? `Page ${e.page_number} · ` : ''}Passage {e.ordinal + 1} · Rank{' '}
                     {e.rank}
+                    {e.retriever_rank !== undefined && ` · Retriever rank ${e.retriever_rank}`}
                   </p>
                   <p className="text-sm text-foreground whitespace-pre-wrap">{e.text}</p>
                   <Disclosure summary="Source metadata">
@@ -240,9 +242,32 @@ export function RunInspector({
           <p className="text-sm text-foreground">
             {s.actual_model || s.generation_config?.model || 'Model unavailable'}
           </p>
+          {s.rerank && (
+            <p className="text-sm text-foreground">
+              Rerank step · {s.rerank.actual_model || s.rerank.model} ·{' '}
+              {s.rerank.status === 'reranked'
+                ? `ordered ${s.rerank.candidates_read} of ${s.rerank.candidate_count} candidates, kept ${Math.min(s.rerank.top_n, s.rerank.candidate_count)}`
+                : s.rerank.status === 'skipped'
+                  ? 'skipped: fewer than two candidates'
+                  : 'retriever order used'}
+            </p>
+          )}
+          {s.rerank?.status === 'fallback' && (
+            <Callout tone="warning" role="status" title="Reranking failed; retriever order used">
+              <p>The answer used the retriever&apos;s first passages in their original order.</p>
+            </Callout>
+          )}
           <dl className="grid grid-cols-2 gap-x-4 gap-y-2 rounded-card border border-border p-4 text-sm">
             <dt className="text-foreground-muted">Finding passages</dt>
             <dd className="text-foreground tabular-nums">{duration(s.retrieval_ms)}</dd>
+            {s.rerank && (
+              <>
+                <dt className="text-foreground-muted">Reranking</dt>
+                <dd className="text-foreground tabular-nums">
+                  {duration(s.rerank_ms ?? s.rerank.rerank_ms)}
+                </dd>
+              </>
+            )}
             <dt className="text-foreground-muted">Writing answer</dt>
             <dd className="text-foreground tabular-nums">{duration(s.generation_ms)}</dd>
             <dt className="text-foreground-muted">Total</dt>
@@ -251,6 +276,18 @@ export function RunInspector({
             <dd className="text-foreground tabular-nums">
               {s.cost_usd == null ? 'Unavailable' : `$${s.cost_usd.toFixed(6)} (provider reported)`}
             </dd>
+            {s.rerank && (
+              <>
+                <dt className="text-foreground-muted">Rerank cost</dt>
+                <dd className="text-foreground tabular-nums">
+                  {s.rerank.cost_usd == null
+                    ? s.rerank.status === 'reranked'
+                      ? 'Unavailable'
+                      : 'No call'
+                    : `$${s.rerank.cost_usd.toFixed(6)} (provider reported)`}
+                </dd>
+              </>
+            )}
             <dt className="text-foreground-muted">Model usage</dt>
             <dd className="text-foreground tabular-nums">
               {s.usage

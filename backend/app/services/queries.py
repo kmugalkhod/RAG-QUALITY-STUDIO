@@ -178,6 +178,7 @@ def _finish(session, run, *, before_provider=None):
             prompt_template = nodes["prompt"].template
             answer_policy = nodes["prompt"].policy
             llm_node = nodes["llm"]
+            rerank_node = nodes.get("rerank")
             node_ids = {kind: node.id for kind, node in nodes.items()}
         else:
             retrieval = snapshot.get("retrieval") or {
@@ -186,6 +187,7 @@ def _finish(session, run, *, before_provider=None):
             }
             prompt_template = snapshot.get("prompt_template")
             answer_policy = snapshot.get("answer_policy") or STRICT_POLICY
+            rerank_node = None
             node_ids = None
         request = QueryRequest(
             index_id=run.index_id,
@@ -223,6 +225,7 @@ def _finish(session, run, *, before_provider=None):
             node_ids=node_ids,
             checkpoint=checkpoint,
             before_provider=before_provider,
+            rerank_node=rerank_node,
         )
         result = chain.invoke(
             {"question": request.question},

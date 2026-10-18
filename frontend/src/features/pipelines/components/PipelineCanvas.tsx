@@ -212,7 +212,7 @@ export function PipelineCanvas({
           onDrop={(e) => {
             e.preventDefault();
             const k = e.dataTransfer.getData('application/rag-node') as PipelineNodeKind;
-            if (pipelineNodeOrder.includes(k) && flow) {
+            if ((pipelineNodeOrder as readonly PipelineNodeKind[]).includes(k) && flow) {
               onAddNode(k, flow.screenToFlowPosition({ x: e.clientX, y: e.clientY }));
             }
           }}

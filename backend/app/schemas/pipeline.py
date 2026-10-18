@@ -22,6 +22,8 @@ from app.schemas.setting_recommendations import SettingsProvenanceV1
 
 DEFAULT_TEMPLATE = "Answer the question concisely using the retrieved context.\nQuestion: {question}\nRetrieved context: {context}"
 ORDER = ["question", "retriever", "prompt", "llm", "answer"]
+# Schema v3 (spec 0015): the one shape with an optional Rerank node.
+RERANK_ORDER = ["question", "retriever", "rerank", "prompt", "llm", "answer"]
 
 
 class Strict(BaseModel):
@@ -49,6 +51,14 @@ class Retriever(NodeBase):
     @model_serializer(mode="wrap")
     def serialize(self, handler):
         return {k: v for k, v in handler(self).items() if v is not None}
+
+
+class Rerank(NodeBase):
+    """Reorders the retrieved candidates with a chat model; keeps the first top_n."""
+
+    type: Literal["rerank"]
+    model: str = Field(min_length=1, max_length=200)
+    top_n: int = Field(default=5, strict=True, ge=1, le=20)
 
 
 class Prompt(NodeBase):
@@ -89,7 +99,7 @@ class Answer(NodeBase):
 
 
 Node = Annotated[
-    Question | Retriever | Prompt | LLM | Answer, Field(discriminator="type")
+    Question | Retriever | Rerank | Prompt | LLM | Answer, Field(discriminator="type")
 ]
 
 
@@ -99,9 +109,9 @@ class Edge(Strict):
 
 
 class Execution(Strict):
-    schema_version: Literal[1, 2]
-    nodes: list[Node] = Field(min_length=5, max_length=5)
-    edges: list[Edge] = Field(min_length=4, max_length=4)
+    schema_version: Literal[1, 2, 3]
+    nodes: list[Node] = Field(min_length=5, max_length=6)
+    edges: list[Edge] = Field(min_length=4, max_length=5)
 
     @model_validator(mode="after")
     def supported_graph(self):
@@ -111,20 +121,37 @@ class Execution(Strict):
                     node.top_k is None or node.retrieval is not None
                 ):
                     raise ValueError("Schema v1 requires legacy top_k only.")
-                if self.schema_version == 2 and (
+                if self.schema_version in (2, 3) and (
                     node.retrieval is None or node.top_k is not None
                 ):
-                    raise ValueError("Schema v2 requires retrieval settings only.")
+                    raise ValueError(
+                        f"Schema v{self.schema_version} requires retrieval settings only."
+                    )
+        order = RERANK_ORDER if self.schema_version == 3 else ORDER
         by_type = {n.type: n.id for n in self.nodes}
-        if set(by_type) != set(ORDER) or len({n.id for n in self.nodes}) != 5:
+        if set(by_type) != set(order) or len({n.id for n in self.nodes}) != len(order):
+            if self.schema_version == 3:
+                raise ValueError(
+                    "Schema v3 requires exactly one of each node with unique IDs: Question, Retriever, Rerank, Prompt, LLM, Answer."
+                )
             raise ValueError(
                 "Require exactly one of each node with unique IDs: Question, Retriever, Prompt, LLM, Answer."
             )
-        expected = {(by_type[a], by_type[b]) for a, b in zip(ORDER, ORDER[1:])}
+        expected = {(by_type[a], by_type[b]) for a, b in zip(order, order[1:])}
         if {(e.source, e.target) for e in self.edges} != expected:
+            if self.schema_version == 3:
+                raise ValueError(
+                    "Connect Question → Retriever → Rerank → Prompt → LLM → Answer only. Cycles, branches and disconnected nodes are unsupported."
+                )
             raise ValueError(
                 "Connect Question → Retriever → Prompt → LLM → Answer only. Cycles, branches and disconnected nodes are unsupported."
             )
+        if self.schema_version == 3:
+            nodes = {n.type: n for n in self.nodes}
+            if nodes["retriever"].settings.top_k < nodes["rerank"].top_n:
+                raise ValueError(
+                    "Retriever Top k is the number of candidates to rerank; it must be at least the Rerank node's passages kept."
+                )
         return self
 
 
@@ -134,7 +161,7 @@ class Position(Strict):
 
 
 class Layout(Strict):
-    positions: dict[str, Position] = Field(max_length=5)
+    positions: dict[str, Position] = Field(max_length=6)
 
 
 class PipelineSave(Strict):

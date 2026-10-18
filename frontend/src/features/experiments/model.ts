@@ -91,6 +91,8 @@ export type Detail = Experiment & {
       >;
       query_latency_ms: { mean: number | null; count: number };
       generation_cost_usd: Cost;
+      // Absent from experiments summarized before spec 0015.
+      rerank_cost_usd?: Cost;
       evaluation_cost_usd: Cost;
       query_tokens: Cost;
     }[];

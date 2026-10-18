@@ -227,6 +227,12 @@ def aggregate(experiment, rows):
                 lambda r: r.output.get("snapshot", {}).get("cost_usd"),
             ),
             (
+                "rerank_cost_usd",
+                lambda r: (r.output.get("snapshot", {}).get("rerank") or {}).get(
+                    "cost_usd"
+                ),
+            ),
+            (
                 "query_tokens",
                 lambda r: (r.output.get("snapshot", {}).get("usage") or {}).get(
                     "total_tokens"

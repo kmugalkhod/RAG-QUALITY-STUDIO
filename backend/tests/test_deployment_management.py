@@ -695,3 +695,134 @@ def test_worker_recovery_before_and_after_paid_marker_and_cancel(
             .count()
             == 1
         )
+
+
+def test_deployed_run_executes_the_rerank_node(management_api, monkeypatch):
+    from unittest.mock import patch
+    from app.models.deployment import DeployedAnswerRun
+    from app.providers import generation
+    from app.workers.deployed_answers import _session, process_deployed
+
+    client, connection, p, _, pipe, version, index, _, _ = management_api
+    monkeypatch.setattr(settings, "chat_models", ["test/rerank"])
+    monkeypatch.setattr(settings, "deployed_answers_enabled", True)
+    monkeypatch.setattr(settings, "deployment_local_keys_enabled", True)
+    monkeypatch.setattr(settings, "deployment_active_pepper", "test-v1")
+    monkeypatch.setattr(
+        settings,
+        "deployment_key_peppers",
+        {"test-v1": SecretStr("only-for-tests-32-byte-pepper-value")},
+    )
+    monkeypatch.setattr(
+        settings,
+        "deployment_approved_prices",
+        {
+            "test/chat": {"input_per_million_usd": 1, "output_per_million_usd": 2},
+            "test/rerank": {"input_per_million_usd": 1, "output_per_million_usd": 2},
+            settings.embedding_model: {"input_per_million_usd": 1},
+        },
+    )
+    kinds = ("question", "retriever", "rerank", "prompt", "llm", "answer")
+    execution = {
+        "schema_version": 3,
+        "nodes": [
+            {"id": "question", "type": "question"},
+            {
+                "id": "retriever",
+                "type": "retriever",
+                "index_id": str(index.id),
+                "retrieval": {"mode": "vector", "top_k": 3},
+            },
+            {"id": "rerank", "type": "rerank", "model": "test/rerank", "top_n": 1},
+            {"id": "prompt", "type": "prompt", "template": DEFAULT_TEMPLATE},
+            {
+                "id": "llm",
+                "type": "llm",
+                "model": "test/chat",
+                "max_tokens": 512,
+                "temperature": 0,
+            },
+            {"id": "answer", "type": "answer"},
+        ],
+        "edges": [{"source": a, "target": b} for a, b in zip(kinds, kinds[1:])],
+    }
+    with Session(bind=connection, join_transaction_mode="create_savepoint") as setup:
+        reranked = PipelineVersion(
+            project_id=p.id,
+            pipeline_id=pipe.id,
+            version=2,
+            name="Saved answer",
+            execution=execution,
+            layout={},
+        )
+        setup.add(reranked)
+        setup.commit()
+        reranked_id = reranked.id
+    base = f"/api/projects/{p.id}/answer-deployments"
+    created = client.post(
+        base,
+        json={
+            "name": "Reranked",
+            "pipeline_id": str(pipe.id),
+            "pipeline_version_id": str(reranked_id),
+            "index_id": str(index.id),
+        },
+    )
+    assert created.status_code == 201, created.text
+    created = created.json()
+    assert created["releases"][0]["schema_version"] == 3
+    path = f"{base}/{created['id']}"
+    promoted = client.post(
+        path + "/promotions",
+        headers={"If-Match": '"1"'},
+        json={"release_id": created["releases"][0]["id"], "reason": "Reviewed"},
+    )
+    assert promoted.status_code == 200, promoted.text
+    key = client.post(path + "/keys", json={"label": "Customer"}).json()["secret"]
+    accepted = client.post(
+        f"/v1/answer-deployments/{created['id']}/questions",
+        headers={"Authorization": f"Bearer {key}", "Idempotency-Key": "rerank-1"},
+        json={"question": "How long?"},
+    )
+    assert accepted.status_code == 202, accepted.text
+    found = [
+        {
+            "document_id": str(uuid4()),
+            "filename": "Policy",
+            "page_number": rank,
+            "rank": rank,
+            "run_id": str(uuid4()),
+            "ordinal": rank,
+            "text": text,
+        }
+        for rank, text in enumerate(
+            ["Shipping is free.", "Returns take 30 days.", "Stores open at 9."], 1
+        )
+    ]
+
+    def generate(messages, config):
+        if "reasoning" in config:
+            return generation.Completion("2", "test/rerank", {}, 0.0001)
+        return generation.Completion(
+            "Returns take 30 days. [S1]", "test/chat", {"total_tokens": 20}, 0.002
+        )
+
+    with (
+        patch("app.services.indexes.retrieve", return_value={"items": found}),
+        patch.object(
+            generation.OpenRouterChat, "generate", side_effect=generate
+        ) as provider,
+    ):
+        process_deployed(accepted.json()["id"], connection)
+        process_deployed(accepted.json()["id"], connection)
+        assert provider.call_count == 2
+    result = client.get(
+        accepted.json()["result_url"], headers={"Authorization": f"Bearer {key}"}
+    ).json()
+    assert result["status"] == "succeeded", result
+    assert result["citations"][0]["excerpt"] == "Returns take 30 days."
+    assert result["timing_ms"]["rerank"] is not None
+    with _session(connection) as session:
+        row = session.get(DeployedAnswerRun, UUID(accepted.json()["id"]))
+        assert row.provider_cost_usd == Decimal("0.002100")
+        assert [item["rank"] for item in row.evidence] == [1]

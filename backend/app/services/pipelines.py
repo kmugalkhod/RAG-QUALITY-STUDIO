@@ -10,6 +10,7 @@ from app.models.connection import SourceConnection
 from app.models.index import KnowledgeSet
 from app.models.pipeline import Pipeline, PipelineVersion
 from app.models.query import QueryRun
+from app.pipelines import rerank
 from app.providers import chat_models, generation
 from app.schemas.ingestion import IngestionExecution
 from app.schemas.pipeline import DEFAULT_TEMPLATE, Execution
@@ -54,10 +55,20 @@ def options(session, project_id, principal):
             generation.configured()
         except generation.GenerationError as exc:
             error, error_code = str(exc), exc.code
+    ids = [m.id for m in models]
+    default = chat_models.default_model(models)
     return {
-        "models": [m.id for m in models],
+        "models": ids,
         "model_options": [asdict(m) for m in models],
-        "default_model": chat_models.default_model(models),
+        "default_model": default,
+        "rerank": {
+            "default_model": (
+                rerank.RECOMMENDED_MODEL if rerank.RECOMMENDED_MODEL in ids else default
+            ),
+            "recommended_model": rerank.RECOMMENDED_MODEL,
+            "top_n": rerank.DEFAULT_TOP_N,
+            "candidates": rerank.DEFAULT_CANDIDATES,
+        },
         "max_tokens": settings.chat_max_tokens,
         "context_tokens": settings.chat_context_tokens,
         "template": DEFAULT_TEMPLATE,
@@ -78,6 +89,11 @@ def validate_answer(session, project_id, execution):
     try:
         with provider_credentials.bound_for_project(session, project_id):
             config = generation.configured(llm.model, llm.max_tokens, llm.temperature)
+            if "rerank" in nodes:
+                try:
+                    rerank.configured(nodes["rerank"].model)
+                except generation.GenerationError as exc:
+                    raise generation.GenerationError(f"Rerank: {exc}") from None
     except generation.GenerationError as exc:
         raise HTTPException(422, str(exc)) from None
     return nodes, config

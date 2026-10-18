@@ -1,7 +1,7 @@
 # 0015. Better search and a clearer ingestion editor (7 → 8.5 and 8 → 8.5)
 
 **Date**: 2026-10-18
-**Status**: Approved 2026-10-18. D1 was decided by the owner (the reranker is a node), and D2-D8 were approved as recommended. Slice 0 done 2026-10-18: `google/gemini-2.5-flash-lite` over vector top 30 meets the retrieval target on A6p (75 of 77, rank 1 +18, no loss), so D2 picks it and S2 is not built under D3 ([results](../qa/search-and-editor-2026-10/README.md)). Slice 1 next. Handoff for a new session: [`0015-handoff.md`](0015-handoff.md).
+**Status**: Approved 2026-10-18. D1 was decided by the owner (the reranker is a node), and D2-D8 were approved as recommended. Slice 0 done 2026-10-18: `google/gemini-2.5-flash-lite` over vector top 30 meets the retrieval target on A6p (75 of 77, rank 1 +18, no loss), so D2 picks it and S2 is not built under D3 ([results](../qa/search-and-editor-2026-10/README.md)). Slice 1 (Rerank node) done 2026-10-18; Slice 3 next. Handoff for a new session: [`0015-handoff.md`](0015-handoff.md).
 
 ## Summary
 

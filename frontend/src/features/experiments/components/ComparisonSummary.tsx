@@ -150,6 +150,25 @@ export function ComparisonSummary({ run }: { run: Detail }) {
                   </TableCell>
                 ))}
               </TableRow>
+              {run.summary.candidates.some((summary) => summary.rerank_cost_usd?.known_count) && (
+                <TableRow>
+                  <TableHead scope="row" className={ROW_HEAD}>
+                    Rerank cost
+                  </TableHead>
+                  {run.summary.candidates.map((summary) => (
+                    <TableCell key={summary.candidate} className={CELL}>
+                      {summary.rerank_cost_usd?.known_count
+                        ? money(summary.rerank_cost_usd.known_sum)
+                        : 'No rerank step'}
+                      {!!summary.rerank_cost_usd?.known_count && (
+                        <small className={DETAIL}>
+                          Known for {summary.rerank_cost_usd.known_count}/{summary.total} queries
+                        </small>
+                      )}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              )}
               <TableRow>
                 <TableHead scope="row" className={ROW_HEAD}>
                   Evaluation cost

@@ -48,9 +48,19 @@ interface Props {
   loading: boolean;
   onChange: (model: string) => void;
   onRefresh: () => void;
+  // The Rerank node uses the same approved models under its own label.
+  label?: string;
 }
 
-export function ModelField({ value, options, loading, onChange, onRefresh }: Props) {
+export function ModelField({
+  value,
+  options,
+  loading,
+  onChange,
+  onRefresh,
+  label = 'Chat model',
+}: Props) {
+  const detailsId = `${label.toLowerCase().replaceAll(' ', '-')}-details`;
   if (!options) {
     return null;
   }
@@ -95,11 +105,11 @@ export function ModelField({ value, options, loading, onChange, onRefresh }: Pro
   return (
     <>
       <Label className="mb-0">
-        Chat model
+        {label}
         <NativeSelect
           className="mt-2"
-          aria-label="Chat model"
-          aria-describedby="chat-model-details"
+          aria-label={label}
+          aria-describedby={detailsId}
           aria-invalid={unavailable || undefined}
           value={value}
           onChange={(e) => onChange(e.target.value)}
@@ -122,7 +132,7 @@ export function ModelField({ value, options, loading, onChange, onRefresh }: Pro
           ))}
         </NativeSelect>
       </Label>
-      <p id="chat-model-details" className={META}>
+      <p id={detailsId} className={META}>
         {selected
           ? describeModel(selected)
           : `${options.model_options.length} model${options.model_options.length === 1 ? '' : 's'} available.`}

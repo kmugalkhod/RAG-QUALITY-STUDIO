@@ -470,9 +470,11 @@ Provider-reported embedding usage of the run's index. Vectors reused from earlie
 
 | Field | Type | Required | Bounds/default |
 | --- | --- | --- | --- |
-| `schema_version` | integer: 1, 2 | yes | — |
-| `nodes` | array of [`Question`](#question) or [`Retriever`](#retriever) or [`Prompt`](#prompt) or [`LLM`](#llm) or [`Answer`](#answer) | yes | minItems=5, maxItems=5 |
-| `edges` | array of [`Edge`](#edge) | yes | minItems=4, maxItems=4 |
+| `schema_version` | integer: 1, 2, 3 | yes | — |
+| `nodes` | array of [`Question`](#question) or [`Retriever`](#retriever) or [`Rerank`](#rerank) or [`Prompt`](#prompt) or [`LLM`](#llm) or [`Answer`](#answer) | yes | minItems=5, maxItems=6 |
+| `edges` | array of [`Edge`](#edge) | yes | minItems=4, maxItems=5 |
+
+Schemas 1 and 2 have exactly five nodes, Question → Retriever → Prompt → LLM → Answer. Schema 3 has exactly six, with a Rerank node between Retriever and Prompt; its Retriever `top_k` is the number of candidates to rerank and must be at least the Rerank node's `top_n`.
 
 ## ExistingFilesConfig
 
@@ -1106,6 +1108,15 @@ Type: [`IngestionExecutionV1`](#ingestionexecutionv1) or [`IngestionExecutionV2`
 | `id` | string | yes | minLength=1, maxLength=80, pattern=^[a-zA-Z0-9_-]+$ |
 | `type` | string | yes | — |
 | `template` | string | yes | minLength=1, maxLength=8000 |
+
+## Rerank
+
+| Field | Type | Required | Bounds/default |
+| --- | --- | --- | --- |
+| `id` | string | yes | minLength=1, maxLength=80, pattern=^[a-zA-Z0-9_-]+$ |
+| `type` | string | yes | — |
+| `model` | string | yes | minLength=1, maxLength=200 |
+| `top_n` | integer | no | minimum=1.0, maximum=20.0, default=5 |
 
 ## PublishIndexNode
 

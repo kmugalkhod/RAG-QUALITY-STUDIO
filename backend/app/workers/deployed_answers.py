@@ -245,6 +245,13 @@ def _finish(
             )
             run.usage = jsonable_encoder(updates.get("usage"))
             cost = updates.get("cost_usd")
+            rerank = updates.get("rerank") or {}
+            if rerank.get("actual_model") is not None:
+                # The Rerank node's paid call; an unknown part leaves the total unknown.
+                rerank_cost = rerank.get("cost_usd")
+                cost = (
+                    None if cost is None or rerank_cost is None else cost + rerank_cost
+                )
             if cost is not None:
                 run.provider_cost_usd = Decimal(str(cost))
             run.timing_ms = {
@@ -253,6 +260,11 @@ def _finish(
                 ),
                 "execution": round((monotonic() - started) * 1000, 3),
                 "retrieval": updates.get("retrieval_ms"),
+                **(
+                    {"rerank": updates["rerank_ms"]}
+                    if updates.get("rerank_ms") is not None
+                    else {}
+                ),
                 "generation": updates.get("generation_ms"),
             }
     run.stage = "terminal"
@@ -319,6 +331,10 @@ def process_deployed(run_id, db_engine=engine):
                     ),
                     before_generation=lambda: _before_call(
                         session, run_id, token, "generation_call"
+                    ),
+                    rerank_node=nodes.get("rerank"),
+                    before_rerank=lambda: _before_call(
+                        session, run_id, token, "rerank_call"
                     ),
                 )
                 result = chain.invoke({"question": run.question})

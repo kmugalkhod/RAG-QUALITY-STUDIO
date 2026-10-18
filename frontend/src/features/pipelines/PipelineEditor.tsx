@@ -100,6 +100,8 @@ export function PipelineEditor({
             onSelect={editor.selectNode}
             onUpdate={editor.updateNode}
             onDelete={editor.removeNode}
+            onAddRerank={editor.addRerank}
+            onRemoveRerank={editor.removeRerank}
           />
         </PipelineCanvas>
       </fieldset>

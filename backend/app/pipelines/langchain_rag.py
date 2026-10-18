@@ -34,22 +34,26 @@ from app.pipelines.generation import (
     distinct_items,
     validate_citations,
 )
+from app.pipelines import rerank as reranking
 from app.providers import embeddings, generation
 from app.schemas.index import RetrievalRequest
 from app.services import indexes
 
 NODE_ORDER = ("question", "retriever", "prompt", "llm", "answer")
+# Schema v3 (spec 0015) inserts the optional Rerank node after the Retriever.
+RERANK_NODE_ORDER = ("question", "retriever", "rerank", "prompt", "llm", "answer")
 
 
 def runtime_snapshot(node_ids: dict[str, str] | None = None) -> dict[str, Any]:
     """Return the execution-engine identity persisted with every accepted run."""
 
+    order = RERANK_NODE_ORDER if "rerank" in (node_ids or {}) else NODE_ORDER
     return {
         "framework": "langchain",
         "langchain_version": version("langchain"),
         "langchain_core_version": version("langchain-core"),
         "composition": "LCEL RunnableSequence",
-        "node_order": [(node_ids or {}).get(kind, kind) for kind in NODE_ORDER],
+        "node_order": [(node_ids or {}).get(kind, kind) for kind in order],
     }
 
 
@@ -194,8 +198,14 @@ def compile_answer_chain(
     before_provider: Callable[[], None] | None = None,
     before_embedding: Callable[[], None] | None = None,
     before_generation: Callable[[], None] | None = None,
+    rerank_node=None,
+    before_rerank: Callable[[], None] | None = None,
 ) -> tuple[RunnableSequence, ChainTrace]:
-    """Compile one validated five-node answer graph into an LCEL sequence."""
+    """Compile one validated answer graph into an LCEL sequence.
+
+    Five nodes, or six with the optional Rerank node of schema v3, which reorders
+    the retrieved documents before the context is built.
+    """
 
     ids = node_ids or {kind: kind for kind in NODE_ORDER}
     trace = ChainTrace()
@@ -237,6 +247,32 @@ def compile_answer_chain(
         except Exception:
             trace.updates["retrieval_ms"] = _elapsed(started)
             raise
+
+    def rerank_stage(state: dict[str, Any]) -> dict[str, Any]:
+        items = [document.metadata["evidence"] for document in state["documents"]]
+
+        def before_call():
+            if before_rerank:
+                before_rerank()
+            elif before_provider:
+                before_provider()
+
+        kept, record = reranking.rerank(
+            state["question"],
+            items,
+            node_id=ids["rerank"],
+            model=rerank_node.model,
+            top_n=rerank_node.top_n,
+            provider=generation.provider_for(),
+            before_call=before_call,
+        )
+        updates = {"rerank": record, "rerank_ms": record["rerank_ms"]}
+        trace.updates.update(updates)
+        documents = [
+            LangChainDocument(page_content=item["text"], metadata={"evidence": item})
+            for item in kept
+        ]
+        return {**state, "documents": documents, **updates}
 
     def context_stage(state: dict[str, Any]) -> dict[str, Any]:
         items = [document.metadata["evidence"] for document in state["documents"]]
@@ -330,13 +366,8 @@ def compile_answer_chain(
     persist_evidence = RunnableLambda(checkpoint_stage, name="checkpoint_evidence")
     llm = RunnableLambda(generation_stage, name=ids["llm"])
     answer = RunnableLambda(answer_stage, name=ids["answer"])
-    chain = (
-        question
-        | retrieval
-        | context
-        | prompt_assignment
-        | persist_evidence
-        | llm
-        | answer
-    )
+    chain = question | retrieval
+    if rerank_node is not None:
+        chain = chain | RunnableLambda(rerank_stage, name=ids["rerank"])
+    chain = chain | context | prompt_assignment | persist_evidence | llm | answer
     return chain, trace

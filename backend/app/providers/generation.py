@@ -90,18 +90,22 @@ class OpenRouterChat:
                 follow_redirects=False,
                 trust_env=False,
             ) as client:
+                payload = {
+                    "model": config["model"],
+                    "messages": messages,
+                    "max_tokens": config["max_tokens"],
+                    "temperature": config["temperature"],
+                    "stream": False,
+                    "provider": {"allow_fallbacks": False},
+                }
+                # Only rerank calls set it; answer requests are unchanged.
+                if "reasoning" in config:
+                    payload["reasoning"] = config["reasoning"]
                 with client.stream(
                     "POST",
                     "https://openrouter.ai/api/v1/chat/completions",
                     headers={"Authorization": "Bearer " + api_key.get_secret_value()},
-                    json={
-                        "model": config["model"],
-                        "messages": messages,
-                        "max_tokens": config["max_tokens"],
-                        "temperature": config["temperature"],
-                        "stream": False,
-                        "provider": {"allow_fallbacks": False},
-                    },
+                    json=payload,
                 ) as response:
                     if response.status_code != 200:
                         if response.status_code == 401:

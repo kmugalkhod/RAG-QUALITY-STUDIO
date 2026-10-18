@@ -107,6 +107,8 @@ export interface Evidence {
   fusion_score?: number | null;
   vector_rank?: number | null;
   keyword_rank?: number | null;
+  // Set when a Rerank step reordered the evidence: the rank the retriever gave it.
+  retriever_rank?: number;
 }
 export interface Retrieval {
   index_id: string;

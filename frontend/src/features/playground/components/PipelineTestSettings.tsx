@@ -45,6 +45,7 @@ export function PipelineTestSettings(props: Props) {
   const retriever = draft?.execution.nodes.find((n) => n.type === 'retriever');
   const prompt = draft?.execution.nodes.find((n) => n.type === 'prompt');
   const llm = draft?.execution.nodes.find((n) => n.type === 'llm');
+  const rerank = draft?.execution.nodes.find((n) => n.type === 'rerank');
   const selectedIndex = props.indexes.find((index) => index.id === retriever?.index_id);
   const currentIndex = selectedIndex
     ? props.indexes.find(
@@ -164,6 +165,39 @@ export function PipelineTestSettings(props: Props) {
                 value={getNodeRetrievalSettings(retriever)}
                 onChange={(retrieval) => update('retriever', { retrieval })}
               />
+              {rerank && (
+                <>
+                  <h3 className={SUBHEADING}>Rerank step</h3>
+                  <p className={HINT}>
+                    Top k is the number of candidates it reads. Add or remove the step in the
+                    pipeline editor.
+                  </p>
+                  <Label>
+                    Rerank model
+                    <NativeSelect
+                      className="mt-2"
+                      value={rerank.model || ''}
+                      onChange={(e) => update('rerank', { model: e.target.value })}
+                    >
+                      <NativeSelectOption value="">Choose a model</NativeSelectOption>
+                      {options?.models.map((model) => (
+                        <NativeSelectOption key={model}>{model}</NativeSelectOption>
+                      ))}
+                    </NativeSelect>
+                  </Label>
+                  <Label>
+                    Passages kept
+                    <Input
+                      className="mt-2"
+                      type="number"
+                      min={1}
+                      max={20}
+                      value={Number.isFinite(rerank.top_n) ? rerank.top_n : ''}
+                      onChange={(e) => update('rerank', { top_n: e.target.valueAsNumber })}
+                    />
+                  </Label>
+                </>
+              )}
               <h3 className={SUBHEADING}>Answer generation</h3>
               <div className="flex flex-col">
                 <Label htmlFor="playground-prompt">Prompt</Label>

@@ -10,6 +10,8 @@ export function summarizeNodeConfig(kind: PipelineNodeKind, config: PipelineNode
       return `${formatRetrievalSummary(getNodeRetrievalSettings(config))} · ${
         config.index_id ? 'Documents selected' : 'Choose documents'
       }`;
+    case 'rerank':
+      return `Keeps ${config.top_n ?? 5} · ${config.model || 'Choose a model'}`;
     case 'prompt':
       return 'Answer with evidence';
     case 'llm':

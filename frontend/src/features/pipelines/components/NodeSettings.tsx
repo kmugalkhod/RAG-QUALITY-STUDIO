@@ -8,7 +8,7 @@ import { getNodeRetrievalSettings } from '../../../lib/retrieval';
 import { Callout, META } from '../../../components/parts';
 
 import { formatIndexOption, type IndexVersion } from '../../documents/model';
-import type { PipelineNodeConfig, PipelineOptions } from '../model';
+import { RERANK_TOP_N_MAX, type PipelineNodeConfig, type PipelineOptions } from '../model';
 import type { FlowNode } from './WorkflowNode';
 import { ModelField } from './ModelField';
 import { AnswerPolicyField } from './AnswerPolicyField';
@@ -25,6 +25,8 @@ interface Props {
   onSelect: (id: string) => void;
   onUpdate: (patch: Partial<PipelineNodeConfig>) => void;
   onDelete: () => void;
+  onAddRerank: () => void;
+  onRemoveRerank: () => void;
 }
 export function NodeSettings({
   open,
@@ -38,7 +40,10 @@ export function NodeSettings({
   onSelect,
   onUpdate,
   onDelete,
+  onAddRerank,
+  onRemoveRerank,
 }: Props) {
+  const rerank = nodes.find((node) => node.data.config.type === 'rerank')?.data.config;
   const selectedIndex =
     config?.type === 'retriever'
       ? indexes.find((index) => index.id === config.index_id)
@@ -140,6 +145,71 @@ export function NodeSettings({
           <p className={META}>
             Search uses this saved document set. Changing it does not change earlier answers.
           </p>
+          <h3 className="text-sm font-semibold text-foreground">Rerank step</h3>
+          {rerank ? (
+            <>
+              <p className={META}>
+                Top k is the number of candidates the Rerank step reads (at most 50). It keeps the{' '}
+                {rerank.top_n ?? 5} most useful for the prompt.
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                className="self-start"
+                onClick={onRemoveRerank}
+              >
+                Remove rerank step
+              </Button>
+            </>
+          ) : (
+            <>
+              <p className={META}>
+                A chat model reads the question with the retrieved candidates and orders them before
+                the prompt. Top k becomes the number of candidates, 30 by default.
+              </p>
+              <Button type="button" variant="outline" className="self-start" onClick={onAddRerank}>
+                Add a rerank step
+              </Button>
+            </>
+          )}
+        </>
+      )}
+      {config?.type === 'rerank' && (
+        <>
+          <ModelField
+            label="Rerank model"
+            value={config.model ?? ''}
+            options={options}
+            loading={optionsLoading}
+            onChange={(model) => onUpdate({ model })}
+            onRefresh={onRefreshOptions}
+          />
+          {options?.rerank && !options.models.includes(options.rerank.recommended_model) && (
+            <p className={META}>
+              Measured choice: {options.rerank.recommended_model}, the cheapest model that met the
+              search target. Approve it in Organization settings to use it here.
+            </p>
+          )}
+          <Label className="mb-0">
+            Passages kept
+            <Input
+              className="mt-2"
+              type="number"
+              min={1}
+              max={RERANK_TOP_N_MAX}
+              value={Number.isFinite(config.top_n) ? config.top_n : ''}
+              onChange={(e) => onUpdate({ top_n: e.target.valueAsNumber })}
+            />
+          </Label>
+          <p className={META}>
+            The model reads the Retriever&apos;s candidates as untrusted text and returns their
+            order; it does not write or score answers. The prompt receives the first passages in
+            that order. If reranking fails, the retriever&apos;s order is used and the run says so.
+            Its cost and time are recorded apart from the answer&apos;s.
+          </p>
+          <Button type="button" variant="outline" className="self-start" onClick={onRemoveRerank}>
+            Remove rerank step
+          </Button>
         </>
       )}
       {config?.type === 'prompt' && (
@@ -214,7 +284,7 @@ export function NodeSettings({
           Displays the generated answer with checked source references, evidence and usage.
         </p>
       )}
-      {config && (
+      {config && config.type !== 'rerank' && (
         <Button variant="outline" className="self-start" onClick={onDelete}>
           Delete selected node
         </Button>

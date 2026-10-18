@@ -109,3 +109,72 @@ describe('query result', () => {
     await userEvent.setup().tab();
   });
 });
+
+describe('rerank step in the inspector', () => {
+  const rerank = {
+    node_id: 'rerank',
+    model: 'cheap',
+    actual_model: 'cheap-1',
+    prompt_version: 'rerank-v1',
+    top_n: 5,
+    candidate_count: 30,
+    candidates_read: 30,
+    returned_count: 5,
+    status: 'reranked' as const,
+    message: null,
+    cost_usd: 0.0005,
+    cost_basis: 'OpenRouter reported rerank cost (USD)',
+    rerank_ms: 1080,
+  };
+  const reranked: QueryRun = {
+    ...run,
+    snapshot: {
+      ...run.snapshot,
+      rerank,
+      rerank_ms: 1080,
+      evidence: [{ ...run.snapshot.evidence[0], retriever_rank: 14 }],
+    },
+  };
+
+  it('shows both ranks for each source', () => {
+    render(<RunInspector run={reranked} mode="sources" />);
+    expect(screen.getByText(/Rank 1 · Retriever rank 14/)).toBeInTheDocument();
+  });
+
+  it('shows the step, its time and its own cost', () => {
+    render(<RunInspector run={reranked} mode="details" />);
+    expect(
+      screen.getByText('Rerank step · cheap-1 · ordered 30 of 30 candidates, kept 5'),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Reranking').nextSibling).toHaveTextContent('1.08 s');
+    expect(screen.getByText('Rerank cost').nextSibling).toHaveTextContent(
+      '$0.000500 (provider reported)',
+    );
+    expect(screen.queryByText('Reranking failed; retriever order used')).not.toBeInTheDocument();
+  });
+
+  it('says when reranking failed and the retriever order was used', () => {
+    const failed: QueryRun = {
+      ...reranked,
+      snapshot: {
+        ...reranked.snapshot,
+        rerank: {
+          ...rerank,
+          status: 'fallback',
+          message: 'Reranking failed; retriever order used',
+          cost_usd: null,
+          actual_model: null,
+        },
+      },
+    };
+    render(<RunInspector run={failed} mode="details" />);
+    expect(screen.getByRole('status')).toHaveTextContent('Reranking failed; retriever order used');
+    expect(screen.getByText('Rerank cost').nextSibling).toHaveTextContent('No call');
+  });
+
+  it('shows no rerank rows without a rerank step', () => {
+    render(<RunInspector run={run} mode="details" />);
+    expect(screen.queryByText('Reranking')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Retriever rank/)).not.toBeInTheDocument();
+  });
+});

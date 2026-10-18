@@ -46,6 +46,22 @@ embeddings.provider_for = test_provider
 
 def chat_respond(request):
     body = json.loads(request.content)
+    if "reasoning" in body:
+        # A Rerank step (spec 0015): reverse the retriever order, deterministically.
+        count = body["messages"][-1]["content"].count("<passage number=")
+        reply = ", ".join(str(n) for n in range(count, 0, -1))
+        return httpx.Response(
+            200,
+            json={
+                "model": body["model"],
+                "choices": [{"finish_reason": "stop", "message": {"content": reply}}],
+                "usage": {
+                    "prompt_tokens": 60,
+                    "completion_tokens": 4,
+                    "total_tokens": 64,
+                },
+            },
+        )
     question = json.loads(body["messages"][-1]["content"])["question"]
     answer = (
         "INSUFFICIENT_EVIDENCE: The sources do not give a launch code."

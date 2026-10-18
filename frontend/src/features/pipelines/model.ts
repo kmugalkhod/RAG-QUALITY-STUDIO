@@ -4,7 +4,16 @@ import {
   type RetrievalSettings,
 } from '../../lib/retrieval';
 export const pipelineNodeOrder = ['question', 'retriever', 'prompt', 'llm', 'answer'] as const;
-export type PipelineNodeKind = (typeof pipelineNodeOrder)[number];
+// Schema v3 (spec 0015): the one shape with the optional Rerank node.
+export const rerankNodeOrder = [
+  'question',
+  'retriever',
+  'rerank',
+  'prompt',
+  'llm',
+  'answer',
+] as const;
+export type PipelineNodeKind = (typeof rerankNodeOrder)[number];
 export type AnswerPolicy = 'strict-v1' | 'complete-v2';
 // A prompt node saved without a policy runs with the original strict prompt.
 export const getAnswerPolicy = (policy: AnswerPolicy | undefined): AnswerPolicy =>
@@ -20,9 +29,11 @@ export type PipelineNodeConfig = {
   model?: string;
   max_tokens?: number;
   temperature?: number;
+  // Rerank: the passages it keeps for the prompt.
+  top_n?: number;
 };
 export type PipelineExecution = {
-  schema_version: 1 | 2;
+  schema_version: 1 | 2 | 3;
   nodes: PipelineNodeConfig[];
   edges: { source: string; target: string }[];
 };
@@ -64,7 +75,24 @@ export type PipelineOptions = {
   error: string | null;
   error_code: 'no_models' | 'provider_key' | 'configuration' | null;
   can_manage_models: boolean;
+  // Defaults for a new Rerank step; absent from servers before spec 0015.
+  rerank?: {
+    default_model: string | null;
+    recommended_model: string;
+    top_n: number;
+    candidates: number;
+  };
 };
+
+export const RERANK_TOP_N_MAX = 20;
+export const RERANK_CANDIDATES_DEFAULT = 30;
+
+export const hasRerank = (execution: Pick<PipelineExecution, 'nodes'>) =>
+  execution.nodes.some((node) => node.type === 'rerank');
+
+// The node order the graph must follow: five nodes, or six with a Rerank step.
+export const nodeOrderFor = (execution: Pick<PipelineExecution, 'nodes'>) =>
+  hasRerank(execution) ? rerankNodeOrder : pipelineNodeOrder;
 
 export function findModelOption(
   options: PipelineOptions | undefined,
@@ -105,26 +133,33 @@ export function validatePipelineExecution(
   readyIndexIds?: string[],
 ): string[] {
   const errors: string[] = [];
-  const hasEveryNode = pipelineNodeOrder.every(
+  const order: readonly PipelineNodeKind[] = nodeOrderFor(execution);
+  const reranked = order.length === rerankNodeOrder.length;
+  const hasEveryNode = order.every(
     (kind) => execution.nodes.filter((node) => node.type === kind).length === 1,
   );
-  if (execution.nodes.length !== pipelineNodeOrder.length || !hasEveryNode) {
-    errors.push('Require exactly one Question, Retriever, Prompt, LLM and Answer node.');
+  if (execution.nodes.length !== order.length || !hasEveryNode) {
+    errors.push(
+      reranked
+        ? 'Require exactly one Question, Retriever, Rerank, Prompt, LLM and Answer node.'
+        : 'Require exactly one Question, Retriever, Prompt, LLM and Answer node.',
+    );
   }
 
-  const nodeIds = pipelineNodeOrder.map(
-    (kind) => execution.nodes.find((node) => node.type === kind)?.id,
-  );
+  const nodeIds = order.map((kind) => execution.nodes.find((node) => node.type === kind)?.id);
   const hasEveryConnection = nodeIds
     .slice(1)
     .every((targetId, index) =>
       execution.edges.some((edge) => edge.source === nodeIds[index] && edge.target === targetId),
     );
-  if (execution.edges.length !== pipelineNodeOrder.length - 1 || !hasEveryConnection) {
+  if (execution.edges.length !== order.length - 1 || !hasEveryConnection) {
     errors.push(
-      'Connect Question → Retriever → Prompt → LLM → Answer only; branches, cycles and disconnected nodes are unsupported.',
+      reranked
+        ? 'Connect Question → Retriever → Rerank → Prompt → LLM → Answer only; branches, cycles and disconnected nodes are unsupported.'
+        : 'Connect Question → Retriever → Prompt → LLM → Answer only; branches, cycles and disconnected nodes are unsupported.',
     );
   }
+  const rerank = execution.nodes.find((node) => node.type === 'rerank');
 
   for (const node of execution.nodes) {
     switch (node.type) {
@@ -137,6 +172,27 @@ export function validatePipelineExecution(
             (message) => `Retriever: ${message}`,
           ),
         );
+        if (
+          rerank &&
+          Number.isInteger(rerank.top_n) &&
+          getNodeRetrievalSettings(node).top_k < (rerank.top_n ?? 0)
+        ) {
+          errors.push(
+            `Retriever: Top k is the number of candidates to rerank; set it to at least ${rerank.top_n}.`,
+          );
+        }
+        break;
+      case 'rerank':
+        if (!node.model || (options && !options.models.includes(node.model))) {
+          errors.push('Rerank: select an approved model.');
+        }
+        if (
+          !Number.isInteger(node.top_n) ||
+          (node.top_n ?? 0) < 1 ||
+          (node.top_n ?? 0) > RERANK_TOP_N_MAX
+        ) {
+          errors.push(`Rerank: keep a whole number of passages from 1 to ${RERANK_TOP_N_MAX}.`);
+        }
         break;
       case 'prompt':
         if (!hasValidPrompt(node.template)) {
@@ -159,6 +215,7 @@ export function validatePipelineExecution(
 
 const issuePrefixes: [string, PipelineNodeKind][] = [
   ['Retriever:', 'retriever'],
+  ['Rerank:', 'rerank'],
   ['Prompt:', 'prompt'],
   ['LLM:', 'llm'],
 ];
@@ -198,7 +255,7 @@ export function canonical(value: unknown): string {
 // Convert only editable copies; persisted v1 JSON remains immutable.
 export function createEditableExecution(execution: PipelineExecution): PipelineExecution {
   const editable = structuredClone(execution);
-  editable.schema_version = 2;
+  editable.schema_version = hasRerank(execution) ? 3 : 2;
   for (const node of editable.nodes) {
     if (node.type === 'retriever') {
       node.retrieval = getNodeRetrievalSettings(node);

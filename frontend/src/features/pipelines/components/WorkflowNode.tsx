@@ -1,6 +1,14 @@
 import { useEffect } from 'react';
 import { useUpdateNodeInternals, Position, Handle, type NodeProps, type Node } from '@xyflow/react';
-import { MessageSquare, Search, TextQuote, Cpu, CheckCheck, TriangleAlert } from 'lucide-react';
+import {
+  MessageSquare,
+  Search,
+  ListOrdered,
+  TextQuote,
+  Cpu,
+  CheckCheck,
+  TriangleAlert,
+} from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../../components/ui/tooltip';
 import { cn } from '../../../lib/utils';
 import type { PipelineNodeConfig } from '../model';
@@ -17,6 +25,7 @@ export type FlowNode = Node<{
 const icons = {
   question: MessageSquare,
   retriever: Search,
+  rerank: ListOrdered,
   prompt: TextQuote,
   llm: Cpu,
   answer: CheckCheck,
