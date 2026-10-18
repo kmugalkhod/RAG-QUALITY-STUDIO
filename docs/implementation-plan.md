@@ -2,10 +2,10 @@
 
 ## Better search and a clearer ingestion editor — spec 0015 (drafted 2026-10-18)
 
-**Status:** draft, waiting for the owner's decisions D1-D8. [Spec 0015](specs/0015-better-search-and-editor.md).
+**Status:** draft; D1 decided by the owner (Rerank node), D2-D8 waiting. [Spec 0015](specs/0015-better-search-and-editor.md).
 
 **Part 1, search (7 → 8.5):**
-- an optional reranker in the Retriever (an OpenRouter chat model over 30 candidates);
+- an optional **Rerank node** between Retriever and Prompt (answer graph schema version 3; the owner decided on a node on 2026-10-18), using an OpenRouter chat model over 30 candidates;
 - keyword candidates only if needed;
 - `section-token-v5` and `parent-child-v5`, which keep the whole-table passage beside its row passages and read a spreadsheet title row correctly.
 

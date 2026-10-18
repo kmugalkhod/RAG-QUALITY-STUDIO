@@ -1,7 +1,7 @@
 # 0015. Better search and a clearer ingestion editor (7 → 8.5 and 8 → 8.5)
 
 **Date**: 2026-10-18
-**Status**: Draft, waiting for the owner's decisions D1-D8.
+**Status**: Draft. D1 was decided by the owner on 2026-10-18 (the reranker is a node); D2-D8 are waiting.
 
 ## Summary
 
@@ -45,18 +45,14 @@ On the same questions, indexes and answer model:
 
 ### Proposed changes
 
-- **S1. An optional reranker in the Retriever.**
-  - Settings: `rerank: {"model": …, "candidates": 30}`.
-  - Behaviour: the search fetches 30 candidates, a chat model on the project's existing OpenRouter key orders them by how well each one answers the question, and the Retriever keeps the top k.
-  - No new dependency or provider, and no new answer-graph node (the five-node graph stays as validated).
-  - The run snapshot records:
-    - the reranker model;
-    - the prompt version (`rerank-v1`);
-    - the candidate count;
-    - the original and reranked ranks;
-    - the reranker's cost and latency, kept separate from the answer's.
-  - Saved pipelines without `rerank` run exactly as saved.
-  - If the reranker call fails, the vector order is used and the run says so; the answer never fails because of it.
+- **S1. An optional Rerank node in the answer pipeline (owner decision 2026-10-18: "Reranker it should be as Node only").**
+  - **Graph:** a new execution schema version 3 allows exactly one shape besides today's: Question → Retriever → **Rerank** → Prompt → LLM → Answer. Schemas 1 and 2 keep exactly five nodes and run exactly as saved. The graph stays a fixed linear template with one optional node: no branches, no other new node types, and no code in nodes.
+  - **Node settings:** `model` (an approved OpenRouter chat model) and `top_n`, the passages it keeps (default 5, 1-20). With a Rerank node present, the Retriever's Top k is the number of candidates it fetches: default 30, at most 50, and at least `top_n`.
+  - **What it does:** the model reads the question and the candidates (as untrusted data, never instructions) and returns their order. The node keeps the first `top_n`, and the Prompt receives them in that order. It needs no new dependency, provider or key: it uses the project's OpenRouter key and approved-model list.
+  - **Record:** each run records the node's model, prompt version (`rerank-v1`), candidate count, each passage's retriever rank and reranked rank, and the node's own cost and latency, separate from the answer's. The evidence inspector shows both ranks.
+  - **Failure:** if the rerank call fails or returns an unusable order, the node passes on the retriever's first `top_n` and the run says "Reranking failed; retriever order used". The answer never fails because of it.
+  - **Everywhere the graph runs:** the same compiled graph runs in Playground, experiments, deployed answers and the widget, so every path gets the node through `backend/app/pipelines/langchain_rag.py`. Experiment snapshots include it.
+  - **Editor:** the Retriever's settings offer **Add a rerank step**, which inserts the node (and **Remove rerank step**). The node has a labelled, keyboard-accessible settings form like the others, and the canvas draws it with its own icon.
 - **S2. Keyword candidates for the reranker (only if Slice 0 shows they are needed).** The candidates are the union of vector top 30 and BM25 top 30, using spec 0013 Parts A-B (term statistics per index version, BM25 ranking). The reranker, not rank fusion, decides the order, which removes the fusion losses spec 0013 measured.
 - **S3. Tables that serve both kinds of question (`section-token-v5`, `parent-child-v5`).**
   - Each table keeps its v3 whole-group passage and also gets the v4 row passages, so a question about one row finds the row, and a question about a list across rows finds the table.
@@ -114,7 +110,7 @@ On the same questions, indexes and answer model:
 
 | # | Decision | Recommendation |
 | --- | --- | --- |
-| D1 | Reranker kind | **An OpenRouter chat model as a listwise reranker** (S1). No new dependency or credential. A local cross-encoder needs about 0.5-1 GB more memory per worker on this machine; a hosted rerank API needs a new provider and key. |
+| D1 | Reranker kind | **Decided by the owner: an optional Rerank node** in the answer graph (schema version 3), between Retriever and Prompt. **Recommended engine: an OpenRouter chat model as a listwise reranker.** It needs no new dependency or key. A local cross-encoder needs about 0.5-1 GB more memory per worker on this machine, and a hosted rerank API needs a new provider and key. |
 | D2 | Reranker model | Chosen by measurement in Slice 0 from two candidates: a small, cheap model and `google/gemini-2.5-flash`, the answer model already in use. The reranker orders evidence and does not score answers, so the owner's "no weak LLM judge" rule is not affected. **Pick the cheapest one that meets the target.** |
 | D3 | Keyword candidates (S2) | **Build them only if Slice 0 shows vector-only candidates miss the target.** |
 | D4 | Tables (S3) | **Build `section-token-v5` and `parent-child-v5`** (whole group plus rows, title-row header) and measure them in the proof round. |
@@ -128,7 +124,7 @@ On the same questions, indexes and answer model:
 | Slice | Content | Acceptance |
 | --- | --- | --- |
 | 0 | Measure first, paid (about $0.30): rerank the A5 and A6p vector top 30 offline with both D2 models, and with BM25 candidates added. Record top 5, rank 1, losses, cost and latency per question | Results in `docs/qa/search-and-editor-2026-10/`. If no setting meets the retrieval target without a loss, stop and report |
-| 1 | S1 reranker in the Retriever: schema, execution, snapshot, fallback, cost/latency, answer editor settings (**Search by** plus **Rerank results** under Advanced, with **Reset to recommended**) | Unit and PostgreSQL tests; saved pipelines byte-identical; reranker failure falls back and says so |
+| 1 | S1 Rerank node: schema version 3 and graph validation, execution in the compiled graph (Playground, experiments, deployments, widget), snapshot, fallback, cost and latency, evidence ranks, canvas node and settings form, **Add a rerank step** and **Remove rerank step** | Validation tests for every allowed and rejected shape; schemas 1 and 2 byte-identical; PostgreSQL tests for runs and snapshots; reranker failure falls back and says so; Vitest and Playwright for adding, configuring, saving and removing the node |
 | 2 | S2 keyword candidates (only under D3) | Spec 0013 Slices 1-2 acceptance |
 | 3 | S3 v5 chunkers | Chunking tests: whole group and rows, title-row header; v1-v4 unchanged |
 | 4 | U3 and U4 | Vitest, Playwright for links and Searched as, backend tests for run versions |
