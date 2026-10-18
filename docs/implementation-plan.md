@@ -2,7 +2,19 @@
 
 ## Table rows kept and findable — spec 0014 (started 2026-10-18)
 
-**Status:** approved 2026-10-18 ("go ahead with the table fixes"); recommendations D1-D7 taken as accepted. Slices 0-4 done; Slice 5 (paid proof round) next. New drafts keep `layout-ocr-v5` and v3 chunking until the proof round passes (D6). [Spec 0014](specs/0014-table-rows-kept-and-findable.md).
+**Status:** approved 2026-10-18 ("go ahead with the table fixes"); recommendations D1-D7 taken as accepted. **All slices done.** Under D6, new drafts keep `layout-ocr-v5` and `section-token-v3`; `layout-ocr-v6`, `section-token-v4` and `parent-child-v4` are available for saved pipelines.
+
+**Slice 5 (proof round), 2026-10-18, $0.185 by upper bound (harness cap raised to $2 by the owner; cumulative $0.79):** rounds A6 and A6p, scored blind (`docs/qa/table-rows-2026-10/proof/`):
+- A5 → A6 files went 39 → 38: it won f2-q10 and g3-q2 but lost f6-q1, f6-q2 and g5-q2. The losses come from one-row passages in the DfT DOCX (answers spread over several rows) and the NISRA XLSX (the first row is a title, not column names).
+- A5 → A6 websites stayed at 12 of 12.
+- A5p → A6p files went 38 → 39: it won g3-q2 and lost nothing.
+- Retrieval top 5 for files: A6 41 → 41 (two lost, two gained), A6p 43 → 44.
+
+**Open for the owner:**
+1. Use `parent-child-v4` with `layout-ocr-v6` for new parent-child drafts, the combination that passed.
+2. Measure `layout-ocr-v6` with `section-token-v3`. The losses are all in non-PDF files that v6 does not change, so v6 alone may pass; this is a paid round of about $0.10.
+3. A `section-token-v5` that adds row passages beside the whole-table passage, or only for tables with resolved columns.
+4. Fix the blank page shown when an ingestion pipeline URL lacks `?kind=ingestion` (seen in the browser check, existing behaviour). [Spec 0014](specs/0014-table-rows-kept-and-findable.md).
 
 **Slice 0 (measure first), 2026-10-18, under $0.04 in embeddings:** the Census report and the GAO testimony were reprocessed with `layout-ocr-v6` and v4 chunking through the worker's own path, and their passages replaced in the A5 and A5p indexes (`backend/scripts/table_rows/slice0.py`, `docs/qa/table-rows-2026-10/`). Over the 37 answerable questions of the two tracks, vector top 5 went 31 → 33 on A5 and 32 → 33 on A5p, hybrid 33 → 36 and 29 → 31, and no vector top-5 hit was lost. g3-q2 is now rank 1 in every mode, f2-q10 rank 2 by vector search on A5, and f2-q9 rank 3 by hybrid search (still not in the vector top 5).
 

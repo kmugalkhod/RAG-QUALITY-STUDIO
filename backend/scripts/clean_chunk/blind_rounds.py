@@ -18,12 +18,15 @@ from __future__ import annotations
 
 import csv
 import json
+import os
 import random
 import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parents[1] / "real_source"
-SEED = "clean-chunk-0012"
+# Each spec scores with its own seed (BLIND_SEED), so X and Y never repeat an
+# earlier review's order.
+SEED = os.environ.get("BLIND_SEED", "clean-chunk-0012")
 LABELS = {
     "correct",
     "partial",

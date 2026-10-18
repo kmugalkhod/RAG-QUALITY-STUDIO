@@ -20,6 +20,9 @@ earlier rounds. Spec 0010 adds rounds A4s and A4p (A3 with the v2 chunkers).
 Spec 0012 adds round A5: A4s with `structure-clean-v2` and `section-token-v3`,
 and the websites rebuilt from the R1 snapshot with the same two versions; and A5p:
 A4p with `structure-clean-v2` and `parent-child-v3`.
+Spec 0014 adds round A6: A5 with `layout-ocr-v6` and `section-token-v4` (the
+websites rebuilt again, since v4 also chunks website tables by row); and A6p: A5p
+with `layout-ocr-v6` and `parent-child-v4`.
 
 Run inside the backend container against http://127.0.0.1:8000 (local auth mode).
 """
@@ -39,7 +42,7 @@ from pathlib import Path
 
 HERE = Path(__file__).parent
 PROJECT_NAME = "Real-source test 2026-10"
-COST_CAP_USD = 1.0
+COST_CAP_USD = 2.0
 # Upper-bound embedding estimate: indexed UTF-8 bytes (the app's conservative token
 # unit) at OpenRouter's list price for openai/text-embedding-3-small on 2026-10-09.
 EMBEDDING_USD_PER_MILLION = 0.02
@@ -116,6 +119,20 @@ ROUNDS = {
             "quality": {"d2": "warn-v1"}, "reuse": {"web": "A1"},
             "chunk_profile": "parent_child",
             "clean_version": "structure-clean-v2", "chunk_version": "parent-child-v3"},
+    # Spec 0014 slice 5: A5 and A5p with extractor v6 (table rows kept, columns
+    # named) and the v4 chunkers (one passage per table row). Baselines A5, A5p.
+    "A6": {"tracks": ["web", "files", "new", "d2"],
+           "label": "Table rows: layout-ocr-v6 and section-token-v4",
+           "extract": {"config_version": "layout-ocr-v6"}, "ocr": {"max_pages": 100},
+           "quality": {"web": "warn-v1", "d2": "warn-v1"},
+           "chunk_profile": "section_token",
+           "clean_version": "structure-clean-v2", "chunk_version": "section-token-v4"},
+    "A6p": {"tracks": ["files", "new", "d2"],
+            "label": "Table rows: layout-ocr-v6 and parent-child-v4",
+            "extract": {"config_version": "layout-ocr-v6"}, "ocr": {"max_pages": 100},
+            "quality": {"d2": "warn-v1"}, "reuse": {"web": "A1"},
+            "chunk_profile": "parent_child",
+            "clean_version": "structure-clean-v2", "chunk_version": "parent-child-v4"},
 }
 # The index a track falls back to when a round does not rebuild it.
 BASELINE = {"web": "R1", "files": "R1w"}

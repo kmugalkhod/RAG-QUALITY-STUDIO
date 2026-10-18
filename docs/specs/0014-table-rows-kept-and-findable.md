@@ -1,7 +1,7 @@
 # 0014. Table rows that are kept and can be found
 
 **Date**: 2026-10-18
-**Status**: Approved 2026-10-18 ("go ahead with the table fixes"); recommendations D1-D7 taken as accepted. Slice 0 passed (`docs/qa/table-rows-2026-10/README.md`): with the new versions g3-q2 is rank 1 and f2-q10 rank 2 by vector search, f2-q9 rank 3 by hybrid search, and no vector top-5 hit is lost.
+**Status**: Approved 2026-10-18; recommendations D1-D7 taken as accepted. **All slices done.** Slice 0 passed. Proof round (Slice 5, `docs/qa/table-rows-2026-10/README.md`): `parent-child-v4` with `layout-ocr-v6` 38 → 39 of 44, no answer or top-5 hit lost; `section-token-v4` 39 → 38 (wins f2-q10, g3-q2; losses f6-q1, f6-q2, g5-q2 from row passages in a DOCX and an XLSX), so under D6 new pipelines stay on `layout-ocr-v5` and `section-token-v3`, and the new versions remain a choice.
 
 ## Summary
 

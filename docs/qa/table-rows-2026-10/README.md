@@ -59,3 +59,76 @@ The build continues with Slices 1-3.
 - **"Percent distribution" spans eight columns but is attached only to the two it is printed over.**
 - **A group label carried onto a continuation page appears in the searched text but not in the passage text the answer model sees.** For example, the ALL RACES rows before 1990 on page 23 lack the label in their passage text.
 - **GAO Table 2's rows stay paragraphs** under the table's caption, not table rows.
+
+## Proof round (Slice 5, 2026-10-18)
+
+**Setup.** Rounds A6 and A6p of the real-source harness (`backend/scripts/real_source/run.py`) repeat rounds A5 and A5p, changing only the extractor and chunking versions:
+- **The same everywhere:** the 15 files, `structure-clean-v2`, the sizes a new pipeline gets, vector search top 5, and `google/gemini-2.5-flash` at temperature 0.
+- **A6:** `layout-ocr-v6` with `section-token-v4`. It also rebuilds the four websites from the R1 snapshot, because v4 also chunks website tables by row.
+- **A6p:** `layout-ocr-v6` with `parent-child-v4`.
+
+Every index published:
+
+| Index | Before (A5 / A5p) | After (A6 / A6p) |
+| --- | ---: | ---: |
+| Websites, A6 | 2,334 | 3,017 |
+| Files (F1-F3), A6 | 660 | 1,431 |
+| Second file set, A6 | 506 | 667 |
+| Spec 0009 files, A6 | 751 | 1,094 |
+| Files (F1-F3), A6p | 1,955 | 1,940 |
+| Second file set, A6p | 905 | 981 |
+| Spec 0009 files, A6p | 1,857 | 1,927 |
+
+**Scoring.** Answers were scored blind with the spec 0004 rubric, using `backend/scripts/clean_chunk/blind_rounds.py` with this spec's own seed (`BLIND_SEED=table-rows-0014`). Every label and its reason was written before the key was read. The review, labels, key and results are in [`proof/`](proof/), and [`proof/spot_check.md`](proof/spot_check.md) holds 10 random labels for the owner to check.
+
+### Answers (correct or correct-abstain)
+
+| Pair | Questions | Before | After | Wins | Losses |
+| --- | ---: | ---: | ---: | --- | --- |
+| A5 → A6 (files, section-token) | 44 | 39 | 38 | f2-q10, g3-q2 | **f6-q1, f6-q2, g5-q2** |
+| A5 → A6 (websites) | 12 | 12 | 12 | | none |
+| A5p → A6p (files, parent-child) | 44 | 38 | **39** | g3-q2 | none |
+
+### Retrieval (phrase in the top 5)
+
+| Pair | Questions | Top 5 before → after | Rank 1 before → after | Lost from top 5 | Gained |
+| --- | ---: | --- | --- | --- | --- |
+| A5 → A6, files | 58 | 41 → 41 | 23 → 27 | f6-q2, g5-q2 | f2-q10, g3-q2 |
+| A5 → A6, websites | 32 | 27 → 27 | 19 → 16 | none | none |
+| A5p → A6p, files | 58 | 43 → **44** | 29 → 31 | none | g3-q2 |
+
+- **f2-q9** is still not retrieved in any round.
+- **f2-q10** is rank 2 in A6 and stays rank 1 in A6p. The A6 answer is correct; the A6p answer declines, as A5p's did.
+- **g3-q2** is now answered correctly in both rounds ("158 GAO mandates"). A5 declined it, and A5p answered "more than 20 actions".
+
+### Why section-token-v4 loses
+
+All three losses are in non-PDF table files, which `layout-ocr-v6` does not change. The cause is the v4 row passages:
+
+- **f6-q1 and f6-q2 (DfT DOCX template).** The answers are spread over several rows of one table: a list of asset categories, and a word limit stated in the row next to its section's name. A one-row passage never holds the whole answer. Under `parent-child-v4` the parent still holds the table, and both are answered (f6-q2), or declined as before (f6-q1).
+- **g5-q2 (NISRA XLSX).** The sheet's first row is its title, not its column names, so every row passage pairs its values with the title. The workbook's table-of-contents rows then rank above the answer row.
+
+### Decision (D6)
+
+**New pipelines stay on `layout-ocr-v5` with `section-token-v3`.** `section-token-v4` loses three correct answers and two top-5 hits, so the spec's condition is not met. `layout-ocr-v6`, `section-token-v4` and `parent-child-v4` remain available for saved pipelines and through the API.
+
+`layout-ocr-v6` with `parent-child-v4` meets the condition on its own: it loses no answer and no top-5 hit, and it finds g3-q2 and f2-q10. But new drafts use the section-token profile, and making parent-child the default is outside this spec. That choice, and the other follow-ups, are recorded for the owner in `docs/implementation-plan.md`.
+
+### Spend
+
+By the harness's upper-bound estimate:
+
+| Round | Index embeddings | Query embeddings | Answers | Total |
+| --- | ---: | ---: | ---: | ---: |
+| A6 | $0.065 | $0.0001 | $0.036 (56) | $0.100 |
+| A6p | $0.037 | $0.0001 | $0.047 (44) | $0.085 |
+
+That is **$0.185** for this round, plus $0.04 in Slice 0, against this spec's $1 cap. The harness's cumulative total over all real-source rounds is $0.79; the owner raised its cap to $2 on 2026-10-18.
+
+### Browser check (Slice 4)
+
+At `http://127.0.0.1:5273`, on desktop (1,280 px) and phone (390 px), with no page errors:
+- the saved A6 pipeline (`layout-ocr-v6`, `section-token-v4`) shows no **Upgrade extraction** or **Upgrade chunking** notice;
+- the saved A2 pipeline (`layout-ocr-v4`, `section-token-v1`) still shows both.
+
+An unrelated existing fault was seen: opening an ingestion pipeline's URL without `?kind=ingestion` renders it in the answer editor, which fails on its node types and leaves a blank page.

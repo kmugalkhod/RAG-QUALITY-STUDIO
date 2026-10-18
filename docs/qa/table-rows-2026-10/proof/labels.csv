@@ -1,0 +1,201 @@
+pair,question_id,slot,label,reason
+A5:A6:fg,f1-q1,X,correct,states the reference fact
+A5:A6:fg,f1-q1,Y,correct,states the reference fact
+A5:A6:fg,f1-q4,X,correct,states the reference fact
+A5:A6:fg,f1-q4,Y,correct,states the reference fact
+A5:A6:fg,f2-q1,X,correct,states the reference fact
+A5:A6:fg,f2-q1,Y,correct,states the reference fact
+A5:A6:fg,f2-q10,X,wrong-abstain,"declined; the 1990 mean is $76,820"
+A5:A6:fg,f2-q10,Y,correct,states the reference fact
+A5:A6:fg,f2-q4,X,correct,states the reference fact
+A5:A6:fg,f2-q4,Y,correct,states the reference fact
+A5:A6:fg,f2-q6,X,correct,states the reference fact
+A5:A6:fg,f2-q6,Y,correct,states the reference fact
+A5:A6:fg,f2-q9,X,wrong-abstain,declines an answerable question
+A5:A6:fg,f2-q9,Y,wrong-abstain,declines an answerable question
+A5:A6:fg,f3-q1,X,correct,states the reference fact
+A5:A6:fg,f3-q1,Y,correct,states the reference fact
+A5:A6:fg,f3-q4,X,correct,states the reference fact
+A5:A6:fg,f3-q4,Y,correct,states the reference fact
+A5:A6:fg,f3-q8,X,correct-abstain,declines; not stated in the sources
+A5:A6:fg,f3-q8,Y,correct-abstain,declines; not stated in the sources
+A5:A6:fg,f4-q1,X,correct,states the reference fact
+A5:A6:fg,f4-q1,Y,correct,states the reference fact
+A5:A6:fg,f4-q2,X,correct,states the reference fact
+A5:A6:fg,f4-q2,Y,correct,states the reference fact
+A5:A6:fg,f4-q3,X,correct,states the reference fact
+A5:A6:fg,f4-q3,Y,correct,states the reference fact
+A5:A6:fg,f4-q4,X,correct,states the reference fact
+A5:A6:fg,f4-q4,Y,correct,states the reference fact
+A5:A6:fg,f4-q5,X,correct-abstain,declines; not stated in the sources
+A5:A6:fg,f4-q5,Y,correct-abstain,declines; not stated in the sources
+A5:A6:fg,f5-q1,X,correct,states the reference fact
+A5:A6:fg,f5-q1,Y,correct,states the reference fact
+A5:A6:fg,f5-q2,X,wrong-abstain,declines an answerable question
+A5:A6:fg,f5-q2,Y,wrong-abstain,declines an answerable question
+A5:A6:fg,f5-q3,X,wrong-abstain,declines an answerable question
+A5:A6:fg,f5-q3,Y,wrong-abstain,declines an answerable question
+A5:A6:fg,f5-q4,X,correct-abstain,declines; not stated in the sources
+A5:A6:fg,f5-q4,Y,correct-abstain,declines; not stated in the sources
+A5:A6:fg,f6-q1,X,correct,states the reference fact
+A5:A6:fg,f6-q1,Y,wrong-abstain,declined; the limit is 250 words
+A5:A6:fg,f6-q2,X,wrong-abstain,declined; the categories are listed in A4.1
+A5:A6:fg,f6-q2,Y,correct,states the reference fact
+A5:A6:fg,f7-q1,X,correct,states the reference fact
+A5:A6:fg,f7-q1,Y,correct,states the reference fact
+A5:A6:fg,f7-q2,X,correct,states the reference fact
+A5:A6:fg,f7-q2,Y,correct,states the reference fact
+A5:A6:fg,f7-q3,X,correct,states the reference fact
+A5:A6:fg,f7-q3,Y,correct,states the reference fact
+A5:A6:fg,f7-q4,X,correct-abstain,declines; not stated in the sources
+A5:A6:fg,f7-q4,Y,correct-abstain,declines; not stated in the sources
+A5:A6:fg,g1-q1,X,correct,states the reference fact
+A5:A6:fg,g1-q1,Y,correct,states the reference fact
+A5:A6:fg,g1-q2,X,correct,states the reference fact
+A5:A6:fg,g1-q2,Y,correct,states the reference fact
+A5:A6:fg,g2-q1,X,correct,states the reference fact
+A5:A6:fg,g2-q1,Y,correct,states the reference fact
+A5:A6:fg,g2-q2,X,correct,states the reference fact
+A5:A6:fg,g2-q2,Y,correct,states the reference fact
+A5:A6:fg,g2-q3,X,correct-abstain,declines; not stated in the sources
+A5:A6:fg,g2-q3,Y,correct-abstain,declines; not stated in the sources
+A5:A6:fg,g3-q1,X,correct,states the reference fact
+A5:A6:fg,g3-q1,Y,correct,states the reference fact
+A5:A6:fg,g3-q2,X,wrong-abstain,declined; the table gives 158 mandates
+A5:A6:fg,g3-q2,Y,correct,states the reference fact
+A5:A6:fg,g4-q1,X,correct,states the reference fact
+A5:A6:fg,g4-q1,Y,correct,states the reference fact
+A5:A6:fg,g4-q2,X,correct,states the reference fact
+A5:A6:fg,g4-q2,Y,correct,states the reference fact
+A5:A6:fg,g5-q1,X,correct,states the reference fact
+A5:A6:fg,g5-q1,Y,correct,states the reference fact
+A5:A6:fg,g5-q2,X,wrong-abstain,declined; the rate is 26.9%
+A5:A6:fg,g5-q2,Y,correct,states the reference fact
+A5:A6:fg,g6-q1,X,correct,states the reference fact
+A5:A6:fg,g6-q1,Y,correct,states the reference fact
+A5:A6:fg,g6-q2,X,correct,states the reference fact
+A5:A6:fg,g6-q2,Y,correct,states the reference fact
+A5:A6:fg,g6-q3,X,correct-abstain,declines; not stated in the sources
+A5:A6:fg,g6-q3,Y,correct-abstain,declines; not stated in the sources
+A5:A6:fg,g7-q1,X,correct,states the reference fact
+A5:A6:fg,g7-q1,Y,correct,states the reference fact
+A5:A6:fg,g7-q2,X,correct,states the reference fact
+A5:A6:fg,g7-q2,Y,correct,states the reference fact
+A5:A6:fg,g8-q1,X,correct,states the reference fact
+A5:A6:fg,g8-q1,Y,correct,states the reference fact
+A5:A6:fg,g8-q2,X,correct,states the reference fact
+A5:A6:fg,g8-q2,Y,correct,states the reference fact
+A5:A6:fg,g8-q3,X,correct-abstain,declines; not stated in the sources
+A5:A6:fg,g8-q3,Y,correct-abstain,declines; not stated in the sources
+A5:A6:w,w1-q1,X,correct,states the reference fact
+A5:A6:w,w1-q1,Y,correct,states the reference fact
+A5:A6:w,w1-q3,X,correct,states the reference fact
+A5:A6:w,w1-q3,Y,correct,states the reference fact
+A5:A6:w,w1-q8,X,correct-abstain,declines; not stated in the sources
+A5:A6:w,w1-q8,Y,correct-abstain,declines; not stated in the sources
+A5:A6:w,w2-q1,X,correct,states the reference fact
+A5:A6:w,w2-q1,Y,correct,states the reference fact
+A5:A6:w,w2-q3,X,correct,states the reference fact
+A5:A6:w,w2-q3,Y,correct,states the reference fact
+A5:A6:w,w2-q5,X,correct,states the reference fact
+A5:A6:w,w2-q5,Y,correct,states the reference fact
+A5:A6:w,w3-q1,X,correct,states the reference fact
+A5:A6:w,w3-q1,Y,correct,states the reference fact
+A5:A6:w,w3-q2,X,correct,states the reference fact
+A5:A6:w,w3-q2,Y,correct,states the reference fact
+A5:A6:w,w3-q6,X,correct,states the reference fact
+A5:A6:w,w3-q6,Y,correct,states the reference fact
+A5:A6:w,w4-q1,X,correct,states the reference fact
+A5:A6:w,w4-q1,Y,correct,states the reference fact
+A5:A6:w,w4-q4,X,correct,states the reference fact
+A5:A6:w,w4-q4,Y,correct,states the reference fact
+A5:A6:w,w4-q8,X,correct-abstain,declines; not stated in the sources
+A5:A6:w,w4-q8,Y,correct-abstain,declines; not stated in the sources
+A5p:A6p:fg,f1-q1,X,correct,states the reference fact
+A5p:A6p:fg,f1-q1,Y,correct,states the reference fact
+A5p:A6p:fg,f1-q4,X,correct,states the reference fact
+A5p:A6p:fg,f1-q4,Y,correct,states the reference fact
+A5p:A6p:fg,f2-q1,X,correct,states the reference fact
+A5p:A6p:fg,f2-q1,Y,correct,states the reference fact
+A5p:A6p:fg,f2-q10,X,wrong-abstain,declines an answerable question
+A5p:A6p:fg,f2-q10,Y,wrong-abstain,declines an answerable question
+A5p:A6p:fg,f2-q4,X,correct,states the reference fact
+A5p:A6p:fg,f2-q4,Y,correct,states the reference fact
+A5p:A6p:fg,f2-q6,X,correct,states the reference fact
+A5p:A6p:fg,f2-q6,Y,correct,states the reference fact
+A5p:A6p:fg,f2-q9,X,wrong-abstain,declines an answerable question
+A5p:A6p:fg,f2-q9,Y,wrong-abstain,declines an answerable question
+A5p:A6p:fg,f3-q1,X,correct,states the reference fact
+A5p:A6p:fg,f3-q1,Y,correct,states the reference fact
+A5p:A6p:fg,f3-q4,X,correct,states the reference fact
+A5p:A6p:fg,f3-q4,Y,correct,states the reference fact
+A5p:A6p:fg,f3-q8,X,correct-abstain,declines; not stated in the sources
+A5p:A6p:fg,f3-q8,Y,correct-abstain,declines; not stated in the sources
+A5p:A6p:fg,f4-q1,X,correct,states the reference fact
+A5p:A6p:fg,f4-q1,Y,correct,states the reference fact
+A5p:A6p:fg,f4-q2,X,correct,states the reference fact
+A5p:A6p:fg,f4-q2,Y,correct,states the reference fact
+A5p:A6p:fg,f4-q3,X,correct,states the reference fact
+A5p:A6p:fg,f4-q3,Y,correct,states the reference fact
+A5p:A6p:fg,f4-q4,X,correct,states the reference fact
+A5p:A6p:fg,f4-q4,Y,correct,states the reference fact
+A5p:A6p:fg,f4-q5,X,correct-abstain,declines; not stated in the sources
+A5p:A6p:fg,f4-q5,Y,correct-abstain,declines; not stated in the sources
+A5p:A6p:fg,f5-q1,X,correct,states the reference fact
+A5p:A6p:fg,f5-q1,Y,correct,states the reference fact
+A5p:A6p:fg,f5-q2,X,correct,states the reference fact
+A5p:A6p:fg,f5-q2,Y,correct,states the reference fact
+A5p:A6p:fg,f5-q3,X,wrong-abstain,declines an answerable question
+A5p:A6p:fg,f5-q3,Y,wrong-abstain,declines an answerable question
+A5p:A6p:fg,f5-q4,X,correct-abstain,declines; not stated in the sources
+A5p:A6p:fg,f5-q4,Y,correct-abstain,declines; not stated in the sources
+A5p:A6p:fg,f6-q1,X,wrong-abstain,declines an answerable question
+A5p:A6p:fg,f6-q1,Y,wrong-abstain,declines an answerable question
+A5p:A6p:fg,f6-q2,X,correct,states the reference fact
+A5p:A6p:fg,f6-q2,Y,correct,states the reference fact
+A5p:A6p:fg,f7-q1,X,correct,states the reference fact
+A5p:A6p:fg,f7-q1,Y,correct,states the reference fact
+A5p:A6p:fg,f7-q2,X,correct,states the reference fact
+A5p:A6p:fg,f7-q2,Y,correct,states the reference fact
+A5p:A6p:fg,f7-q3,X,correct,states the reference fact
+A5p:A6p:fg,f7-q3,Y,correct,states the reference fact
+A5p:A6p:fg,f7-q4,X,correct-abstain,declines; not stated in the sources
+A5p:A6p:fg,f7-q4,Y,correct-abstain,declines; not stated in the sources
+A5p:A6p:fg,g1-q1,X,correct,states the reference fact
+A5p:A6p:fg,g1-q1,Y,correct,states the reference fact
+A5p:A6p:fg,g1-q2,X,correct,states the reference fact
+A5p:A6p:fg,g1-q2,Y,correct,states the reference fact
+A5p:A6p:fg,g2-q1,X,correct,states the reference fact
+A5p:A6p:fg,g2-q1,Y,correct,states the reference fact
+A5p:A6p:fg,g2-q2,X,correct,states the reference fact
+A5p:A6p:fg,g2-q2,Y,correct,states the reference fact
+A5p:A6p:fg,g2-q3,X,correct-abstain,declines; not stated in the sources
+A5p:A6p:fg,g2-q3,Y,correct-abstain,declines; not stated in the sources
+A5p:A6p:fg,g3-q1,X,correct,states the reference fact
+A5p:A6p:fg,g3-q1,Y,correct,states the reference fact
+A5p:A6p:fg,g3-q2,X,wrong,"says 'more than 20 actions based on GAO work', not the 158 mandates asked for"
+A5p:A6p:fg,g3-q2,Y,correct,states the reference fact
+A5p:A6p:fg,g4-q1,X,correct,states the reference fact
+A5p:A6p:fg,g4-q1,Y,correct,states the reference fact
+A5p:A6p:fg,g4-q2,X,correct,states the reference fact
+A5p:A6p:fg,g4-q2,Y,correct,states the reference fact
+A5p:A6p:fg,g5-q1,X,correct,states the reference fact
+A5p:A6p:fg,g5-q1,Y,correct,states the reference fact
+A5p:A6p:fg,g5-q2,X,correct,states the reference fact
+A5p:A6p:fg,g5-q2,Y,correct,states the reference fact
+A5p:A6p:fg,g6-q1,X,correct,states the reference fact
+A5p:A6p:fg,g6-q1,Y,correct,states the reference fact
+A5p:A6p:fg,g6-q2,X,correct,states the reference fact
+A5p:A6p:fg,g6-q2,Y,correct,states the reference fact
+A5p:A6p:fg,g6-q3,X,correct-abstain,declines; not stated in the sources
+A5p:A6p:fg,g6-q3,Y,correct-abstain,declines; not stated in the sources
+A5p:A6p:fg,g7-q1,X,correct,states the reference fact
+A5p:A6p:fg,g7-q1,Y,correct,states the reference fact
+A5p:A6p:fg,g7-q2,X,correct,states the reference fact
+A5p:A6p:fg,g7-q2,Y,correct,states the reference fact
+A5p:A6p:fg,g8-q1,X,correct,states the reference fact
+A5p:A6p:fg,g8-q1,Y,correct,states the reference fact
+A5p:A6p:fg,g8-q2,X,wrong-abstain,declines an answerable question
+A5p:A6p:fg,g8-q2,Y,wrong-abstain,declines an answerable question
+A5p:A6p:fg,g8-q3,X,correct-abstain,declines; not stated in the sources
+A5p:A6p:fg,g8-q3,Y,correct-abstain,declines; not stated in the sources

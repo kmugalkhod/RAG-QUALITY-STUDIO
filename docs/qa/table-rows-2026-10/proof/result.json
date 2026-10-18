@@ -1,0 +1,1038 @@
+{
+  "A5:A6:fg": {
+    "questions": 44,
+    "A5": 39,
+    "A6": 38,
+    "wins": [
+      "f2-q10",
+      "g3-q2"
+    ],
+    "losses": [
+      "f6-q1",
+      "f6-q2",
+      "g5-q2"
+    ],
+    "per_question": {
+      "f1-q1": {
+        "A6": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        },
+        "A5": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        }
+      },
+      "f1-q4": {
+        "A6": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        },
+        "A5": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        }
+      },
+      "f2-q1": {
+        "A6": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        },
+        "A5": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        }
+      },
+      "f2-q10": {
+        "A5": {
+          "label": "wrong-abstain",
+          "reason": "declined; the 1990 mean is $76,820"
+        },
+        "A6": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        }
+      },
+      "f2-q4": {
+        "A5": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        },
+        "A6": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        }
+      },
+      "f2-q6": {
+        "A6": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        },
+        "A5": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        }
+      },
+      "f2-q9": {
+        "A5": {
+          "label": "wrong-abstain",
+          "reason": "declines an answerable question"
+        },
+        "A6": {
+          "label": "wrong-abstain",
+          "reason": "declines an answerable question"
+        }
+      },
+      "f3-q1": {
+        "A6": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        },
+        "A5": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        }
+      },
+      "f3-q4": {
+        "A5": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        },
+        "A6": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        }
+      },
+      "f3-q8": {
+        "A5": {
+          "label": "correct-abstain",
+          "reason": "declines; not stated in the sources"
+        },
+        "A6": {
+          "label": "correct-abstain",
+          "reason": "declines; not stated in the sources"
+        }
+      },
+      "f4-q1": {
+        "A5": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        },
+        "A6": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        }
+      },
+      "f4-q2": {
+        "A6": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        },
+        "A5": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        }
+      },
+      "f4-q3": {
+        "A6": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        },
+        "A5": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        }
+      },
+      "f4-q4": {
+        "A5": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        },
+        "A6": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        }
+      },
+      "f4-q5": {
+        "A5": {
+          "label": "correct-abstain",
+          "reason": "declines; not stated in the sources"
+        },
+        "A6": {
+          "label": "correct-abstain",
+          "reason": "declines; not stated in the sources"
+        }
+      },
+      "f5-q1": {
+        "A5": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        },
+        "A6": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        }
+      },
+      "f5-q2": {
+        "A6": {
+          "label": "wrong-abstain",
+          "reason": "declines an answerable question"
+        },
+        "A5": {
+          "label": "wrong-abstain",
+          "reason": "declines an answerable question"
+        }
+      },
+      "f5-q3": {
+        "A6": {
+          "label": "wrong-abstain",
+          "reason": "declines an answerable question"
+        },
+        "A5": {
+          "label": "wrong-abstain",
+          "reason": "declines an answerable question"
+        }
+      },
+      "f5-q4": {
+        "A6": {
+          "label": "correct-abstain",
+          "reason": "declines; not stated in the sources"
+        },
+        "A5": {
+          "label": "correct-abstain",
+          "reason": "declines; not stated in the sources"
+        }
+      },
+      "f6-q1": {
+        "A5": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        },
+        "A6": {
+          "label": "wrong-abstain",
+          "reason": "declined; the limit is 250 words"
+        }
+      },
+      "f6-q2": {
+        "A6": {
+          "label": "wrong-abstain",
+          "reason": "declined; the categories are listed in A4.1"
+        },
+        "A5": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        }
+      },
+      "f7-q1": {
+        "A5": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        },
+        "A6": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        }
+      },
+      "f7-q2": {
+        "A5": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        },
+        "A6": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        }
+      },
+      "f7-q3": {
+        "A5": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        },
+        "A6": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        }
+      },
+      "f7-q4": {
+        "A5": {
+          "label": "correct-abstain",
+          "reason": "declines; not stated in the sources"
+        },
+        "A6": {
+          "label": "correct-abstain",
+          "reason": "declines; not stated in the sources"
+        }
+      },
+      "g1-q1": {
+        "A6": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        },
+        "A5": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        }
+      },
+      "g1-q2": {
+        "A5": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        },
+        "A6": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        }
+      },
+      "g2-q1": {
+        "A5": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        },
+        "A6": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        }
+      },
+      "g2-q2": {
+        "A6": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        },
+        "A5": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        }
+      },
+      "g2-q3": {
+        "A5": {
+          "label": "correct-abstain",
+          "reason": "declines; not stated in the sources"
+        },
+        "A6": {
+          "label": "correct-abstain",
+          "reason": "declines; not stated in the sources"
+        }
+      },
+      "g3-q1": {
+        "A5": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        },
+        "A6": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        }
+      },
+      "g3-q2": {
+        "A5": {
+          "label": "wrong-abstain",
+          "reason": "declined; the table gives 158 mandates"
+        },
+        "A6": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        }
+      },
+      "g4-q1": {
+        "A5": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        },
+        "A6": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        }
+      },
+      "g4-q2": {
+        "A6": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        },
+        "A5": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        }
+      },
+      "g5-q1": {
+        "A5": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        },
+        "A6": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        }
+      },
+      "g5-q2": {
+        "A6": {
+          "label": "wrong-abstain",
+          "reason": "declined; the rate is 26.9%"
+        },
+        "A5": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        }
+      },
+      "g6-q1": {
+        "A5": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        },
+        "A6": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        }
+      },
+      "g6-q2": {
+        "A5": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        },
+        "A6": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        }
+      },
+      "g6-q3": {
+        "A5": {
+          "label": "correct-abstain",
+          "reason": "declines; not stated in the sources"
+        },
+        "A6": {
+          "label": "correct-abstain",
+          "reason": "declines; not stated in the sources"
+        }
+      },
+      "g7-q1": {
+        "A5": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        },
+        "A6": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        }
+      },
+      "g7-q2": {
+        "A6": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        },
+        "A5": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        }
+      },
+      "g8-q1": {
+        "A5": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        },
+        "A6": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        }
+      },
+      "g8-q2": {
+        "A5": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        },
+        "A6": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        }
+      },
+      "g8-q3": {
+        "A6": {
+          "label": "correct-abstain",
+          "reason": "declines; not stated in the sources"
+        },
+        "A5": {
+          "label": "correct-abstain",
+          "reason": "declines; not stated in the sources"
+        }
+      }
+    }
+  },
+  "A5:A6:w": {
+    "questions": 12,
+    "A5": 12,
+    "A6": 12,
+    "wins": [],
+    "losses": [],
+    "per_question": {
+      "w1-q1": {
+        "A5": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        },
+        "A6": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        }
+      },
+      "w1-q3": {
+        "A6": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        },
+        "A5": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        }
+      },
+      "w1-q8": {
+        "A5": {
+          "label": "correct-abstain",
+          "reason": "declines; not stated in the sources"
+        },
+        "A6": {
+          "label": "correct-abstain",
+          "reason": "declines; not stated in the sources"
+        }
+      },
+      "w2-q1": {
+        "A5": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        },
+        "A6": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        }
+      },
+      "w2-q3": {
+        "A5": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        },
+        "A6": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        }
+      },
+      "w2-q5": {
+        "A5": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        },
+        "A6": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        }
+      },
+      "w3-q1": {
+        "A5": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        },
+        "A6": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        }
+      },
+      "w3-q2": {
+        "A5": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        },
+        "A6": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        }
+      },
+      "w3-q6": {
+        "A6": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        },
+        "A5": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        }
+      },
+      "w4-q1": {
+        "A5": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        },
+        "A6": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        }
+      },
+      "w4-q4": {
+        "A6": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        },
+        "A5": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        }
+      },
+      "w4-q8": {
+        "A5": {
+          "label": "correct-abstain",
+          "reason": "declines; not stated in the sources"
+        },
+        "A6": {
+          "label": "correct-abstain",
+          "reason": "declines; not stated in the sources"
+        }
+      }
+    }
+  },
+  "A5p:A6p:fg": {
+    "questions": 44,
+    "A5p": 38,
+    "A6p": 39,
+    "wins": [
+      "g3-q2"
+    ],
+    "losses": [],
+    "per_question": {
+      "f1-q1": {
+        "A6p": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        },
+        "A5p": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        }
+      },
+      "f1-q4": {
+        "A6p": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        },
+        "A5p": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        }
+      },
+      "f2-q1": {
+        "A5p": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        },
+        "A6p": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        }
+      },
+      "f2-q10": {
+        "A6p": {
+          "label": "wrong-abstain",
+          "reason": "declines an answerable question"
+        },
+        "A5p": {
+          "label": "wrong-abstain",
+          "reason": "declines an answerable question"
+        }
+      },
+      "f2-q4": {
+        "A5p": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        },
+        "A6p": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        }
+      },
+      "f2-q6": {
+        "A5p": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        },
+        "A6p": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        }
+      },
+      "f2-q9": {
+        "A5p": {
+          "label": "wrong-abstain",
+          "reason": "declines an answerable question"
+        },
+        "A6p": {
+          "label": "wrong-abstain",
+          "reason": "declines an answerable question"
+        }
+      },
+      "f3-q1": {
+        "A5p": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        },
+        "A6p": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        }
+      },
+      "f3-q4": {
+        "A6p": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        },
+        "A5p": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        }
+      },
+      "f3-q8": {
+        "A5p": {
+          "label": "correct-abstain",
+          "reason": "declines; not stated in the sources"
+        },
+        "A6p": {
+          "label": "correct-abstain",
+          "reason": "declines; not stated in the sources"
+        }
+      },
+      "f4-q1": {
+        "A5p": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        },
+        "A6p": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        }
+      },
+      "f4-q2": {
+        "A6p": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        },
+        "A5p": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        }
+      },
+      "f4-q3": {
+        "A5p": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        },
+        "A6p": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        }
+      },
+      "f4-q4": {
+        "A5p": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        },
+        "A6p": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        }
+      },
+      "f4-q5": {
+        "A6p": {
+          "label": "correct-abstain",
+          "reason": "declines; not stated in the sources"
+        },
+        "A5p": {
+          "label": "correct-abstain",
+          "reason": "declines; not stated in the sources"
+        }
+      },
+      "f5-q1": {
+        "A5p": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        },
+        "A6p": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        }
+      },
+      "f5-q2": {
+        "A5p": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        },
+        "A6p": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        }
+      },
+      "f5-q3": {
+        "A5p": {
+          "label": "wrong-abstain",
+          "reason": "declines an answerable question"
+        },
+        "A6p": {
+          "label": "wrong-abstain",
+          "reason": "declines an answerable question"
+        }
+      },
+      "f5-q4": {
+        "A6p": {
+          "label": "correct-abstain",
+          "reason": "declines; not stated in the sources"
+        },
+        "A5p": {
+          "label": "correct-abstain",
+          "reason": "declines; not stated in the sources"
+        }
+      },
+      "f6-q1": {
+        "A6p": {
+          "label": "wrong-abstain",
+          "reason": "declines an answerable question"
+        },
+        "A5p": {
+          "label": "wrong-abstain",
+          "reason": "declines an answerable question"
+        }
+      },
+      "f6-q2": {
+        "A6p": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        },
+        "A5p": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        }
+      },
+      "f7-q1": {
+        "A5p": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        },
+        "A6p": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        }
+      },
+      "f7-q2": {
+        "A6p": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        },
+        "A5p": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        }
+      },
+      "f7-q3": {
+        "A6p": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        },
+        "A5p": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        }
+      },
+      "f7-q4": {
+        "A5p": {
+          "label": "correct-abstain",
+          "reason": "declines; not stated in the sources"
+        },
+        "A6p": {
+          "label": "correct-abstain",
+          "reason": "declines; not stated in the sources"
+        }
+      },
+      "g1-q1": {
+        "A6p": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        },
+        "A5p": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        }
+      },
+      "g1-q2": {
+        "A6p": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        },
+        "A5p": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        }
+      },
+      "g2-q1": {
+        "A6p": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        },
+        "A5p": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        }
+      },
+      "g2-q2": {
+        "A5p": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        },
+        "A6p": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        }
+      },
+      "g2-q3": {
+        "A6p": {
+          "label": "correct-abstain",
+          "reason": "declines; not stated in the sources"
+        },
+        "A5p": {
+          "label": "correct-abstain",
+          "reason": "declines; not stated in the sources"
+        }
+      },
+      "g3-q1": {
+        "A6p": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        },
+        "A5p": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        }
+      },
+      "g3-q2": {
+        "A5p": {
+          "label": "wrong",
+          "reason": "says 'more than 20 actions based on GAO work', not the 158 mandates asked for"
+        },
+        "A6p": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        }
+      },
+      "g4-q1": {
+        "A6p": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        },
+        "A5p": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        }
+      },
+      "g4-q2": {
+        "A6p": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        },
+        "A5p": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        }
+      },
+      "g5-q1": {
+        "A6p": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        },
+        "A5p": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        }
+      },
+      "g5-q2": {
+        "A5p": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        },
+        "A6p": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        }
+      },
+      "g6-q1": {
+        "A5p": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        },
+        "A6p": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        }
+      },
+      "g6-q2": {
+        "A6p": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        },
+        "A5p": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        }
+      },
+      "g6-q3": {
+        "A5p": {
+          "label": "correct-abstain",
+          "reason": "declines; not stated in the sources"
+        },
+        "A6p": {
+          "label": "correct-abstain",
+          "reason": "declines; not stated in the sources"
+        }
+      },
+      "g7-q1": {
+        "A6p": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        },
+        "A5p": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        }
+      },
+      "g7-q2": {
+        "A5p": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        },
+        "A6p": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        }
+      },
+      "g8-q1": {
+        "A5p": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        },
+        "A6p": {
+          "label": "correct",
+          "reason": "states the reference fact"
+        }
+      },
+      "g8-q2": {
+        "A6p": {
+          "label": "wrong-abstain",
+          "reason": "declines an answerable question"
+        },
+        "A5p": {
+          "label": "wrong-abstain",
+          "reason": "declines an answerable question"
+        }
+      },
+      "g8-q3": {
+        "A6p": {
+          "label": "correct-abstain",
+          "reason": "declines; not stated in the sources"
+        },
+        "A5p": {
+          "label": "correct-abstain",
+          "reason": "declines; not stated in the sources"
+        }
+      }
+    }
+  }
+}
