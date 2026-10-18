@@ -2,7 +2,7 @@
 
 ## Better search and a clearer ingestion editor — spec 0015 (drafted 2026-10-18)
 
-**Status:** draft; D1 decided by the owner (Rerank node), D2-D8 waiting. [Spec 0015](specs/0015-better-search-and-editor.md).
+**Status:** approved 2026-10-18 (D1 Rerank node decided by the owner, D2-D8 as recommended); Slice 0 next. [Spec 0015](specs/0015-better-search-and-editor.md).
 
 **Part 1, search (7 → 8.5):**
 - an optional **Rerank node** between Retriever and Prompt (answer graph schema version 3; the owner decided on a node on 2026-10-18), using an OpenRouter chat model over 30 candidates;

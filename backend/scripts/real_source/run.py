@@ -42,7 +42,7 @@ from pathlib import Path
 
 HERE = Path(__file__).parent
 PROJECT_NAME = "Real-source test 2026-10"
-COST_CAP_USD = 2.0
+COST_CAP_USD = 2.5
 # Upper-bound embedding estimate: indexed UTF-8 bytes (the app's conservative token
 # unit) at OpenRouter's list price for openai/text-embedding-3-small on 2026-10-09.
 EMBEDDING_USD_PER_MILLION = 0.02

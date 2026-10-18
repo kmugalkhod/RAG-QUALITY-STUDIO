@@ -1,7 +1,7 @@
 # 0015. Better search and a clearer ingestion editor (7 → 8.5 and 8 → 8.5)
 
 **Date**: 2026-10-18
-**Status**: Draft. D1 was decided by the owner on 2026-10-18 (the reranker is a node); D2-D8 are waiting.
+**Status**: Approved 2026-10-18. D1 was decided by the owner (the reranker is a node), and D2-D8 were approved as recommended. Slice 0 next. Handoff for a new session: [`0015-handoff.md`](0015-handoff.md).
 
 ## Summary
 
