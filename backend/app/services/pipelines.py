@@ -7,7 +7,8 @@ from app.ingestion_content.chunking import EMBEDDING_INPUT_BYTES, HEADING_PREFIX
 from app.core.config import settings
 from app.models.document import Document
 from app.models.connection import SourceConnection
-from app.models.index import KnowledgeSet
+from app.models.index import IndexVersion, KnowledgeSet
+from app.models.ingestion import IngestionRun
 from app.models.pipeline import Pipeline, PipelineVersion
 from app.models.query import QueryRun
 from app.pipelines import rerank
@@ -484,17 +485,149 @@ def save(session, project_id, request, pipeline_id=None):
     return version
 
 
-def list_pipelines(session, project_id, limit, offset, kind=None):
+# Spec 0015 U1: the outcome filter's last-run statuses.
+OUTCOME_STATUSES = {
+    "complete": ("succeeded",),
+    "failed": ("failed",),
+    "running": ("queued", "running"),
+}
+
+
+def _last_runs(project_id):
+    """The newest ingestion run of each pipeline in the project."""
+    return (
+        select(
+            PipelineVersion.pipeline_id.label("pipeline_id"),
+            IngestionRun.id.label("run_id"),
+        )
+        .join(PipelineVersion, PipelineVersion.id == IngestionRun.pipeline_version_id)
+        .where(IngestionRun.project_id == project_id)
+        .distinct(PipelineVersion.pipeline_id)
+        .order_by(
+            PipelineVersion.pipeline_id,
+            IngestionRun.created_at.desc(),
+            IngestionRun.id.desc(),
+        )
+        .subquery()
+    )
+
+
+def list_pipelines(session, project_id, limit, offset, kind=None, q=None, outcome=None):
     project(session, project_id)
     statement = select(Pipeline).where(Pipeline.project_id == project_id)
     if kind is not None:
         statement = statement.where(Pipeline.kind == kind)
-    return paginate(
+    if q:
+        pattern = (
+            "%" + q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+        )
+        statement = statement.where(Pipeline.name.ilike(pattern, escape="\\"))
+    if outcome is not None:
+        last = _last_runs(project_id)
+        statement = statement.outerjoin(last, last.c.pipeline_id == Pipeline.id)
+        if outcome == "never_run":
+            statement = statement.where(last.c.run_id.is_(None))
+        else:
+            statement = statement.join(
+                IngestionRun, IngestionRun.id == last.c.run_id
+            ).where(IngestionRun.status.in_(OUTCOME_STATUSES[outcome]))
+    page = paginate(
         session,
         statement.order_by(Pipeline.created_at.desc(), Pipeline.id),
         limit,
         offset,
     )
+    page["items"] = _with_activity(session, project_id, page["items"])
+    return page
+
+
+def _with_activity(session, project_id, rows):
+    """Each listed pipeline with its latest version, last run and published index."""
+    ids = [row.id for row in rows]
+    if not ids:
+        return []
+    latest = {
+        pipeline_id: {"version": version, "created_at": created_at}
+        for pipeline_id, version, created_at in session.execute(
+            select(
+                PipelineVersion.pipeline_id,
+                PipelineVersion.version,
+                PipelineVersion.created_at,
+            )
+            .where(PipelineVersion.pipeline_id.in_(ids))
+            .distinct(PipelineVersion.pipeline_id)
+            .order_by(PipelineVersion.pipeline_id, PipelineVersion.version.desc())
+        ).all()
+    }
+    last = _last_runs(project_id)
+    runs = {}
+    for pipeline_id, run, version in session.execute(
+        select(last.c.pipeline_id, IngestionRun, PipelineVersion.version)
+        .join(IngestionRun, IngestionRun.id == last.c.run_id)
+        .join(PipelineVersion, PipelineVersion.id == IngestionRun.pipeline_version_id)
+        .where(last.c.pipeline_id.in_(ids))
+    ).all():
+        outcomes = (run.crawl_state or {}).get("__outcomes__") or []
+        runs[pipeline_id] = {
+            "id": run.id,
+            "pipeline_version": version,
+            "status": run.status,
+            # As the run read reports it (spec 0012).
+            "completion": None
+            if run.status != "succeeded"
+            else "with_warnings"
+            if run.failed_count
+            or any(
+                isinstance(item, dict) and item.get("status") in ("failed", "partial")
+                for item in outcomes
+            )
+            else "complete",
+            "created_at": run.created_at,
+            "finished_at": run.finished_at,
+        }
+    published = {}
+    for pipeline_id, index, set_name, current_id in session.execute(
+        select(
+            PipelineVersion.pipeline_id,
+            IndexVersion,
+            KnowledgeSet.name,
+            KnowledgeSet.current_ready_index_id,
+        )
+        .join(IngestionRun, IngestionRun.id == IndexVersion.ingestion_run_id)
+        .join(PipelineVersion, PipelineVersion.id == IngestionRun.pipeline_version_id)
+        .join(KnowledgeSet, KnowledgeSet.id == IndexVersion.knowledge_set_id)
+        .where(
+            PipelineVersion.pipeline_id.in_(ids),
+            IndexVersion.project_id == project_id,
+            IndexVersion.status == "succeeded",
+        )
+        .distinct(PipelineVersion.pipeline_id)
+        .order_by(
+            PipelineVersion.pipeline_id,
+            IndexVersion.created_at.desc(),
+            IndexVersion.id.desc(),
+        )
+    ).all():
+        published[pipeline_id] = {
+            "id": index.id,
+            "version": index.version,
+            "knowledge_set_id": index.knowledge_set_id,
+            "knowledge_set_name": set_name,
+            "is_current": current_id == index.id,
+        }
+    return [
+        {
+            "id": row.id,
+            "project_id": row.project_id,
+            "name": row.name,
+            "kind": row.kind,
+            "created_at": row.created_at,
+            "latest_version": latest.get(row.id),
+            "last_run": runs.get(row.id),
+            "published_index": published.get(row.id),
+        }
+        for row in rows
+    ]
 
 
 def list_versions(session, project_id, pipeline_id, limit, offset):

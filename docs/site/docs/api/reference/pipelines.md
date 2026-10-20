@@ -58,6 +58,8 @@ OpenAPI operation ID: `listing_api_projects__project_id__pipelines_get`.
 | `limit` | query | no | integer | minimum=1, maximum=100, default=20 |
 | `offset` | query | no | integer | minimum=0, default=0 |
 | `kind` | query | no | string: answer, ingestion or null | — |
+| `q` | query | no | string or null | maxLength=120 |
+| `outcome` | query | no | string: complete, failed, running, never_run or null | — |
 
 **Request body:** none.
 

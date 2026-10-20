@@ -1036,6 +1036,37 @@ Type: [`IngestionExecutionV1`](#ingestionexecutionv1) or [`IngestionExecutionV2`
 | `name` | string | yes | — |
 | `kind` | string: answer, ingestion | yes | — |
 | `created_at` | string (date-time) | yes | — |
+| `latest_version` | [`LatestVersionRead`](#latestversionread) or null | no | — |
+| `last_run` | [`LastRunRead`](#lastrunread) or null | no | — |
+| `published_index` | [`PublishedIndexRead`](#publishedindexread) or null | no | — |
+
+## LatestVersionRead
+
+| Field | Type | Required | Bounds/default |
+| --- | --- | --- | --- |
+| `version` | integer | yes | — |
+| `created_at` | string (date-time) | yes | — |
+
+## LastRunRead
+
+| Field | Type | Required | Bounds/default |
+| --- | --- | --- | --- |
+| `id` | string (uuid) | yes | — |
+| `pipeline_version` | integer | yes | — |
+| `status` | string: queued, running, succeeded, failed, cancelled | yes | — |
+| `completion` | string: complete, with_warnings or null | yes | — |
+| `created_at` | string (date-time) | yes | — |
+| `finished_at` | string (date-time) or null | yes | — |
+
+## PublishedIndexRead
+
+| Field | Type | Required | Bounds/default |
+| --- | --- | --- | --- |
+| `id` | string (uuid) | yes | — |
+| `version` | integer | yes | — |
+| `knowledge_set_id` | string (uuid) | yes | — |
+| `knowledge_set_name` | string | yes | — |
+| `is_current` | boolean | yes | — |
 
 ## PipelineSave
 

@@ -9,7 +9,7 @@ import { Label } from '../../../components/ui/label';
 import { NativeSelect, NativeSelectOption } from '../../../components/ui/native-select';
 import type { Page } from '../../../lib/pagination';
 import { docsHref } from '../../../lib/docs';
-import { cn } from '../../../lib/utils';
+import { cn, plural } from '../../../lib/utils';
 import { terminalIngestionStatuses } from '../editorModel';
 import * as api from '../api';
 import type {
@@ -24,7 +24,7 @@ import type {
   SourcePreviewRepresentation,
   WebsiteFetchPolicy,
 } from '../model';
-import { describeFetchPolicy } from '../model';
+import { describeFetchPolicy, readyIndex } from '../model';
 
 // Result sections on the spec 0002 tokens and grid.
 const SECTION = 'flex flex-col gap-6 border-t border-border px-4 py-6 md:px-6';
@@ -682,6 +682,23 @@ export function IngestionRunResults({
             </p>
           )}
           <FetchLimits policies={run.fetch_policies} />
+          {readyIndex(run) && (
+            // The run strip is one line on phones; the index actions live here instead.
+            <div className="flex flex-wrap gap-2 md:hidden">
+              <Button size="sm" asChild>
+                <a href={`#/projects/${projectId}/pipelines/new?index=${readyIndex(run)!.id}`}>
+                  Use index version {readyIndex(run)!.version} in answer pipeline
+                </a>
+              </Button>
+              <Button size="sm" variant="outline" asChild>
+                <a
+                  href={`#/projects/${projectId}/knowledge-base?view=indexes&index=${readyIndex(run)!.id}`}
+                >
+                  Inspect published index
+                </a>
+              </Button>
+            </div>
+          )}
         </div>
         <div className="flex flex-wrap gap-x-4">
           <a
@@ -760,7 +777,7 @@ export function IngestionRunResults({
                     <strong>{item.display_name}</strong>
                     <p>
                       {item.outcome === 'carried_forward' ? 'kept from earlier' : item.outcome} ·{' '}
-                      {item.status} · {item.chunk_count} chunks · {item.reason}
+                      {item.status} · {plural(item.chunk_count, 'chunk')} · {item.reason}
                       {(item.attempts ?? 0) > 1 ? ` · ${item.attempts} attempts` : ''}
                     </p>
                     {item.warnings?.map((warning, index) => (
@@ -794,8 +811,8 @@ export function IngestionRunResults({
                   <>
                     <strong>{item.filename}</strong>
                     <p>
-                      {item.status} · processing v{item.processing_version} · {item.chunk_count}{' '}
-                      chunks · {item.content_hash.slice(0, 12)}
+                      {item.status} · processing v{item.processing_version} ·{' '}
+                      {plural(item.chunk_count, 'chunk')} · {item.content_hash.slice(0, 12)}
                     </p>
                     {item.is_optional && <small>Optional source</small>}
                     {item.processing_versions && (
@@ -886,7 +903,7 @@ export function IngestionRunResults({
           {selectedDerivation && (
             <>
               <p>
-                {selectedDerivation.measurements.block_count} blocks ·{' '}
+                {plural(selectedDerivation.measurements.block_count, 'block')} ·{' '}
                 {selectedDerivation.measurements.character_count} characters · engine{' '}
                 {selectedDerivation.engine_version}
               </p>
@@ -1195,7 +1212,7 @@ export function IngestionRunResults({
                     <div>
                       <strong>
                         Chunk {chunk.ordinal + 1} · {chunk.chunk_role} ·{' '}
-                        {chunk.token_count ?? 'legacy'} tokens
+                        {chunk.token_count === null ? 'legacy' : plural(chunk.token_count, 'token')}
                       </strong>
                       {chunk.parent_ordinal !== null && (
                         <small>Supplies saved parent {chunk.parent_ordinal + 1}</small>

@@ -50,8 +50,15 @@ def listing(
     limit: Limit = 20,
     offset: Offset = 0,
     kind: Literal["answer", "ingestion"] | None = Query(default=None),
+    q: str | None = Query(default=None, max_length=120),
+    outcome: Literal["complete", "failed", "running", "never_run"] | None = Query(
+        default=None
+    ),
 ):
-    return pipelines.list_pipelines(session, project_id, limit, offset, kind)
+    # Spec 0015 U1: search by name and filter by the last run's outcome.
+    return pipelines.list_pipelines(
+        session, project_id, limit, offset, kind, (q or "").strip() or None, outcome
+    )
 
 
 @router.post("", response_model=VersionRead, status_code=201)

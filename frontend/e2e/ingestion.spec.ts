@@ -219,7 +219,8 @@ test('existing files publish an exact index that grounds an answer pipeline', as
   ).toBeVisible({
     timeout: 60000,
   });
-  await expect(page.getByText(/processing v2 · 1 chunks/)).toHaveCount(2);
+  await page.getByRole('button', { name: 'Run details' }).click();
+  await expect(page.getByText(/processing v2 · 1 chunk · /)).toHaveCount(2);
   await expect(page.getByRole('link', { name: 'Use in answer pipeline' })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Inspect published index' })).toBeVisible();
   await page.setViewportSize({ width: 1440, height: 1000 });

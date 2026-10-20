@@ -23,3 +23,8 @@ export const cn = createCn({
     },
   },
 });
+
+/** A count with its noun in the singular for one: `1 chunk`, `2 chunks` (spec 0015 U5). */
+export function plural(count: number, one: string, many = `${one}s`): string {
+  return `${count.toLocaleString('en-US')} ${count === 1 ? one : many}`;
+}

@@ -8,6 +8,7 @@ import type {
   PipelineOptions,
   Pipeline,
   PipelineKind,
+  PipelineOutcome,
   PipelineVersion,
 } from './model';
 
@@ -33,6 +34,28 @@ export function listPipelines(
   offset = 0,
 ): Promise<Page<Pipeline>> {
   return request<Page<Pipeline>>(`${pipelinesPath(projectId)}?kind=${kind}&offset=${offset}`);
+}
+
+export const PIPELINE_PAGE_SIZE = 25;
+
+/** One page of the pipeline list, searched and filtered by the last run (spec 0015 U1). */
+export function listPipelinePage(
+  projectId: string,
+  kind: PipelineKind,
+  { offset = 0, q = '', outcome }: { offset?: number; q?: string; outcome?: PipelineOutcome },
+): Promise<Page<Pipeline>> {
+  const query = new URLSearchParams({
+    kind,
+    limit: String(PIPELINE_PAGE_SIZE),
+    offset: String(offset),
+  });
+  if (q.trim()) {
+    query.set('q', q.trim());
+  }
+  if (outcome) {
+    query.set('outcome', outcome);
+  }
+  return request<Page<Pipeline>>(`${pipelinesPath(projectId)}?${query}`);
 }
 
 export function listPipelineVersions(

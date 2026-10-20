@@ -1475,6 +1475,14 @@ export function IngestionPipelineEditor({
                 onSnapshotChange={setSnapshotId}
                 onReprocess={() => startRun('snapshot')}
                 onUpgrade={() => setDraft(upgradeIngestionDraft(draft))}
+                phone={{
+                  canPreview: validation.length === 0 && !runActive,
+                  canSave: validation.length === 0 && dirty,
+                  canDiscard: !!saved && dirty,
+                  onPreview: runPreview,
+                  onSave: save,
+                  onDiscard: discard,
+                }}
               />
             }
             onNameChange={(name) => setDraft(renameIngestionDraft(draft, name))}

@@ -194,6 +194,33 @@ class VersionRead(BaseModel):
     created_at: datetime
 
 
+class LatestVersionRead(BaseModel):
+    version: int
+    created_at: datetime
+
+
+class LastRunRead(BaseModel):
+    """The newest ingestion run of any version of a pipeline (spec 0015 U1)."""
+
+    id: UUID
+    pipeline_version: int
+    status: Literal["queued", "running", "succeeded", "failed", "cancelled"]
+    # For a succeeded run: `with_warnings` when an item or a source failed.
+    completion: Literal["complete", "with_warnings"] | None
+    created_at: datetime
+    finished_at: datetime | None
+
+
+class PublishedIndexRead(BaseModel):
+    """The newest index a pipeline's runs published, and whether it is current."""
+
+    id: UUID
+    version: int
+    knowledge_set_id: UUID
+    knowledge_set_name: str
+    is_current: bool
+
+
 class PipelineRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: UUID
@@ -201,6 +228,10 @@ class PipelineRead(BaseModel):
     name: str
     kind: Literal["answer", "ingestion"]
     created_at: datetime
+    # List rows only (spec 0015 D8); older clients ignore them.
+    latest_version: LatestVersionRead | None = None
+    last_run: LastRunRead | None = None
+    published_index: PublishedIndexRead | None = None
 
 
 class PipelinePage(BaseModel):

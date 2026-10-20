@@ -7,7 +7,7 @@ import { Input } from '../../../components/ui/input';
 import { Label } from '../../../components/ui/label';
 import { NativeSelect, NativeSelectOption } from '../../../components/ui/native-select';
 import { docsHref } from '../../../lib/docs';
-import { cn } from '../../../lib/utils';
+import { cn, plural } from '../../../lib/utils';
 import type { ConnectionSettings, SourceConnection } from '../../connections/model';
 import type { Document, EmbeddingConfig, KnowledgeSet } from '../../documents/model';
 import {
@@ -421,7 +421,7 @@ export function IngestionNodeSettings({
                   const statusCopy = processingActive
                     ? `Processing ${document.latest_run?.status}`
                     : document.latest_run?.status === 'succeeded'
-                      ? `${document.latest_run.chunk_count} chunks ready`
+                      ? `${plural(document.latest_run.chunk_count, 'chunk')} ready`
                       : schemaVersion === 2
                         ? document.latest_run
                           ? 'Will retry with saved extraction settings'

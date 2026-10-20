@@ -51,7 +51,30 @@ export type PipelineVersion = PipelineDraft & {
   created_at: string;
 };
 export type PipelineKind = 'answer' | 'ingestion';
-export type Pipeline = { id: string; name: string; kind: PipelineKind };
+export type Pipeline = {
+  id: string;
+  name: string;
+  kind: PipelineKind;
+  // List rows only (spec 0015 U1).
+  latest_version?: { version: number; created_at: string } | null;
+  last_run?: PipelineLastRun | null;
+  published_index?: {
+    id: string;
+    version: number;
+    knowledge_set_id: string;
+    knowledge_set_name: string;
+    is_current: boolean;
+  } | null;
+};
+export type PipelineLastRun = {
+  id: string;
+  pipeline_version: number;
+  status: 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled';
+  completion: 'complete' | 'with_warnings' | null;
+  created_at: string;
+  finished_at: string | null;
+};
+export type PipelineOutcome = 'complete' | 'failed' | 'running' | 'never_run';
 export type ChatModelOption = {
   id: string;
   label: string;

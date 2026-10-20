@@ -4,7 +4,7 @@ import { META } from '../../../components/parts';
 import { StatusBadge } from '../../../components/StatusBadge';
 import { Button } from '../../../components/ui/button';
 import { Progress } from '../../../components/ui/progress';
-import { cn } from '../../../lib/utils';
+import { cn, plural } from '../../../lib/utils';
 import { terminalIngestionStatuses as terminal } from '../editorModel';
 import type { IngestionNodeExecutionStatus } from '../executionState';
 import { readyIndex, type IngestionRun } from '../model';
@@ -42,12 +42,18 @@ export function IngestionRunStrip({
   const partialSources = outcomes.filter((outcome) => outcome.status === 'partial');
   const carried = outcomes.reduce((total, outcome) => total + outcome.carried_forward_count, 0);
   return (
+    // On phones a finished run is one line: its outcome, the index it published and Run
+    // details, which also holds the index actions (spec 0015 U2). The index text gives way
+    // first when the line is full.
     <div
       id="ingestion-run"
-      className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2 border-b border-border bg-surface px-4 py-2 md:px-6"
+      className={cn(
+        'flex shrink-0 flex-wrap items-center gap-x-2 gap-y-2 border-b border-border bg-surface px-4 py-2 md:gap-x-4 md:px-6',
+        finished && 'max-md:flex-nowrap',
+      )}
       aria-live="polite"
     >
-      <div className="flex items-center gap-2">
+      <div className="flex shrink-0 items-center gap-2">
         <span className="text-xs font-medium text-foreground-muted">Last run</span>
         <StatusBadge data-testid="ingestion-run-state" status={displayStatus}>
           <StatusIcon
@@ -80,7 +86,7 @@ export function IngestionRunStrip({
           />
           <p className={cn(META, 'tabular-nums')}>
             {run.stage === 'indexing'
-              ? `${run.embedded_count}/${run.chunk_count} chunks embedded`
+              ? `${run.embedded_count}/${plural(run.chunk_count, 'chunk')} embedded`
               : run.stage === 'discovering' &&
                   Object.keys(run.fetch_policies ?? {}).length > 0 &&
                   run.discovered_count > 0
@@ -100,8 +106,13 @@ export function IngestionRunStrip({
         </>
       ) : (
         <>
+          {published && (
+            <p className="min-w-0 truncate text-xs font-medium text-foreground md:hidden">
+              · index v{published.version} ready
+            </p>
+          )}
           {counted && (
-            <p className={cn(META, 'tabular-nums')}>
+            <p className={cn(META, 'tabular-nums max-md:hidden')}>
               {run.new_count} new · {run.changed_count} changed · {run.unchanged_count} unchanged ·{' '}
               {run.removed_count} removed
               {run.failed_count > 0 && (
@@ -111,19 +122,19 @@ export function IngestionRunStrip({
             </p>
           )}
           {replacedVersionText(run) && (
-            <p className={cn(META, 'tabular-nums')}>{replacedVersionText(run)}</p>
+            <p className={cn(META, 'tabular-nums max-md:hidden')}>{replacedVersionText(run)}</p>
           )}
           {/* Every finished run reports what embedding cost, paid or not (spec 0012 A11). */}
-          <p className={cn(META, 'tabular-nums')}>
+          <p className={cn(META, 'tabular-nums max-md:hidden')}>
             {run.embedding_usage
               ? embeddingUsageText(run.embedding_usage)
               : 'No embedding requests were made.'}
           </p>
           {run.status === 'succeeded' &&
             (failedSources.length > 0 || partialSources.length > 0) && (
-              <p role="status" className="min-w-0 text-xs text-warning">
+              <p role="status" className="min-w-0 text-xs text-warning max-md:hidden">
                 {failedSources.length > 0
-                  ? `${failedSources.length} of ${outcomes.length} sources failed; their earlier pages were kept. `
+                  ? `${failedSources.length} of ${plural(outcomes.length, 'source')} failed; their earlier pages were kept. `
                   : ''}
                 {partialSources.length > 0
                   ? `${partialSources.length} ${partialSources.length === 1 ? 'source' : 'sources'} had failed pages. `
@@ -135,14 +146,17 @@ export function IngestionRunStrip({
             <p
               role="alert"
               title={run.error}
-              className="min-w-0 flex-1 truncate text-sm text-danger md:basis-0"
+              className="min-w-0 flex-1 truncate text-sm text-danger max-md:hidden md:basis-0"
             >
               {run.error}
             </p>
           )}
-          <span className="flex-1" />
+          <span className="flex-1 max-md:hidden" />
           {published && (
-            <div data-testid="published-index" className="flex flex-wrap items-center gap-2">
+            <div
+              data-testid="published-index"
+              className="flex flex-wrap items-center gap-2 max-md:hidden"
+            >
               <p className="text-sm font-medium text-foreground">
                 Index version {published.version} is ready to use
               </p>
@@ -161,7 +175,7 @@ export function IngestionRunStrip({
               </Button>
             </div>
           )}
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-2 max-md:ml-auto">
             <Button
               size="sm"
               variant="ghost"
@@ -182,6 +196,7 @@ export function IngestionRunStrip({
               size="sm"
               variant="ghost"
               icon
+              className="max-md:hidden"
               aria-label="Dismiss run summary"
               onClick={onDismiss}
             >
