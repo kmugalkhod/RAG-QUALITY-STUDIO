@@ -1,0 +1,201 @@
+pair,question_id,slot,label,reason
+A5:A7s-plain:fgw,f1-q1,X,correct,states the reference fact
+A5:A7s-plain:fgw,f1-q1,Y,correct,states the reference fact
+A5:A7s-plain:fgw,f1-q4,X,correct,states the reference fact
+A5:A7s-plain:fgw,f1-q4,Y,correct,states the reference fact
+A5:A7s-plain:fgw,f2-q1,X,correct,states the reference fact
+A5:A7s-plain:fgw,f2-q1,Y,correct,states the reference fact
+A5:A7s-plain:fgw,f2-q10,X,correct,states the reference fact
+A5:A7s-plain:fgw,f2-q10,Y,wrong-abstain,"declined; the 1990 mean is $76,820"
+A5:A7s-plain:fgw,f2-q4,X,correct,states the reference fact
+A5:A7s-plain:fgw,f2-q4,Y,correct,states the reference fact
+A5:A7s-plain:fgw,f2-q6,X,correct,states the reference fact
+A5:A7s-plain:fgw,f2-q6,Y,correct,states the reference fact
+A5:A7s-plain:fgw,f2-q9,X,wrong-abstain,"declined; the 2015 median is $68,410"
+A5:A7s-plain:fgw,f2-q9,Y,wrong-abstain,"declined; the 2015 median is $68,410"
+A5:A7s-plain:fgw,f3-q1,X,correct,states the reference fact
+A5:A7s-plain:fgw,f3-q1,Y,correct,states the reference fact
+A5:A7s-plain:fgw,f3-q4,X,correct,states the reference fact
+A5:A7s-plain:fgw,f3-q4,Y,correct,states the reference fact
+A5:A7s-plain:fgw,f3-q8,X,correct-abstain,declines; not stated in the sources
+A5:A7s-plain:fgw,f3-q8,Y,correct-abstain,declines; not stated in the sources
+A5:A7s-plain:fgw,f4-q1,X,correct,states the reference fact
+A5:A7s-plain:fgw,f4-q1,Y,correct,states the reference fact
+A5:A7s-plain:fgw,f4-q2,X,correct,states the reference fact
+A5:A7s-plain:fgw,f4-q2,Y,correct,states the reference fact
+A5:A7s-plain:fgw,f4-q3,X,correct,states the reference fact
+A5:A7s-plain:fgw,f4-q3,Y,correct,states the reference fact
+A5:A7s-plain:fgw,f4-q4,X,correct,states the reference fact
+A5:A7s-plain:fgw,f4-q4,Y,correct,states the reference fact
+A5:A7s-plain:fgw,f4-q5,X,correct-abstain,declines; not stated in the sources
+A5:A7s-plain:fgw,f4-q5,Y,correct-abstain,declines; not stated in the sources
+A5:A7s-plain:fgw,f5-q1,X,correct,states the reference fact
+A5:A7s-plain:fgw,f5-q1,Y,correct,states the reference fact
+A5:A7s-plain:fgw,f5-q2,X,wrong-abstain,"declined; Table 1 gives 1,070 mgd"
+A5:A7s-plain:fgw,f5-q2,Y,wrong-abstain,"declined; Table 1 gives 1,070 mgd"
+A5:A7s-plain:fgw,f5-q3,X,wrong-abstain,declined; Table 1 gives 75 mgd
+A5:A7s-plain:fgw,f5-q3,Y,wrong-abstain,declined; Table 1 gives 75 mgd
+A5:A7s-plain:fgw,f5-q4,X,correct-abstain,declines; not stated in the sources
+A5:A7s-plain:fgw,f5-q4,Y,correct-abstain,declines; not stated in the sources
+A5:A7s-plain:fgw,f6-q1,X,correct,states the reference fact
+A5:A7s-plain:fgw,f6-q1,Y,correct,states the reference fact
+A5:A7s-plain:fgw,f6-q2,X,correct,states the reference fact
+A5:A7s-plain:fgw,f6-q2,Y,correct,states the reference fact
+A5:A7s-plain:fgw,f7-q1,X,correct,states the reference fact
+A5:A7s-plain:fgw,f7-q1,Y,correct,states the reference fact
+A5:A7s-plain:fgw,f7-q2,X,correct,states the reference fact
+A5:A7s-plain:fgw,f7-q2,Y,correct,states the reference fact
+A5:A7s-plain:fgw,f7-q3,X,correct,states the reference fact
+A5:A7s-plain:fgw,f7-q3,Y,correct,states the reference fact
+A5:A7s-plain:fgw,f7-q4,X,correct-abstain,declines; not stated in the sources
+A5:A7s-plain:fgw,f7-q4,Y,correct-abstain,declines; not stated in the sources
+A5:A7s-plain:fgw,g1-q1,X,correct,states the reference fact
+A5:A7s-plain:fgw,g1-q1,Y,correct,states the reference fact
+A5:A7s-plain:fgw,g1-q2,X,correct,states the reference fact
+A5:A7s-plain:fgw,g1-q2,Y,correct,states the reference fact
+A5:A7s-plain:fgw,g2-q1,X,correct,states the reference fact
+A5:A7s-plain:fgw,g2-q1,Y,correct,states the reference fact
+A5:A7s-plain:fgw,g2-q2,X,correct,states the reference fact
+A5:A7s-plain:fgw,g2-q2,Y,correct,states the reference fact
+A5:A7s-plain:fgw,g2-q3,X,correct-abstain,declines; not stated in the sources
+A5:A7s-plain:fgw,g2-q3,Y,correct-abstain,declines; not stated in the sources
+A5:A7s-plain:fgw,g3-q1,X,correct,states the reference fact
+A5:A7s-plain:fgw,g3-q1,Y,correct,states the reference fact
+A5:A7s-plain:fgw,g3-q2,X,wrong-abstain,declined; the act held 158 mandates
+A5:A7s-plain:fgw,g3-q2,Y,correct,states the reference fact
+A5:A7s-plain:fgw,g4-q1,X,correct,states the reference fact
+A5:A7s-plain:fgw,g4-q1,Y,correct,states the reference fact
+A5:A7s-plain:fgw,g4-q2,X,correct,states the reference fact
+A5:A7s-plain:fgw,g4-q2,Y,correct,states the reference fact
+A5:A7s-plain:fgw,g5-q1,X,correct,states the reference fact
+A5:A7s-plain:fgw,g5-q1,Y,correct,states the reference fact
+A5:A7s-plain:fgw,g5-q2,X,correct,states the reference fact
+A5:A7s-plain:fgw,g5-q2,Y,correct,states the reference fact
+A5:A7s-plain:fgw,g6-q1,X,correct,states the reference fact
+A5:A7s-plain:fgw,g6-q1,Y,correct,states the reference fact
+A5:A7s-plain:fgw,g6-q2,X,correct,states the reference fact
+A5:A7s-plain:fgw,g6-q2,Y,correct,states the reference fact
+A5:A7s-plain:fgw,g6-q3,X,correct-abstain,declines; not stated in the sources
+A5:A7s-plain:fgw,g6-q3,Y,correct-abstain,declines; not stated in the sources
+A5:A7s-plain:fgw,g7-q1,X,correct,states the reference fact
+A5:A7s-plain:fgw,g7-q1,Y,correct,states the reference fact
+A5:A7s-plain:fgw,g7-q2,X,correct,states the reference fact
+A5:A7s-plain:fgw,g7-q2,Y,correct,states the reference fact
+A5:A7s-plain:fgw,g8-q1,X,correct,states the reference fact
+A5:A7s-plain:fgw,g8-q1,Y,correct,states the reference fact
+A5:A7s-plain:fgw,g8-q2,X,correct,states the reference fact
+A5:A7s-plain:fgw,g8-q2,Y,correct,states the reference fact
+A5:A7s-plain:fgw,g8-q3,X,correct-abstain,declines; not stated in the sources
+A5:A7s-plain:fgw,g8-q3,Y,correct-abstain,declines; not stated in the sources
+A5:A7s-plain:fgw,w1-q1,X,correct,states the reference fact
+A5:A7s-plain:fgw,w1-q1,Y,correct,states the reference fact
+A5:A7s-plain:fgw,w1-q3,X,correct,states the reference fact
+A5:A7s-plain:fgw,w1-q3,Y,correct,states the reference fact
+A5:A7s-plain:fgw,w1-q8,X,correct-abstain,declines; not stated in the sources
+A5:A7s-plain:fgw,w1-q8,Y,correct-abstain,declines; not stated in the sources
+A5:A7s-plain:fgw,w2-q1,X,correct,states the reference fact
+A5:A7s-plain:fgw,w2-q1,Y,correct,states the reference fact
+A5:A7s-plain:fgw,w2-q3,X,correct,states the reference fact
+A5:A7s-plain:fgw,w2-q3,Y,correct,states the reference fact
+A5:A7s-plain:fgw,w2-q5,X,correct,states the reference fact
+A5:A7s-plain:fgw,w2-q5,Y,correct,states the reference fact
+A5:A7s-plain:fgw,w3-q1,X,correct,states the reference fact
+A5:A7s-plain:fgw,w3-q1,Y,correct,states the reference fact
+A5:A7s-plain:fgw,w3-q2,X,correct,states the reference fact
+A5:A7s-plain:fgw,w3-q2,Y,correct,states the reference fact
+A5:A7s-plain:fgw,w3-q6,X,correct,states the reference fact
+A5:A7s-plain:fgw,w3-q6,Y,correct,states the reference fact
+A5:A7s-plain:fgw,w4-q1,X,correct,states the reference fact
+A5:A7s-plain:fgw,w4-q1,Y,correct,states the reference fact
+A5:A7s-plain:fgw,w4-q4,X,correct,states the reference fact
+A5:A7s-plain:fgw,w4-q4,Y,correct,states the reference fact
+A5:A7s-plain:fgw,w4-q8,X,correct-abstain,declines; not stated in the sources
+A5:A7s-plain:fgw,w4-q8,Y,correct-abstain,declines; not stated in the sources
+A6p:A7-plain:fg,f1-q1,X,correct,states the reference fact
+A6p:A7-plain:fg,f1-q1,Y,correct,states the reference fact
+A6p:A7-plain:fg,f1-q4,X,correct,states the reference fact
+A6p:A7-plain:fg,f1-q4,Y,correct,states the reference fact
+A6p:A7-plain:fg,f2-q1,X,correct,states the reference fact
+A6p:A7-plain:fg,f2-q1,Y,correct,states the reference fact
+A6p:A7-plain:fg,f2-q10,X,correct,states the reference fact
+A6p:A7-plain:fg,f2-q10,Y,wrong-abstain,"declined; the 1990 mean is $76,820"
+A6p:A7-plain:fg,f2-q4,X,correct,states the reference fact
+A6p:A7-plain:fg,f2-q4,Y,correct,states the reference fact
+A6p:A7-plain:fg,f2-q6,X,correct,states the reference fact
+A6p:A7-plain:fg,f2-q6,Y,correct,states the reference fact
+A6p:A7-plain:fg,f2-q9,X,wrong-abstain,"declined; the 2015 median is $68,410"
+A6p:A7-plain:fg,f2-q9,Y,wrong-abstain,"declined; the 2015 median is $68,410"
+A6p:A7-plain:fg,f3-q1,X,correct,states the reference fact
+A6p:A7-plain:fg,f3-q1,Y,correct,states the reference fact
+A6p:A7-plain:fg,f3-q4,X,correct,states the reference fact
+A6p:A7-plain:fg,f3-q4,Y,correct,states the reference fact
+A6p:A7-plain:fg,f3-q8,X,correct-abstain,declines; not stated in the sources
+A6p:A7-plain:fg,f3-q8,Y,correct-abstain,declines; not stated in the sources
+A6p:A7-plain:fg,f4-q1,X,correct,states the reference fact
+A6p:A7-plain:fg,f4-q1,Y,correct,states the reference fact
+A6p:A7-plain:fg,f4-q2,X,correct,states the reference fact
+A6p:A7-plain:fg,f4-q2,Y,correct,states the reference fact
+A6p:A7-plain:fg,f4-q3,X,correct,states the reference fact
+A6p:A7-plain:fg,f4-q3,Y,correct,states the reference fact
+A6p:A7-plain:fg,f4-q4,X,correct,states the reference fact
+A6p:A7-plain:fg,f4-q4,Y,correct,states the reference fact
+A6p:A7-plain:fg,f4-q5,X,correct-abstain,declines; not stated in the sources
+A6p:A7-plain:fg,f4-q5,Y,correct-abstain,declines; not stated in the sources
+A6p:A7-plain:fg,f5-q1,X,correct,states the reference fact
+A6p:A7-plain:fg,f5-q1,Y,correct,states the reference fact
+A6p:A7-plain:fg,f5-q2,X,correct,states the reference fact
+A6p:A7-plain:fg,f5-q2,Y,wrong,"gives 140 mgd; Table 1 gives 1,070 mgd"
+A6p:A7-plain:fg,f5-q3,X,wrong-abstain,declined; Table 1 gives 75 mgd
+A6p:A7-plain:fg,f5-q3,Y,wrong-abstain,declined; Table 1 gives 75 mgd
+A6p:A7-plain:fg,f5-q4,X,correct-abstain,declines; not stated in the sources
+A6p:A7-plain:fg,f5-q4,Y,correct-abstain,declines; not stated in the sources
+A6p:A7-plain:fg,f6-q1,X,wrong-abstain,declined; the limit is 250 words
+A6p:A7-plain:fg,f6-q1,Y,wrong-abstain,declined; the limit is 250 words
+A6p:A7-plain:fg,f6-q2,X,correct,states the reference fact
+A6p:A7-plain:fg,f6-q2,Y,correct,states the reference fact
+A6p:A7-plain:fg,f7-q1,X,correct,states the reference fact
+A6p:A7-plain:fg,f7-q1,Y,correct,states the reference fact
+A6p:A7-plain:fg,f7-q2,X,correct,states the reference fact
+A6p:A7-plain:fg,f7-q2,Y,correct,states the reference fact
+A6p:A7-plain:fg,f7-q3,X,correct,states the reference fact
+A6p:A7-plain:fg,f7-q3,Y,correct,states the reference fact
+A6p:A7-plain:fg,f7-q4,X,correct-abstain,declines; not stated in the sources
+A6p:A7-plain:fg,f7-q4,Y,correct-abstain,declines; not stated in the sources
+A6p:A7-plain:fg,g1-q1,X,correct,states the reference fact
+A6p:A7-plain:fg,g1-q1,Y,correct,states the reference fact
+A6p:A7-plain:fg,g1-q2,X,correct,states the reference fact
+A6p:A7-plain:fg,g1-q2,Y,correct,states the reference fact
+A6p:A7-plain:fg,g2-q1,X,correct,states the reference fact
+A6p:A7-plain:fg,g2-q1,Y,correct,states the reference fact
+A6p:A7-plain:fg,g2-q2,X,correct,states the reference fact
+A6p:A7-plain:fg,g2-q2,Y,correct,states the reference fact
+A6p:A7-plain:fg,g2-q3,X,correct-abstain,declines; not stated in the sources
+A6p:A7-plain:fg,g2-q3,Y,correct-abstain,declines; not stated in the sources
+A6p:A7-plain:fg,g3-q1,X,correct,states the reference fact
+A6p:A7-plain:fg,g3-q1,Y,correct,states the reference fact
+A6p:A7-plain:fg,g3-q2,X,correct,states the reference fact
+A6p:A7-plain:fg,g3-q2,Y,correct,states the reference fact
+A6p:A7-plain:fg,g4-q1,X,correct,states the reference fact
+A6p:A7-plain:fg,g4-q1,Y,correct,states the reference fact
+A6p:A7-plain:fg,g4-q2,X,correct,states the reference fact
+A6p:A7-plain:fg,g4-q2,Y,correct,states the reference fact
+A6p:A7-plain:fg,g5-q1,X,correct,states the reference fact
+A6p:A7-plain:fg,g5-q1,Y,correct,states the reference fact
+A6p:A7-plain:fg,g5-q2,X,correct,states the reference fact
+A6p:A7-plain:fg,g5-q2,Y,correct,states the reference fact
+A6p:A7-plain:fg,g6-q1,X,correct,states the reference fact
+A6p:A7-plain:fg,g6-q1,Y,correct,states the reference fact
+A6p:A7-plain:fg,g6-q2,X,correct,states the reference fact
+A6p:A7-plain:fg,g6-q2,Y,correct,states the reference fact
+A6p:A7-plain:fg,g6-q3,X,correct-abstain,declines; not stated in the sources
+A6p:A7-plain:fg,g6-q3,Y,correct-abstain,declines; not stated in the sources
+A6p:A7-plain:fg,g7-q1,X,correct,states the reference fact
+A6p:A7-plain:fg,g7-q1,Y,correct,states the reference fact
+A6p:A7-plain:fg,g7-q2,X,correct,states the reference fact
+A6p:A7-plain:fg,g7-q2,Y,correct,states the reference fact
+A6p:A7-plain:fg,g8-q1,X,correct,states the reference fact
+A6p:A7-plain:fg,g8-q1,Y,correct,states the reference fact
+A6p:A7-plain:fg,g8-q2,X,wrong-abstain,declined; impulse control partly mediates
+A6p:A7-plain:fg,g8-q2,Y,wrong-abstain,declined; impulse control partly mediates
+A6p:A7-plain:fg,g8-q3,X,correct-abstain,declines; not stated in the sources
+A6p:A7-plain:fg,g8-q3,Y,correct-abstain,declines; not stated in the sources

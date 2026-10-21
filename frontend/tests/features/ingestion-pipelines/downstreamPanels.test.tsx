@@ -183,7 +183,7 @@ test('canvas summaries say what was chosen', () => {
         parent_target_tokens: 600,
         parent_maximum_tokens: 800,
         add_heading_context: false,
-        config_version: 'parent-child-v3',
+        config_version: 'parent-child-v5',
       },
       [],
     ),

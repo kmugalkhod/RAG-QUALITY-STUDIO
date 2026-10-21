@@ -888,14 +888,14 @@ def test_layout_capabilities_and_thumbnail_are_project_scoped(ingestion_api):
         "native",
         "layout_aware",
     }
-    # New drafts take these versions (spec 0012 slice 7); saved versions stay as
-    # saved.
+    # New drafts take these versions (spec 0015 proof round); saved versions stay
+    # as saved.
     assert {
         profile["id"]: profile["settings"]["config_version"]
         for profile in capabilities.json()["chunking_profiles"]
     } == {
-        "section_token": "section-token-v3",
-        "parent_child": "parent-child-v3",
+        "section_token": "section-token-v5",
+        "parent_child": "parent-child-v5",
         "character_window": "character-window-v1",
     }
     assert [

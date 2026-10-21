@@ -1,0 +1,402 @@
+{
+  "A5:A7s-plain:fgw|f1-q1": {
+    "X": "A7s-plain",
+    "Y": "A5"
+  },
+  "A5:A7s-plain:fgw|f1-q4": {
+    "X": "A7s-plain",
+    "Y": "A5"
+  },
+  "A5:A7s-plain:fgw|f2-q1": {
+    "X": "A7s-plain",
+    "Y": "A5"
+  },
+  "A5:A7s-plain:fgw|f2-q10": {
+    "X": "A7s-plain",
+    "Y": "A5"
+  },
+  "A5:A7s-plain:fgw|f2-q4": {
+    "X": "A5",
+    "Y": "A7s-plain"
+  },
+  "A5:A7s-plain:fgw|f2-q6": {
+    "X": "A5",
+    "Y": "A7s-plain"
+  },
+  "A5:A7s-plain:fgw|f2-q9": {
+    "X": "A5",
+    "Y": "A7s-plain"
+  },
+  "A5:A7s-plain:fgw|f3-q1": {
+    "X": "A7s-plain",
+    "Y": "A5"
+  },
+  "A5:A7s-plain:fgw|f3-q4": {
+    "X": "A5",
+    "Y": "A7s-plain"
+  },
+  "A5:A7s-plain:fgw|f3-q8": {
+    "X": "A5",
+    "Y": "A7s-plain"
+  },
+  "A5:A7s-plain:fgw|f4-q1": {
+    "X": "A5",
+    "Y": "A7s-plain"
+  },
+  "A5:A7s-plain:fgw|f4-q2": {
+    "X": "A5",
+    "Y": "A7s-plain"
+  },
+  "A5:A7s-plain:fgw|f4-q3": {
+    "X": "A5",
+    "Y": "A7s-plain"
+  },
+  "A5:A7s-plain:fgw|f4-q4": {
+    "X": "A5",
+    "Y": "A7s-plain"
+  },
+  "A5:A7s-plain:fgw|f4-q5": {
+    "X": "A5",
+    "Y": "A7s-plain"
+  },
+  "A5:A7s-plain:fgw|f5-q1": {
+    "X": "A5",
+    "Y": "A7s-plain"
+  },
+  "A5:A7s-plain:fgw|f5-q2": {
+    "X": "A5",
+    "Y": "A7s-plain"
+  },
+  "A5:A7s-plain:fgw|f5-q3": {
+    "X": "A5",
+    "Y": "A7s-plain"
+  },
+  "A5:A7s-plain:fgw|f5-q4": {
+    "X": "A7s-plain",
+    "Y": "A5"
+  },
+  "A5:A7s-plain:fgw|f6-q1": {
+    "X": "A5",
+    "Y": "A7s-plain"
+  },
+  "A5:A7s-plain:fgw|f6-q2": {
+    "X": "A7s-plain",
+    "Y": "A5"
+  },
+  "A5:A7s-plain:fgw|f7-q1": {
+    "X": "A7s-plain",
+    "Y": "A5"
+  },
+  "A5:A7s-plain:fgw|f7-q2": {
+    "X": "A5",
+    "Y": "A7s-plain"
+  },
+  "A5:A7s-plain:fgw|f7-q3": {
+    "X": "A5",
+    "Y": "A7s-plain"
+  },
+  "A5:A7s-plain:fgw|f7-q4": {
+    "X": "A5",
+    "Y": "A7s-plain"
+  },
+  "A5:A7s-plain:fgw|g1-q1": {
+    "X": "A5",
+    "Y": "A7s-plain"
+  },
+  "A5:A7s-plain:fgw|g1-q2": {
+    "X": "A5",
+    "Y": "A7s-plain"
+  },
+  "A5:A7s-plain:fgw|g2-q1": {
+    "X": "A5",
+    "Y": "A7s-plain"
+  },
+  "A5:A7s-plain:fgw|g2-q2": {
+    "X": "A5",
+    "Y": "A7s-plain"
+  },
+  "A5:A7s-plain:fgw|g2-q3": {
+    "X": "A5",
+    "Y": "A7s-plain"
+  },
+  "A5:A7s-plain:fgw|g3-q1": {
+    "X": "A5",
+    "Y": "A7s-plain"
+  },
+  "A5:A7s-plain:fgw|g3-q2": {
+    "X": "A5",
+    "Y": "A7s-plain"
+  },
+  "A5:A7s-plain:fgw|g4-q1": {
+    "X": "A7s-plain",
+    "Y": "A5"
+  },
+  "A5:A7s-plain:fgw|g4-q2": {
+    "X": "A5",
+    "Y": "A7s-plain"
+  },
+  "A5:A7s-plain:fgw|g5-q1": {
+    "X": "A7s-plain",
+    "Y": "A5"
+  },
+  "A5:A7s-plain:fgw|g5-q2": {
+    "X": "A5",
+    "Y": "A7s-plain"
+  },
+  "A5:A7s-plain:fgw|g6-q1": {
+    "X": "A5",
+    "Y": "A7s-plain"
+  },
+  "A5:A7s-plain:fgw|g6-q2": {
+    "X": "A5",
+    "Y": "A7s-plain"
+  },
+  "A5:A7s-plain:fgw|g6-q3": {
+    "X": "A5",
+    "Y": "A7s-plain"
+  },
+  "A5:A7s-plain:fgw|g7-q1": {
+    "X": "A7s-plain",
+    "Y": "A5"
+  },
+  "A5:A7s-plain:fgw|g7-q2": {
+    "X": "A5",
+    "Y": "A7s-plain"
+  },
+  "A5:A7s-plain:fgw|g8-q1": {
+    "X": "A5",
+    "Y": "A7s-plain"
+  },
+  "A5:A7s-plain:fgw|g8-q2": {
+    "X": "A5",
+    "Y": "A7s-plain"
+  },
+  "A5:A7s-plain:fgw|g8-q3": {
+    "X": "A7s-plain",
+    "Y": "A5"
+  },
+  "A5:A7s-plain:fgw|w1-q1": {
+    "X": "A5",
+    "Y": "A7s-plain"
+  },
+  "A5:A7s-plain:fgw|w1-q3": {
+    "X": "A7s-plain",
+    "Y": "A5"
+  },
+  "A5:A7s-plain:fgw|w1-q8": {
+    "X": "A7s-plain",
+    "Y": "A5"
+  },
+  "A5:A7s-plain:fgw|w2-q1": {
+    "X": "A7s-plain",
+    "Y": "A5"
+  },
+  "A5:A7s-plain:fgw|w2-q3": {
+    "X": "A5",
+    "Y": "A7s-plain"
+  },
+  "A5:A7s-plain:fgw|w2-q5": {
+    "X": "A5",
+    "Y": "A7s-plain"
+  },
+  "A5:A7s-plain:fgw|w3-q1": {
+    "X": "A5",
+    "Y": "A7s-plain"
+  },
+  "A5:A7s-plain:fgw|w3-q2": {
+    "X": "A7s-plain",
+    "Y": "A5"
+  },
+  "A5:A7s-plain:fgw|w3-q6": {
+    "X": "A7s-plain",
+    "Y": "A5"
+  },
+  "A5:A7s-plain:fgw|w4-q1": {
+    "X": "A5",
+    "Y": "A7s-plain"
+  },
+  "A5:A7s-plain:fgw|w4-q4": {
+    "X": "A5",
+    "Y": "A7s-plain"
+  },
+  "A5:A7s-plain:fgw|w4-q8": {
+    "X": "A5",
+    "Y": "A7s-plain"
+  },
+  "A6p:A7-plain:fg|f1-q1": {
+    "X": "A6p",
+    "Y": "A7-plain"
+  },
+  "A6p:A7-plain:fg|f1-q4": {
+    "X": "A7-plain",
+    "Y": "A6p"
+  },
+  "A6p:A7-plain:fg|f2-q1": {
+    "X": "A6p",
+    "Y": "A7-plain"
+  },
+  "A6p:A7-plain:fg|f2-q10": {
+    "X": "A7-plain",
+    "Y": "A6p"
+  },
+  "A6p:A7-plain:fg|f2-q4": {
+    "X": "A6p",
+    "Y": "A7-plain"
+  },
+  "A6p:A7-plain:fg|f2-q6": {
+    "X": "A7-plain",
+    "Y": "A6p"
+  },
+  "A6p:A7-plain:fg|f2-q9": {
+    "X": "A7-plain",
+    "Y": "A6p"
+  },
+  "A6p:A7-plain:fg|f3-q1": {
+    "X": "A6p",
+    "Y": "A7-plain"
+  },
+  "A6p:A7-plain:fg|f3-q4": {
+    "X": "A6p",
+    "Y": "A7-plain"
+  },
+  "A6p:A7-plain:fg|f3-q8": {
+    "X": "A7-plain",
+    "Y": "A6p"
+  },
+  "A6p:A7-plain:fg|f4-q1": {
+    "X": "A6p",
+    "Y": "A7-plain"
+  },
+  "A6p:A7-plain:fg|f4-q2": {
+    "X": "A6p",
+    "Y": "A7-plain"
+  },
+  "A6p:A7-plain:fg|f4-q3": {
+    "X": "A7-plain",
+    "Y": "A6p"
+  },
+  "A6p:A7-plain:fg|f4-q4": {
+    "X": "A7-plain",
+    "Y": "A6p"
+  },
+  "A6p:A7-plain:fg|f4-q5": {
+    "X": "A6p",
+    "Y": "A7-plain"
+  },
+  "A6p:A7-plain:fg|f5-q1": {
+    "X": "A6p",
+    "Y": "A7-plain"
+  },
+  "A6p:A7-plain:fg|f5-q2": {
+    "X": "A6p",
+    "Y": "A7-plain"
+  },
+  "A6p:A7-plain:fg|f5-q3": {
+    "X": "A6p",
+    "Y": "A7-plain"
+  },
+  "A6p:A7-plain:fg|f5-q4": {
+    "X": "A7-plain",
+    "Y": "A6p"
+  },
+  "A6p:A7-plain:fg|f6-q1": {
+    "X": "A6p",
+    "Y": "A7-plain"
+  },
+  "A6p:A7-plain:fg|f6-q2": {
+    "X": "A7-plain",
+    "Y": "A6p"
+  },
+  "A6p:A7-plain:fg|f7-q1": {
+    "X": "A6p",
+    "Y": "A7-plain"
+  },
+  "A6p:A7-plain:fg|f7-q2": {
+    "X": "A7-plain",
+    "Y": "A6p"
+  },
+  "A6p:A7-plain:fg|f7-q3": {
+    "X": "A6p",
+    "Y": "A7-plain"
+  },
+  "A6p:A7-plain:fg|f7-q4": {
+    "X": "A7-plain",
+    "Y": "A6p"
+  },
+  "A6p:A7-plain:fg|g1-q1": {
+    "X": "A7-plain",
+    "Y": "A6p"
+  },
+  "A6p:A7-plain:fg|g1-q2": {
+    "X": "A7-plain",
+    "Y": "A6p"
+  },
+  "A6p:A7-plain:fg|g2-q1": {
+    "X": "A7-plain",
+    "Y": "A6p"
+  },
+  "A6p:A7-plain:fg|g2-q2": {
+    "X": "A6p",
+    "Y": "A7-plain"
+  },
+  "A6p:A7-plain:fg|g2-q3": {
+    "X": "A7-plain",
+    "Y": "A6p"
+  },
+  "A6p:A7-plain:fg|g3-q1": {
+    "X": "A6p",
+    "Y": "A7-plain"
+  },
+  "A6p:A7-plain:fg|g3-q2": {
+    "X": "A6p",
+    "Y": "A7-plain"
+  },
+  "A6p:A7-plain:fg|g4-q1": {
+    "X": "A7-plain",
+    "Y": "A6p"
+  },
+  "A6p:A7-plain:fg|g4-q2": {
+    "X": "A7-plain",
+    "Y": "A6p"
+  },
+  "A6p:A7-plain:fg|g5-q1": {
+    "X": "A7-plain",
+    "Y": "A6p"
+  },
+  "A6p:A7-plain:fg|g5-q2": {
+    "X": "A6p",
+    "Y": "A7-plain"
+  },
+  "A6p:A7-plain:fg|g6-q1": {
+    "X": "A7-plain",
+    "Y": "A6p"
+  },
+  "A6p:A7-plain:fg|g6-q2": {
+    "X": "A7-plain",
+    "Y": "A6p"
+  },
+  "A6p:A7-plain:fg|g6-q3": {
+    "X": "A7-plain",
+    "Y": "A6p"
+  },
+  "A6p:A7-plain:fg|g7-q1": {
+    "X": "A7-plain",
+    "Y": "A6p"
+  },
+  "A6p:A7-plain:fg|g7-q2": {
+    "X": "A6p",
+    "Y": "A7-plain"
+  },
+  "A6p:A7-plain:fg|g8-q1": {
+    "X": "A6p",
+    "Y": "A7-plain"
+  },
+  "A6p:A7-plain:fg|g8-q2": {
+    "X": "A6p",
+    "Y": "A7-plain"
+  },
+  "A6p:A7-plain:fg|g8-q3": {
+    "X": "A7-plain",
+    "Y": "A6p"
+  }
+}

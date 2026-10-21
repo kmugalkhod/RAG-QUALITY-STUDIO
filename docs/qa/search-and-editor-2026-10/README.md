@@ -56,3 +56,99 @@ f6-q1 (the DfT list across several table rows) is the case the spec 0015 S3 chun
 ## Cost
 
 Slice 0 spent **$0.3695** on reranking calls (six runs of 77 questions) plus about $0.0002 of query embeddings. The spec's cap is $1, which leaves $0.63 for the proof round (estimated at $0.40).
+
+## Proof round (Slice 6, 2026-10-22)
+
+**Setup.** Real-source harness rounds (`backend/scripts/real_source/run.py`), the same 15 files, four websites, `structure-clean-v2`, the sizes a new pipeline gets and `google/gemini-2.5-flash` at temperature 0 as in A5 and A6p:
+- **A7s:** `layout-ocr-v6` with `section-token-v5` (websites rebuilt from the R1 snapshot), answered through a Rerank node (`google/gemini-2.5-flash-lite`, vector top 30, keep 5; answer graph schema 3). Baseline A5, the current defaults.
+- **A7:** `layout-ocr-v6` with `parent-child-v5`, websites reusing the A1 index as A6p does, with the same Rerank node. Baseline A6p, the best round so far.
+- **A7s-plain and A7-plain:** the same A7s and A7 indexes answered without the Rerank node (vector top 5), added so that the chunkers' effect shows apart from the reranker's.
+
+Indexes published (passages):
+
+| Track | A5 | A7s | A6p | A7 |
+| --- | ---: | ---: | ---: | ---: |
+| Websites | 2,334 | 3,081 | A1 | A1 |
+| Files (F1-F3) | 660 | 2,483 | 1,940 | 2,435 |
+| Second file set | 506 | 678 | 981 | 1,037 |
+| Spec 0009 files | 751 | 1,152 | 1,927 | 2,244 |
+
+**Scoring.** Blind, by hand, with the spec 0004 rubric (`backend/scripts/clean_chunk/blind_rounds.py`): pairs A5:A7s:fgw and A6p:A7:fg with seed `search-editor-0015` ([`proof/`](proof/)), and A5:A7s-plain:fgw and A6p:A7-plain:fg with seed `search-editor-0015-no-rerank` ([`proof/no-rerank/`](proof/no-rerank/)). Every label and its reason was written before the key was read. The 100 A5 and A6p answers appear in both reviews and received the same label both times. [`proof/spot_check.md`](proof/spot_check.md) holds 10 random labels for the owner to check.
+
+### Retrieval (all reference phrases in one supplied passage among the top 5; 77 answerable questions)
+
+| Round | Top 5 | Rank 1 | Lost against A5 | Lost against A5 or A6p | Gained against the baseline |
+| --- | ---: | ---: | --- | --- | --- |
+| A5 (baseline) | 68 | 42 | | | |
+| A6p (baseline) | 71 | 49 | | | |
+| A7s-plain (no reranking) | 70 | 44 | none | f5-q2 | f2-q10, g3-q2 (vs A5) |
+| A7-plain (no reranking) | 71 | 49 | none | none | none (vs A6p) |
+| **A7s** | **75** | **65** | none | f5-q2 | f1-q3, f2-q9, f2-q10, g3-q2, g8-q1, g8-q2, w4-q7 (vs A5) |
+| **A7** | **75** | **66** | none | none | f1-q3, f2-q9, g8-q1, w4-q7 (vs A6p) |
+
+Still missed: A7 f6-q1 and g8-q2, A7s f5-q2 and f6-q1, none of them among the 30 candidates. Rank 1 rises by 23 (A5 to A7s) and 17 (A6p to A7).
+
+### Answers (correct or correct-abstain)
+
+| Pair | Questions | Before | After | Wins | Losses |
+| --- | ---: | ---: | ---: | --- | --- |
+| A5 → A7s | 56 | 51 | 51 | g3-q2 | f6-q1 |
+| A6p → A7 | 44 | 39 | **42** | f2-q9, f2-q10, f6-q1, g8-q2 | f5-q2 |
+| A5 → A7s-plain | 56 | 51 | **53** | f2-q10, g3-q2 | **none** |
+| A6p → A7-plain | 44 | 39 | 39 | f2-q10 | f5-q2 |
+
+From the same labels: A5 → A7 on the files is 39 → 42 with no loss (wins f2-q9, f2-q10, g3-q2); A7s-plain → A7s (adding the reranker to `section-token-v5`) loses f2-q10 and f6-q1; A7-plain → A7 (adding it to `parent-child-v5`) gains f2-q9, f6-q1 and g8-q2 and loses nothing.
+
+**Repeats.** Each disputed answer was asked three more times on the same saved pipeline (`backend/scripts/real_source/repeat_check.py`, [`proof/repeat_check.json`](proof/repeat_check.json), $0.014). Correct answers out of four (the round's answer and three repeats):
+
+| Question | Without reranking | With reranking |
+| --- | --- | --- |
+| f5-q2 (1,070 mgd) | A6p 1/4, A7-plain 0/4 | A7 3/4 |
+| f6-q1 (250 words) | A5 4/4, A7s-plain 4/4 | A7s 1/4 |
+| f2-q10 ($76,820) | A7s-plain 4/4 | A7s 0/4 |
+
+- **f5-q2 is not a loss of the change.** A6p and A7-plain gave the model byte-identical passages in the same order (an OCR row of Table 1 with no column names, "Illinois 120 20 140 1,070 …"); the model picks 140 most of the time either way. Reranking moves that row to rank 1 and the answer is then mostly right.
+- **f6-q1 and f2-q10 are real reranker losses on `section-token-v5`.** In f6-q1 the reranked prompt holds the same five passages as the plain one, in another order; the "Word limit 250 words" line sits between sections A3.2 and A3.3, and after reordering the model reads it as A3.3's and declines. In f2-q10 the reranker keeps a second Table A-2 row passage (retriever rank 15) and drops the table's title passage (rank 5), the only one that says "Income in 2022 dollars"; the model finds $76,820 but declines because nothing says it is in 2022 dollars.
+
+### Cost and speed (answer runs)
+
+| Pair | Median latency | Mean cost per question | Rerank call: mean / max cost, median time |
+| --- | --- | --- | --- |
+| A5 → A7s | 2.31 → 3.89 s (+1.58 s) | $0.00073 → $0.00125 | $0.00053 / $0.00128, 1.19 s |
+| A6p → A7 | 2.44 → 3.86 s (+1.42 s) | $0.00107 → $0.00149 | $0.00045 / $0.00160, 1.16 s |
+
+The added time includes retrieving 30 candidates instead of 5. **Fallbacks:** the reranker fell back to the retriever order in 12 of 180 retrieval checks and 7 of 100 answer runs (Slice 0: none in 462 calls). Each said "Reranking failed; retriever order used" and no answer failed. Most had no provider cost, so the call itself failed; the node does not record why. That is a follow-up (record the failure class).
+
+### Against the spec's targets
+
+| Target | A7s (`section-token-v5` + Rerank) | A7 (`parent-child-v5` + Rerank) |
+| --- | --- | --- |
+| At least 74 of 77 in the top 5 | 75, met | 75, met |
+| Rank 1 up by at least 10 | +23, met | +17, met |
+| No question lost that A5 or A6p found | f5-q2 lost (found by A6p), not met | met |
+| At least 3 more correct answers than A5, none lost | 51 → 51, f6-q1 lost, not met | files 39 → 42, none lost, met (websites not asked, as in A6p) |
+| At most $0.002 added per question | met | met |
+| At most 1.5 s added median latency | +1.58 s, not met | +1.42 s, met |
+
+`layout-ocr-v6` with `parent-child-v5` and the Rerank node meets every target on the files.
+
+### Decision (D5)
+
+- **New ingestion pipelines switch to `layout-ocr-v6` with `section-token-v5`** (and `parent-child-v5` when the parent-child method is chosen). Against the current defaults (A5) they lose no answer (51 → 53) and no top-5 hit (68 → 70). `parent-child-v5` loses no top-5 hit against A6p; its only answer difference is f5-q2, which the A6p baseline itself gets wrong 3 times in 4 on identical evidence. Saved pipelines keep their versions; older versions show **Upgrade extraction** and **Upgrade chunking**.
+- **New answer pipelines stay without a Rerank node.** On `section-token-v5`, the chunker new pipelines use, it loses f6-q1 and f2-q10 (repeatable). It stays an optional node: with `parent-child-v5` it gains three answers, loses none and meets every target.
+- **The default chunking method stays section-aware.** Parent-child with the reranker is the best measured setting for files, but parent-child-v5 was not measured on websites (A7 reuses the A1 website index), so changing the default method is left to the owner.
+
+### Spend
+
+By the harness's upper-bound estimate (provider-reported where the harness has it):
+
+| Item | Cost |
+| --- | ---: |
+| Index embeddings, A7 and A7s | $0.132 estimate ($0.009 provider-reported) |
+| Query embeddings | $0.0003 |
+| Rerank calls in the retrieval checks | $0.088 |
+| Answers: A7, A7s, A7-plain, A7s-plain (200) | $0.222 |
+| Repeats (24 answers) | $0.014 |
+| **Slice 6** | **$0.455** ($0.33 provider-reported) |
+
+With Slice 0 ($0.370) this spec spent **$0.83 of its $1 cap**. The harness's cumulative total over all real-source rounds is $1.25 of its $2.50 cap.

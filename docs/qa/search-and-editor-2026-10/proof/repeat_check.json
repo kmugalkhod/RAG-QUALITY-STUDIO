@@ -1,0 +1,264 @@
+{
+  "f5-q2|new:A6p": [
+    {
+      "run_id": "5102e851-2d33-4049-96a0-173861baeae8",
+      "status": "succeeded",
+      "answer": "Municipalities in Illinois used 140 mgd of surface water in 1950 [S4].",
+      "rerank_status": null,
+      "order": [],
+      "cost_usd": 0.0010983
+    },
+    {
+      "run_id": "be3861b5-8d9c-421d-ab2c-38ca29bcb0cd",
+      "status": "succeeded",
+      "answer": "Municipalities in Illinois used 140 mgd of surface water in 1950 [S4].",
+      "rerank_status": null,
+      "order": [],
+      "cost_usd": 0.00027183
+    },
+    {
+      "run_id": "f105f16a-e4b9-4f19-976c-9c9d9e32918b",
+      "status": "succeeded",
+      "answer": "Municipalities in Illinois used 140 mgd of surface water in 1950 [S4].",
+      "rerank_status": null,
+      "order": [],
+      "cost_usd": 0.00027183
+    }
+  ],
+  "f5-q2|new:A7": [
+    {
+      "run_id": "ae060b2c-46a1-4f96-bd26-09220659fee3",
+      "status": "succeeded",
+      "answer": "Municipalities in Illinois used 140 mgd of surface water in 1950 [S4].",
+      "rerank_status": null,
+      "order": [],
+      "cost_usd": 0.00027183
+    },
+    {
+      "run_id": "9c209cc9-9c45-4352-afbb-b1441c3cc501",
+      "status": "succeeded",
+      "answer": "Municipalities in Illinois used 140 mgd of surface water in 1950 [S4].",
+      "rerank_status": null,
+      "order": [],
+      "cost_usd": 0.00027183
+    },
+    {
+      "run_id": "f83827e0-5208-4d4e-ba99-c7d612781c86",
+      "status": "succeeded",
+      "answer": "Municipalities in Illinois used 140 mgd of surface water in 1950 [S4].",
+      "rerank_status": null,
+      "order": [],
+      "cost_usd": 0.00027183
+    }
+  ],
+  "f5-q2|new:A7+rerank": [
+    {
+      "run_id": "3729e2de-2327-495f-8829-8bed23cab792",
+      "status": "succeeded",
+      "answer": "Municipalities in Illinois used 1,070 mgd of surface water in 1950 [S1].",
+      "rerank_status": "reranked",
+      "order": [
+        4,
+        1,
+        2,
+        3,
+        5
+      ],
+      "cost_usd": 0.0015613
+    },
+    {
+      "run_id": "41ea5df0-0de2-4668-a9fa-4fc74aef5e17",
+      "status": "succeeded",
+      "answer": "Municipalities in Illinois used 1,070 mgd of surface water in 1950 [S1].",
+      "rerank_status": "reranked",
+      "order": [
+        4,
+        1,
+        2,
+        3,
+        5
+      ],
+      "cost_usd": 0.00036718
+    },
+    {
+      "run_id": "96b6f8ec-8867-4825-961a-a6570c4ff95d",
+      "status": "succeeded",
+      "answer": "Municipalities in Illinois used 1,070 mgd of surface water in 1950 [S1].",
+      "rerank_status": "reranked",
+      "order": [
+        4,
+        1,
+        2,
+        3,
+        5
+      ],
+      "cost_usd": 0.00036718
+    }
+  ],
+  "f6-q1|new:A5": [
+    {
+      "run_id": "994f2ae1-63c5-4ec6-bfdb-0203066f806f",
+      "status": "succeeded",
+      "answer": "The word limit for section A3.2, \"What we are doing to tackle potholes,\" in the DfT highways maintenance transparency report template is 250 words [S1, S5].",
+      "rerank_status": null,
+      "order": [],
+      "cost_usd": 0.0007353
+    },
+    {
+      "run_id": "13318837-2813-441d-b726-5541a272102c",
+      "status": "succeeded",
+      "answer": "The word limit for section A3.2, \"What we are doing to tackle potholes,\" in the DfT highways maintenance transparency report template is 250 words [S1, S5].",
+      "rerank_status": null,
+      "order": [],
+      "cost_usd": 0.00018558
+    },
+    {
+      "run_id": "dd56c710-c335-4d56-8ac2-b6f3c954aa8c",
+      "status": "succeeded",
+      "answer": "The word limit for section A3.2, \"What we are doing to tackle potholes,\" in the DfT highways maintenance transparency report template is 250 words [S1, S5].",
+      "rerank_status": null,
+      "order": [],
+      "cost_usd": 0.00018558
+    }
+  ],
+  "f6-q1|new:A7s": [
+    {
+      "run_id": "f395316e-33c2-4354-bb5f-06260cc5c464",
+      "status": "succeeded",
+      "answer": "The word limit for section A3.2, \"What we are doing to tackle potholes,\" in the DfT highways maintenance transparency report template is 250 words [S1, S5].",
+      "rerank_status": null,
+      "order": [],
+      "cost_usd": 0.00018558
+    },
+    {
+      "run_id": "a21f6b7f-655c-4531-b2b8-140b7e52d0a4",
+      "status": "succeeded",
+      "answer": "The word limit for section A3.2, \"What we are doing to tackle potholes,\" in the DfT highways maintenance transparency report template is 250 words [S1, S5].",
+      "rerank_status": null,
+      "order": [],
+      "cost_usd": 0.00018558
+    },
+    {
+      "run_id": "75f505c9-b67b-4b28-af8c-d614c16b6eaa",
+      "status": "succeeded",
+      "answer": "The word limit for section A3.2, \"What we are doing to tackle potholes,\" in the DfT highways maintenance transparency report template is 250 words [S1, S5].",
+      "rerank_status": null,
+      "order": [],
+      "cost_usd": 0.00018558
+    }
+  ],
+  "f6-q1|new:A7s+rerank": [
+    {
+      "run_id": "711b9c5a-cc4d-496d-b979-2586bac818bd",
+      "status": "insufficient_evidence",
+      "answer": "INSUFFICIENT_EVIDENCE. The provided text describes the content and guidance for section A3.2 but does not specify a word limit for it [S2, S5]. It does, however, mention word limits for sections A3.1 (150 words), A3.3 (100 words), and A3.4 (100 words) [S1, S5].",
+      "rerank_status": "reranked",
+      "order": [
+        1,
+        5,
+        2,
+        3,
+        4
+      ],
+      "cost_usd": 0.0012573
+    },
+    {
+      "run_id": "54cb2103-2bd5-4d9e-b747-6faa9513cc7d",
+      "status": "insufficient_evidence",
+      "answer": "INSUFFICIENT_EVIDENCE. The provided text describes section A3.2 and its guidance, but it does not specify a word limit for this particular section [S2, S5]. Word limits are given for sections A3.1, A3.3, and A3.4, but not A3.2 [S1, S5].",
+      "rerank_status": "reranked",
+      "order": [
+        1,
+        5,
+        2,
+        3,
+        4
+      ],
+      "cost_usd": 0.00031252000000000005
+    },
+    {
+      "run_id": "fb7227aa-9b97-4bc0-be78-f6f3c5d48999",
+      "status": "succeeded",
+      "answer": "The word limit for section A3.2, \"What we are doing to tackle potholes,\" in the DfT highways maintenance transparency report template is 250 words [S1, S5].",
+      "rerank_status": "fallback",
+      "order": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "cost_usd": 0.00018558
+    }
+  ],
+  "f2-q10|files:A7s": [
+    {
+      "run_id": "1b43291b-248f-44b8-8e52-8ad9337e0f2d",
+      "status": "succeeded",
+      "answer": "According to Table A-2, the mean household income for all races in 1990 was $76,820 in 2022 dollars [S2, S5].",
+      "rerank_status": null,
+      "order": [],
+      "cost_usd": 0.001059
+    },
+    {
+      "run_id": "467075fb-1f00-4559-9a07-d5569b05f075",
+      "status": "succeeded",
+      "answer": "According to Table A-2, the mean household income for all races in 1990 was $76,820 in 2022 dollars [S2].",
+      "rerank_status": null,
+      "order": [],
+      "cost_usd": 0.0002253
+    },
+    {
+      "run_id": "f9210c22-0610-45d8-87cf-b479047386d0",
+      "status": "succeeded",
+      "answer": "According to Table A-2, the mean household income for all races in 1990 was $76,820 in 2022 dollars [S2, S5].",
+      "rerank_status": null,
+      "order": [],
+      "cost_usd": 0.0002328
+    }
+  ],
+  "f2-q10|files:A7s+rerank": [
+    {
+      "run_id": "65fe0b91-c872-4ae5-8b13-cb64f7f11fea",
+      "status": "insufficient_evidence",
+      "answer": "INSUFFICIENT_EVIDENCE. The provided Table A-2 lists the mean household income for all races in 1990 as $76,820 [S1, S2]. However, it does not specify if this value is already in 2022 inflation-adjusted dollars or if it needs to be converted. Figure 2 mentions \"2022 inflation-adjusted dollars\" but only provides median income data, not mean income [S3]. Therefore, the evidence does not directly state the mean household income for all races in 1990 in 2022 dollars.",
+      "rerank_status": "reranked",
+      "order": [
+        2,
+        15,
+        1,
+        3,
+        4
+      ],
+      "cost_usd": 0.0026627
+    },
+    {
+      "run_id": "ee33babd-e681-4b20-bd08-a27939358f60",
+      "status": "insufficient_evidence",
+      "answer": "INSUFFICIENT_EVIDENCE. The provided Table A-2 lists the mean household income for all races in 1990 as $76,820 [S1, S2]. However, it does not specify if this value is already in 2022 inflation-adjusted dollars or if it needs to be converted. Figure 2 mentions \"2022 inflation-adjusted dollars\" but only provides median income data, not mean income [S3]. Therefore, the evidence does not directly state the mean household income for all races in 1990 in 2022 dollars.",
+      "rerank_status": "reranked",
+      "order": [
+        2,
+        15,
+        1,
+        3,
+        4
+      ],
+      "cost_usd": 0.00073139
+    },
+    {
+      "run_id": "db250d58-319f-4f0e-b668-e087e5ebaf3f",
+      "status": "insufficient_evidence",
+      "answer": "INSUFFICIENT_EVIDENCE. The provided Table A-2 lists the mean household income for all races in 1990 as $76,820 [S1, S2]. However, it does not specify if this value is already in 2022 inflation-adjusted dollars or if it needs to be converted. Figure 2 mentions \"2022 inflation-adjusted dollars\" but only provides median income data, not mean income [S3]. Therefore, the evidence does not directly state the mean household income for all races in 1990 in 2022 dollars.",
+      "rerank_status": "reranked",
+      "order": [
+        2,
+        15,
+        1,
+        3,
+        4
+      ],
+      "cost_usd": 0.00073139
+    }
+  ]
+}

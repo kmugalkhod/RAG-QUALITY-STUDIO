@@ -378,7 +378,9 @@ def extraction_capabilities() -> dict[str, Any]:
                     "maximum_tokens": 800,
                     "overlap_tokens": 80,
                     "add_heading_context": True,
-                    "config_version": "section-token-v3",
+                    # Spec 0015 proof round: new drafts use v5, which lost no answer
+                    # and no top-5 hit; saved versions keep theirs.
+                    "config_version": "section-token-v5",
                 },
             },
             {
@@ -394,7 +396,7 @@ def extraction_capabilities() -> dict[str, Any]:
                     "parent_target_tokens": 900,
                     "parent_maximum_tokens": 1200,
                     "add_heading_context": True,
-                    "config_version": "parent-child-v3",
+                    "config_version": "parent-child-v5",
                 },
             },
             {

@@ -630,9 +630,10 @@ export function IngestionNodeSettings({
                       together on websites and in files, keeps the reading order of multi-column
                       pages and leaves out reference lists. It also reads tables printed sideways
                       and tables in PowerPoint slides, keeps words broken at the end of a line
-                      whole, reads charts as text instead of as broken tables, and files each table
-                      under its caption. Saving the upgrade creates a new pipeline version, and its
-                      next run processes documents again.
+                      whole, reads charts as text instead of as broken tables, files each table
+                      under its caption, keeps a row printed just below a table's header, and labels
+                      the columns of tables rebuilt from printed lines. Saving the upgrade creates a
+                      new pipeline version, and its next run processes documents again.
                     </p>
                     <div>
                       <Button

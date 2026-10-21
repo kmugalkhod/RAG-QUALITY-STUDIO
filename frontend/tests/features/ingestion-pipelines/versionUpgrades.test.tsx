@@ -89,29 +89,29 @@ test('the chunk upgrade notice lists what each newer version changes', () => {
   expect(chunkVersionChanges[3]).toMatch(/under 40 bytes/);
 });
 
-test('a saved v2 chunker is offered only the v3 changes', () => {
+test('a saved v2 chunker is offered only the later changes', () => {
   const v2 = { ...section, config_version: 'section-token-v2' };
-  expect(chunkUpgradeChanges(v2)).toEqual([chunkVersionChanges[3]]);
+  expect(chunkUpgradeChanges(v2)).toEqual([
+    chunkVersionChanges[3],
+    chunkVersionChanges[4],
+    chunkVersionChanges[5],
+  ]);
   render(<ChunkSettings node={v2} websiteSource={false} serverErrors={{}} update={vi.fn()} />);
   expect(screen.getByText('Saved with section-token-v2')).toBeInTheDocument();
   expect(screen.getByText(chunkVersionChanges[3])).toBeInTheDocument();
   expect(screen.queryByText(chunkVersionChanges[2])).not.toBeInTheDocument();
 });
 
-test('the current chunker, or a newer one, is never offered an upgrade or a downgrade', () => {
-  for (const version of ['section-token-v3', 'section-token-v4']) {
-    const node = { ...section, config_version: version };
-    expect(chunkUpgradeAvailable(node)).toBe(false);
-    expect(chunkUpgradeChanges(node)).toEqual([]);
-  }
-  render(
-    <ChunkSettings
-      node={{ ...section, config_version: 'section-token-v3' }}
-      websiteSource={false}
-      serverErrors={{}}
-      update={vi.fn()}
-    />,
-  );
+test('the current chunker is never offered an upgrade or a downgrade', () => {
+  const current = { ...section, config_version: 'section-token-v5' };
+  expect(chunkUpgradeAvailable(current)).toBe(false);
+  expect(chunkUpgradeChanges(current)).toEqual([]);
+  // New drafts moved from v3 to v5 in the spec 0015 proof round.
+  expect(chunkUpgradeChanges({ ...section, config_version: 'section-token-v3' })).toEqual([
+    chunkVersionChanges[4],
+    chunkVersionChanges[5],
+  ]);
+  render(<ChunkSettings node={current} websiteSource={false} serverErrors={{}} update={vi.fn()} />);
   expect(screen.queryByRole('button', { name: 'Upgrade chunking' })).not.toBeInTheDocument();
 });
 

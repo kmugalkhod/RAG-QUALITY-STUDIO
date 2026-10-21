@@ -54,7 +54,7 @@ describe('ingestion editor model', () => {
       ocr: { mode: 'off', languages: ['eng'] },
       quality_policy: defaultQualityPolicy,
       language_policy: defaultLanguagePolicy,
-      config_version: 'layout-ocr-v5',
+      config_version: 'layout-ocr-v6',
     });
     expect(draft.execution.edges).toEqual([
       { source: 'source', target: 'extract' },
@@ -204,14 +204,15 @@ describe('ingestion editor model', () => {
     expect(
       describeIngestionNode({ ...extract, config_version: 'layout-ocr-v4' } as typeof extract, []),
     ).toBe('Auto · OCR off · upgrade available');
-    // A version newer than new drafts use (spec 0014, before its proof) is not "older".
+    // New drafts use layout-ocr-v6 since the spec 0015 proof round, so v5 is older.
     expect(
-      describeIngestionNode({ ...extract, config_version: 'layout-ocr-v6' } as typeof extract, []),
-    ).toBe('Auto · OCR off');
-    expect(chunk).toMatchObject({ config_version: 'section-token-v3' });
+      describeIngestionNode({ ...extract, config_version: 'layout-ocr-v5' } as typeof extract, []),
+    ).toBe('Auto · OCR off · upgrade available');
+    expect(extract).toMatchObject({ config_version: 'layout-ocr-v6' });
+    expect(chunk).toMatchObject({ config_version: 'section-token-v5' });
     expect(
       describeIngestionNode({ ...chunk, config_version: 'section-token-v4' } as typeof chunk, []),
-    ).toBe('Section-aware · Medium');
+    ).toBe('Section-aware · Medium · upgrade available');
     expect(describeIngestionNode(chunk, [])).toBe('Section-aware · Medium');
     expect(
       describeIngestionNode({ ...chunk, config_version: 'section-token-v1' } as typeof chunk, []),

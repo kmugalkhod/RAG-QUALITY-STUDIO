@@ -8,7 +8,7 @@ import type { IngestionNode } from '../../../src/features/ingestion-pipelines/mo
 let lastChunk: IngestionNode | undefined;
 
 function Harness({
-  chunkVersion = 'section-token-v3',
+  chunkVersion = 'section-token-v5',
   initial,
 }: {
   chunkVersion?: string;
@@ -112,28 +112,28 @@ test('a new token chunker uses the current version and shows no upgrade', () => 
   expect(screen.queryByRole('button', { name: 'Upgrade chunking' })).not.toBeInTheDocument();
 
   fireEvent.click(screen.getByRole('radio', { name: /Parent and child/ }));
-  expect(lastChunk).toMatchObject({ config_version: 'parent-child-v3' });
+  expect(lastChunk).toMatchObject({ config_version: 'parent-child-v5' });
   expect(screen.queryByRole('button', { name: 'Upgrade chunking' })).not.toBeInTheDocument();
 
   fireEvent.click(screen.getByRole('radio', { name: /Section-aware/ }));
-  expect(lastChunk).toMatchObject({ config_version: 'section-token-v3' });
+  expect(lastChunk).toMatchObject({ config_version: 'section-token-v5' });
 });
 
 test('offers a saved section-token-v1 chunker an explicit upgrade that keeps its settings', () => {
   render(<Harness chunkVersion="section-token-v1" />);
   expect(screen.getByText('Saved with section-token-v1')).toBeInTheDocument();
-  expect(screen.getByText(/The current\s+chunking, section-token-v3:/)).toBeInTheDocument();
+  expect(screen.getByText(/The current\s+chunking, section-token-v5:/)).toBeInTheDocument();
   fireEvent.change(screen.getByLabelText('Target size (bytes)'), { target: { value: '500' } });
 
   fireEvent.click(screen.getByRole('button', { name: 'Upgrade chunking' }));
 
   expect(screen.queryByText('Saved with section-token-v1')).not.toBeInTheDocument();
-  expect(lastChunk).toMatchObject({ config_version: 'section-token-v3', target_tokens: 500 });
+  expect(lastChunk).toMatchObject({ config_version: 'section-token-v5', target_tokens: 500 });
 });
 
 function PolicyHarness({
   kind,
-  extractVersion = 'layout-ocr-v5',
+  extractVersion = 'layout-ocr-v6',
 }: {
   kind: 'extract' | 'clean';
   extractVersion?: string;
@@ -240,14 +240,17 @@ test('offers a saved layout-ocr-v1 extractor an explicit upgrade', () => {
   expect(screen.getByLabelText("If a file can't be read well")).toBeInTheDocument();
 });
 
-test.each(['layout-ocr-v3', 'layout-ocr-v4'])(
-  'offers a saved %s extractor the v5 upgrade',
+test.each(['layout-ocr-v3', 'layout-ocr-v4', 'layout-ocr-v5'])(
+  'offers a saved %s extractor the v6 upgrade',
   (version) => {
     render(<PolicyHarness kind="extract" extractVersion={version} />);
     expect(screen.getByText(`Saved with ${version}`)).toBeInTheDocument();
-    expect(screen.getByText(/The current extractor, layout-ocr-v5,/)).toBeInTheDocument();
+    expect(screen.getByText(/The current extractor, layout-ocr-v6,/)).toBeInTheDocument();
     expect(screen.getByText(/reads charts as text/)).toBeInTheDocument();
-    expect(screen.getByText(/files each table under its caption/)).toBeInTheDocument();
+    expect(screen.getByText(/files each table\s+under its caption/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/labels the columns of tables rebuilt from printed lines/),
+    ).toBeInTheDocument();
     expect(screen.getByLabelText("If a file can't be read well")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Upgrade extraction' }));
@@ -271,7 +274,7 @@ test('explains that legacy native-text findings are warnings only', () => {
 
 function SourcesHarness({
   kinds,
-  version = 'layout-ocr-v5',
+  version = 'layout-ocr-v6',
 }: {
   kinds: string[];
   version?: string;

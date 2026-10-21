@@ -23,6 +23,11 @@ A4p with `structure-clean-v2` and `parent-child-v3`.
 Spec 0014 adds round A6: A5 with `layout-ocr-v6` and `section-token-v4` (the
 websites rebuilt again, since v4 also chunks website tables by row); and A6p: A5p
 with `layout-ocr-v6` and `parent-child-v4`.
+Spec 0015 adds rounds A7s and A7: A6 and A6p with the v5 chunkers (whole tables
+beside their row passages) and the Rerank node (vector top 30, keep 5) in the
+answer pipelines. Their `retrieve` stage reranks with the node's own code
+(`app.pipelines.rerank`) and also records the plain vector top 5. Rounds A7s-plain
+and A7-plain only `ask`: the same indexes with vector top 5 and no Rerank node.
 
 Run inside the backend container against http://127.0.0.1:8000 (local auth mode).
 """
@@ -30,6 +35,7 @@ Run inside the backend container against http://127.0.0.1:8000 (local auth mode)
 from __future__ import annotations
 
 import argparse
+from contextlib import ExitStack
 import hashlib
 import json
 import re
@@ -49,6 +55,8 @@ EMBEDDING_USD_PER_MILLION = 0.02
 ANSWER_MODEL = "google/gemini-2.5-flash"
 TERMINAL = {"succeeded", "failed", "cancelled", "expired"}
 RECOMMENDED_CHUNK = {"target_tokens": 600, "maximum_tokens": 800, "overlap_tokens": 80}
+# Spec 0015: the Rerank node as measured in Slice 0 (D2).
+RERANK = {"model": "google/gemini-2.5-flash-lite", "top_n": 5, "candidates": 30}
 
 # The free R1 preview showed the recommended "Stop and let me review" (default-v1)
 # blocks the Census report (19 tables flagged malformed). R1 keeps the recommended
@@ -133,6 +141,32 @@ ROUNDS = {
             "quality": {"d2": "warn-v1"}, "reuse": {"web": "A1"},
             "chunk_profile": "parent_child",
             "clean_version": "structure-clean-v2", "chunk_version": "parent-child-v4"},
+    # Spec 0015 slice 6: A6 and A6p with the v5 chunkers (the whole table stays beside
+    # its row passages, title rows name the columns) and the Rerank node. Baselines
+    # A5 (the current defaults) and A6p (the best so far).
+    "A7s": {"tracks": ["web", "files", "new", "d2"],
+            "label": "Rerank and v5 tables: section-token-v5",
+            "extract": {"config_version": "layout-ocr-v6"}, "ocr": {"max_pages": 100},
+            "quality": {"web": "warn-v1", "d2": "warn-v1"},
+            "chunk_profile": "section_token",
+            "clean_version": "structure-clean-v2", "chunk_version": "section-token-v5",
+            "rerank": RERANK},
+    "A7": {"tracks": ["files", "new", "d2"],
+           "label": "Rerank and v5 tables: parent-child-v5",
+           "extract": {"config_version": "layout-ocr-v6"}, "ocr": {"max_pages": 100},
+           "quality": {"d2": "warn-v1"}, "reuse": {"web": "A1"},
+           "chunk_profile": "parent_child",
+           "clean_version": "structure-clean-v2", "chunk_version": "parent-child-v5",
+           "rerank": RERANK},
+    # The A7s and A7 indexes answered without the Rerank node (vector top 5), so the
+    # chunkers' effect on answers shows apart from the reranker's. They build nothing;
+    # "ask" names the tracks they answer.
+    "A7s-plain": {"tracks": [], "ask": ["web", "files", "new", "d2"],
+                  "label": "A7s indexes without reranking",
+                  "reuse": {"web": "A7s", "files": "A7s", "new": "A7s", "d2": "A7s"}},
+    "A7-plain": {"tracks": [], "ask": ["files", "new", "d2"],
+                 "label": "A7 indexes without reranking",
+                 "reuse": {"web": "A1", "files": "A7", "new": "A7", "d2": "A7"}},
 }
 # The index a track falls back to when a round does not rebuild it.
 BASELINE = {"web": "R1", "files": "R1w"}
@@ -173,6 +207,43 @@ def track_of(source_id: str, sources: dict) -> str:
         if source_id in sources.get(group, {}):
             return track
     return "files"
+
+
+def first_hit(evidence: list[dict], phrases: list[str]) -> int | None:
+    """The rank of the first supplied text that holds every reference phrase."""
+
+    for item in evidence:
+        text = normalize(item.get("text") or "")
+        if phrases and all(p in text for p in phrases):
+            return item["rank"]
+    return None
+
+
+def reranker(stack: ExitStack, project_id: str, spec: dict):
+    """The Rerank node's own call, with the project's key and approved models bound
+    as a query run binds them. Needs the app, so it runs in the backend container."""
+
+    sys.path.insert(0, str(HERE.parents[1]))
+    from uuid import UUID
+
+    from sqlalchemy.orm import Session
+
+    from app.db.session import engine
+    from app.pipelines import rerank
+    from app.providers import generation
+    from app.services import provider_credentials
+
+    session = stack.enter_context(Session(engine))
+    stack.enter_context(provider_credentials.bound_for_project(session, UUID(project_id)))
+    provider = generation.provider_for()
+
+    def call(question: str, items: list[dict]):
+        return rerank.rerank(
+            question, items, node_id="rerank", model=spec["model"],
+            top_n=spec["top_n"], provider=provider,
+        )
+
+    return call
 
 
 def in_round(question: dict, round_id: str) -> bool:
@@ -246,6 +317,12 @@ class Run:
         queries = sum(
             r.get("query_embedding_estimate_usd") or 0
             for r in self.state.get("retrieval_cost", {}).values()
+        )
+        # Spec 0015: rerank calls of the retrieval checks, provider-reported.
+        queries += sum(
+            (r.get("rerank") or {}).get("cost_usd") or 0
+            for rounds in self.state.get("retrieval", {}).values()
+            for r in rounds.values()
         )
         answers = sum(
             r.get("cost_usd") or 0
@@ -618,50 +695,17 @@ class Run:
     def retrieve(self, round_id: str) -> None:
         questions = [q for q in load_questions() if in_round(q, round_id)]
         results = self.state.setdefault("retrieval", {}).setdefault(round_id, {})
+        rerank_spec = ROUNDS[round_id].get("rerank")
         query_bytes = 0
-        for question in questions:
-            if question["id"] in results:
-                continue
-            track = track_of(question["source"], self.sources)
-            index_id, built = self.index_for(track, round_id)
-            if not index_id:
-                results[question["id"]] = {"index_round": built, "status": "no index"}
-                continue
-            self.check_cap(0.001)
-            response = self.call(
-                "POST",
-                f"{self.project}/retrieval",
-                json={"index_id": index_id, "query": question["question"],
-                      "retrieval": {"mode": "vector", "top_k": 5}},
+        with ExitStack() as stack:
+            rerank_call = (
+                reranker(stack, self.state["project_id"], rerank_spec) if rerank_spec else None
             )
-            query_bytes += len(question["question"].encode("utf-8"))
-            evidence = response.get("evidence") or response.get("items") or []
-            phrases = [normalize(p) for p in question["phrases"]]
-            first_hit = None
-            for item in evidence:
-                text = normalize(item.get("text") or "")
-                if phrases and all(p in text for p in phrases):
-                    first_hit = item["rank"]
-                    break
-            results[question["id"]] = {
-                "index_round": built,
-                "status": "ok",
-                "first_hit_rank": first_hit,
-                "hit_at_1": first_hit == 1,
-                "hit_at_5": first_hit is not None,
-                "top": [
-                    {
-                        "rank": item["rank"],
-                        "source": item.get("source_url") or item.get("filename"),
-                        "page": item.get("page_number"),
-                        "section": " > ".join(item.get("section_path") or []),
-                        "distance": item.get("cosine_distance"),
-                        "text": (item.get("text") or "")[:300],
-                    }
-                    for item in evidence
-                ],
-            }
-            self.save()
+            for question in questions:
+                if question["id"] in results:
+                    continue
+                if self.retrieve_one(question, round_id, results, rerank_spec, rerank_call):
+                    query_bytes += len(question["question"].encode("utf-8"))
         cost = self.state.setdefault("retrieval_cost", {})
         previous = cost.get(round_id, {}).get("query_bytes", 0)
         cost[round_id] = {
@@ -675,6 +719,68 @@ class Run:
         hit1 = sum(results[q["id"]].get("hit_at_1", False) for q in answerable)
         hit5 = sum(results[q["id"]].get("hit_at_5", False) for q in answerable)
         print(f"{round_id}: hit@1 {hit1}/{len(answerable)}, hit@5 {hit5}/{len(answerable)}")
+        if rerank_spec:
+            plain = sum(
+                results[q["id"]].get("vector_first_hit_rank") is not None for q in answerable
+            )
+            print(f"{round_id} without reranking: hit@5 {plain}/{len(answerable)}")
+        print(f"Estimated spend so far: ${self.spent():.4f}")
+
+    def retrieve_one(self, question, round_id, results, rerank_spec, rerank_call) -> bool:
+        track = track_of(question["source"], self.sources)
+        index_id, built = self.index_for(track, round_id)
+        if not index_id:
+            results[question["id"]] = {"index_round": built, "status": "no index"}
+            return False
+        self.check_cap(0.003 if rerank_spec else 0.001)
+        response = self.call(
+            "POST",
+            f"{self.project}/retrieval",
+            json={"index_id": index_id, "query": question["question"],
+                  "retrieval": {"mode": "vector",
+                                "top_k": rerank_spec["candidates"] if rerank_spec else 5}},
+        )
+        evidence = response.get("evidence") or response.get("items") or []
+        phrases = [normalize(p) for p in question["phrases"]]
+        extra = {}
+        if rerank_spec:
+            # The plain vector top 5 of the same index, and where the answer sits among
+            # all the candidates the reranker could choose from.
+            extra = {
+                "vector_first_hit_rank": first_hit(evidence[:5], phrases),
+                "candidate_hit_rank": first_hit(evidence, phrases),
+            }
+            evidence, record = rerank_call(question["question"], evidence)
+            extra["rerank"] = {
+                **{k: record[k] for k in (
+                    "status", "message", "candidate_count", "candidates_read",
+                    "returned_count", "actual_model", "cost_usd", "rerank_ms")},
+                "order": [item["retriever_rank"] for item in record["order"]],
+            }
+        hit = first_hit(evidence, phrases)
+        results[question["id"]] = {
+            "index_round": built,
+            "status": "ok",
+            "first_hit_rank": hit,
+            "hit_at_1": hit == 1,
+            "hit_at_5": hit is not None,
+            **extra,
+            "top": [
+                {
+                    "rank": item["rank"],
+                    **({"retriever_rank": item["retriever_rank"]}
+                       if "retriever_rank" in item else {}),
+                    "source": item.get("source_url") or item.get("filename"),
+                    "page": item.get("page_number"),
+                    "section": " > ".join(item.get("section_path") or []),
+                    "distance": item.get("cosine_distance"),
+                    "text": (item.get("text") or "")[:300],
+                }
+                for item in evidence
+            ],
+        }
+        self.save()
+        return True
 
     # ask (paid) ----------------------------------------------------------
     def ask(self, round_id: str) -> None:
@@ -683,29 +789,35 @@ class Run:
             raise SystemExit(f"{ANSWER_MODEL} is not an available answer model.")
         answer_pipelines = self.state.setdefault("answer_pipelines", {})
         answers = self.state.setdefault("answers", {}).setdefault(round_id, {})
+        rerank_spec = ROUNDS.get(round_id, {}).get("rerank")
+        if rerank_spec and rerank_spec["model"] not in options["models"]:
+            raise SystemExit(f"{rerank_spec['model']} is not an approved model.")
         for question in load_questions():
             if not question["ask"] or not in_round(question, round_id):
                 continue
             track = track_of(question["source"], self.sources)
-            if round_id != "R1" and track not in ROUNDS[round_id]["tracks"]:
+            asked = ROUNDS[round_id].get("ask", ROUNDS[round_id]["tracks"])
+            if round_id != "R1" and track not in asked:
                 continue
             index_id, built = self.index_for(track, round_id)
             if not index_id:
                 answers[question["id"]] = {"status": "no index", "index_round": built}
                 continue
-            key = f"{track}:{built}"
+            key = f"{track}:{built}" + ("+rerank" if rerank_spec else "")
             if key not in answer_pipelines:
                 saved = self.call(
                     "POST",
                     f"{self.project}/pipelines",
-                    json=answer_pipeline(f"Real-source answers {key}", index_id, options["template"]),
+                    json=answer_pipeline(
+                        f"Real-source answers {key}", index_id, options["template"], rerank_spec
+                    ),
                 )
                 answer_pipelines[key] = {"pipeline_id": saved["pipeline_id"], "version_id": saved["id"]}
                 self.save()
             existing = answers.get(question["id"])
             if existing and existing["status"] not in {"running", "queued"}:
                 continue
-            self.check_cap(0.01)
+            self.check_cap(0.012)
             if not existing:
                 pipeline = answer_pipelines[key]
                 started = self.call(
@@ -718,8 +830,15 @@ class Run:
                                            "index_round": built}
                 self.save()
             done = self.wait_query(answers[question["id"]]["id"])
+            answer_cost = done["snapshot"].get("cost_usd")
+            # The run's cost is the answer call's; a Rerank node reports its own.
+            rerank = done["snapshot"].get("rerank") or {}
             answers[question["id"]].update(
-                status=done["status"], cost_usd=done["snapshot"].get("cost_usd")
+                status=done["status"],
+                cost_usd=None if answer_cost is None
+                else answer_cost + (rerank.get("cost_usd") or 0),
+                **({"rerank_status": rerank.get("status"),
+                    "rerank_cost_usd": rerank.get("cost_usd")} if rerank else {}),
             )
             self.save()
             print(f"{round_id} {question['id']} {done['status']}", flush=True)
@@ -745,6 +864,15 @@ class Run:
             run = self.call("GET", f"{self.project}/query-runs/{answer['id']}")
             snapshot = run["snapshot"]
             retrieved = (snapshot.get("retrieval_result") or {}).get("items") or []
+            rerank = snapshot.get("rerank")
+            if rerank:
+                # The prompt got the reranked passages, in the reranked order.
+                by_rank = {item["rank"]: item for item in retrieved}
+                retrieved = [
+                    {**by_rank[step["retriever_rank"]], "rank": step["rerank_rank"],
+                     "retriever_rank": step["retriever_rank"]}
+                    for step in rerank["order"]
+                ]
             lines.append({
                 "question_id": question_id,
                 "round": round_id,
@@ -757,6 +885,8 @@ class Run:
                 "evidence": [
                     {
                         "rank": item["rank"],
+                        **({"retriever_rank": item["retriever_rank"]}
+                           if "retriever_rank" in item else {}),
                         "source": item.get("source_url") or item.get("filename"),
                         "section": " > ".join(item.get("section_path") or []),
                         "text": item["text"],
@@ -764,7 +894,10 @@ class Run:
                     for item in retrieved
                 ],
                 "latency_ms": snapshot.get("total_ms"),
-                "cost_usd": snapshot.get("cost_usd"),
+                "cost_usd": answer.get("cost_usd", snapshot.get("cost_usd")),
+                **({"rerank": {k: rerank.get(k) for k in (
+                    "status", "message", "model", "cost_usd", "rerank_ms")}}
+                   if rerank else {}),
             })
         (self.work / f"answers_{round_id}.jsonl").write_text(
             "".join(json.dumps(line) + "\n" for line in lines)
@@ -772,11 +905,14 @@ class Run:
         print(f"Wrote {len(lines)} answers for {round_id}.")
 
 
-def answer_pipeline(name: str, index_id: str, template: str) -> dict:
+def answer_pipeline(name: str, index_id: str, template: str, rerank: dict | None = None) -> dict:
     nodes = [
         {"id": "question", "type": "question"},
         {"id": "retriever", "type": "retriever", "index_id": index_id,
-         "retrieval": {"mode": "vector", "top_k": 5}},
+         "retrieval": {"mode": "vector", "top_k": rerank["candidates"] if rerank else 5}},
+        # Spec 0015: the optional Rerank node (answer graph schema 3).
+        *([{"id": "rerank", "type": "rerank", "model": rerank["model"],
+            "top_n": rerank["top_n"]}] if rerank else []),
         {"id": "prompt", "type": "prompt", "template": template},
         {"id": "llm", "type": "llm", "model": ANSWER_MODEL, "max_tokens": 512,
          "temperature": 0},
@@ -787,7 +923,7 @@ def answer_pipeline(name: str, index_id: str, template: str) -> dict:
         "kind": "answer",
         "name": name,
         "execution": {
-            "schema_version": 2,
+            "schema_version": 3 if rerank else 2,
             "nodes": nodes,
             "edges": [{"source": a, "target": b} for a, b in zip(order, order[1:])],
         },

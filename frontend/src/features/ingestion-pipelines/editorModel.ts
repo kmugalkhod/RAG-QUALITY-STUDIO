@@ -51,17 +51,19 @@ export const defaultSensitiveDataPolicy: SensitiveDataPolicy = {
   government_id_formats: ['us_ssn', 'in_aadhaar'],
 };
 
-/** New drafts use the current extractor; saved layout-ocr-v1 versions stay frozen. */
-export const currentExtractVersion = 'layout-ocr-v5';
+/**
+ * New drafts use the current extractor (spec 0015 proof round: layout-ocr-v6 lost no
+ * answer and no top-5 hit); saved versions keep theirs.
+ */
+export const currentExtractVersion = 'layout-ocr-v6';
 
 /**
- * New drafts chunk with the current token versions (spec 0012 v3: splits and overlap
- * between words, no remainder under 40 bytes where it can join); saved versions stay
- * as saved.
+ * New drafts chunk with the current token versions (spec 0015 v5: the v3 passages with
+ * the table rows beside them); saved versions stay as saved.
  */
 export const currentChunkVersions = {
-  section_token: 'section-token-v3',
-  parent_child: 'parent-child-v3',
+  section_token: 'section-token-v5',
+  parent_child: 'parent-child-v5',
 } as const;
 
 /** The number at the end of a version label; a missing version is v1. */
