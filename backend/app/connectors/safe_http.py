@@ -262,7 +262,11 @@ class SafeHttpClient:
                 )
             if not allowed(current):
                 raise failure(
-                    "outside_scope", "The URL is outside the configured website scope."
+                    "outside_scope",
+                    f"The page redirects to {current[:300]}, outside the configured "
+                    "website scope."
+                    if redirects
+                    else "The URL is outside the configured website scope.",
                 )
             parts = urlsplit(current)
             port = parts.port or (443 if parts.scheme == "https" else 80)

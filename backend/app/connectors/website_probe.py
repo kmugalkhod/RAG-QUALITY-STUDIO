@@ -608,7 +608,7 @@ class _Probe:
             ),
         }
         links: list[str] = []
-        if page.status == "failed" and page.error_code == "outside_scope":
+        if page.error_code == "outside_scope":
             # A redirect left the site. Nothing is added; the rules use the
             # entered address and the card says why.
             signals.warnings.append("redirect_other_site")

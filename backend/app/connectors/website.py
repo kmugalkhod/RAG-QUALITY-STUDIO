@@ -25,6 +25,11 @@ from app.schemas.ingestion import WebsiteConfig, WebsiteFetchPolicy
 # Effective deadlines allow this much slack over the time the configured
 # request rate needs, so slow responses do not end a valid crawl early.
 DEADLINE_SAFETY_FACTOR = 1.5
+# Requests the deadline allows per page. A page often takes two redirects, to the
+# site's canonical host and to its trailing-slash path (www.rust-lang.org/a to
+# rust-lang.org/a to rust-lang.org/a/), and each hop keeps the origin's request rate.
+# Whether a scope fits the server maximum is still judged at one request per page.
+DEADLINE_REQUESTS_PER_PAGE = 3
 # A sitemap index is followed one level deep, to at most this many sitemaps.
 MAX_NESTED_SITEMAPS = 50
 # Links read from one page; admission limits still bound what is recorded.
@@ -65,8 +70,8 @@ def resolve_website_fetch_policy(config: object, settings) -> WebsiteFetchPolicy
     """Combine user scope with server-owned limits; the only place that does."""
     parsed = WebsiteConfig.model_validate(config)
     pages, depth = _page_budget(parsed)
-    requests = pages + _overhead_requests(parsed)
-    needed = requests / parsed.requests_per_second
+    overhead = _overhead_requests(parsed)
+    needed = (pages + overhead) / parsed.requests_per_second
     if needed > settings.website_deadline_max_seconds:
         raise WebsiteScopeTooLarge(
             f"{pages} pages at {parsed.requests_per_second:g} requests per second "
@@ -74,9 +79,13 @@ def resolve_website_fetch_policy(config: object, settings) -> WebsiteFetchPolicy
             f"{settings.website_deadline_max_seconds:.0f}-second crawl limit. "
             "Lower maximum pages or raise crawl speed."
         )
+    with_redirects = (
+        pages * DEADLINE_REQUESTS_PER_PAGE + overhead
+    ) / parsed.requests_per_second
     deadline = min(
         max(
-            needed * DEADLINE_SAFETY_FACTOR + settings.website_request_timeout_seconds,
+            with_redirects * DEADLINE_SAFETY_FACTOR
+            + settings.website_request_timeout_seconds,
             settings.website_deadline_min_seconds,
         ),
         settings.website_deadline_max_seconds,
@@ -1245,7 +1254,9 @@ class WebsiteConnector:
                     ),
                 )
             except ConnectorFailure as exc:
-                if exc.issue.code == "robots_disallowed":
+                # A page that redirects outside the configured origins or paths is
+                # not part of the site being indexed; it was not fetched.
+                if exc.issue.code in ("robots_disallowed", "outside_scope"):
                     return PageResult(
                         outcome(
                             url,
@@ -1253,6 +1264,12 @@ class WebsiteConnector:
                             exc.issue.message,
                             depth=depth,
                             attempts=tally[0],
+                            # The setting recommendations read an off-site redirect.
+                            **(
+                                {"code": exc.issue.code}
+                                if exc.issue.code == "outside_scope"
+                                else {}
+                            ),
                         )
                     )
                 message = exc.issue.message
@@ -1384,8 +1401,8 @@ class WebsiteConnector:
                 return False
             return settle(entry, result)
 
-        def drain(reason: str, status: str, code: str | None = None) -> bool:
-            for entry in store.drain_queued():
+        def close(entries, reason: str, status: str, code: str | None = None) -> bool:
+            for entry in entries:
                 result = PageResult(
                     outcome(entry.url, status, reason, depth=entry.depth, code=code)
                 )
@@ -1395,7 +1412,24 @@ class WebsiteConnector:
                     return False
             return True
 
+        def drain_at_deadline() -> bool:
+            # Only the pages the page limit still had room for were cut short; the
+            # rest would not have been fetched however long the crawl ran.
+            queued = store.drain_queued()
+            room = max(0, policy.max_pages - fetched - cut_short)
+            return close(
+                queued[:room],
+                "The crawl deadline passed before this page was fetched.",
+                "failed",
+                "deadline_exceeded",
+            ) and close(
+                queued[room:], "URL exceeds the configured page limit.", "excluded"
+            )
+
         fetched = resume.fetched_pages
+        # A page the deadline cut short takes its place in the page limit, so
+        # running out of time fails at most the pages the limit had room for.
+        cut_short = 0
         # Results are decided in the order pages were queued, so which of two
         # identical pages is kept does not depend on which response came first.
         inflight: deque = deque()
@@ -1404,7 +1438,7 @@ class WebsiteConnector:
                 while True:
                     while (
                         len(inflight) < policy.fetch_concurrency
-                        and fetched + len(inflight) < policy.max_pages
+                        and fetched + cut_short + len(inflight) < policy.max_pages
                         and self.clock() < deadline
                     ):
                         entry = store.next_queued()
@@ -1414,19 +1448,19 @@ class WebsiteConnector:
                     if not inflight:
                         if store.has_queued():
                             if self.clock() >= deadline:
-                                return drain(
-                                    "The crawl deadline passed before this page "
-                                    "was fetched.",
-                                    "failed",
-                                    "deadline_exceeded",
-                                )
+                                return drain_at_deadline()
                             # Every remaining URL is beyond the page limit.
-                            return drain(
-                                "URL exceeds the configured page limit.", "excluded"
+                            return close(
+                                store.drain_queued(),
+                                "URL exceeds the configured page limit.",
+                                "excluded",
                             )
                         return True
                     future, entry = inflight.popleft()
-                    if not record(entry, future.result()):
+                    result = future.result()
+                    if result.outcome.error_code == "deadline_exceeded":
+                        cut_short += 1
+                    if not record(entry, result):
                         return False
             finally:
                 # Stop requests in flight from retrying; their results are discarded.

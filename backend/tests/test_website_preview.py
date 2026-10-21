@@ -1547,6 +1547,83 @@ def test_queued_pages_fail_at_the_deadline_without_sleeping_past_it():
     assert len(outcomes) == len(urls)
 
 
+def test_at_the_deadline_only_pages_the_limit_had_room_for_fail():
+    # A slow site ends the crawl with 40 pages still queued and room for fewer: those
+    # were cut short, the rest would never have been fetched (www.rust-lang.org
+    # reported 390 failed pages for a 90-page crawl).
+    clock = FakeClock()
+    robots = (200, {"content-type": "text/plain"}, b"User-agent: *\nCrawl-delay: 10\n")
+    links = "".join(f"<a href='/p{n}'>Page {n}</a>" for n in range(40))
+    pages = {
+        "https://public.example/": (200, HTML, f"<main>{links}</main>".encode()),
+        **{
+            f"https://public.example/p{n}": (200, HTML, page_body(f"Page {n}"))
+            for n in range(40)
+        },
+    }
+    value = config(max_pages=10)
+    outcomes = connector_for(site(pages, robots), clock).discover_all(
+        value, policy(value)
+    )
+    included = [item for item in outcomes if item.status == "included"]
+    failed = [item for item in outcomes if item.status == "failed"]
+    beyond = [
+        item
+        for item in outcomes
+        if item.reason == "URL exceeds the configured page limit."
+    ]
+    assert 0 < len(included) < 10
+    assert len(failed) == 10 - len(included)
+    assert all(item.error_code == "deadline_exceeded" for item in failed)
+    assert len(beyond) == 41 - 10
+    assert all(item.status == "excluded" for item in beyond)
+    assert len(outcomes) == 41
+
+
+def test_deadline_allows_two_redirects_per_page():
+    # 90 pages at 2 requests per second, where every link redirects to the bare
+    # host and then to the trailing slash, as on www.rust-lang.org.
+    resolved = resolve_website_fetch_policy(
+        config(max_pages=90, requests_per_second=2), settings
+    )
+    assert resolved.deadline_seconds == pytest.approx(
+        (90 * 3 + 1) / 2 * 1.5 + settings.website_request_timeout_seconds
+    )
+    # Whether a scope fits the server maximum is still judged at one request per
+    # page, so no scope accepted before is now rejected.
+    fits = resolve_website_fetch_policy(
+        config(max_pages=340, requests_per_second=0.1), settings
+    )
+    assert fits.deadline_seconds == settings.website_deadline_max_seconds
+
+
+def test_a_page_that_redirects_into_an_excluded_path_is_excluded_not_failed():
+    transport = site(
+        {
+            "https://public.example/": (
+                200,
+                HTML,
+                b"<main><p>Home</p><a href='/people'>People</a></main>",
+            ),
+            "https://public.example/people": (301, {"location": "/people/"}, b""),
+        }
+    )
+    value = config(exclude_path_prefixes=["/people/"])
+    outcomes = connector_for(transport).discover_all(value, policy(value))
+    people = next(
+        item
+        for item in outcomes
+        if item.canonical_location == "https://public.example/people"
+    )
+    assert (people.status, people.reason) == (
+        "excluded",
+        "The page redirects to https://public.example/people/, outside the "
+        "configured website scope.",
+    )
+    assert not [item for item in outcomes if item.status == "failed"]
+    assert "https://public.example/people/" not in [call[0] for call in transport.calls]
+
+
 def test_redirect_hops_keep_the_rate_and_robots_rules_of_their_target():
     clock = FakeClock()
     robots = (
